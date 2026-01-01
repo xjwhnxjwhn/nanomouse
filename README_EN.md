@@ -37,6 +37,8 @@
 
 > 💡 If Squirrel is not installed, the installer will guide you (supports Homebrew auto-install)
 
+> ✅ **Safe Installation**: If you have existing Rime customizations, the installer will automatically backup and merge, not overwrite your settings.
+
 ### Windows
 
 1. Install [Weasel](https://rime.im/download/)
@@ -57,6 +59,16 @@ Copy these files to your Rime user directory and deploy:
 **Rime user directory:**
 - macOS: `~/Library/Rime/`
 - Windows: `%APPDATA%\Rime`
+
+> ⚠️ **Note**: Manual installation will overwrite files with the same name. Please backup your config first.
+
+## 🔄 Uninstall / Restore
+
+To restore your original config:
+1. Open `~/Library/Rime/`
+2. Find the `nanomouse_backup_*` folder
+3. Copy files back to `~/Library/Rime/`
+4. Deploy again
 
 ## 📄 License
 
