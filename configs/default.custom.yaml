@@ -1,0 +1,7 @@
+# 默认配置
+# 设置默认使用简体中文输入方案
+
+patch:
+  schema_list:
+    - schema: luna_pinyin_simp   # 简体中文（默认）
+    - schema: luna_pinyin        # 繁体中文

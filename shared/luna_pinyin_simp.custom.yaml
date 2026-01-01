@@ -1,0 +1,11 @@
+# 明月拼音·简化字 配置补丁
+# 功能：简化拼音输入
+
+patch:
+  "speller/algebra/+":
+    # 后鼻音简化：ng → nn
+    - derive/ng$/nn/
+    # 键位优化：uan → vn
+    - derive/uan$/vn/
+    # 键位优化：uang → vnn（直接映射，vn + nn）
+    - derive/uang$/vnn/

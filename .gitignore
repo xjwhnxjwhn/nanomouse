@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+*.dmg
+
+# Build outputs
+build/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Rime build files
+*.bin
+*.userdb/

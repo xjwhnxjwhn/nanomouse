@@ -1,0 +1,70 @@
+# Nanomouse Pinyin Input Method
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iOS-blue.svg)](#supported-platforms)
+
+🐭 Tiny pinyin key mapping optimizations for easier typing!
+
+[中文说明](./README.md)
+
+## ✨ Features
+
+### Nasal Sound Simplification (ng → nn)
+| Input | Original | Example |
+|-------|----------|---------|
+| `dann` | dang | 当 (dāng) |
+| `henn` | heng | 恒 (héng) |
+| `dinn` | ding | 定 (dìng) |
+
+### Key Position Optimization (uan/uang → vn/vnn)
+| Input | Original | Example |
+|-------|----------|---------|
+| `gvn` | guan | 关 (guān) |
+| `gvnn` | guang | 光 (guāng) |
+| `chvnn` | chuang | 床 (chuáng) |
+
+**Why "Nanomouse"?**
+- nano = Tiny (just a few lines of config)
+- mouse = Following Rime's tradition of small animal naming
+
+## 📥 Installation
+
+### macOS
+
+1. Download [Nanomouse-Installer.dmg](https://github.com/YOUR_USERNAME/nanomouse/releases/latest)
+2. Open DMG and run the installer
+3. Follow the prompts
+
+> 💡 If Squirrel is not installed, the installer will guide you (supports Homebrew auto-install)
+
+### Windows
+
+1. Install [Weasel](https://rime.im/download/)
+2. Download config files and copy to `%APPDATA%\Rime`
+3. Right-click taskbar icon → Deploy
+
+### iOS (Coming Soon)
+
+iOS version is under development.
+
+## 🔧 Manual Installation
+
+Copy these files to your Rime user directory and deploy:
+
+- `default.custom.yaml` - Sets Simplified Chinese as default
+- `luna_pinyin_simp.custom.yaml` - Key mapping rules
+
+**Rime user directory:**
+- macOS: `~/Library/Rime/`
+- Windows: `%APPDATA%\Rime`
+
+## 📄 License
+
+[MIT License](./LICENSE)
+
+## 🙏 Acknowledgments
+
+- [RIME Input Method Engine](https://rime.im/)
+- [Squirrel](https://github.com/rime/squirrel)
+- [Weasel](https://github.com/rime/weasel)
+- [Hamster](https://github.com/imfuxiao/Hamster)

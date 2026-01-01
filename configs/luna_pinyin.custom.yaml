@@ -1,0 +1,12 @@
+# Rime 明月拼音方案配置补丁
+# 功能：1) 默认简体中文 2) 将 nn 映射为 ng
+# 安装：复制此文件到 Rime 用户目录，然后重新部署
+
+patch:
+  # 默认使用简体中文（0=繁体, 1=简体）
+  "switches/@0/reset": 1
+  
+  # 拼写规则：在原有规则基础上追加 nn -> ng 映射
+  "speller/algebra/@before last":
+    - derive/ng$/nn/            # 后鼻音 ng → nn 映射
+    - derive/([aeiou])ng$/$1nn/ # 确保元音+ng 也能用 nn 替代
