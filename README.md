@@ -31,7 +31,7 @@
 
 ### macOS
 
-1. 下载 [Nanomouse-Installer.dmg](https://github.com/YOUR_USERNAME/nanomouse/releases/latest)
+1. 下载 [Nanomouse-Installer.dmg](https://github.com/xjwhnxjwhn/nanomouse/releases/latest)
 2. 打开 DMG，双击「Nanomouse 安装器」
 3. 按提示完成安装
 
