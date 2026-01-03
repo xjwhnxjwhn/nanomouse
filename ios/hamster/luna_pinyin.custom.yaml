@@ -1,7 +1,0 @@
-# Rime 明月拼音方案配置补丁 - iOS 仓输入法版
-# 功能：将 nn 映射为 ng，让输入更顺手
-
-patch:
-  "speller/algebra/@before last":
-    - derive/ng$/nn/
-    - derive/([aeiou])ng$/$1nn/
