@@ -42,6 +42,9 @@ final class RimeConfigManager: ObservableObject {
     private let sharedSupportBookmarkKey = "SquirrelSharedSupportBookmark"
     private var sharedSupportBookmarkURL: URL?
     private static let defaultSharedSupportPath = URL(fileURLWithPath: "/Library/Input Methods/Squirrel.app/Contents/SharedSupport", isDirectory: true)
+    private var buildPath: URL {
+        rimePath.appendingPathComponent("build", isDirectory: true)
+    }
 
     /// Executes a block of code with security-scoped access to the Rime directory.
     func withSecurityScopedAccess<T>(_ action: () throws -> T) rethrows -> T {
@@ -98,6 +101,12 @@ final class RimeConfigManager: ObservableObject {
 
         let bookmarked = loadBookmark()
         let sharedBookmarked = loadSharedSupportBookmark()
+        if sharedBookmarked || checkSharedSupportAccess() {
+            self.hasSharedSupportAccess = true
+        } else {
+            self.hasSharedSupportAccess = false
+        }
+
         loadConfig()
 
         if bookmarked || checkActualAccess() {
@@ -108,11 +117,6 @@ final class RimeConfigManager: ObservableObject {
             statusMessage = L10n.accessRequired
         }
 
-        if sharedBookmarked || checkSharedSupportAccess() {
-            self.hasSharedSupportAccess = true
-        } else {
-            self.hasSharedSupportAccess = false
-        }
     }
 
     func resetSharedSupportAccess() {
@@ -121,7 +125,7 @@ final class RimeConfigManager: ObservableObject {
         self.sharedSupportPath = Self.defaultSharedSupportPath
         self.hasSharedSupportAccess = false
         self.statusMessage = L10n.sharedSupportAccessReset
-        self.parseAvailableSchemas()
+        self.loadConfig()
     }
 
     private func checkActualAccess() -> Bool {
@@ -200,7 +204,7 @@ final class RimeConfigManager: ObservableObject {
                 self.sharedSupportPath = resolvedSharedSupport
                 self.hasSharedSupportAccess = true
                 self.statusMessage = L10n.sharedSupportAccessSuccess
-                self.parseAvailableSchemas()
+                self.loadConfig()
             } catch {
                 self.statusMessage = String(format: L10n.sharedSupportAccessFailed, error.localizedDescription)
             }
@@ -395,7 +399,9 @@ final class RimeConfigManager: ObservableObject {
                 return
             }
 
-            let defaultBase = loadYamlDictionary(named: "default.yaml")
+            let buildDefaultURL = buildPath.appendingPathComponent("default.yaml")
+            let useBuildDefault = !hasSharedSupportAccess && fileManager.fileExists(atPath: buildDefaultURL.path)
+            let defaultBase = useBuildDefault ? loadYamlDictionary(from: buildDefaultURL) : loadYamlDictionary(named: "default.yaml")
             let defaultPatch = loadPatchDictionary(named: "default.custom.yaml")
             patchConfigs[.default] = defaultPatch
             mergedConfigs[.default] = mergedDictionary(base: defaultBase, patch: normalizeRimeDictionary(defaultPatch))
@@ -495,6 +501,12 @@ final class RimeConfigManager: ObservableObject {
 
         for (id, url) in schemaFiles(in: rimePath) {
             result[id] = url
+        }
+
+        if !hasSharedSupportAccess, fileManager.fileExists(atPath: buildPath.path) {
+            for (id, url) in schemaFiles(in: buildPath) where result[id] == nil {
+                result[id] = url
+            }
         }
 
         for sharedPath in squirrelSharedSupportPaths() {
@@ -1090,12 +1102,16 @@ final class RimeConfigManager: ObservableObject {
 
     private func loadYamlDictionary(named fileName: String) -> [String: Any] {
         let url = rimePath.appendingPathComponent(fileName)
+        return loadYamlDictionary(from: url)
+    }
+
+    private func loadYamlDictionary(from url: URL) -> [String: Any] {
         guard fileManager.fileExists(atPath: url.path),
               let contents = try? String(contentsOf: url, encoding: .utf8),
               let root = try? Yams.load(yaml: contents) as? [String: Any] else {
             return [:]
         }
-          return normalizeRimeDictionary(root)
+        return normalizeRimeDictionary(root)
     }
 
     private func mergedDictionary(base: [String: Any], patch: [String: Any]) -> [String: Any] {
