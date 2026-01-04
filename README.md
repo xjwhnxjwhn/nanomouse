@@ -45,9 +45,13 @@
 2. 下载配置文件，复制到 `%APPDATA%\Rime`
 3. 右键任务栏图标 → 重新部署
 
-### iOS（即将推出）
+### iOS
 
-iOS 版本正在开发中，敬请期待。
+iOS 版本源代码位于 `ios/` 目录。请查看 [iOS README](./ios/README.md) 获取编译运行说明。
+
+### macOS
+
+macOS 配置工具位于 `mac/gui/` 目录，提供简单的图形化配置界面。
 
 ## 🔧 手动安装
 
@@ -59,6 +63,8 @@ iOS 版本正在开发中，敬请期待。
 |----------|----------|
 | 明月拼音 | `luna_pinyin_simp.custom.yaml` |
 | 雾凇拼音 | `rime_ice.custom.yaml` |
+| 自然码双拼 | `double_pinyin.custom.yaml` |
+| 小鹤双拼 | `double_pinyin_flypy.custom.yaml` |
 
 还需复制 `default.custom.yaml` 设置默认使用简体中文。
 

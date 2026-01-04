@@ -45,16 +45,28 @@
 2. Download config files and copy to `%APPDATA%\Rime`
 3. Right-click taskbar icon → Deploy
 
-### iOS (Coming Soon)
+### iOS
 
-iOS version is under development.
+The iOS version source code is located in the `ios/` directory. Please check the [iOS README](./ios/README.md) for build and run instructions.
+
+### macOS
+
+The macOS configuration tool is located in the `mac/gui/` directory, providing a simple graphical interface for configuration.
 
 ## 🔧 Manual Installation
 
 Copy these files to your Rime user directory and deploy:
 
-- `default.custom.yaml` - Sets Simplified Chinese as default
-- `luna_pinyin_simp.custom.yaml` - Key mapping rules
+**Select based on your input schema:**
+
+| Input Schema | Config File |
+|--------------|-------------|
+| Luna Pinyin | `luna_pinyin_simp.custom.yaml` |
+| Rime Ice | `rime_ice.custom.yaml` |
+| Double Pinyin (Ziranma) | `double_pinyin.custom.yaml` |
+| Double Pinyin (Flypy) | `double_pinyin_flypy.custom.yaml` |
+
+Also copy `default.custom.yaml` to set Simplified Chinese as default.
 
 **Rime user directory:**
 - macOS: `~/Library/Rime/`
