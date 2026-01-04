@@ -1,0 +1,29 @@
+patch:
+  app_options/co.zeit.hyper/ascii_mode: true
+  app_options/com.alfredapp.Alfred/ascii_mode: true
+  app_options/com.apple.Spotlight/ascii_mode: true
+  app_options/com.apple.Terminal/ascii_mode: true
+  app_options/com.apple.Terminal/no_inline: true
+  app_options/com.apple.dt.Xcode/ascii_mode: true
+  app_options/com.github.atom/ascii_mode: true
+  app_options/com.google.Chrome/inline: true
+  app_options/com.googlecode.iterm2/ascii_mode: true
+  app_options/com.googlecode.iterm2/no_inline: true
+  app_options/com.macromates.TextMate.preview/ascii_mode: true
+  app_options/com.microsoft.VSCode/ascii_mode: true
+  app_options/com.microsoft.edgemac/inline: true
+  app_options/com.sublimetext.2/ascii_mode: true
+  app_options/org.gnu.Aquamacs/ascii_mode: true
+  app_options/org.gnu.Emacs/ascii_mode: true
+  app_options/org.gnu.Emacs/no_inline: true
+  app_options/org.vim.MacVim/ascii_mode: true
+  app_options/org.vim.MacVim/no_inline: true
+  app_options/org.vim.MacVim/vim_mode: true
+  app_options/ru.keepcoder.Telegram/inline: true
+  style/alpha: 0.8
+  style/color_scheme: dark_temple
+  style/color_scheme_dark: dark_temple
+  style/font_face: Sarasa UI SC
+  style/font_point: 16
+  style/shadow_size: 2
+  style/translucency: true

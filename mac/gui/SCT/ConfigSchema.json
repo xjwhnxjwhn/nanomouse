@@ -1,0 +1,460 @@
+{
+  "version": 1,
+  "meta": {
+    "description": "Schema-driven UI definition for Nanomouse GUI. Each field describes how a YAML key should be presented and patched.",
+    "targetFiles": {
+      "default": "default.custom.yaml",
+      "squirrel": "squirrel.custom.yaml"
+    }
+  },
+  "sections": [
+    {
+      "id": "schemes.list",
+      "title": "方案列表",
+      "icon": "list.bullet.indent",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "schemaList",
+          "label": "方案列表",
+          "type": "schemaList",
+          "keyPath": "schema_list",
+          "itemKey": "schema",
+          "allowReorder": true,
+          "allowToggle": true,
+          "dataSource": {
+            "file": "default.yaml",
+            "keyPath": "schema_list"
+          }
+        }
+      ]
+    },
+    {
+      "id": "panel.menu",
+      "title": "面板菜单",
+      "icon": "list.number",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "pageSize",
+          "label": "候选词个数",
+          "description": "每页显示的候选词数量 (3-10)",
+          "type": "stepper",
+          "keyPath": "menu/page_size",
+          "min": 3,
+          "max": 10,
+          "default": 5
+        }
+      ]
+    },
+    {
+      "id": "switcher",
+      "title": "方案选单",
+      "icon": "switch.2",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "caption",
+          "label": "标题",
+          "type": "text",
+          "keyPath": "switcher/caption"
+        },
+        {
+          "id": "hotkeys",
+          "label": "快捷键",
+          "description": "触发方案选单的全局快捷键",
+          "type": "hotkeyList",
+          "keyPath": "switcher/hotkeys"
+        },
+        {
+          "id": "saveOptions",
+          "label": "记忆选项",
+          "description": "在方案选单中切换后需要记住的状态",
+          "type": "multiSelect",
+          "keyPath": "switcher/save_options",
+          "choices": [
+            "ascii_punct",
+            "traditionalization",
+            "emoji",
+            "full_shape",
+            "search_single_char"
+          ]
+        },
+        {
+          "id": "foldOptions",
+          "label": "折叠菜单",
+          "type": "toggle",
+          "keyPath": "switcher/fold_options"
+        },
+        {
+          "id": "abbreviateOptions",
+          "label": "折叠缩写",
+          "type": "toggle",
+          "keyPath": "switcher/abbreviate_options"
+        },
+        {
+          "id": "optionSeparator",
+          "label": "选项分隔符",
+          "type": "text",
+          "keyPath": "switcher/option_list_separator"
+        }
+      ]
+    },
+    {
+      "id": "asciiComposer",
+      "title": "中英切换",
+      "icon": "textformat.abc",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "capsLockMode",
+          "label": "保持 Caps Lock 原功能",
+          "description": "勾选此项后 Caps Lock 键用于切换大写锁定，否则用于切换中英文输入状态",
+          "type": "toggle",
+          "keyPath": "ascii_composer/good_old_caps_lock"
+        },
+        {
+          "id": "switchKeyMap",
+          "label": "切换按键设置",
+          "description": "切换到英文模式前的行为，‘行内英文’会在回车输入英文后切回中文模式",
+          "type": "keyMapping",
+          "keyPath": "ascii_composer/switch_key",
+          "choices": [
+            "commit_code",
+            "commit_text",
+            "inline_ascii",
+            "clear",
+            "noop"
+          ],
+          "keys": [
+            "Caps_Lock",
+            "Shift_L",
+            "Shift_R",
+            "Control_L",
+            "Control_R"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "punctuation",
+      "title": "标点与识别",
+      "icon": "text.redaction",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "digitSeparators",
+          "label": "数字连续上屏",
+          "type": "chipList",
+          "keyPath": "punctuator/digit_separators",
+          "delimiter": ""
+        },
+        {
+          "id": "digitSeparatorAction",
+          "label": "数字符号行为",
+          "type": "enum",
+          "keyPath": "punctuator/digit_separator_action",
+          "choices": ["commit", "noop"],
+          "optional": true
+        },
+        {
+          "id": "fullShape",
+          "label": "全角映射",
+          "type": "mapping",
+          "keyPath": "punctuator/full_shape"
+        },
+        {
+          "id": "halfShape",
+          "label": "半角映射",
+          "type": "mapping",
+          "keyPath": "punctuator/half_shape"
+        },
+        {
+          "id": "patterns",
+          "label": "识别模式",
+          "type": "regexTable",
+          "keyPath": "recognizer/patterns"
+        }
+      ]
+    },
+    {
+      "id": "keyBinder",
+      "title": "快捷键",
+      "icon": "keyboard",
+      "targetFile": "default",
+      "fields": [
+        {
+          "id": "selectPair",
+          "label": "以词定字",
+          "type": "hotkeyPairList",
+          "keyPath": "key_binder/select_pair",
+          "pairLabels": ["首字", "末字"]
+        },
+        {
+          "id": "cursorPair",
+          "label": "移动光标",
+          "type": "hotkeyPairList",
+          "keyPath": "key_binder/cursor_pair",
+          "pairLabels": ["上个拼音", "下个拼音"]
+        },
+        {
+          "id": "pagePair",
+          "label": "翻页",
+          "type": "hotkeyPairList",
+          "keyPath": "key_binder/page_pair",
+          "pairLabels": ["上页", "下页"]
+        }
+      ]
+    },
+    {
+      "id": "keyboard",
+      "title": "键盘体验",
+      "icon": "keyboard.badge.ellipsis",
+      "targetFile": "squirrel",
+      "fields": [
+        {
+          "id": "layout",
+          "label": "拉丁键盘布局",
+          "type": "enum",
+          "keyPath": "keyboard_layout",
+          "choices": ["last", "default", "_custom_"]
+        },
+        {
+          "id": "chordDuration",
+          "label": "和弦时间",
+          "type": "stepper",
+          "keyPath": "chord_duration",
+          "min": 0.05,
+          "max": 0.5,
+          "step": 0.05
+        },
+        {
+          "id": "notifications",
+          "label": "通知时机",
+          "type": "enum",
+          "keyPath": "show_notifications_when",
+          "choices": ["always", "never", "appropriate"]
+        }
+      ]
+    },
+    {
+      "id": "style",
+      "title": "面板样式",
+      "icon": "paintpalette",
+      "targetFile": "squirrel",
+      "fields": [
+        {
+          "id": "colorScheme",
+          "label": "亮色皮肤",
+          "type": "enum",
+          "keyPath": "style/color_scheme",
+          "choicesRef": "preset_color_schemes"
+        },
+        {
+          "id": "colorSchemeDark",
+          "label": "暗色皮肤",
+          "type": "enum",
+          "keyPath": "style/color_scheme_dark",
+          "choicesRef": "preset_color_schemes"
+        },
+        {
+          "id": "candidateLayout",
+          "label": "排列方式",
+          "description": "stack 为竖排，linear 为横排",
+          "type": "segmented",
+          "keyPath": "style/candidate_list_layout",
+          "choices": ["stacked", "linear"]
+        },
+        {
+          "id": "textOrientation",
+          "label": "文字方向",
+          "type": "segmented",
+          "keyPath": "style/text_orientation",
+          "choices": ["horizontal", "vertical"]
+        },
+        {
+          "id": "inlinePreedit",
+          "label": "内嵌编码",
+          "type": "toggle",
+          "keyPath": "style/inline_preedit"
+        },
+        {
+          "id": "inlineCandidate",
+          "label": "内嵌候选",
+          "type": "toggle",
+          "keyPath": "style/inline_candidate"
+        },
+        {
+          "id": "memorizeSize",
+          "label": "记忆窗口尺寸",
+          "type": "toggle",
+          "keyPath": "style/memorize_size"
+        },
+        {
+          "id": "mutualExclusive",
+          "label": "色彩不叠加",
+          "type": "toggle",
+          "keyPath": "style/mutual_exclusive"
+        },
+        {
+          "id": "translucency",
+          "label": "磨砂效果",
+          "type": "toggle",
+          "keyPath": "style/translucency"
+        },
+        {
+          "id": "showPaging",
+          "label": "显示翻页箭头",
+          "type": "toggle",
+          "keyPath": "style/show_paging"
+        },
+        {
+          "id": "fontFace",
+          "label": "字体",
+          "type": "fontPicker",
+          "keyPath": "style/font_face"
+        },
+        {
+          "id": "fontPoint",
+          "label": "字号",
+          "type": "stepper",
+          "keyPath": "style/font_point",
+          "min": 10,
+          "max": 32
+        },
+        {
+          "id": "cornerRadius",
+          "label": "圆角",
+          "type": "stepper",
+          "keyPath": "style/corner_radius",
+          "min": 0,
+          "max": 20
+        },
+        {
+          "id": "hilitedCornerRadius",
+          "label": "高亮圆角",
+          "type": "stepper",
+          "keyPath": "style/hilited_corner_radius",
+          "min": 0,
+          "max": 20
+        },
+        {
+          "id": "borderHeight",
+          "label": "边框高度",
+          "type": "stepper",
+          "keyPath": "style/border_height",
+          "min": -5,
+          "max": 10
+        },
+        {
+          "id": "borderWidth",
+          "label": "边框宽度",
+          "type": "stepper",
+          "keyPath": "style/border_width",
+          "min": -5,
+          "max": 10
+        },
+        {
+          "id": "lineSpacing",
+          "label": "候选行距",
+          "type": "stepper",
+          "keyPath": "style/line_spacing",
+          "min": 0,
+          "max": 12
+        },
+        {
+          "id": "spacing",
+          "label": "拼音间距",
+          "type": "stepper",
+          "keyPath": "style/spacing",
+          "min": 0,
+          "max": 20
+        },
+        {
+          "id": "alpha",
+          "label": "透明度",
+          "type": "slider",
+          "keyPath": "style/alpha",
+          "min": 0,
+          "max": 1,
+          "step": 0.05
+        },
+        {
+          "id": "shadowSize",
+          "label": "阴影",
+          "type": "stepper",
+          "keyPath": "style/shadow_size",
+          "min": 0,
+          "max": 10
+        },
+        {
+          "id": "candidateFormat",
+          "label": "候选格式",
+          "type": "text",
+          "keyPath": "style/candidate_format"
+        }
+      ]
+    },
+    {
+      "id": "appOptions",
+      "title": "应用程序",
+      "icon": "rectangle.3.group",
+      "targetFile": "squirrel",
+      "fields": [
+        {
+          "id": "appsTable",
+          "label": "应用列表",
+          "description": "为特定应用程序设置输入行为（如在终端中默认使用英文）",
+          "type": "appOptions",
+          "keyPath": "app_options",
+          "columns": [
+            {"key": "bundleID", "label": "应用程序 ID", "type": "text", "isKey": true},
+            {"key": "ascii_mode", "label": "默认英文", "type": "toggle"},
+            {"key": "inline", "label": "临时内嵌", "type": "toggle", "optional": true},
+            {"key": "no_inline", "label": "禁用内嵌", "type": "toggle", "optional": true},
+            {"key": "vim_mode", "label": "Vim 模式", "type": "toggle", "optional": true}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "presetColorSchemes",
+      "title": "皮肤库",
+      "icon": "square.stack.3d.forward.dottedline",
+      "targetFile": "squirrel",
+      "fields": [
+        {
+          "id": "schemes",
+          "label": "皮肤集合",
+          "type": "collection",
+          "keyPath": "preset_color_schemes",
+          "itemSchema": "colorScheme"
+        }
+      ]
+    }
+  ],
+  "itemSchemas": {
+    "colorScheme": [
+      {"key": "name", "label": "名称", "type": "text"},
+      {"key": "author", "label": "作者", "type": "text", "optional": true},
+      {"key": "font_face", "label": "字体", "type": "fontPicker", "optional": true},
+      {"key": "font_point", "label": "字号", "type": "slider", "min": 10, "max": 32, "optional": true},
+      {"key": "candidate_list_layout", "label": "排列", "type": "segmented", "choices": ["stacked", "linear"], "optional": true},
+      {"key": "inline_preedit", "label": "内嵌编码", "type": "toggle", "optional": true},
+      {"key": "inline_candidate", "label": "内嵌候选", "type": "toggle", "optional": true},
+      {"key": "corner_radius", "label": "圆角", "type": "stepper", "min": 0, "max": 20, "optional": true},
+      {"key": "line_spacing", "label": "行距", "type": "stepper", "min": 0, "max": 12, "optional": true},
+      {"key": "alpha", "label": "透明度", "type": "slider", "min": 0, "max": 1, "step": 0.05, "optional": true},
+      {"key": "spacing", "label": "间距", "type": "stepper", "min": 0, "max": 20, "optional": true},
+      {"key": "color_space", "label": "色域", "type": "enum", "choices": ["srgb", "display_p3"], "optional": true},
+      {"key": "back_color", "label": "背景色", "type": "colorBGR"},
+      {"key": "candidate_text_color", "label": "候选文字", "type": "colorBGR"},
+      {"key": "hilited_candidate_back_color", "label": "高亮背景", "type": "colorBGR"},
+      {"key": "hilited_candidate_text_color", "label": "高亮文字", "type": "colorBGR"},
+      {"key": "comment_text_color", "label": "注释文字", "type": "colorBGR", "optional": true},
+      {"key": "hilited_comment_text_color", "label": "高亮注释", "type": "colorBGR", "optional": true},
+      {"key": "text_color", "label": "拼音", "type": "colorBGR", "optional": true},
+      {"key": "hilited_text_color", "label": "高亮拼音", "type": "colorBGR", "optional": true}
+    ]
+  }
+}

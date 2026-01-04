@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Environment Versions
+        run: |
+          echo "--- macOS Version ---"
+          sw_vers
+          echo "--- Xcode Version ---"
+          xcodebuild -version
+          echo "--- SDK Version ---"
+          xcrun --show-sdk-version
+          echo "--- SDK Path ---"
+          xcrun --show-sdk-path
+
+      - name: Install Apple Certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          # Import certificate
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Build and Archive
+        run: |
+          xcodebuild archive \
+            -project SCT.xcodeproj \
+            -scheme SCT \
+            -configuration Release \
+            -archivePath build/SCT.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp"
+
+      - name: Export App
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/SCT.xcarchive \
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath build/Export
+
+      - name: Notarize App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          ditto -c -k --keepParent build/Export/SCT.app build/SCT.zip
+          xcrun notarytool submit build/SCT.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+      - name: Staple App
+        run: |
+          xcrun stapler staple build/Export/SCT.app
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "SCT" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --icon "SCT.app" 200 190 \
+            --hide-extension "SCT.app" \
+            --app-drop-link 600 185 \
+            "SCT.dmg" \
+            "build/Export/SCT.app"
+
+      - name: Cache Sparkle Tools
+        uses: actions/cache@v3
+        with:
+          path: sparkle_tools/bin/generate_appcast
+          key: sparkle-tools-2.8.1
+
+      - name: Generate Sparkle Metadata
+        run: |
+          if [ ! -f ./sparkle_tools/bin/generate_appcast ]; then
+            mkdir -p sparkle_tools
+            curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.8.1/Sparkle-2.8.1.tar.xz -o sparkle.tar.xz
+            tar -xJf sparkle.tar.xz -C ./sparkle_tools ./bin/generate_appcast
+          fi
+
+          echo "${{ secrets.SPARKLE_PRIVATE_KEY }}" | ./sparkle_tools/bin/generate_appcast \
+            --ed-key-file - \
+            --link "https://github.com/neolee/sct" \
+            --download-url-prefix "https://github.com/neolee/sct/releases/download/${{ github.ref_name }}/" \
+            .
+
+      - name: Commit and Push appcast.xml
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add appcast.xml
+          git commit -m "ci: update appcast.xml for ${{ github.ref_name }} [skip ci]" || echo "No changes to appcast.xml"
+          git push origin HEAD:main
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            SCT.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
