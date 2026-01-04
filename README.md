@@ -51,10 +51,16 @@ iOS 版本正在开发中，敬请期待。
 
 ## 🔧 手动安装
 
-将以下文件复制到 Rime 用户目录，然后重新部署：
+将配置文件复制到 Rime 用户目录，然后重新部署：
 
-- `default.custom.yaml` - 默认使用简体中文
-- `luna_pinyin_simp.custom.yaml` - 键位映射规则
+**根据你使用的输入方案选择：**
+
+| 输入方案 | 配置文件 |
+|----------|----------|
+| 明月拼音 | `luna_pinyin_simp.custom.yaml` |
+| 雾凇拼音 | `rime_ice.custom.yaml` |
+
+还需复制 `default.custom.yaml` 设置默认使用简体中文。
 
 **Rime 用户目录：**
 - macOS: `~/Library/Rime/`

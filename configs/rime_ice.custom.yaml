@@ -1,0 +1,12 @@
+# Nanomouse 拼音优化配置
+# 适用于：雾凇拼音 (rime-ice)
+# https://github.com/xjwhnxjwhn/nanomouse
+
+patch:
+  "speller/algebra/+":
+    # 后鼻音简化：ng → nn
+    - derive/ng$/nn/
+    # 键位优化：uan → vn
+    - derive/uan$/vn/
+    # 键位优化：uang → vnn
+    - derive/uang$/vnn/
