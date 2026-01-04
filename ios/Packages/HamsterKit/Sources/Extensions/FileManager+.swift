@@ -145,7 +145,7 @@ public extension FileManager {
       // iCloud中的URL须添加安全访问资源语句，否则会异常：Operation not permitted
       // startAccessingSecurityScopedResource与stopAccessingSecurityScopedResource必须成对出现
       if !zipURL.startAccessingSecurityScopedResource() {
-        throw "Zip文件读取权限受限"
+        throw StringError("Zip文件读取权限受限")
       }
 
       let tempPath = temporaryDirectory.appendingPathComponent(zipURL.lastPathComponent)
@@ -165,7 +165,7 @@ public extension FileManager {
 
     // 读取ZIP内容
     guard let archive = Archive(url: tempURL, accessMode: .read) else {
-      throw "读取Zip文件异常"
+      throw StringError("读取Zip文件异常")
     }
 
     // 解压缩文件，已存在文件先删除在解压
@@ -252,14 +252,22 @@ public extension FileManager {
   // 注意：AppGroup已变为Keyboard复制方案使用的中转站
   // App内部使用位置在 Document 和 iCloud 下
   static var shareURL: URL {
-    FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)!
-      .appendingPathComponent("InputSchema")
+    guard let containerURL = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)
+    else {
+      assertionFailure("Missing App Group container for \(HamsterConstants.appGroupName)")
+      let fallback = (try? FileManager.default.url(
+        for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+      )) ?? FileManager.default.temporaryDirectory
+      return fallback.appendingPathComponent("InputSchema")
+    }
+    return containerURL.appendingPathComponent("InputSchema")
   }
 
   static var sandboxDirectory: URL {
-    try! FileManager.default
-      .url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+    (try? FileManager.default.url(
+      for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true
+    )) ?? FileManager.default.temporaryDirectory
   }
 
   // AppGroup共享下: SharedSupport目录

@@ -12,7 +12,7 @@ import Yams
 /// UserDefault 扩展
 public extension UserDefaults {
   /// AppGroup 共享 UserDefaults
-  static let hamster = UserDefaults(suiteName: HamsterConstants.appGroupName)!
+  static let hamster = UserDefaults(suiteName: HamsterConstants.appGroupName) ?? .standard
 
   // MARK: - Nanomouse 1.0 版本相关参数
 

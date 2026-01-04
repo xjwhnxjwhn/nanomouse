@@ -829,7 +829,8 @@ private extension KeyboardInputViewController {
    */
   func setupRIME() {
     // 异步 RIME 引擎启动
-    Task.detached { [unowned self] in
+    Task.detached { [weak self] in
+      guard let self else { return }
 //      if await rimeContext.isRunning {
 //        Logger.statistics.debug("shutdown rime engine")
 //        // 这里关闭引擎是为了使 RIME 内存中的自造词落盘。

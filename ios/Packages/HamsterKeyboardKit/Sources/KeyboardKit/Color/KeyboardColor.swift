@@ -65,9 +65,14 @@ public extension KeyboardColor {
     if let color = Self.cacheColor[resourceName] {
       return color
     }
-    let color = UIColor(named: resourceName, in: Self.bundle, compatibleWith: .none)!
-    Self.cacheColor[resourceName] = color
-    return color
+    if let color = UIColor(named: resourceName, in: Self.bundle, compatibleWith: .none) {
+      Self.cacheColor[resourceName] = color
+      return color
+    }
+    assertionFailure("Missing color asset: \(resourceName)")
+    let fallback = UIColor.clear
+    Self.cacheColor[resourceName] = fallback
+    return fallback
   }
 
   /**

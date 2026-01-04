@@ -26,6 +26,30 @@ public class FileServer {
     }
   }
 
+  private func relativePath(from reqPath: String, prefix: String) -> String {
+    var path = reqPath
+    if path.hasPrefix(prefix) {
+      path = String(path.dropFirst(prefix.count))
+    }
+    while path.hasPrefix("/") {
+      path.removeFirst()
+    }
+    return path
+  }
+
+  private func apiPath(from relativePath: String) -> String {
+    relativePath.isEmpty ? "/" : "/" + relativePath
+  }
+
+  private func resolvePublicURL(relativePath: String) -> URL? {
+    let base = publicDirectory.standardizedFileURL
+    let resolved = URL(fileURLWithPath: relativePath, relativeTo: base).standardizedFileURL
+    let basePath = base.path.hasSuffix("/") ? base.path : base.path + "/"
+    let resolvedPath = resolved.path
+    guard resolvedPath == base.path || resolvedPath.hasPrefix(basePath) else { return nil }
+    return resolved
+  }
+
   public func start() {
     // index page
     if let staticBundle = staticBundle, let path = staticBundle.path(forResource: "index", ofType: "html") {
@@ -88,12 +112,10 @@ public class FileServer {
 
   /// 容量信息
   private func usageHandler(_ req: GCDWebServerRequest) -> GCDWebServerDataResponse? {
-    var path = "/"
-    let reqPath = req.path
-    if reqPath.hasPrefix("/api/usage") {
-      path = String(reqPath.dropFirst("/api/usage".count))
+    let relativePath = relativePath(from: req.path, prefix: "/api/usage")
+    guard let documentsDirectory = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerDataResponse(statusCode: 400)
     }
-    let documentsDirectory = publicDirectory.appendingPathComponent(path)
     var response = DirectoryUsageResponse()
     do {
       let fsInfo = try FileManager.default.attributesOfFileSystem(forPath: documentsDirectory.path)
@@ -113,19 +135,16 @@ public class FileServer {
 
   /// 资源信息
   func resourcesHandler(_ req: GCDWebServerRequest) -> GCDWebServerDataResponse? {
-    var path = "/"
-    let reqPath = req.path
-    if reqPath.hasPrefix("/api/resources") {
-      path = String(reqPath.dropFirst("/api/resources".count))
+    let relativePath = relativePath(from: req.path, prefix: "/api/resources")
+    guard let documentsDirectory = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerDataResponse(statusCode: 400)
     }
-
-    let documentsDirectory = publicDirectory.appendingPathComponent(path)
     let fm = FileManager.default
     var response: DirectoryResourcesResponse?
     do {
       response = try? DirectoryResourcesResponse(documentsDirectory)
       response?.name = documentsDirectory.lastPathComponent
-      response?.path = path
+      response?.path = apiPath(from: relativePath)
       response?.isDir = true
 
       let directoryContent = try fm.contentsOfDirectory(
@@ -138,7 +157,12 @@ public class FileServer {
         .sorted(by: { $0.path < $1.path })
         .map {
           var dir = try DirectoryResourcesResponse($0)
-          dir.path = response?.path ?? "" + dir.name
+          let parentPath = response?.path ?? "/"
+          if parentPath == "/" {
+            dir.path = "/" + dir.name
+          } else {
+            dir.path = parentPath + "/" + dir.name
+          }
           return dir
         }
 
@@ -160,24 +184,27 @@ public class FileServer {
   func uploadFileHandler(_ req: GCDWebServerRequest) -> GCDWebServerResponse? {
     let override: Bool = (req.query?["override"] ?? "false") == "true"
 
-    var path = "/"
-    let reqPath = req.path
-
-    if reqPath.hasPrefix("/api/tus") {
-      path = String(reqPath.dropFirst("/api/tus".count))
+    let requestRelativePath: String
+    if req.path.hasPrefix("/api/tus") {
+      requestRelativePath = relativePath(from: req.path, prefix: "/api/tus")
+    } else {
+      requestRelativePath = relativePath(from: req.path, prefix: "/api/resources")
     }
-
-    print("upload path: \(path)")
+    guard !requestRelativePath.isEmpty else { return GCDWebServerResponse(statusCode: 400) }
+    guard let targetURL = resolvePublicURL(relativePath: requestRelativePath) else {
+      return GCDWebServerResponse(statusCode: 400)
+    }
+    print("upload path: \(apiPath(from: requestRelativePath))")
 
     do {
       // just create directory
-      if path.hasSuffix("/") {
-        let directoryURL = publicDirectory.appendingPathComponent(path, isDirectory: true)
+      if requestRelativePath.hasSuffix("/") {
+        let directoryURL = targetURL
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         return GCDWebServerDataResponse(jsonObject: [:])
       }
 
-      let fileURL = publicDirectory.appendingPathComponent(path, isDirectory: false)
+      let fileURL = targetURL
       let directoryURL = fileURL.deletingLastPathComponent()
       if !FileManager.default.fileExists(atPath: directoryURL.path) {
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
@@ -203,14 +230,10 @@ public class FileServer {
   }
 
   func tusHeadHandler(_ req: GCDWebServerRequest) -> GCDWebServerResponse? {
-    var path = "/"
-    let reqPath = req.path
-
-    if reqPath.hasPrefix("/api/tus") {
-      path = String(reqPath.dropFirst("/api/tus".count))
+    let relativePath = relativePath(from: req.path, prefix: "/api/tus")
+    guard let fileURL = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerResponse(statusCode: 400)
     }
-
-    let fileURL = publicDirectory.appendingPathComponent(path, isDirectory: false)
     var offset = 0
     if FileManager.default.fileExists(atPath: fileURL.path), let attributeInfo = try? FileManager.default.attributesOfItem(atPath: fileURL.path) {
       offset = attributeInfo[FileAttributeKey.size] as? Int ?? 0
@@ -224,22 +247,18 @@ public class FileServer {
   }
 
   func tusPatchHandler(_ req: GCDWebServerRequest) -> GCDWebServerResponse? {
-    var path = "/"
-    let reqPath = req.path
-
-    if reqPath.hasPrefix("/api/tus") {
-      path = String(reqPath.dropFirst("/api/tus".count))
+    let relativePath = relativePath(from: req.path, prefix: "/api/tus")
+    guard let fileURL = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerResponse(statusCode: 400)
     }
-
-    let fileURL = publicDirectory.appendingPathComponent(path, isDirectory: false)
     let contentType = req.headers["Content-Type"] ?? ""
     guard contentType == "application/offset+octet-stream" else { return GCDWebServerResponse(statusCode: 415) }
     guard let offset = req.headers["Upload-Offset"], var offsetHeader = UInt64(offset) else { return GCDWebServerResponse(statusCode: 400) }
 
     do {
       // just create directory
-      if path.hasSuffix("/") {
-        let directoryURL = publicDirectory.appendingPathComponent(path, isDirectory: true)
+      if relativePath.hasSuffix("/") {
+        let directoryURL = fileURL
         try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         return GCDWebServerDataResponse(jsonObject: [:])
       }
@@ -279,10 +298,9 @@ public class FileServer {
 
   /// 文件下载
   func download(_ req: GCDWebServerRequest) -> GCDWebServerResponse? {
-    var path = "/"
-    let reqPath = req.path
-    if reqPath.hasPrefix("/api/raw") {
-      path = String(reqPath.dropFirst("/api/raw".count))
+    let relativePath = relativePath(from: req.path, prefix: "/api/raw")
+    guard let baseURL = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerResponse(statusCode: 400)
     }
 
     // TODO: 目前只支持zip算法压缩, 可以通过此参数扩展下载格式
@@ -314,8 +332,11 @@ public class FileServer {
           return GCDWebServerDataResponse(statusCode: 500)
         }
 
-        for fileName in fileNames.components(separatedBy: ",") {
-          let fileURL = publicDirectory.appendingPathComponent(path).appendingPathComponent(fileName)
+        for fileName in fileNames.components(separatedBy: ",") where !fileName.isEmpty {
+          let fileRelativePath = relativePath.isEmpty ? fileName : relativePath + "/" + fileName
+          guard let fileURL = resolvePublicURL(relativePath: fileRelativePath) else {
+            return GCDWebServerResponse(statusCode: 400)
+          }
 
           if !fm.isDirectory(fileURL) {
             try archive.addEntry(
@@ -334,7 +355,7 @@ public class FileServer {
         }
       } else {
         try fm.zipItem(
-          at: publicDirectory.appendingPathComponent(path, isDirectory: true),
+          at: baseURL,
           to: archiveUrl
         )
       }
@@ -347,17 +368,14 @@ public class FileServer {
   }
 
   func deleteFileHandler(_ req: GCDWebServerRequest) -> GCDWebServerResponse? {
-    var path = "/"
-    let reqPath = req.path
-    if reqPath.hasPrefix("/api/resources") {
-      path = String(reqPath.dropFirst("/api/resources".count))
-    }
-
-    if path.isEmpty {
+    let relativePath = relativePath(from: req.path, prefix: "/api/resources")
+    if relativePath.isEmpty {
       return GCDWebServerResponse(statusCode: 400)
     }
 
-    let fileURL = publicDirectory.appendingPathComponent(path)
+    guard let fileURL = resolvePublicURL(relativePath: relativePath) else {
+      return GCDWebServerResponse(statusCode: 400)
+    }
     do {
       try FileManager.default.removeItem(at: fileURL)
     } catch {
@@ -418,7 +436,13 @@ struct DirectoryResourcesResponse: Codable {
 
     let fileAttr = try FileManager.default.attributesOfItem(atPath: directory.path)
     if let permissions = fileAttr[FileAttributeKey.posixPermissions] {
-      mode = permissions as! UInt64
+      if let permissions = permissions as? NSNumber {
+        mode = permissions.uint64Value
+      } else if let permissions = permissions as? UInt64 {
+        mode = permissions
+      } else if let permissions = permissions as? Int {
+        mode = UInt64(permissions)
+      }
     }
 
     isDir = fileInfos.isDirectory == true

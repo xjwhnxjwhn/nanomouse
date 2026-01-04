@@ -6,6 +6,7 @@
 //
 
 import CoreData
+import OSLog
 
 struct PersistentController {
   static let shared = PersistentController()
@@ -14,17 +15,21 @@ struct PersistentController {
   init() {
     let name = "NanomouseApp"
 
-    let storeURL = FileManager.default.containerURL(
-      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)!
-      .appendingPathComponent("\(name).sqlite")
+    let container = NSPersistentContainer(name: name)
+    if let storeURL = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName
+    )?.appendingPathComponent("\(name).sqlite") {
+      let storeDescription = NSPersistentStoreDescription(url: storeURL)
+      container.persistentStoreDescriptions = [storeDescription]
+    } else {
+      Logger.statistics.error("App Group container not found; using default Core Data store location.")
+    }
 
-    let storeDescription = NSPersistentStoreDescription(url: storeURL)
-    container = NSPersistentContainer(name: name)
-    container.persistentStoreDescriptions = [storeDescription]
     container.loadPersistentStores { _, error in
       if let error = error as NSError? {
-        fatalError("Unresolved error \(error), \(error.userInfo)")
+        Logger.statistics.error("Unresolved error \(error), \(error.userInfo)")
       }
     }
+    self.container = container
   }
 }

@@ -564,33 +564,32 @@ extension RimeContext: IRimeNotificationDelegate {
     Logger.statistics.info("HamsterRimeNotification: onDeployFailure")
   }
 
-  @MainActor
   public func onChangeMode(_ option: String) {
     Logger.statistics.info("HamsterRimeNotification: onChangeMode, mode: \(option)")
+    Task { @MainActor in
+      let optionState = !option.hasPrefix("!")
+      let optionName = optionState ? option : String(option.dropFirst())
 
-    let optionState = !option.hasPrefix("!")
-    let optionName = optionState ? option : String(option.dropFirst())
+      if optionValueCache[optionName] == nil {
+        optionValueCache[optionName] = [
+          true: Rime.shared.getStateLabel(option: optionName, state: true, abbreviated: true),
+          false: Rime.shared.getStateLabel(option: optionName, state: false, abbreviated: true),
+        ]
+      }
 
-    if optionValueCache[optionName] == nil {
-      optionValueCache[optionName] = [
-        true: Rime.shared.getStateLabel(option: optionName, state: true, abbreviated: true),
-        false: Rime.shared.getStateLabel(option: optionName, state: false, abbreviated: true),
-      ]
+      // 中英模式
+      if option.hasSuffix("ascii_mode") {
+        self.setAsciiMode(optionState)
+      }
+
+      // 设置 rime option 对应的值
+      self.optionState = optionValueCache[optionName]?[optionState]
     }
-
-    // 中英模式
-    if option.hasSuffix("ascii_mode") {
-      self.setAsciiMode(optionState)
-    }
-
-    // 设置 rime option 对应的值
-    self.optionState = optionValueCache[optionName]?[optionState]
   }
 
-  @MainActor
   public func onLoadingSchema(_ loadSchema: String) {
     Logger.statistics.info("HamsterRimeNotification: onLoadingSchema, schema: \(loadSchema)")
-    Task {
+    Task { @MainActor in
       let currentSchema = self.currentSchema
       let schemaID = loadSchema.split(separator: "/").map { String($0) }[0]
       guard !schemaID.isEmpty, currentSchema?.schemaId != schemaID else { return }
@@ -598,7 +597,8 @@ extension RimeContext: IRimeNotificationDelegate {
       guard let changeSchema = self.schemas.first(where: { $0.schemaId == schemaID }) else { return }
       self.setCurrentSchema(changeSchema)
       self.optionState = changeSchema.schemaName
-      Logger.statistics.info("loading schema callback: currentSchema = \(changeSchema.schemaName), latestSchema = \(currentSchema?.schemaName)")
+      let latestSchemaName = currentSchema?.schemaName ?? ""
+      Logger.statistics.info("loading schema callback: currentSchema = \(changeSchema.schemaName, privacy: .public), latestSchema = \(latestSchemaName, privacy: .public)")
     }
   }
 }

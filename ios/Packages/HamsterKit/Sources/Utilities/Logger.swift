@@ -8,7 +8,7 @@
 import OSLog
 
 public extension Logger {
-  private static var subsystem = Bundle.main.bundleIdentifier!
+  private static var subsystem = Bundle.main.bundleIdentifier ?? "com.nanomouse"
 
   static let statistics = Logger(subsystem: subsystem, category: "statistics")
 }

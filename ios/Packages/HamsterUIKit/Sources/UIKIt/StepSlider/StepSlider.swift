@@ -340,18 +340,23 @@ public class StepSlider: UIControl {
       
       if animated {
         if let trackCircleImage = trackCircleImage {
-          let oldImage = trackCircle.contents as! CGImage
-          if oldImage != trackCircleImage {
+          if let oldContents = trackCircle.contents {
+            let oldImage = oldContents as! CGImage
+            if oldImage != trackCircleImage {
+              trackCircle.contents = trackCircleImage
+              animateTrackCircleChanges(trackCircle: trackCircle, from: oldImage, to: trackCircleImage, keyPath: "contents", beginTime: animationTime, duration: circleAnimation)
+              animationTime += animationTimeDiff
+            }
+          } else {
             trackCircle.contents = trackCircleImage
-            animateTrackCircleChanges(trackCircle: trackCircle, from: oldImage, to: trackCircleImage, keyPath: "contents", beginTime: animationTime, duration: circleAnimation)
-            animationTime += animationTimeDiff
           }
         } else {
           let newColor: CGColor = trackCircleColor(trackCircle)
-          let oldColor: CGColor = trackCircle.fillColor!
-          if newColor != oldColor {
+          if let oldColor = trackCircle.fillColor, newColor != oldColor {
             animateTrackCircleChanges(trackCircle: trackCircle, from: oldColor, to: newColor, keyPath: "fillColor", beginTime: animationTime, duration: circleAnimation)
             animationTime += animationTimeDiff
+          } else {
+            trackCircle.fillColor = newColor
           }
         }
       } else {

@@ -46,20 +46,20 @@ public class BackupViewModel {
 
   /// 备份应用
   func backup() async {
-    await ProgressHUD.animate("软件备份中，请等待……", interaction: false)
+    ProgressHUD.animate("软件备份中，请等待……", interaction: false)
     do {
       try makeBackup()
       loadBackupFiles()
-      await ProgressHUD.success("备份成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("备份成功", interaction: false, delay: 1.5)
     } catch {
       Logger.statistics.error("App backup error: \(error.localizedDescription)")
-      await ProgressHUD.failed("备份失败")
+      ProgressHUD.failed("备份失败")
     }
   }
 
   /// 应用恢复
   func restore(fileInfo: FileInfo) async {
-    await ProgressHUD.animate("恢复中，请等待……", interaction: false)
+    ProgressHUD.animate("恢复中，请等待……", interaction: false)
     let selectRestoreFileURL = fileInfo.url
     do {
       // 解压zip
@@ -81,10 +81,10 @@ public class BackupViewModel {
       try FileManager.copyDirectory(override: true, src: FileManager.tempSharedSupportDirectory, dst: FileManager.sandboxSharedSupportDirectory)
       try FileManager.copyDirectory(override: true, src: FileManager.tempUserDataDirectory, dst: FileManager.sandboxUserDataDirectory)
 
-      await ProgressHUD.success("恢复成功, 请重新部署。", delay: 1.5)
+      ProgressHUD.success("恢复成功, 请重新部署。", delay: 1.5)
     } catch {
       Logger.statistics.error("App restore error: \(error.localizedDescription)")
-      await ProgressHUD.failed("恢复失败")
+      ProgressHUD.failed("恢复失败")
     }
   }
 

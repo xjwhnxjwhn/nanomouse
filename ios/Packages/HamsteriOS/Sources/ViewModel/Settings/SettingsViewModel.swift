@@ -109,7 +109,7 @@ public class SettingsViewModel: ObservableObject {
                 text: "打开系统设置",
                 type: .button,
                 buttonAction: { [weak self] in
-                    await self?.openSystemSettings()
+                    self?.openSystemSettings()
                 }
             )
         ]),
@@ -222,7 +222,7 @@ extension SettingsViewModel {
   func loadAppData() async throws {
     // PATCH: 仓1.0版本处理
     if let v1FirstRunning = UserDefaults.hamster._firstRunningForV1, v1FirstRunning == false {
-      await ProgressHUD.animate("迁移 1.0 配置中……", interaction: false)
+      ProgressHUD.animate("迁移 1.0 配置中……", interaction: false)
 
       var appConfig = HamsterAppDependencyContainer.shared.applicationConfiguration
 
@@ -245,7 +245,7 @@ extension SettingsViewModel {
       HamsterAppDependencyContainer.shared.configuration = configuration
       HamsterAppDependencyContainer.shared.applicationConfiguration = appConfig
 
-      await ProgressHUD.success("迁移完成", interaction: false, delay: 1.5)
+      ProgressHUD.success("迁移完成", interaction: false, delay: 1.5)
       return
     }
 
@@ -253,7 +253,7 @@ extension SettingsViewModel {
     guard UserDefaults.standard.isFirstRunning else { return }
 
     // 判断是否首次运行
-    await ProgressHUD.animate("初次启动，需要编译输入方案，请耐心等待……", interaction: false)
+    ProgressHUD.animate("初次启动，需要编译输入方案，请耐心等待……", interaction: false)
 
     // 首次启动始化输入方案目录
     do {
@@ -279,7 +279,7 @@ extension SettingsViewModel {
 
     HamsterAppDependencyContainer.shared.configuration = configuration
 
-    await ProgressHUD.success("部署完成", interaction: false, delay: 1.5)
+    ProgressHUD.success("部署完成", interaction: false, delay: 1.5)
   }
 
   /// 仓1.0迁移配置参数

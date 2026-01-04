@@ -11,7 +11,10 @@ import UIKit
 
 /// 键盘键盘
 public class KeyboardButton: UIControl {
-  typealias ButtonBounds = CGSize
+  struct ButtonBounds: Hashable {
+    let width: CGFloat
+    let height: CGFloat
+  }
 
   // MARK: - Properties
 
@@ -367,14 +370,7 @@ extension KeyboardButton {
     return underPath
   }
 
-  func add(bounds: CGSize, cornerRadius: CGFloat) -> CGSize {
-    CGSize(width: bounds.width + cornerRadius, height: bounds.height + cornerRadius)
-  }
-}
-
-extension CGSize: Hashable {
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(width)
-    hasher.combine(height)
+  func add(bounds: CGSize, cornerRadius: CGFloat) -> ButtonBounds {
+    ButtonBounds(width: bounds.width + cornerRadius, height: bounds.height + cornerRadius)
   }
 }

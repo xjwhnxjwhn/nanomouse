@@ -5,6 +5,7 @@
 //  Created by morse on 2023/9/14.
 //
 
+import HamsterKit
 import HamsterUIKit
 import UIKit
 
@@ -23,10 +24,10 @@ class ChineseNineGridKeyboardSettingsView: NibLessView {
     needRestButton: true,
     restButtonAction: { [unowned self] in
       guard let defaultConfiguration = HamsterAppDependencyContainer.shared.defaultConfiguration else {
-        throw "未找到系统默认配置"
+        throw StringError("未找到系统默认配置")
       }
       guard let defaultPairsOfSymbols = defaultConfiguration.keyboard?.symbolsOfChineseNineGridKeyboard else {
-        throw "未找到默认值"
+        throw StringError("未找到默认值")
       }
       keyboardSettingsViewModel.symbolsOfChineseNineGridKeyboard = defaultPairsOfSymbols
       keyboardSettingsViewModel.resetSignSubject.send(true)

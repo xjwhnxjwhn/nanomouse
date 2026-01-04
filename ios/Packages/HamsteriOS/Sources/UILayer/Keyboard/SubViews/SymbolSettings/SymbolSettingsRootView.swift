@@ -6,6 +6,7 @@
 //
 
 import Combine
+import HamsterKit
 import HamsterUIKit
 import ProgressHUD
 import UIKit
@@ -47,10 +48,10 @@ class SymbolSettingsRootView: NibLessView {
     needRestButton: true,
     restButtonAction: { [unowned self] in
       guard let defaultConfiguration = HamsterAppDependencyContainer.shared.defaultConfiguration else {
-        throw "未找到系统默认配置"
+        throw StringError("未找到系统默认配置")
       }
       guard let defaultOfSymbols = defaultConfiguration.keyboard?.pairsOfSymbols else {
-        throw "未找到默认值"
+        throw StringError("未找到默认值")
       }
       keyboardSettingsViewModel.pairsOfSymbols = defaultOfSymbols
       keyboardSettingsViewModel.resetSignSubject.send(true)
@@ -67,10 +68,10 @@ class SymbolSettingsRootView: NibLessView {
     needRestButton: true,
     restButtonAction: { [unowned self] in
       guard let defaultConfiguration = HamsterAppDependencyContainer.shared.defaultConfiguration else {
-        throw "未找到系统默认配置"
+        throw StringError("未找到系统默认配置")
       }
       guard let defaultOfSymbols = defaultConfiguration.keyboard?.symbolsOfCursorBack else {
-        throw "未找到默认值"
+        throw StringError("未找到默认值")
       }
       keyboardSettingsViewModel.symbolsOfCursorBack = defaultOfSymbols
       keyboardSettingsViewModel.resetSignSubject.send(true)
@@ -87,10 +88,10 @@ class SymbolSettingsRootView: NibLessView {
     needRestButton: true,
     restButtonAction: { [unowned self] in
       guard let defaultConfiguration = HamsterAppDependencyContainer.shared.defaultConfiguration else {
-        throw "未找到系统默认配置"
+        throw StringError("未找到系统默认配置")
       }
       guard let defaultOfSymbols = defaultConfiguration.keyboard?.symbolsOfReturnToMainKeyboard else {
-        throw "未找到默认值"
+        throw StringError("未找到默认值")
       }
       keyboardSettingsViewModel.symbolsOfReturnToMainKeyboard = defaultOfSymbols
       keyboardSettingsViewModel.resetSignSubject.send(true)

@@ -85,6 +85,41 @@ public struct Keyboard: Codable, Hashable {
     }
   }
 
+  public static func == (lhs: Keyboard, rhs: Keyboard) -> Bool {
+    guard lhs.name == rhs.name,
+          lhs.type == rhs.type,
+          lhs.isPrimary == rhs.isPrimary,
+          lhs.rowHeight == rhs.rowHeight,
+          lhs.rows == rhs.rows
+    else { return false }
+
+    switch (lhs.buttonInsets, rhs.buttonInsets) {
+    case (nil, nil):
+      return true
+    case let (l?, r?):
+      return l.top == r.top && l.left == r.left && l.bottom == r.bottom && l.right == r.right
+    default:
+      return false
+    }
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(name)
+    hasher.combine(type)
+    hasher.combine(isPrimary)
+    hasher.combine(rowHeight)
+    hasher.combine(rows)
+    if let insets = buttonInsets {
+      hasher.combine(true)
+      hasher.combine(insets.top)
+      hasher.combine(insets.left)
+      hasher.combine(insets.bottom)
+      hasher.combine(insets.right)
+    } else {
+      hasher.combine(false)
+    }
+  }
+
   /// 将字符串转为 UIEdgeInsets
   /// 字符串支持两种格式
   /// 格式1: 纯数字
@@ -216,10 +251,10 @@ public struct Key: Codable, Hashable {
       if let keyboardAction = action.keyboardAction {
         self.action = keyboardAction
       } else {
-        throw "action: \(action) to KeyboardAction is error."
+        throw StringError("action: \(action) to KeyboardAction is error.")
       }
     } else {
-      throw "action is empty."
+      throw StringError("action is empty.")
     }
 
     if let width = try? container.decode(String.self, forKey: .width), let keyWidth = width.keyWidth {
@@ -347,17 +382,17 @@ public struct KeySwipe: Codable, Hashable {
     if let direction = try? container.decode(Direction.self, forKey: .direction) {
       self.direction = direction
     } else {
-      throw "KeySwipe direction is error"
+      throw StringError("KeySwipe direction is error")
     }
 
     if let action = try? container.decode(String.self, forKey: .action) {
       if let keyboardAction = action.keyboardAction {
         self.action = keyboardAction
       } else {
-        throw "swipe \(action) to action is error"
+        throw StringError("swipe \(action) to action is error")
       }
     } else {
-      throw "swipe action is empty"
+      throw StringError("swipe action is empty")
     }
 
     if let processByRIME = try? container.decode(Bool.self, forKey: .processByRIME) {
@@ -460,12 +495,12 @@ public struct KeyWidth: Codable, Hashable {
     if let portrait = try? container.decode(String.self, forKey: .portrait), let width = portrait.keyWidth {
       self.portrait = width
     } else {
-      throw "KeyWidth portrait is empty"
+      throw StringError("KeyWidth portrait is empty")
     }
     if let landscape = try? container.decode(String.self, forKey: .landscape), let width = landscape.keyWidth {
       self.landscape = width
     } else {
-      throw "KeyWidth landscape is empty"
+      throw StringError("KeyWidth landscape is empty")
     }
   }
 
@@ -782,15 +817,7 @@ public extension KeyboardLayoutItemWidth {
   }
 }
 
-extension UIEdgeInsets: Hashable {
-  /// 为 UIEdgeInsets 类型添加 Hashable 协议支持
-  public func hash(into hasher: inout Hasher) {
-    hasher.combine(self.top)
-    hasher.combine(self.left)
-    hasher.combine(self.bottom)
-    hasher.combine(self.right)
-  }
-
+extension UIEdgeInsets {
   /// 输出 yaml 中配置格式
   var yamlString: String {
     return "left(\(self.left)),right(\(self.right)),top(\(self.top)),bottom(\(self.bottom))"

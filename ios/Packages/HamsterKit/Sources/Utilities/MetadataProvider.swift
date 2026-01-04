@@ -23,8 +23,8 @@ class MetadataProvider {
     querySubscriber = Publishers
       .MergeMany(publishers)
       .receive(on: DispatchQueue.global())
-      .sink { [unowned self] notification in
-        guard notification.object as? NSMetadataQuery === self.metadataQuery else { return }
+      .sink { [weak self] notification in
+        guard let self, notification.object as? NSMetadataQuery === self.metadataQuery else { return }
         
         let items = self.metadataItemList()
         for item in items {

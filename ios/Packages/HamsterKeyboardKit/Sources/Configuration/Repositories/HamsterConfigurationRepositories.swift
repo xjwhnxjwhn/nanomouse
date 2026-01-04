@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HamsterKit
 import os
 import Yams
 // import ZippyJSON
@@ -86,7 +87,7 @@ public class HamsterConfigurationRepositories {
   }
 
   private func loadConfigFromUserDefaults(key: String) throws -> HamsterConfiguration {
-    guard let data = UserDefaults.hamster.data(forKey: key) else { throw "load HamsterConfiguration from UserDefault is empty." }
+    guard let data = UserDefaults.hamster.data(forKey: key) else { throw StringError("load HamsterConfiguration from UserDefault is empty.") }
     return try JSONDecoder().decode(HamsterConfiguration.self, from: data)
     // return try ZippyJSONDecoder().decode(HamsterConfiguration.self, from: data)
   }
@@ -168,7 +169,7 @@ public extension HamsterConfigurationRepositories {
   /// 将 str 中的中文 unicode 编码 \uXXXX 转化为人类可读的
   static func transform(_ str: String) throws -> String {
     guard let transformStr = str.applyingTransform(StringTransform(rawValue: "Any-Hex/Java"), reverse: true) else {
-      throw "String transform error."
+      throw StringError("String transform error.")
     }
     return transformStr
   }

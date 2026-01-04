@@ -31,7 +31,7 @@ public class AboutViewModel: ObservableObject {
     .init(items: [
       .init(text: "RIME版本", secondaryText: AppInfo.rimeVersion, type: .settings, buttonAction: {
         UIPasteboard.general.string = AppInfo.rimeVersion
-        await ProgressHUD.success("复制成功", interaction: false, delay: 1.5)
+        ProgressHUD.success("复制成功", interaction: false, delay: 1.5)
       }),
       .init(text: "许可证", secondaryText: "GPLv3", type: .settings, buttonAction: {
         let link = "https://www.gnu.org/licenses/gpl-3.0.html"
@@ -80,7 +80,7 @@ public class AboutViewModel: ObservableObject {
             try HamsterConfigurationRepositories.shared.saveToYAML(config: appConfig, path: url)
             exportConfigurationSubject.send(url)
           } catch {
-            await ProgressHUD.failed("导出 UI 设置失败")
+            ProgressHUD.failed("导出 UI 设置失败")
           }
         })
       ])
@@ -94,7 +94,7 @@ public class AboutViewModel: ObservableObject {
 //            try HamsterConfigurationRepositories.shared.saveToYAML(config: config, yamlPath: url)
 //            exportConfigurationSubject.send(url)
 //          } catch {
-//            await ProgressHUD.failed("导出 UI 设置失败")
+//            ProgressHUD.failed("导出 UI 设置失败")
 //          }
 //        })
 //      ])

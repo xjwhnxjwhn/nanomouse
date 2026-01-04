@@ -36,11 +36,11 @@ struct RimeSyncIntent: AppIntent {
           do {
             try FileManager.default.createDirectory(atPath: syncDir, withIntermediateDirectories: true)
           } catch {
-            throw "同步地址无写入权限：\(syncDir)"
+            throw StringError("同步地址无写入权限：\(syncDir)")
           }
         } else {
           if !FileManager.default.isWritableFile(atPath: syncDir) {
-            throw "同步地址无写入权限：\(syncDir)"
+            throw StringError("同步地址无写入权限：\(syncDir)")
           }
         }
       }

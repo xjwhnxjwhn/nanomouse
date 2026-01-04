@@ -8,13 +8,6 @@
 import Foundation
 import OSLog
 
-/// Easily throw generic errors with a text description.
-extension String: LocalizedError {
-  public var errorDescription: String? {
-    return self
-  }
-}
-
 public extension String {
   var containsChineseCharacters: Bool {
     return self.range(of: "\\p{Han}", options: .regularExpression) != nil

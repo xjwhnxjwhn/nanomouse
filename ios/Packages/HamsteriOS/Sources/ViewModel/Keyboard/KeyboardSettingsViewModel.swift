@@ -1065,12 +1065,12 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       buttonAction: { [unowned self] in
         Task {
           guard let defaultConfiguration = HamsterAppDependencyContainer.shared.defaultConfiguration else {
-            throw "获取系统默认配置失败"
+            throw StringError("获取系统默认配置失败")
           }
           if let defaultSymbolsOfGridOfNumericKeyboard = defaultConfiguration.keyboard?.symbolsOfGridOfNumericKeyboard {
             self.symbolsOfGridOfNumericKeyboard = defaultSymbolsOfGridOfNumericKeyboard
             resetSignSubject.send(true)
-            await ProgressHUD.success("重置成功")
+            ProgressHUD.success("重置成功")
           }
         }
       })
@@ -1090,7 +1090,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       type: .button,
       buttonAction: { [unowned self] in
         MostRecentSymbolProvider().reset()
-        await ProgressHUD.success("重置成功", interaction: false, delay: 1.5)
+        ProgressHUD.success("重置成功", interaction: false, delay: 1.5)
       })
   ]
 
@@ -1295,7 +1295,7 @@ extension KeyboardSettingsViewModel {
   /// 导入自定义键盘布局
   public func importCustomizeKeyboardLayout(fileURL: URL) async {
     Logger.statistics.debug("importCustomizeKeyboardLayout fileName: \(fileURL.path)")
-    await ProgressHUD.animate("导入中……", interaction: false)
+    ProgressHUD.animate("导入中……", interaction: false)
     // 检测是否为iCloudURL, 需要特殊处理
     var needAccessingSecurity = false
     if fileURL.path.contains("com~apple~CloudDocs") || fileURL.path.contains("iCloud~com~XiangqingZHANG~nanomouse") {
@@ -1303,7 +1303,7 @@ extension KeyboardSettingsViewModel {
       // iCloud中的URL须添加安全访问资源语句，否则会异常：Operation not permitted
       // startAccessingSecurityScopedResource与stopAccessingSecurityScopedResource必须成对出现
       if !fileURL.startAccessingSecurityScopedResource() {
-        await ProgressHUD.failed("导入文件读取受限，无法加载文件", interaction: false, delay: 1.5)
+        ProgressHUD.failed("导入文件读取受限，无法加载文件", interaction: false, delay: 1.5)
         return
       }
     }
@@ -1330,11 +1330,11 @@ extension KeyboardSettingsViewModel {
       HamsterAppDependencyContainer.shared.configuration.keyboards = originalKeyboards + keyboards.keyboards
       HamsterAppDependencyContainer.shared.applicationConfiguration.keyboards = originalKeyboards + keyboards.keyboards
 
-      await ProgressHUD.success("导入成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("导入成功", interaction: false, delay: 1.5)
       reloadRootViewSubject.send(true)
     } catch {
       Logger.statistics.error("importCustomizeKeyboardLayout error: \(error)")
-      await ProgressHUD.failed("自定义键盘配置文件加载失败", interaction: false, delay: 1.5)
+      ProgressHUD.failed("自定义键盘配置文件加载失败", interaction: false, delay: 1.5)
       return
     }
   }

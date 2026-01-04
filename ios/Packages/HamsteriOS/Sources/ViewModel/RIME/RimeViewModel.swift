@@ -222,24 +222,24 @@ public extension RimeViewModel {
     try? fileHandle.close()
 
     if !errorLines.isEmpty {
-      await ProgressHUD.banner("RIME日志存在异常", "请检查 \(fileURL.lastPathComponent)，第 \(errorLines.joined(separator: ",")) 行。", delay: 5)
+      ProgressHUD.banner("RIME日志存在异常", "请检查 \(fileURL.lastPathComponent)，第 \(errorLines.joined(separator: ",")) 行。", delay: 5)
     }
   }
 
   /// RIME 部署
   func rimeDeploy() async {
     let (fileHandle, filePath) = rimeLogger()
-    await ProgressHUD.animate("RIME部署中, 请稍候……", AnimationType.circleRotateChase, interaction: false)
+    ProgressHUD.animate("RIME部署中, 请稍候……", AnimationType.circleRotateChase, interaction: false)
     var hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
     do {
       try rimeContext.deployment(configuration: &hamsterConfiguration)
       await checkRimeLogger(filePath)
       HamsterAppDependencyContainer.shared.configuration = hamsterConfiguration
-      await ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
     } catch {
       // try? FileHandle.standardError.write(contentsOf: error.localizedDescription.data(using: .utf8) ?? Data())
       Logger.statistics.error("rime deploy error: \(error)")
-      await ProgressHUD.failed(error, interaction: false, delay: 5)
+      ProgressHUD.failed(error, interaction: false, delay: 5)
     }
     closeRimeLogger(fileHandle)
   }
@@ -248,7 +248,7 @@ public extension RimeViewModel {
   func rimeSync() async {
     let (fileHandle, filePath) = rimeLogger()
     do {
-      await ProgressHUD.animate("RIME同步中, 请稍候……", interaction: false)
+      ProgressHUD.animate("RIME同步中, 请稍候……", interaction: false)
 
       let hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
 
@@ -261,28 +261,28 @@ public extension RimeViewModel {
           do {
             try FileManager.default.createDirectory(atPath: syncDir, withIntermediateDirectories: true)
           } catch {
-            throw "同步地址无写入权限：\(syncDir)"
+            throw StringError("同步地址无写入权限：\(syncDir)")
           }
         } else {
           if !FileManager.default.isWritableFile(atPath: syncDir) {
-            throw "同步地址无写入权限：\(syncDir)"
+            throw StringError("同步地址无写入权限：\(syncDir)")
           }
         }
       }
 
       try rimeContext.syncRime(configuration: hamsterConfiguration)
       await checkRimeLogger(filePath)
-      await ProgressHUD.success("同步成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("同步成功", interaction: false, delay: 1.5)
     } catch {
       Logger.statistics.error("rime sync error: \(error)")
-      await ProgressHUD.failed("同步失败:\(error.localizedDescription)", interaction: false, delay: 3)
+      ProgressHUD.failed("同步失败:\(error.localizedDescription)", interaction: false, delay: 3)
     }
     closeRimeLogger(fileHandle)
   }
 
   /// Rime重置
   func rimeRest() async {
-    await ProgressHUD.animate("RIME重置中, 请稍候……", interaction: false)
+    ProgressHUD.animate("RIME重置中, 请稍候……", interaction: false)
     do {
       try rimeContext.restRime()
 
@@ -322,10 +322,10 @@ public extension RimeViewModel {
       /// 在另存一份用于应用配置还原
       try HamsterConfigurationRepositories.shared.saveToUserDefaultsOnDefault(hamsterConfiguration)
 
-      await ProgressHUD.success("重置成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("重置成功", interaction: false, delay: 1.5)
     } catch {
       Logger.statistics.error("rimeRest() error: \(error)")
-      await ProgressHUD.failed("重置失败", interaction: false, delay: 3)
+      ProgressHUD.failed("重置失败", interaction: false, delay: 3)
     }
   }
 }

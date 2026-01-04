@@ -58,14 +58,14 @@ public class AppleCloudViewModel: ObservableObject {
 
   func copyFileToiCloud() async {
     do {
-      await ProgressHUD.animate("拷贝中……", interaction: false)
+      ProgressHUD.animate("拷贝中……", interaction: false)
       let regexList = regexOnCopyFile.split(separator: ",").map { String($0) }
       try FileManager.copySandboxSharedSupportDirectoryToAppleCloud(regexList)
       try FileManager.copySandboxUserDataDirectoryToAppleCloud(regexList)
-      await ProgressHUD.success("拷贝成功", interaction: false, delay: 1.5)
+      ProgressHUD.success("拷贝成功", interaction: false, delay: 1.5)
     } catch {
       Logger.statistics.error("apple cloud copy to iCloud error: \(error)")
-      await ProgressHUD.failed("拷贝失败: \(error.localizedDescription)", interaction: false, delay: 1.5)
+      ProgressHUD.failed("拷贝失败: \(error.localizedDescription)", interaction: false, delay: 1.5)
     }
   }
 }
