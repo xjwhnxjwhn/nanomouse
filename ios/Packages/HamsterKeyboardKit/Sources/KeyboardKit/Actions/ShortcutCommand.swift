@@ -12,6 +12,10 @@ public enum ShortcutCommand: CaseIterable, Hashable, Identifiable, Codable {
   public static var allCases: [ShortcutCommand] = [
     ShortcutCommand.simplifiedTraditionalSwitch,
     ShortcutCommand.switchChineseOrEnglish,
+    ShortcutCommand.switchLanguageCycle,
+    ShortcutCommand.setLanguageChinese,
+    ShortcutCommand.setLanguageJapanese,
+    ShortcutCommand.setLanguageEnglish,
     ShortcutCommand.beginOfSentence,
     ShortcutCommand.endOfSentence,
     ShortcutCommand.selectSecondary,
@@ -43,6 +47,10 @@ public enum ShortcutCommand: CaseIterable, Hashable, Identifiable, Codable {
 
   case simplifiedTraditionalSwitch
   case switchChineseOrEnglish
+  case switchLanguageCycle
+  case setLanguageChinese
+  case setLanguageJapanese
+  case setLanguageEnglish
   case beginOfSentence
   case endOfSentence
   case selectSecondary
@@ -73,6 +81,14 @@ public enum ShortcutCommand: CaseIterable, Hashable, Identifiable, Codable {
       self = .simplifiedTraditionalSwitch
     case "#中英切换":
       self = .switchChineseOrEnglish
+    case "#中日英切换":
+      self = .switchLanguageCycle
+    case "#中文":
+      self = .setLanguageChinese
+    case "#日语":
+      self = .setLanguageJapanese
+    case "#英语":
+      self = .setLanguageEnglish
     case "#行首":
       self = .beginOfSentence
     case "#行尾":
@@ -135,6 +151,10 @@ public enum ShortcutCommand: CaseIterable, Hashable, Identifiable, Codable {
     switch self {
     case .simplifiedTraditionalSwitch: return "#简繁切换"
     case .switchChineseOrEnglish: return "#中英切换"
+    case .switchLanguageCycle: return "#中日英切换"
+    case .setLanguageChinese: return "#中文"
+    case .setLanguageJapanese: return "#日语"
+    case .setLanguageEnglish: return "#英语"
     case .beginOfSentence: return "#行首"
     case .endOfSentence: return "#行尾"
     case .selectSecondary: return "#次选上屏"
@@ -166,6 +186,14 @@ public enum ShortcutCommand: CaseIterable, Hashable, Identifiable, Codable {
     case .simplifiedTraditionalSwitch:
       return "繁"
     case .switchChineseOrEnglish:
+      return "英"
+    case .switchLanguageCycle:
+      return "中/日/英"
+    case .setLanguageChinese:
+      return "中"
+    case .setLanguageJapanese:
+      return "日"
+    case .setLanguageEnglish:
       return "英"
     case .beginOfSentence:
       return "⇤"

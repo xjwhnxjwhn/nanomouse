@@ -19,6 +19,14 @@ public extension KeyboardInputViewController {
       self.switchTraditionalSimplifiedChinese()
     case .switchChineseOrEnglish:
       self.switchEnglishChinese()
+    case .switchLanguageCycle:
+      self.cycleLanguageMode()
+    case .setLanguageChinese:
+      self.setLanguageMode(.chinese)
+    case .setLanguageJapanese:
+      self.setLanguageMode(.japanese)
+    case .setLanguageEnglish:
+      self.setLanguageMode(.english)
     case .selectSecondary:
       self.selectSecondaryCandidate()
     case .selectTertiary:
@@ -73,6 +81,58 @@ public extension KeyboardInputViewController {
       self.dismissKeyboard()
     default:
       break
+    }
+  }
+
+  enum LanguageMode {
+    case chinese
+    case japanese
+    case english
+  }
+
+  private var japaneseSchemaId: String { "japanese" }
+
+  private var chineseSchemaId: String {
+    if let schema = rimeContext.schemas.first(where: { $0.schemaId == "rime_ice" }) {
+      return schema.schemaId
+    }
+    return rimeContext.schemas.first?.schemaId ?? "rime_ice"
+  }
+
+  func currentLanguageMode() -> LanguageMode {
+    if keyboardContext.keyboardType.isAlphabetic { return .english }
+    if rimeContext.asciiMode { return .english }
+    if rimeContext.currentSchema?.schemaId == japaneseSchemaId { return .japanese }
+    return .chinese
+  }
+
+  func cycleLanguageMode() {
+    switch currentLanguageMode() {
+    case .chinese:
+      setLanguageMode(.japanese)
+    case .japanese:
+      setLanguageMode(.english)
+    case .english:
+      setLanguageMode(.chinese)
+    }
+  }
+
+  func setLanguageMode(_ mode: LanguageMode) {
+    switch mode {
+    case .english:
+      rimeContext.reset()
+      rimeContext.applyAsciiMode(true)
+      setKeyboardType(.alphabetic(.lowercased))
+    case .japanese:
+      rimeContext.applyAsciiMode(false)
+      setKeyboardType(keyboardContext.selectKeyboard)
+      if !rimeContext.switchSchema(schemaId: japaneseSchemaId) {
+        rimeContext.switchSchema(schemaId: chineseSchemaId)
+      }
+    case .chinese:
+      rimeContext.applyAsciiMode(false)
+      setKeyboardType(keyboardContext.selectKeyboard)
+      rimeContext.switchSchema(schemaId: chineseSchemaId)
     }
   }
 

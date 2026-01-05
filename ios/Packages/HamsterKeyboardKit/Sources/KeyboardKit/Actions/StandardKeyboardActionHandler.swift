@@ -205,6 +205,10 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
   open func replacementAction(for gesture: KeyboardGesture, on action: KeyboardAction) -> KeyboardAction? {
     guard gesture == .release else { return nil }
 
+    if isLanguageSwitchAction(action) {
+      return .shortCommand(.switchLanguageCycle)
+    }
+
     // Apply proxy-based replacements, if any
     // 应用基于代理的替换（如果有）
 //    if case let .character(char) = action,
@@ -383,6 +387,18 @@ extension StandardKeyboardActionHandler {
 }
 
 private extension StandardKeyboardActionHandler {
+  /// 是否为中/日/英切换按键
+  func isLanguageSwitchAction(_ action: KeyboardAction) -> Bool {
+    guard case .keyboardType(let type) = action else { return false }
+    if keyboardContext.keyboardType == keyboardContext.selectKeyboard {
+      return type.isAlphabetic
+    }
+    if keyboardContext.keyboardType.isAlphabetic {
+      return type == keyboardContext.selectKeyboard
+    }
+    return false
+  }
+
   /// 是否为空格移动光标操作
   func isSpaceCursorDrag(_ action: KeyboardAction) -> Bool {
     guard action == .space else { return false }

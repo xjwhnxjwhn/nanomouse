@@ -194,6 +194,11 @@ public extension KeyboardButton {
   }
 
   func longPressAction() {
+    if isLanguageSwitchKey {
+      shouldApplyReleaseAction = false
+      presentLanguageMenu()
+      return
+    }
     // 空格长按不需要应用 release
     shouldApplyReleaseAction = shouldApplyReleaseAction && item.action != .space
     Logger.statistics.debug("longPressAction()")
@@ -339,5 +344,45 @@ private extension CGRect {
     let rect = CGRect(origin: .zero, size: size)
       .insetBy(dx: -size.width * tolerance, dy: -size.height * tolerance)
     return rect
+  }
+}
+
+private extension KeyboardButton {
+  static let languageMenuOverlayTag = 8117
+
+  var isLanguageSwitchKey: Bool {
+    guard case .keyboardType(let type) = item.action else { return false }
+    if keyboardContext.keyboardType == keyboardContext.selectKeyboard {
+      return type.isAlphabetic
+    }
+    if keyboardContext.keyboardType.isAlphabetic {
+      return type == keyboardContext.selectKeyboard
+    }
+    return false
+  }
+
+  func presentLanguageMenu() {
+    guard let container = superview else { return }
+    container.viewWithTag(Self.languageMenuOverlayTag)?.removeFromSuperview()
+
+    let overlay = LanguageMenuOverlay(style: actionCalloutStyle) { [weak self] option in
+      self?.handleLanguageSelection(option)
+    }
+    overlay.tag = Self.languageMenuOverlayTag
+    overlay.frame = container.bounds
+    overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    container.addSubview(overlay)
+    overlay.positionMenu(above: frame, in: overlay.bounds)
+  }
+
+  func handleLanguageSelection(_ option: LanguageMenuOverlay.LanguageOption) {
+    switch option {
+    case .chinese:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageChinese))
+    case .japanese:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageJapanese))
+    case .english:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageEnglish))
+    }
   }
 }

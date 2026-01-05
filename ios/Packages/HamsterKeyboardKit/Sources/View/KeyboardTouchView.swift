@@ -46,6 +46,13 @@ public class KeyboardTouchView: NibLessView {
     }
     guard bounds.contains(point) else { return nil }
 
+    if let overlay = subviews.last(where: { $0 is LanguageMenuOverlay }) {
+      let overlayPoint = convert(point, to: overlay)
+      if overlay.bounds.contains(overlayPoint) {
+        return overlay.hitTest(overlayPoint, with: event)
+      }
+    }
+
     if let view = findNearestView(point) {
       if let button = view as? KeyboardButton {
         if button.item.action == .nextKeyboard {
