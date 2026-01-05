@@ -128,11 +128,11 @@ public class InputCalloutView: ShapeView {
 
     // 将 size 扩大两倍，作为气泡的基础大小
     originButtonBounds = self.bounds
-    popBounds = self.bounds.applying(CGAffineTransform(scaleX: 1.6, y: 2))
+    popBounds = self.bounds.applying(CGAffineTransform(scaleX: 1.6, y: 2.5))
 
-    // x 轴居中，y 轴底部对齐
+    // x 轴居中，y 轴底部对齐（气泡底部与按钮底部对齐）
     let tempFrame = self.frame
-      .applying(CGAffineTransform(translationX: -(popBounds.width - self.bounds.width) / 2, y: -self.bounds.height))
+      .applying(CGAffineTransform(translationX: -(popBounds.width - self.bounds.width) / 2, y: -(popBounds.height - self.bounds.height)))
 
     self.frame = CGRect(origin: tempFrame.origin, size: popBounds.size)
     self.oldFrame = self.frame
