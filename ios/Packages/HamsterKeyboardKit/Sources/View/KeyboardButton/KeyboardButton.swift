@@ -202,6 +202,8 @@ public class KeyboardButton: UIControl {
     }
 
     setupButtonContentView()
+
+    NotificationCenter.default.addObserver(self, selector: #selector(handleRimeSchemaChange), name: RimeContext.rimeSchemaDidChangeNotification, object: nil)
   }
 
   @available(*, unavailable)
@@ -210,6 +212,7 @@ public class KeyboardButton: UIControl {
   }
 
   deinit {
+    NotificationCenter.default.removeObserver(self)
     RepeatGestureTimer.shared.stop()
   }
 
@@ -272,6 +275,19 @@ public class KeyboardButton: UIControl {
       normalButtonStyle = getButtonStyle(isPressed: false)
       pressedButtonStyle = getButtonStyle(isPressed: true)
       updateButtonStyle(isPressed: isHighlighted)
+    }
+
+    // 语言切换键：始终刷新文字以反映当前语言状态（中/日/英）
+    if isLanguageSwitchKey() {
+      buttonContentView.refreshLanguageSwitchText(buttonText)
+    }
+  }
+
+  @objc func handleRimeSchemaChange() {
+    guard isLanguageSwitchKey() else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      self.buttonContentView.refreshLanguageSwitchText(self.buttonText)
     }
   }
 

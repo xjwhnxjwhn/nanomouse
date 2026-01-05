@@ -136,16 +136,24 @@ public extension KeyboardInputViewController {
         return
       }
       rimeContext.applyAsciiMode(false)
-      setKeyboardType(keyboardContext.selectKeyboard)
+      // 先切换 schema，再切换键盘类型，确保 UI 刷新时 schema 已更新
       if !rimeContext.switchSchema(schemaId: japaneseSchemaId), let chineseSchemaId {
         rimeContext.switchSchema(schemaId: chineseSchemaId)
       }
+      setKeyboardType(keyboardContext.selectKeyboard)
     case .chinese:
       rimeContext.applyAsciiMode(false)
-      setKeyboardType(keyboardContext.selectKeyboard)
+      // 先切换 schema，再切换键盘类型
       if let chineseSchemaId {
         rimeContext.switchSchema(schemaId: chineseSchemaId)
       }
+      setKeyboardType(keyboardContext.selectKeyboard)
+    }
+
+    // 延迟刷新视图，确保语言切换键文字正确显示
+    DispatchQueue.main.async { [weak self] in
+      self?.view.setNeedsLayout()
+      self?.view.layoutIfNeeded()
     }
   }
 

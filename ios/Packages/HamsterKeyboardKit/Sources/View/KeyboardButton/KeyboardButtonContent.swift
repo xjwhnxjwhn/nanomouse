@@ -31,7 +31,7 @@ public class KeyboardButtonContentView: NibLessView {
   }()
 
   private lazy var textContentView: TextContentView = {
-    let view = TextContentView(keyboardContext: keyboardContext, item: item, style: style, text: buttonText, isInputAction: action.isInputAction)
+    let view = TextContentView(keyboardContext: keyboardContext, item: item, style: style, text: buttonText, isInputAction: action.isInputAction, isLanguageSwitchKey: isLanguageSwitchKey())
     return view
   }()
 
@@ -243,6 +243,15 @@ public class KeyboardButtonContentView: NibLessView {
       imageContentView.setStyle(style)
     } else {
       textContentView.setStyle(style)
+      // 动态刷新语言切换键的文字（中/日/英）
+      if isLanguageSwitchKey() {
+        textContentView.setTextValue(buttonText)
+      }
     }
+  }
+
+  /// 刷新语言切换键的文字显示
+  func refreshLanguageSwitchText(_ text: String) {
+    textContentView.setTextValue(text)
   }
 }

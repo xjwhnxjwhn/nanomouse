@@ -13,6 +13,8 @@ import RimeKit
 
 /// RIME 运行时上下文
 public class RimeContext {
+  public static let rimeSchemaDidChangeNotification = Notification.Name("rimeSchemaDidChangeNotification")
+
   /// 最大候选词数量
   public private(set) lazy var maximumNumberOfCandidateWords: Int = 100
 
@@ -38,6 +40,7 @@ public class RimeContext {
     didSet {
       // 注意：如果没有完全访问权限，UserDefaults.hamster 会保存失败
       UserDefaults.hamster.currentSchema = currentSchema
+      NotificationCenter.default.post(name: RimeContext.rimeSchemaDidChangeNotification, object: nil)
     }
   }
 

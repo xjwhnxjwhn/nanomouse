@@ -25,6 +25,9 @@ public class TextContentView: NibLessView {
   /// 是否为输入类型操作
   private let isInputAction: Bool
 
+  /// 是否为语言切换键（使用特殊字体）
+  private let isLanguageSwitchKey: Bool
+
   private var oldBounds: CGRect = .zero
 
   /// 按键 Label
@@ -43,12 +46,13 @@ public class TextContentView: NibLessView {
     isInputAction && text.count == 1 && text.isLowercased
   }
 
-  init(keyboardContext: KeyboardContext, item: KeyboardLayoutItem, style: KeyboardButtonStyle, text: String, isInputAction: Bool) {
+  init(keyboardContext: KeyboardContext, item: KeyboardLayoutItem, style: KeyboardButtonStyle, text: String, isInputAction: Bool, isLanguageSwitchKey: Bool = false) {
     self.keyboardContext = keyboardContext
     self.item = item
     self.style = style
     self.text = text
     self.isInputAction = isInputAction
+    self.isLanguageSwitchKey = isLanguageSwitchKey
 
     super.init(frame: .zero)
 
@@ -62,7 +66,17 @@ public class TextContentView: NibLessView {
   }
 
   override public func setupAppearance() {
-    label.font = style.font
+    if isLanguageSwitchKey {
+      // 语言切换键使用 SF Pro Rounded 字体，更具图标感
+      let size = style.font?.pointSize ?? 18
+      if let descriptor = UIFont.systemFont(ofSize: size, weight: .semibold).fontDescriptor.withDesign(.rounded) {
+        label.font = UIFont(descriptor: descriptor, size: size)
+      } else {
+        label.font = UIFont.systemFont(ofSize: size, weight: .semibold)
+      }
+    } else {
+      label.font = style.font
+    }
     label.textColor = style.foregroundColor
   }
 

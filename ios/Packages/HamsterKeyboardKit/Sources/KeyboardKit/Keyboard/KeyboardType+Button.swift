@@ -19,8 +19,9 @@ public extension KeyboardType {
     case .email: return HamsterUIImage.shared.keyboardEmail
     case .emojis: return HamsterUIImage.shared.keyboardEmoji
     case .images: return HamsterUIImage.shared.keyboardImages
-    case .alphabetic: return HamsterUIImage.shared.keyboardStateChinese
-    case .chinese: return HamsterUIImage.shared.keyboardStateEnglish
+    // 语言切换键使用文字渲染（中/日/英），不使用图片
+    case .alphabetic: return nil
+    case .chinese: return nil
     default: return nil
     }
   }
