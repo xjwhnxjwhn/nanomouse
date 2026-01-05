@@ -50,18 +50,18 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
   public var swipePaging: Bool?
 
   public init(
-    enableToolbar: Bool? = nil,
-    heightOfToolbar: Int? = nil,
-    displayAppIconButton: Bool? = nil,
-    displayKeyboardDismissButton: Bool? = nil,
-    heightOfCodingArea: Int? = nil,
-    codingAreaFontSize: Int? = nil,
-    candidateLabelFontSize: Int? = nil,
-    candidateWordFontSize: Int? = nil,
-    candidateCommentFontSize: Int? = nil,
-    displayIndexOfCandidateWord: Bool? = nil,
-    displayCommentOfCandidateWord: Bool? = nil,
-    swipePaging: Bool? = nil)
+    enableToolbar: Bool? = true,
+    heightOfToolbar: Int? = 50,
+    displayAppIconButton: Bool? = true,
+    displayKeyboardDismissButton: Bool? = true,
+    heightOfCodingArea: Int? = 18,
+    codingAreaFontSize: Int? = 20,
+    candidateLabelFontSize: Int? = 12,
+    candidateWordFontSize: Int? = 18,
+    candidateCommentFontSize: Int? = 12,
+    displayIndexOfCandidateWord: Bool? = false,
+    displayCommentOfCandidateWord: Bool? = false,
+    swipePaging: Bool? = true)
   {
     self.enableToolbar = enableToolbar
     self.heightOfToolbar = heightOfToolbar

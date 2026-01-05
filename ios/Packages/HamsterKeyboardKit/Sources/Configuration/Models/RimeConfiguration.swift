@@ -29,7 +29,12 @@ public struct RimeConfiguration: Codable, Hashable {
   /// 使用场景：在文件管理功能中，拷贝键盘词库文件至应用
   public var regexOnCopyAppGroupDictFile: [String]?
 
-  public init(maximumNumberOfCandidateWords: Int? = nil, keyValueOfSwitchSimplifiedAndTraditional: String? = nil, overrideDictFiles: Bool? = nil, regexOnOverrideDictFiles: [String]? = nil, regexOnCopyAppGroupDictFile: [String]? = nil) {
+  public init(
+    maximumNumberOfCandidateWords: Int? = 100,
+    keyValueOfSwitchSimplifiedAndTraditional: String? = nil,
+    overrideDictFiles: Bool? = nil,
+    regexOnOverrideDictFiles: [String]? = nil,
+    regexOnCopyAppGroupDictFile: [String]? = nil) {
     self.maximumNumberOfCandidateWords = maximumNumberOfCandidateWords
     self.keyValueOfSwitchSimplifiedAndTraditional = keyValueOfSwitchSimplifiedAndTraditional
     self.overrideDictFiles = overrideDictFiles

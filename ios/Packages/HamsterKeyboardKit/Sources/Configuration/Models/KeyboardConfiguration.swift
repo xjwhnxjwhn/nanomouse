@@ -149,7 +149,51 @@ public struct KeyboardConfiguration: Codable, Hashable {
   // 按键下方边框
   public var enableButtonUnderBorder: Bool?
 
-  public init(useKeyboardType: String? = nil, disableSwipeLabel: Bool? = nil, upSwipeOnLeft: Bool? = nil, swipeLabelUpAndDownLayout: Bool? = nil, swipeLabelUpAndDownIrregularLayout: Bool? = nil, displayButtonBubbles: Bool? = nil, enableKeySounds: Bool? = nil, enableHapticFeedback: Bool? = nil, hapticFeedbackIntensity: Int? = nil, displaySemicolonButton: Bool? = nil, displayClassifySymbolButton: Bool? = nil, displaySpaceLeftButton: Bool? = nil, spaceLeftButtonProcessByRIME: Bool? = nil, keyValueOfSpaceLeftButton: String? = nil, displaySpaceRightButton: Bool? = nil, spaceRightButtonProcessByRIME: Bool? = nil, keyValueOfSpaceRightButton: String? = nil, displayChineseEnglishSwitchButton: Bool? = nil, chineseEnglishSwitchButtonIsOnLeftOfSpaceButton: Bool? = nil, enableNineGridOfNumericKeyboard: Bool? = nil, numberKeyProcessByRimeOnNineGridOfNumericKeyboard: Bool? = nil, leftSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool? = nil, rightSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool? = nil, symbolsOfGridOfNumericKeyboard: [String]? = nil, lockShiftState: Bool? = nil, enableEmbeddedInputMode: Bool? = nil, widthOfOneHandedKeyboard: Int? = nil, symbolsOfCursorBack: [String]? = nil, symbolsOfReturnToMainKeyboard: [String]? = nil, symbolsOfChineseNineGridKeyboard: [String]? = nil, pairsOfSymbols: [String]? = nil, enableSymbolKeyboard: Bool? = nil, lockForSymbolKeyboard: Bool? = nil, enableColorSchema: Bool? = nil, useColorSchemaForLight: String? = nil, useColorSchemaForDark: String? = nil, colorSchemas: [KeyboardColorSchema]? = nil, enableLoadingTextForSpaceButton: Bool? = nil, loadingTextForSpaceButton: String? = nil, labelTextForSpaceButton: String? = nil, showCurrentInputSchemaNameForSpaceButton: Bool? = nil, showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = nil, showUppercasedCharacterOnChineseKeyboard: Bool? = nil, enableButtonUnderBorder: Bool? = nil) {
+  public init(
+    useKeyboardType: String? = "chinese",
+    disableSwipeLabel: Bool? = false,
+    upSwipeOnLeft: Bool? = false,
+    swipeLabelUpAndDownLayout: Bool? = true,
+    swipeLabelUpAndDownIrregularLayout: Bool? = false,
+    displayButtonBubbles: Bool? = true,
+    enableKeySounds: Bool? = true,
+    enableHapticFeedback: Bool? = false,
+    hapticFeedbackIntensity: Int? = 2,
+    displaySemicolonButton: Bool? = false,
+    displayClassifySymbolButton: Bool? = false,
+    displaySpaceLeftButton: Bool? = false,
+    spaceLeftButtonProcessByRIME: Bool? = true,
+    keyValueOfSpaceLeftButton: String? = ",",
+    displaySpaceRightButton: Bool? = false,
+    spaceRightButtonProcessByRIME: Bool? = true,
+    keyValueOfSpaceRightButton: String? = ".",
+    displayChineseEnglishSwitchButton: Bool? = true,
+    chineseEnglishSwitchButtonIsOnLeftOfSpaceButton: Bool? = false,
+    enableNineGridOfNumericKeyboard: Bool? = false,
+    numberKeyProcessByRimeOnNineGridOfNumericKeyboard: Bool? = true,
+    leftSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool? = true,
+    rightSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool? = true,
+    symbolsOfGridOfNumericKeyboard: [String]? = nil,
+    lockShiftState: Bool? = false,
+    enableEmbeddedInputMode: Bool? = false,
+    widthOfOneHandedKeyboard: Int? = nil,
+    symbolsOfCursorBack: [String]? = nil,
+    symbolsOfReturnToMainKeyboard: [String]? = nil,
+    symbolsOfChineseNineGridKeyboard: [String]? = nil,
+    pairsOfSymbols: [String]? = nil,
+    enableSymbolKeyboard: Bool? = true,
+    lockForSymbolKeyboard: Bool? = false,
+    enableColorSchema: Bool? = false,
+    useColorSchemaForLight: String? = "default",
+    useColorSchemaForDark: String? = "dark",
+    colorSchemas: [KeyboardColorSchema]? = nil,
+    enableLoadingTextForSpaceButton: Bool? = false,
+    loadingTextForSpaceButton: String? = "Loading...",
+    labelTextForSpaceButton: String? = "SPACE",
+    showCurrentInputSchemaNameForSpaceButton: Bool? = true,
+    showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = false,
+    showUppercasedCharacterOnChineseKeyboard: Bool? = true,
+    enableButtonUnderBorder: Bool? = true) {
     self.useKeyboardType = useKeyboardType
     self.disableSwipeLabel = disableSwipeLabel
     self.upSwipeOnLeft = upSwipeOnLeft

@@ -29,11 +29,11 @@ public struct HamsterConfiguration: Codable, Hashable, CustomStringConvertible {
   public var keyboards: [Keyboard]?
 
   public init(
-    general: GeneralConfiguration? = nil,
-    toolbar: KeyboardToolbarConfiguration? = nil,
-    keyboard: KeyboardConfiguration? = nil,
-    rime: RimeConfiguration? = nil,
-    swipe: KeyboardSwipeConfiguration? = nil,
+    general: GeneralConfiguration? = GeneralConfiguration(),
+    toolbar: KeyboardToolbarConfiguration? = KeyboardToolbarConfiguration(),
+    keyboard: KeyboardConfiguration? = KeyboardConfiguration(),
+    rime: RimeConfiguration? = RimeConfiguration(),
+    swipe: KeyboardSwipeConfiguration? = KeyboardSwipeConfiguration(),
     keyboards: [Keyboard]? = nil
   ) {
     self.general = general
