@@ -56,20 +56,31 @@ class InputSchemaRootView: NibLessView {
 }
 
 extension InputSchemaRootView: UITableViewDataSource {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    InputSchemaViewModel.SchemaGroup.allCases.count
+  }
+
   public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    inputSchemaViewModel.rimeContext.schemas.count
+    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return 0 }
+    return inputSchemaViewModel.schemas(in: group).count
   }
 
   public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = self.tableView.dequeueReusableCell(withIdentifier: Self.cellIdentifier, for: indexPath)
-    let schema = inputSchemaViewModel.rimeContext.schemas[indexPath.row]
+    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) else { return cell }
+    let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
 
     var config = UIListContentConfiguration.cell()
     config.text = schema.schemaName
     cell.contentConfiguration = config
-    cell.accessoryType = inputSchemaViewModel.rimeContext.selectSchemas.contains(schema) ? .checkmark : .none
+    cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
 
     return cell
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return nil }
+    return group.title
   }
 }
 
@@ -77,7 +88,8 @@ extension InputSchemaRootView: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     Task {
       do {
-        let schema = inputSchemaViewModel.rimeContext.schemas[indexPath.row]
+        guard let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) else { return }
+        let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
         try await inputSchemaViewModel.checkboxForInputSchema(schema)
       } catch {
         ProgressHUD.failed(error.localizedDescription, delay: 1.5)

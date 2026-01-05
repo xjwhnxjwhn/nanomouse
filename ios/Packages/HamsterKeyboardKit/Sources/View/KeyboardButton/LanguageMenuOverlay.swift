@@ -23,6 +23,7 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   }
 
   private let style: KeyboardActionCalloutStyle
+  private let options: [LanguageOption]
   private let onSelect: (LanguageOption) -> Void
 
   private let menuContainer = UIView()
@@ -33,8 +34,13 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private let spacing: CGFloat = 6
   private let edgeInset: CGFloat = 4
 
-  init(style: KeyboardActionCalloutStyle, onSelect: @escaping (LanguageOption) -> Void) {
+  init(
+    style: KeyboardActionCalloutStyle,
+    options: [LanguageOption],
+    onSelect: @escaping (LanguageOption) -> Void
+  ) {
     self.style = style
+    self.options = options
     self.onSelect = onSelect
     super.init(frame: .zero)
     setupView()
@@ -46,7 +52,8 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   }
 
   func positionMenu(above buttonFrame: CGRect, in bounds: CGRect) {
-    let menuWidth = padding * 2 + buttonSize.width * 3 + spacing * 2
+    let count = max(options.count, 1)
+    let menuWidth = padding * 2 + buttonSize.width * CGFloat(count) + spacing * CGFloat(max(count - 1, 0))
     let menuHeight = padding * 2 + buttonSize.height
 
     var origin = CGPoint(
@@ -97,7 +104,7 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     stackView.distribution = .fillEqually
     stackView.spacing = spacing
 
-    for option in LanguageOption.allCases {
+    for option in options {
       let button = UIButton(type: .system)
       button.setTitle(option.title, for: .normal)
       button.setTitleColor(style.callout.textColor, for: .normal)

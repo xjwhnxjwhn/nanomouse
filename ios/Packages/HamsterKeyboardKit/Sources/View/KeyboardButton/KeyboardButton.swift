@@ -322,10 +322,35 @@ public class KeyboardButton: UIControl {
 
 extension KeyboardButton {
   var buttonText: String {
+    if let languageText = languageSwitchButtonText() {
+      return languageText
+    }
     if keyboardContext.keyboardType.isCustom, let buttonText = item.key?.label.text, !buttonText.isEmpty {
       return buttonText
     }
     return appearance.buttonText(for: item.action) ?? ""
+  }
+
+  private func languageSwitchButtonText() -> String? {
+    guard isLanguageSwitchKey() else { return nil }
+    if rimeContext.asciiMode || keyboardContext.keyboardType.isAlphabetic {
+      return "英"
+    }
+    if rimeContext.currentSchema?.isJapaneseSchema == true {
+      return "日"
+    }
+    return "中"
+  }
+
+  private func isLanguageSwitchKey() -> Bool {
+    guard case .keyboardType(let type) = item.action else { return false }
+    if keyboardContext.keyboardType == keyboardContext.selectKeyboard {
+      return type.isAlphabetic
+    }
+    if keyboardContext.keyboardType.isAlphabetic {
+      return type == keyboardContext.selectKeyboard
+    }
+    return false
   }
 
   /// 添加 input 按键气泡

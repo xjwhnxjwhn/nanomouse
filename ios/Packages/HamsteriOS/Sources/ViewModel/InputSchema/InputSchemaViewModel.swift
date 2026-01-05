@@ -91,6 +91,38 @@ public class InputSchemaViewModel {
   public init(rimeContext: RimeContext) {
     self.rimeContext = rimeContext
   }
+
+  enum SchemaGroup: Int, CaseIterable {
+    case chineseEnglish
+    case japanese
+
+    var title: String {
+      switch self {
+      case .chineseEnglish: return "中英"
+      case .japanese: return "日语"
+      }
+    }
+  }
+
+  func schemas(in group: SchemaGroup) -> [RimeSchema] {
+    rimeContext.schemas.filter { schemaGroup(for: $0) == group }
+  }
+
+  func schemaGroup(for schema: RimeSchema) -> SchemaGroup {
+    schema.isJapaneseSchema ? .japanese : .chineseEnglish
+  }
+
+  func selectedSchema(in group: SchemaGroup) -> RimeSchema? {
+    rimeContext.selectSchemas.first { schemaGroup(for: $0) == group }
+  }
+
+  func isSchemaSelected(_ schema: RimeSchema) -> Bool {
+    rimeContext.selectSchemas.contains(schema)
+  }
+
+  var isJapaneseEnabled: Bool {
+    selectedSchema(in: .japanese) != nil
+  }
 }
 
 // MARK: - CloudKit 方案管理
@@ -268,14 +300,30 @@ extension InputSchemaViewModel {
 
   /// 选择 InputSchema
   func checkboxForInputSchema(_ schema: RimeSchema) async throws {
-    let selectSchemas = rimeContext.selectSchemas
-    if !selectSchemas.contains(schema) {
-      rimeContext.appendSelectSchema(schema)
-    } else {
-      if selectSchemas.count == 1 {
-        throw StringError("需要保留至少一个输入方案。")
+    let group = schemaGroup(for: schema)
+    let selectedInGroup = rimeContext.selectSchemas.filter { schemaGroup(for: $0) == group }
+
+    switch group {
+    case .chineseEnglish:
+      if selectedInGroup.contains(schema) {
+        // 中英分组必须保留一个，点击当前选中不做处理
+        break
       }
-      rimeContext.removeSelectSchema(schema)
+      for item in selectedInGroup where item != schema {
+        rimeContext.removeSelectSchema(item)
+      }
+      if !rimeContext.selectSchemas.contains(schema) {
+        rimeContext.appendSelectSchema(schema)
+      }
+    case .japanese:
+      if selectedInGroup.contains(schema) {
+        rimeContext.removeSelectSchema(schema)
+      } else {
+        for item in selectedInGroup {
+          rimeContext.removeSelectSchema(item)
+        }
+        rimeContext.appendSelectSchema(schema)
+      }
     }
     reloadTableStateSubject.send(true)
   }

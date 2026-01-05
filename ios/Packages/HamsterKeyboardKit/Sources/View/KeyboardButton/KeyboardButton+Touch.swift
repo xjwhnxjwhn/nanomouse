@@ -365,7 +365,7 @@ private extension KeyboardButton {
     guard let container = superview else { return }
     container.viewWithTag(Self.languageMenuOverlayTag)?.removeFromSuperview()
 
-    let overlay = LanguageMenuOverlay(style: actionCalloutStyle) { [weak self] option in
+    let overlay = LanguageMenuOverlay(style: actionCalloutStyle, options: languageMenuOptions()) { [weak self] option in
       self?.handleLanguageSelection(option)
     }
     overlay.tag = Self.languageMenuOverlayTag
@@ -373,6 +373,15 @@ private extension KeyboardButton {
     overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     container.addSubview(overlay)
     overlay.positionMenu(above: frame, in: overlay.bounds)
+  }
+
+  func languageMenuOptions() -> [LanguageMenuOverlay.LanguageOption] {
+    var options: [LanguageMenuOverlay.LanguageOption] = [.chinese]
+    if rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema }) {
+      options.append(.japanese)
+    }
+    options.append(.english)
+    return options
   }
 
   func handleLanguageSelection(_ option: LanguageMenuOverlay.LanguageOption) {

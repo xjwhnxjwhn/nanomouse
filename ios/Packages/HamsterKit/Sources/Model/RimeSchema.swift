@@ -32,4 +32,19 @@ public extension RimeSchema {
   func hash(into hasher: inout Hasher) {
     hasher.combine(schemaId)
   }
+
+  var isJapaneseSchema: Bool {
+    let id = schemaId.lowercased()
+    let name = schemaName.lowercased()
+    let keywords = [
+      "japanese",
+      "nihongo",
+      "romaji",
+      "kana",
+      "hifumi",
+      "jaroomaji",
+      "jaromaji",
+    ]
+    return keywords.contains(where: { id.contains($0) || name.contains($0) })
+  }
 }
