@@ -393,6 +393,7 @@ public extension FileManager {
       if override {
         try fm.removeItem(atPath: dst.path)
       } else {
+        try ensureExtraInputSchemaFiles(in: dst)
         return
       }
     }
@@ -407,6 +408,50 @@ public extension FileManager {
 
     // 解压缩输入方案zip文件
     try fm.unzipItem(at: src, to: dst)
+
+    // 解压缩额外输入方案zip文件
+    try ensureExtraInputSchemaFiles(in: dst)
+  }
+
+  static func ensureExtraInputSchemaFiles(in dst: URL) throws {
+    let fm = FileManager.default
+    for extraZip in HamsterConstants.extraInputSchemaZipFiles {
+      let extraSrc = appSharedSupportDirectory.appendingPathComponent(extraZip)
+      guard fm.fileExists(atPath: extraSrc.path) else { continue }
+      guard needsUnzip(extraSrc, dst: dst) else { continue }
+      Logger.statistics.debug("unzip extra src: \(extraSrc), dst: \(dst)")
+      try fm.unzipOverwrite(extraSrc, dst: dst)
+    }
+  }
+
+  private static func needsUnzip(_ zipURL: URL, dst: URL) -> Bool {
+    let fm = FileManager.default
+    guard let archive = Archive(url: zipURL, accessMode: .read) else { return false }
+    var markerEntry: Entry?
+    for entry in archive {
+      if markerEntry == nil { markerEntry = entry }
+      if entry.path.hasSuffix(".schema.yaml") {
+        markerEntry = entry
+        break
+      }
+    }
+    guard let markerEntry else { return true }
+    let markerPath = dst.appendingPathComponent(markerEntry.path).path
+    return !fm.fileExists(atPath: markerPath)
+  }
+
+  func unzipOverwrite(_ zipURL: URL, dst: URL) throws {
+    guard let archive = Archive(url: zipURL, accessMode: .read) else {
+      throw StringError("读取Zip文件异常")
+    }
+
+    for entry in archive {
+      let destinationEntryURL = dst.appendingPathComponent(entry.path)
+      if fileExists(atPath: destinationEntryURL.path) {
+        try removeItem(at: destinationEntryURL)
+      }
+      _ = try archive.extract(entry, to: destinationEntryURL, skipCRC32: true)
+    }
   }
 
   // 初始化 AppGroup 共享目录下 UserData 目录资源

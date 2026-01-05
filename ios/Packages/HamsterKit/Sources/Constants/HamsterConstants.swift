@@ -32,6 +32,15 @@ public enum HamsterConstants {
   /// RIME 内置输入方案及配置zip包
   public static let inputSchemaZipFile = "SharedSupport.zip"
 
+  /// 额外输入方案 zip 包（会解压到 SharedSupport）
+  public static let extraInputSchemaZipFiles = [
+    "rime-japanese.zip",
+    "rime-terra-pinyin.zip",
+    "rime-stroke.zip",
+    "rime-hangyl.zip",
+    "rime-hannomps.zip",
+  ]
+
   /// 仓内置方案 zip 包
   public static let userDataZipFile = "rime-ice.zip"
 

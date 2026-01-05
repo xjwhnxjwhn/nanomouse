@@ -117,6 +117,16 @@ patch:
     # 键位优化：uang → vnn
     - derive/uang$/vnn/
 NANOMOUSE_CONFIG
+
+    # === Nanomouse: 添加日语方案（增量，不覆盖原列表） ===
+    cat > default.custom.yaml << 'DEFAULT_CONFIG'
+# Nanomouse 默认方案配置
+# 增量追加日语方案，保留原有 schema_list
+
+patch:
+  schema_list/+:
+    - schema: japanese        # 日语
+DEFAULT_CONFIG
     # === Nanomouse 配置结束 ===
     
     # 提前编译
@@ -126,4 +136,89 @@ NANOMOUSE_CONFIG
   ) && \
   cp -R $OUTPUT/.$input_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
 
+# === 内置方案：日语 (rime-japanese) ===
+japanese_scheme_name=rime-japanese
 
+rm -rf $OUTPUT/.$japanese_scheme_name && \
+  git clone --depth 1 https://github.com/gkovacs/$japanese_scheme_name $OUTPUT/.$japanese_scheme_name && (
+    cd $OUTPUT/.$japanese_scheme_name
+    zip -r $japanese_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$japanese_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 依赖方案：terra_pinyin.extended (rime-terra-pinyin) ===
+terra_pinyin_scheme_name=rime-terra-pinyin
+
+rm -rf $OUTPUT/.$terra_pinyin_scheme_name && \
+  git clone --depth 1 https://github.com/rime/$terra_pinyin_scheme_name $OUTPUT/.$terra_pinyin_scheme_name && (
+    cd $OUTPUT/.$terra_pinyin_scheme_name
+
+    # 生成 terra_pinyin.extended 方案（满足 rime-japanese 依赖）
+    if [ -f terra_pinyin.dict.yaml ]; then
+      cp terra_pinyin.dict.yaml terra_pinyin.extended.dict.yaml
+      python3 - <<'PY'
+from pathlib import Path
+path = Path("terra_pinyin.extended.dict.yaml")
+if path.exists():
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("name: terra_pinyin", "name: terra_pinyin.extended", 1)
+    path.write_text(text, encoding="utf-8")
+PY
+    fi
+    if [ -f terra_pinyin.schema.yaml ]; then
+      cp terra_pinyin.schema.yaml terra_pinyin.extended.schema.yaml
+      python3 - <<'PY'
+from pathlib import Path
+path = Path("terra_pinyin.extended.schema.yaml")
+if path.exists():
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("schema_id: terra_pinyin", "schema_id: terra_pinyin.extended", 1)
+    text = text.replace("dictionary: terra_pinyin", "dictionary: terra_pinyin.extended", 1)
+    path.write_text(text, encoding="utf-8")
+PY
+    fi
+
+    zip -r $terra_pinyin_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$terra_pinyin_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 依赖方案：stroke (rime-stroke) ===
+stroke_scheme_name=rime-stroke
+
+rm -rf $OUTPUT/.$stroke_scheme_name && \
+  git clone --depth 1 https://github.com/rime/$stroke_scheme_name $OUTPUT/.$stroke_scheme_name && (
+    cd $OUTPUT/.$stroke_scheme_name
+    zip -r $stroke_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$stroke_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 依赖方案：hangyl (rime-hangyl) ===
+hangyl_scheme_name=rime-hangyl
+
+rm -rf $OUTPUT/.$hangyl_scheme_name && \
+  git clone --depth 1 https://github.com/rime-aca/$hangyl_scheme_name $OUTPUT/.$hangyl_scheme_name && (
+    cd $OUTPUT/.$hangyl_scheme_name
+    zip -r $hangyl_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$hangyl_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 依赖方案：hannomPS（来自 Rime-Hannom，生成 hannomPS.dict.yaml） ===
+hannom_scheme_name=rime-hannomps
+
+rm -rf $OUTPUT/.$hannom_scheme_name && \
+  git clone --depth 1 https://github.com/huangjunxin/Rime-Hannom $OUTPUT/.$hannom_scheme_name && (
+    cd $OUTPUT/.$hannom_scheme_name
+    if [ -f hannom.dict.yaml ]; then
+      cp hannom.dict.yaml hannomPS.dict.yaml
+      python3 - <<'PY'
+from pathlib import Path
+path = Path("hannomPS.dict.yaml")
+if path.exists():
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("name: hannom", "name: hannomPS", 1)
+    path.write_text(text, encoding="utf-8")
+PY
+    fi
+    zip -r $hannom_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$hannom_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
