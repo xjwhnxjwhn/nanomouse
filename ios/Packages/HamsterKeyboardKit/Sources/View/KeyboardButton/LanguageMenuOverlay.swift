@@ -132,13 +132,13 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     addGestureRecognizer(tap)
 
     menuContainer.backgroundColor = style.callout.backgroundColor
-    menuContainer.layer.cornerRadius = 10 // Rounded styling
+    menuContainer.layer.cornerRadius = style.callout.cornerRadius
     menuContainer.layer.borderColor = UIColor.clear.cgColor
     menuContainer.layer.borderWidth = 0
-    menuContainer.layer.shadowColor = style.callout.shadowColor.cgColor
-    menuContainer.layer.shadowOpacity = 0.5
-    menuContainer.layer.shadowRadius = 4
-    menuContainer.layer.shadowOffset = CGSize(width: 0, height: 2)
+    menuContainer.layer.shadowColor = UIColor.black.cgColor
+    menuContainer.layer.shadowOpacity = 0 // Remove shadow to prevent "underline" look
+    menuContainer.layer.shadowRadius = 0
+    menuContainer.layer.shadowOffset = .zero
 
     addSubview(menuContainer)
     menuContainer.addSubview(stackView)
@@ -149,17 +149,27 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     stackView.spacing = spacing
 
     for option in options {
-      let button = UIButton(type: .custom) // Use custom for better control
-      button.setTitle(option.title, for: .normal)
-      button.setTitleColor(style.callout.textColor, for: .normal)
-      
-      // 使用 SF Pro Rounded 字体
-      let fontSize: CGFloat = 20
-      if let descriptor = UIFont.systemFont(ofSize: fontSize, weight: .bold).fontDescriptor.withDesign(.rounded) {
-        button.titleLabel?.font = UIFont(descriptor: descriptor, size: fontSize)
-      } else {
-        button.titleLabel?.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
+      let button = UIButton(type: .custom)
+      if #available(iOS 15.0, *) {
+        button.configuration = nil // Reset configuration
       }
+      
+      let fontSize: CGFloat = 20
+      let font: UIFont
+      if let descriptor = UIFont.systemFont(ofSize: fontSize, weight: .bold).fontDescriptor.withDesign(.rounded) {
+        font = UIFont(descriptor: descriptor, size: fontSize)
+      } else {
+        font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
+      }
+      
+      let attributes: [NSAttributedString.Key: Any] = [
+        .font: font,
+        .foregroundColor: style.callout.textColor,
+        .underlineStyle: 0 // Explicitly no underline
+      ]
+      
+      let attributedTitle = NSAttributedString(string: option.title, attributes: attributes)
+      button.setAttributedTitle(attributedTitle, for: .normal)
       
       button.layer.cornerRadius = 6
       button.tag = option.rawValue
