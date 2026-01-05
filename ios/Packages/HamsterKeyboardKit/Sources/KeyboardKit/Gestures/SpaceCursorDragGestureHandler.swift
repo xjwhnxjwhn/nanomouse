@@ -87,8 +87,9 @@ open class SpaceCursorDragGestureHandler: DragGestureHandler {
     guard textPositionOffset != currentDragTextPositionOffset else { return }
     let offsetDelta = textPositionOffset - currentDragTextPositionOffset
     currentDragTextPositionOffset = textPositionOffset
-    let verticalDistance = abs(startLocation.y - currentLocation.y)
-    guard verticalDistance < verticalThreshold else { return }
+    // 移除垂直距离限制，允许全屏拖动控制光标
+    // let verticalDistance = abs(startLocation.y - currentLocation.y)
+    // guard verticalDistance < verticalThreshold else { return }
     action(-offsetDelta)
   }
 }
