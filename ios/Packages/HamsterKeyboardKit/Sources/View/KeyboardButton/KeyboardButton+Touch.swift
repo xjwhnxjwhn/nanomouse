@@ -32,6 +32,16 @@ public extension KeyboardButton {
   func tryHandleRelease(_ touch: UITouch, event: UIEvent?) {
     // 语言切换菜单：手势释放时确认选择
     if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
+      Logger.statistics.info("DBG_LANGSWITCH menu confirmSelection, suppress releaseAction")
+      shouldApplyReleaseAction = false
+      swipeGestureHandle = nil
+      if let handler = actionHandler as? StandardKeyboardActionHandler {
+        handler.suppressNextLanguageSwitchRelease = true
+        if let controller = handler.keyboardController as? KeyboardInputViewController {
+          controller.languageCycleSuppressionUntil = Date().addingTimeInterval(0.8)
+          Logger.statistics.info("DBG_LANGSWITCH set languageCycleSuppressionUntil")
+        }
+      }
       overlay.confirmSelection()
     }
 
@@ -213,6 +223,10 @@ public extension KeyboardButton {
   func longPressAction() {
     if isLanguageSwitchKey {
       shouldApplyReleaseAction = false
+      if let handler = actionHandler as? StandardKeyboardActionHandler {
+        handler.suppressNextLanguageSwitchRelease = true
+        Logger.statistics.info("DBG_LANGSWITCH suppress release on longPress")
+      }
       presentLanguageMenu()
       return
     }

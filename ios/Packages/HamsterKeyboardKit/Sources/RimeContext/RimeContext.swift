@@ -14,6 +14,7 @@ import RimeKit
 /// RIME 运行时上下文
 public class RimeContext {
   public static let rimeSchemaDidChangeNotification = Notification.Name("rimeSchemaDidChangeNotification")
+  public static let rimeAsciiModeDidChangeNotification = Notification.Name("rimeAsciiModeDidChangeNotification")
 
   /// 最大候选词数量
   public private(set) lazy var maximumNumberOfCandidateWords: Int = 100
@@ -47,7 +48,7 @@ public class RimeContext {
   /// 上次使用输入方案
   public lazy var latestSchema: RimeSchema? = UserDefaults.hamster.latestSchema {
     didSet {
-      UserDefaults.hamster.currentSchema = currentSchema
+      UserDefaults.hamster.latestSchema = latestSchema
     }
   }
 
@@ -90,6 +91,11 @@ public class RimeContext {
   /// 字母模式
   @MainActor
   public lazy var asciiMode: Bool = false
+  /// 供非 MainActor 调用的 ASCII 模式快照
+  public private(set) var asciiModeSnapshot: Bool = false
+  /// 短时间覆盖 RIME 异步 ascii_mode 回调，避免切方案时被回写
+  @MainActor
+  private var asciiModeOverride: (value: Bool, until: Date)?
 
   /// 候选字
   @MainActor @Published
@@ -195,6 +201,8 @@ public extension RimeContext {
   @MainActor
   func setAsciiMode(_ model: Bool) {
     self.asciiMode = model
+    self.asciiModeSnapshot = model
+    NotificationCenter.default.post(name: RimeContext.rimeAsciiModeDidChangeNotification, object: nil)
   }
 
   /// RIME 启动
@@ -252,6 +260,7 @@ public extension RimeContext {
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
     try FileManager.ensureExtraInputSchemaFiles(in: FileManager.sandboxSharedSupportDirectory)
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
+    removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
 
     let traits = Rime.createTraits(
       sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
@@ -287,6 +296,7 @@ public extension RimeContext {
       }
     }
     ensureSchemaListContains(schemaId: "japanese", schemas: &schemas, traits: traits)
+    ensureSchemaListContains(schemaId: "jaroomaji", schemas: &schemas, traits: traits)
 
     // 提前在部署阶段加载 RimeSwitch hotKey, 此步骤放在键盘启动阶段会减慢启动速度
     // 加载Switcher切换键
@@ -403,6 +413,7 @@ public extension RimeContext {
       throw error
     }
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
+    removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
 
     Rime.shared.shutdown()
     let traits = Rime.createTraits(
@@ -415,6 +426,7 @@ public extension RimeContext {
 
     var mutableSchemas = schemas
     ensureSchemaListContains(schemaId: "japanese", schemas: &mutableSchemas, traits: traits)
+    ensureSchemaListContains(schemaId: "jaroomaji", schemas: &mutableSchemas, traits: traits)
 
     Rime.shared.shutdown()
 
@@ -483,6 +495,16 @@ public extension RimeContext {
       try FileManager.default.removeItem(at: patchURL)
     } catch {
       Logger.statistics.error("remove japanese.custom.yaml failed: \(error.localizedDescription)")
+    }
+  }
+  
+  private func removeJaroomajiSchemaPatch(in userDataDir: URL) {
+    let patchURL = userDataDir.appendingPathComponent("jaroomaji.custom.yaml")
+    guard FileManager.default.fileExists(atPath: patchURL.path) else { return }
+    do {
+      try FileManager.default.removeItem(at: patchURL)
+    } catch {
+      Logger.statistics.error("remove jaroomaji.custom.yaml failed: \(error.localizedDescription)")
     }
   }
 
@@ -587,15 +609,36 @@ public extension RimeContext {
   @MainActor
   func switchEnglishChinese() {
     self.reset()
-    self.asciiMode.toggle()
-    Rime.shared.asciiMode(asciiMode)
+    let next = !self.asciiMode
+    self.asciiMode = next
+    self.asciiModeSnapshot = next
+    Rime.shared.asciiMode(next)
+    NotificationCenter.default.post(name: RimeContext.rimeAsciiModeDidChangeNotification, object: nil)
   }
 
   /// 设置字母模式（同步到 RIME 引擎）
   @MainActor
   func applyAsciiMode(_ mode: Bool) {
     self.asciiMode = mode
+    self.asciiModeSnapshot = mode
     Rime.shared.asciiMode(mode)
+    NotificationCenter.default.post(name: RimeContext.rimeAsciiModeDidChangeNotification, object: nil)
+    Logger.statistics.info("DBG_LANGSWITCH applyAsciiMode: \(mode), snapshot: \(self.asciiModeSnapshot)")
+  }
+
+  /// 设置字母模式，并在短窗口内覆盖 RIME 异步回调
+  @MainActor
+  func applyAsciiMode(_ mode: Bool, overrideWindow: TimeInterval) {
+    asciiModeOverride = (mode, Date().addingTimeInterval(overrideWindow))
+    Logger.statistics.info("DBG_LANGSWITCH applyAsciiMode override: \(mode), window: \(overrideWindow, privacy: .public)s")
+    applyAsciiMode(mode)
+  }
+
+  /// 清除字母模式回调覆盖
+  @MainActor
+  func clearAsciiModeOverride() {
+    asciiModeOverride = nil
+    Logger.statistics.info("DBG_LANGSWITCH clearAsciiModeOverride")
   }
 
   /// 切换到指定输入方案
@@ -625,10 +668,12 @@ public extension RimeContext {
     }
     guard let schema else {
       Logger.statistics.error("rime schema not found: \(schemaId)")
+      Logger.statistics.error("DBG_LANGSWITCH switchSchema not found: \(schemaId, privacy: .public)")
       return false
     }
     let handle = Rime.shared.setSchema(schema.schemaId)
     Logger.statistics.info("rime set schema: \(schema.schemaName), handle = \(handle)")
+    Logger.statistics.info("DBG_LANGSWITCH setSchema: \(schema.schemaId, privacy: .public), handle: \(handle)")
     if handle {
       latestSchema = currentSchema
       currentSchema = schema
@@ -669,6 +714,20 @@ extension RimeContext: IRimeNotificationDelegate {
 
       // 中英模式
       if option.hasSuffix("ascii_mode") {
+        Logger.statistics.info("DBG_LANGSWITCH onChangeMode ascii_mode raw: \(option, privacy: .public), state: \(optionState)")
+        let now = Date()
+        if let override = asciiModeOverride {
+          if now < override.until {
+            if optionState != override.value {
+              Logger.statistics.info("DBG_LANGSWITCH onChangeMode override active, force: \(override.value), until: \(override.until.timeIntervalSince1970, privacy: .public)")
+              self.applyAsciiMode(override.value)
+              return
+            }
+          } else {
+            asciiModeOverride = nil
+            Logger.statistics.info("DBG_LANGSWITCH onChangeMode override expired")
+          }
+        }
         self.setAsciiMode(optionState)
       }
 
@@ -701,8 +760,11 @@ public extension RimeContext {
    */
   @MainActor
   func tryHandleInputText(_ text: String) -> Bool {
+    let asciiMode = Rime.shared.isAsciiMode()
+    Logger.statistics.info("DBG_RIMEINPUT inputKey: \(text, privacy: .public), asciiSnapshot: \(self.asciiModeSnapshot), rimeAscii: \(asciiMode), schema: \(self.currentSchema?.schemaId ?? "nil", privacy: .public)")
     // 由rime处理全部符号
     let handled = Rime.shared.inputKey(text)
+    Logger.statistics.info("DBG_RIMEINPUT inputKey handled: \(handled)")
 
     // 处理失败则返回 inputText
     guard handled else { return false }

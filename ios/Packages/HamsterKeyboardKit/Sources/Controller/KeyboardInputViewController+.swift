@@ -14,6 +14,13 @@ import UIKit
 public extension KeyboardInputViewController {
   /// 尝试处理键入的快捷指令
   func tryHandleShortcutCommand(_ command: ShortcutCommand) {
+    if command == .switchLanguageCycle {
+      if let until = languageCycleSuppressionUntil, Date() < until {
+        Logger.statistics.info("DBG_LANGSWITCH ignore switchLanguageCycle (suppressed)")
+        return
+      }
+    }
+    Logger.statistics.info("DBG_LANGSWITCH command: \(String(describing: command), privacy: .public)")
     switch command {
     case .simplifiedTraditionalSwitch:
       self.switchTraditionalSimplifiedChinese()
@@ -90,24 +97,64 @@ public extension KeyboardInputViewController {
     case english
   }
 
+  private func loadPersistedSchemas() -> (select: [RimeSchema], current: RimeSchema?, latest: RimeSchema?) {
+    _ = UserDefaults.hamster.synchronize()
+    return (UserDefaults.hamster.selectSchemas, UserDefaults.hamster.currentSchema, UserDefaults.hamster.latestSchema)
+  }
+
+  private var selectedSchemasSnapshot: [RimeSchema] {
+    let persisted = loadPersistedSchemas().select
+    return persisted.isEmpty ? rimeContext.selectSchemas : persisted
+  }
+
   private var japaneseSchemaId: String? {
-    rimeContext.selectSchemas.first(where: { $0.isJapaneseSchema })?.schemaId
-      ?? rimeContext.schemas.first(where: { $0.isJapaneseSchema })?.schemaId
+    let persisted = loadPersistedSchemas()
+    let selected = persisted.select.isEmpty ? rimeContext.selectSchemas : persisted.select
+    let selectedJapaneseSchemas = selected.filter { $0.isJapaneseSchema }
+    let persistedSelectIds = persisted.select.map { $0.schemaId }.joined(separator: ",")
+    let persistedSummary = "select=[\(persistedSelectIds)], current=\(persisted.current?.schemaId ?? "nil"), latest=\(persisted.latest?.schemaId ?? "nil")"
+
+    if let latest = persisted.latest, latest.isJapaneseSchema,
+       selectedJapaneseSchemas.contains(latest) || selectedJapaneseSchemas.isEmpty
+    {
+      Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(latest.schemaId, privacy: .public) (source: latest, \(persistedSummary, privacy: .public))")
+      return latest.schemaId
+    }
+
+    if let current = persisted.current, current.isJapaneseSchema,
+       selectedJapaneseSchemas.contains(current) || selectedJapaneseSchemas.isEmpty
+    {
+      Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(current.schemaId, privacy: .public) (source: current, \(persistedSummary, privacy: .public))")
+      return current.schemaId
+    }
+
+    if let selectedFirst = selectedJapaneseSchemas.first {
+      Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(selectedFirst.schemaId, privacy: .public) (source: selected, \(persistedSummary, privacy: .public))")
+      return selectedFirst.schemaId
+    }
+
+    if let currentRuntime = rimeContext.currentSchema, currentRuntime.isJapaneseSchema {
+      Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(currentRuntime.schemaId, privacy: .public) (source: runtime, \(persistedSummary, privacy: .public))")
+      return currentRuntime.schemaId
+    }
+
+    let fallback = rimeContext.schemas.first(where: { $0.isJapaneseSchema })?.schemaId
+    Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(fallback ?? "nil", privacy: .public) (source: fallback, \(persistedSummary, privacy: .public))")
+    return fallback
   }
 
   private var chineseSchemaId: String? {
-    rimeContext.selectSchemas.first(where: { !$0.isJapaneseSchema })?.schemaId
+    selectedSchemasSnapshot.first(where: { !$0.isJapaneseSchema })?.schemaId
       ?? rimeContext.schemas.first(where: { !$0.isJapaneseSchema })?.schemaId
       ?? rimeContext.schemas.first?.schemaId
   }
 
   private var isJapaneseEnabled: Bool {
-    rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema })
+    selectedSchemasSnapshot.contains(where: { $0.isJapaneseSchema })
   }
 
   func currentLanguageMode() -> LanguageMode {
-    if keyboardContext.keyboardType.isAlphabetic { return .english }
-    if rimeContext.asciiMode { return .english }
+    if rimeContext.asciiModeSnapshot { return .english }
     if rimeContext.currentSchema?.isJapaneseSchema == true { return .japanese }
     return .chinese
   }
@@ -125,27 +172,40 @@ public extension KeyboardInputViewController {
   }
 
   func setLanguageMode(_ mode: LanguageMode) {
+    Logger.statistics.info("DBG_LANGSWITCH setLanguageMode: \(String(describing: mode), privacy: .public), currentSchema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
     switch mode {
     case .english:
       rimeContext.reset()
+      rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(true)
       setKeyboardType(.alphabetic(.lowercased))
     case .japanese:
-      guard isJapaneseEnabled, let japaneseSchemaId else {
+      guard self.isJapaneseEnabled, let japaneseSchemaId else {
+        Logger.statistics.info("DBG_LANGSWITCH japanese unavailable, fallback chinese. isJapaneseEnabled: \(self.isJapaneseEnabled)")
         setLanguageMode(.chinese)
         return
       }
-      rimeContext.applyAsciiMode(false)
       // 先切换 schema，再切换键盘类型，确保 UI 刷新时 schema 已更新
-      if !rimeContext.switchSchema(schemaId: japaneseSchemaId), let chineseSchemaId {
+      let switched = rimeContext.switchSchema(schemaId: japaneseSchemaId)
+      Logger.statistics.info("DBG_LANGSWITCH switchSchema japanese: \(japaneseSchemaId, privacy: .public), handled: \(switched)")
+      if !switched, let chineseSchemaId {
         rimeContext.switchSchema(schemaId: chineseSchemaId)
       }
+      // 切换 schema 后再关闭 ascii_mode，并在短时间内覆盖异步回调
+      rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
       setKeyboardType(keyboardContext.selectKeyboard)
+
+      // 如果是 Romaji 方案，强制使用 26 键
+      if japaneseSchemaId.lowercased().contains("romaji") || japaneseSchemaId.lowercased().contains("jaroomaji") {
+        setKeyboardType(.alphabetic(.lowercased))
+      }
     case .chinese:
+      rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(false)
       // 先切换 schema，再切换键盘类型
       if let chineseSchemaId {
-        rimeContext.switchSchema(schemaId: chineseSchemaId)
+        let switched = rimeContext.switchSchema(schemaId: chineseSchemaId)
+        Logger.statistics.info("DBG_LANGSWITCH switchSchema chinese: \(chineseSchemaId, privacy: .public), handled: \(switched)")
       }
       setKeyboardType(keyboardContext.selectKeyboard)
     }
@@ -155,6 +215,7 @@ public extension KeyboardInputViewController {
       self?.view.setNeedsLayout()
       self?.view.layoutIfNeeded()
     }
+
   }
 
   func switchTraditionalSimplifiedChinese() {

@@ -204,6 +204,7 @@ public class KeyboardButton: UIControl {
     setupButtonContentView()
 
     NotificationCenter.default.addObserver(self, selector: #selector(handleRimeSchemaChange), name: RimeContext.rimeSchemaDidChangeNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(handleRimeAsciiModeChange), name: RimeContext.rimeAsciiModeDidChangeNotification, object: nil)
   }
 
   @available(*, unavailable)
@@ -291,6 +292,14 @@ public class KeyboardButton: UIControl {
     }
   }
 
+  @objc func handleRimeAsciiModeChange() {
+    guard isLanguageSwitchKey() else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self = self else { return }
+      self.buttonContentView.refreshLanguageSwitchText(self.buttonText)
+    }
+  }
+
   /// 根据按下状态更新当前按钮样式
   func updateButtonStyle(isPressed: Bool) {
     // Logger.statistics.debug("updateButtonStyle(), isPressed: \(isPressed), isHighlighted: \(self.isHighlighted)")
@@ -349,7 +358,7 @@ extension KeyboardButton {
 
   private func languageSwitchButtonText() -> String? {
     guard isLanguageSwitchKey() else { return nil }
-    if rimeContext.asciiMode || keyboardContext.keyboardType.isAlphabetic {
+    if rimeContext.asciiModeSnapshot {
       return "英"
     }
     if rimeContext.currentSchema?.isJapaneseSchema == true {

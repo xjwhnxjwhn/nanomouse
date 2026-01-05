@@ -6,6 +6,8 @@
 //  Copyright © 2019-2023 Daniel Saidi. All rights reserved.
 //
 
+import HamsterKit
+import OSLog
 import UIKit
 
 /**
@@ -20,6 +22,8 @@ import UIKit
  您可以继承该类并覆盖任何 open 属性和函数，以自定义标准操作行为。
  */
 open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
+  /// 抑制下一次语言切换键的 release 触发（用于长按气泡选择）
+  public var suppressNextLanguageSwitchRelease = false
   // MARK: - Properties
 
   /// The controller to which this handler applies.
@@ -115,6 +119,11 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
    该函数用于处理可取代其他操作而触发 action 的情况。
    */
   open func handle(_ gesture: KeyboardGesture, on action: KeyboardAction, replaced: Bool) {
+    if gesture == .release, suppressNextLanguageSwitchRelease, isLanguageSwitchAction(action) {
+      suppressNextLanguageSwitchRelease = false
+      Logger.statistics.info("DBG_LANGSWITCH suppress language switch release")
+      return
+    }
     // 不能被取代 && 尝试处理取代Action
     // 注意：是 if 不是 guard
     if !replaced && tryHandleReplacementAction(before: gesture, on: action) { return }
@@ -139,6 +148,12 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
   open func handle(_ gesture: KeyboardGesture, on key: Key) {
     let action = key.action
 
+    if gesture == .release, suppressNextLanguageSwitchRelease, isLanguageSwitchAction(action) {
+      suppressNextLanguageSwitchRelease = false
+      Logger.statistics.info("DBG_LANGSWITCH suppress language switch release (key)")
+      return
+    }
+
     // 不能被取代 && 尝试处理取代Action
     // 注意：是 if 不是 guard
     if tryHandleReplacementAction(before: gesture, on: action) { return }
@@ -159,7 +174,17 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
 
   /// 处理 key 上的手势及动作
   open func action(for gesture: KeyboardGesture, on key: Key) -> KeyboardAction.GestureAction? {
-    return key.action.standardAction(for: gesture, processByRIME: key.processByRIME)
+    var processByRIME = key.processByRIME
+    if self.rimeContext.currentSchema?.isJapaneseSchema == true, self.rimeContext.asciiModeSnapshot == false {
+      if processByRIME == false {
+        Logger.statistics.info("DBG_RIMEINPUT force processByRIME for japanese key")
+      }
+      processByRIME = true
+    }
+    if gesture == .release {
+      Logger.statistics.info("DBG_RIMEINPUT keyRelease action: \(String(describing: key.action), privacy: .public), processByRIME: \(processByRIME), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
+    }
+    return key.action.standardAction(for: gesture, processByRIME: processByRIME)
   }
 
   /**
@@ -185,7 +210,7 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
    您可以覆盖此函数，自定义操作的行为方式。默认情况下，使用标准动作。
    */
   open func action(for gesture: KeyboardGesture, on action: KeyboardAction) -> KeyboardAction.GestureAction? {
-    if keyboardContext.keyboardType.isAlphabetic {
+    if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
       return action.standardAction(for: gesture, processByRIME: false)
     }
     return action.standardAction(for: gesture)
@@ -237,7 +262,7 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
   open func shouldTriggerFeedback(for gesture: KeyboardGesture, on action: KeyboardAction) -> Bool {
     // 注意：是重复手势状态下，光标前无内容时，或用户无代上屏文字时，不触发反馈
     if gesture == .repeatPress && action == .backspace {
-      return !rimeContext.userInputKey.isEmpty || keyboardContext.textDocumentProxy.documentContextBeforeInput != nil
+      return !self.rimeContext.userInputKey.isEmpty || self.keyboardContext.textDocumentProxy.documentContextBeforeInput != nil
     }
     if gesture.isSwipe { return false }
     if gesture == .press && self.action(for: .release, on: action) != nil { return true }

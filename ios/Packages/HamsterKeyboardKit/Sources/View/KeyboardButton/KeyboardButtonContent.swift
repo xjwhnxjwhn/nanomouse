@@ -80,7 +80,7 @@ public class KeyboardButtonContentView: NibLessView {
 
   private func languageSwitchButtonText() -> String? {
     guard isLanguageSwitchKey() else { return nil }
-    if rimeContext.asciiMode || keyboardContext.keyboardType.isAlphabetic {
+    if rimeContext.asciiModeSnapshot {
       return "英"
     }
     if rimeContext.currentSchema?.isJapaneseSchema == true {

@@ -71,7 +71,7 @@ extension InputSchemaRootView: UITableViewDataSource {
     let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
 
     var config = UIListContentConfiguration.cell()
-    config.text = schema.schemaName
+    config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
     cell.contentConfiguration = config
     cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
 

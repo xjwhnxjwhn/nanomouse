@@ -418,7 +418,11 @@ public extension FileManager {
     for extraZip in HamsterConstants.extraInputSchemaZipFiles {
       let extraSrc = appSharedSupportDirectory.appendingPathComponent(extraZip)
       guard fm.fileExists(atPath: extraSrc.path) else { continue }
-      guard needsUnzip(extraSrc, dst: dst) else { continue }
+      
+      // 强制覆盖 jaroomaji，以确保 build 脚本的 patch 生效
+      let forceOverwrite = extraZip.contains("jaroomaji")
+      
+      guard forceOverwrite || needsUnzip(extraSrc, dst: dst) else { continue }
       Logger.statistics.debug("unzip extra src: \(extraSrc), dst: \(dst)")
       try fm.unzipOverwrite(extraSrc, dst: dst)
     }

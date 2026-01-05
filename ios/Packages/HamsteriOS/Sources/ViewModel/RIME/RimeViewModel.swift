@@ -322,8 +322,10 @@ public extension RimeViewModel {
           rimeContext.currentSchema = rimeIce
         }
       }
-      if let japanese = rimeContext.schemas.first(where: { $0.schemaId == "japanese" }) {
-        if !rimeContext.selectSchemas.contains(japanese) {
+      if !rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema }) {
+        if let japanese = rimeContext.schemas.first(where: { $0.schemaId == "japanese" })
+          ?? rimeContext.schemas.first(where: { $0.isJapaneseSchema })
+        {
           rimeContext.appendSelectSchema(japanese)
         }
       }

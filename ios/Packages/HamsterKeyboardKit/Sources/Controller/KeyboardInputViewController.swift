@@ -34,6 +34,8 @@ import UIKit
  您可能会注意到，KeyboardKit 自己的视图使用初始化器参数而非环境对象。这是有意为之，以便更好地传达每个视图的依赖关系。
  */
 open class KeyboardInputViewController: UIInputViewController, KeyboardController {
+  /// 语言切换循环抑制窗口（用于长按气泡选择时，避免 release 触发循环切换）
+  var languageCycleSuppressionUntil: Date?
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -504,6 +506,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertSymbol(_ symbol: Symbol) {
+    Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if self.keyboardContext.keyboardType.isAlphabetic,
+       self.rimeContext.asciiModeSnapshot == false,
+       self.rimeContext.currentSchema?.isJapaneseSchema == true
+    {
+      let char = symbol.char
+      if char == "-" || (char.count == 1 && char.unicodeScalars.allSatisfy({ $0.isASCII && CharacterSet.letters.contains($0) })) {
+        let handled = self.rimeContext.tryHandleInputText(char)
+        Logger.statistics.info("DBG_RIMEINPUT routeSymbolToRime: \(char, privacy: .public), handled: \(handled)")
+        if handled { return }
+      }
+    }
     // 检测是否需要顶字上屏
     if !rimeContext.userInputKey.isEmpty {
       // 内嵌模式需要先清空
@@ -514,7 +528,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) { [weak self] in
         guard let self = self else { return }
         // 顶码上屏
-        if keyboardContext.swipePaging {
+        if self.keyboardContext.swipePaging {
           if let firstCandidate = self.rimeContext.suggestions.first {
             self.textDocumentProxy.insertText(firstCandidate.text)
           }
@@ -533,8 +547,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertText(_ text: String) {
-    if keyboardContext.keyboardType.isAlphabetic {
-      textDocumentProxy.insertText(text)
+    Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+      self.textDocumentProxy.insertText(text)
       return
     }
 
@@ -545,10 +560,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // }
 
     // rime 引擎处理
-    let handled = rimeContext.tryHandleInputText(text)
+    let handled = self.rimeContext.tryHandleInputText(text)
+    Logger.statistics.info("DBG_RIMEINPUT tryHandleInputText: \(text, privacy: .public), handled: \(handled)")
     if !handled {
       Logger.statistics.error("try handle input text: \(text), handle false")
-      insertTextPatch(text)
+      Logger.statistics.error("DBG_RIMEINPUT fallback insertTextPatch for: \(text, privacy: .public)")
+      self.insertTextPatch(text)
       return
     }
   }
@@ -852,20 +869,20 @@ private extension KeyboardInputViewController {
 //        }
 //      }
 
-      guard await !rimeContext.isRunning else { return }
+      guard await !self.rimeContext.isRunning else { return }
 
-      if let maximumNumberOfCandidateWords = await keyboardContext.hamsterConfiguration?.rime?.maximumNumberOfCandidateWords {
-        await rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
+      if let maximumNumberOfCandidateWords = await self.keyboardContext.hamsterConfiguration?.rime?.maximumNumberOfCandidateWords {
+        await self.rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
       }
 
-      if let swipePaging = await keyboardContext.hamsterConfiguration?.toolbar?.swipePaging {
-        await rimeContext.setUseContextPaging(swipePaging == false)
+      if let swipePaging = await self.keyboardContext.hamsterConfiguration?.toolbar?.swipePaging {
+        await self.rimeContext.setUseContextPaging(swipePaging == false)
       }
 
-      await rimeContext.start(hasFullAccess: true)
+      await self.rimeContext.start(hasFullAccess: true)
 
-      let simplifiedModeKey = await keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
-      await rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: simplifiedModeKey)
+      let simplifiedModeKey = await self.keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
+      await self.rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: simplifiedModeKey)
     }
   }
 
@@ -891,7 +908,7 @@ private extension KeyboardInputViewController {
         // 写入上屏文字
         if !commitText.isEmpty {
           // 九宫格编码转换
-          if keyboardContext.keyboardType.isChineseNineGrid {
+          if self.keyboardContext.keyboardType.isChineseNineGrid {
             commitText = commitText.replaceT9pinyin
           }
 

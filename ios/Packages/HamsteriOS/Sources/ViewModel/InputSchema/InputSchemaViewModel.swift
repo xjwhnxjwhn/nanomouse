@@ -123,6 +123,17 @@ public class InputSchemaViewModel {
   var isJapaneseEnabled: Bool {
     selectedSchema(in: .japanese) != nil
   }
+
+  func displayNameForInputSchemaList(_ schema: RimeSchema) -> String {
+    switch schema.schemaId {
+    case "japanese":
+      return "rime-japanese"
+    case "jaroomaji":
+      return "rime-jaroomaji"
+    default:
+      return schema.schemaName
+    }
+  }
 }
 
 // MARK: - CloudKit 方案管理

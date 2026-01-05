@@ -47,4 +47,13 @@ public extension RimeSchema {
     ]
     return keywords.contains(where: { id.contains($0) || name.contains($0) })
   }
+
+  /// 判断是否是罗马字日语方案（优先使用26键键盘）
+  var isRomajiJapaneseSchema: Bool {
+    guard isJapaneseSchema else { return false }
+    let id = schemaId.lowercased()
+    let name = schemaName.lowercased()
+    let romajiKeywords = ["romaji", "jaroomaji", "jaromaji", "ローマ字"]
+    return romajiKeywords.contains(where: { id.contains($0) || name.contains($0) })
+  }
 }

@@ -64,6 +64,7 @@
 		C0D856CC2B026FF6003DB275 /* rime-ice.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CA2B026FDA003DB275 /* rime-ice.zip */; };
 		C0DA3F422AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */; };
 		C0D856CB2B026FDB003DB275 /* rime-japanese.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CD2B026FDC003DB275 /* rime-japanese.zip */; };
+		B6316891C66348BBA1FE33C7 /* rime-jaroomaji.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */; };
 		AC53C1BFB0DB743114945231 /* rime-terra-pinyin.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */; };
 		6573E9BEF9748631D4085E9F /* rime-stroke.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 3127118D3E89F5C0488E9F5B /* rime-stroke.zip */; };
 		345C5E777B1015DC6904BC51 /* rime-hangyl.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */; };
@@ -109,6 +110,7 @@
 				C0D856CC2B026FF6003DB275 /* rime-ice.zip in Copy Rime SharedSupport */,
 				C0D672B429F1E0E7002D0439 /* SharedSupport.zip in Copy Rime SharedSupport */,
 				C0D856CB2B026FDB003DB275 /* rime-japanese.zip in Copy Rime SharedSupport */,
+				B6316891C66348BBA1FE33C7 /* rime-jaroomaji.zip in Copy Rime SharedSupport */,
 				AC53C1BFB0DB743114945231 /* rime-terra-pinyin.zip in Copy Rime SharedSupport */,
 				6573E9BEF9748631D4085E9F /* rime-stroke.zip in Copy Rime SharedSupport */,
 				345C5E777B1015DC6904BC51 /* rime-hangyl.zip in Copy Rime SharedSupport */,
@@ -179,6 +181,7 @@
 		C0D856CA2B026FDA003DB275 /* rime-ice.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-ice.zip"; sourceTree = "<group>"; };
 		C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployBackgroundIntent.swift; sourceTree = "<group>"; };
 		C0D856CD2B026FDC003DB275 /* rime-japanese.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-japanese.zip"; sourceTree = "<group>"; };
+		9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji.zip"; sourceTree = "<group>"; };
 		7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-terra-pinyin.zip"; sourceTree = "<group>"; };
 		3127118D3E89F5C0488E9F5B /* rime-stroke.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-stroke.zip"; sourceTree = "<group>"; };
 		53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hangyl.zip"; sourceTree = "<group>"; };
@@ -399,6 +402,7 @@
 				C0C9041C2A56412200AF3F15 /* hamster.yaml */,
 				C0D672B329F1E066002D0439 /* SharedSupport.zip */,
 				C0D856CD2B026FDC003DB275 /* rime-japanese.zip */,
+				9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */,
 				7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */,
 				3127118D3E89F5C0488E9F5B /* rime-stroke.zip */,
 				53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */,

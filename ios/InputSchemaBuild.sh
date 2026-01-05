@@ -126,6 +126,7 @@ NANOMOUSE_CONFIG
 patch:
   schema_list/+:
     - schema: japanese        # 日语
+    - schema: jaroomaji       # 日语罗马字
 DEFAULT_CONFIG
     # === Nanomouse 配置结束 ===
     
@@ -145,6 +146,20 @@ rm -rf $OUTPUT/.$japanese_scheme_name && \
     zip -r $japanese_scheme_name.zip ./*
   ) && \
   cp -R $OUTPUT/.$japanese_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 内置方案：日语罗马字 (rime-jaroomaji) ===
+jaroomaji_scheme_name=rime-jaroomaji
+
+rm -rf $OUTPUT/.$jaroomaji_scheme_name && \
+  git clone --depth 1 https://github.com/lazyfoxchan/$jaroomaji_scheme_name $OUTPUT/.$jaroomaji_scheme_name && (
+    cd $OUTPUT/.$jaroomaji_scheme_name
+    # 将 jaroomaji 默认的 ascii_mode 改为中文模式，和 rime-japanese 行为一致
+    if [ -f jaroomaji.schema.yaml ]; then
+      sed -i '' 's/reset: 1/reset: 0/g' jaroomaji.schema.yaml
+    fi
+    zip -r $jaroomaji_scheme_name.zip ./*
+  ) && \
+  cp -R $OUTPUT/.$jaroomaji_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
 
 # === 依赖方案：terra_pinyin.extended (rime-terra-pinyin) ===
 terra_pinyin_scheme_name=rime-terra-pinyin
