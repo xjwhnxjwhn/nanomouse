@@ -87,10 +87,65 @@ open class SpaceCursorDragGestureHandler: DragGestureHandler {
     guard textPositionOffset != currentDragTextPositionOffset else { return }
     let offsetDelta = textPositionOffset - currentDragTextPositionOffset
     currentDragTextPositionOffset = textPositionOffset
-    // 移除垂直距离限制，允许全屏拖动控制光标
-    // let verticalDistance = abs(startLocation.y - currentLocation.y)
-    // guard verticalDistance < verticalThreshold else { return }
-    action(-offsetDelta)
+    
+    // Auto-Scroll Logic based on Vertical Offset
+    let verticalOffset = currentLocation.y - startLocation.y
+    let limit: CGFloat = 60.0
+    
+    var newMode: DragMode = .manual
+    if verticalOffset < -limit {
+      newMode = .autoLeft
+    } else if verticalOffset > limit {
+      newMode = .autoRight
+    }
+    
+    if newMode != dragMode {
+      stopTimer()
+      dragMode = newMode
+      if dragMode != .manual {
+        startTimer()
+      }
+    }
+    
+    if dragMode == .manual {
+      action(-offsetDelta)
+    }
+  }
+  
+  // MARK: - Auto Scroll
+  
+  private enum DragMode {
+    case manual
+    case autoLeft
+    case autoRight
+  }
+  
+  private var dragMode: DragMode = .manual
+  private var timer: Timer?
+  
+  private func startTimer() {
+    timer?.invalidate()
+    timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+      guard let self = self else { return }
+      self.handleTimer()
+    }
+  }
+  
+  public func stopTimer() {
+    timer?.invalidate()
+    timer = nil
+    dragMode = .manual
+  }
+  
+  private func handleTimer() {
+    switch dragMode {
+    case .autoLeft:
+      action(-1)
+    case .autoRight:
+      action(1)
+    case .manual:
+      break
+    }
   }
 }
 

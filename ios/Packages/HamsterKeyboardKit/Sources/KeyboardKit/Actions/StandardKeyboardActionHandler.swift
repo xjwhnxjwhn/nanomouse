@@ -428,6 +428,11 @@ private extension StandardKeyboardActionHandler {
       spaceDragActivationLocation = nil
     case .longPress:
       isSpaceDragGestureActive = true
+    case .release:
+      if let handler = spaceDragGestureHandler as? SpaceCursorDragGestureHandler {
+        handler.stopTimer()
+      }
+      isSpaceDragGestureActive = false
     default: return
     }
   }
