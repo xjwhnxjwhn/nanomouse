@@ -27,19 +27,33 @@ class KeyboardToolbarView: NibLessView {
   private var oldBounds: CGRect = .zero
   private var subscriptions = Set<AnyCancellable>()
 
-  /// 常用功能项: NanomouseApp
+  lazy var logoContainer: RoundedContainer = {
+    let view = RoundedContainer(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = style.toolbarButtonBackgroundColor
+    
+    return view
+  }()
+
+  lazy var logoImageView: UIImageView = {
+    let view = UIImageView(image: UIImage(named: "NanomouseLogo", in: .module, compatibleWith: nil))
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFill
+    view.clipsToBounds = true
+    return view
+  }()
+
+  /// 常用功能项: NanomouseApp (Touch Only)
   lazy var iconButton: UIButton = {
     let button = UIButton(type: .custom)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setImage(UIImage(systemName: "r.circle"), for: .normal)
-    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 18), scale: .default), forImageIn: .normal)
-    button.tintColor = style.toolbarButtonFrontColor
-    button.backgroundColor = style.toolbarButtonBackgroundColor
+    // Image removed, handled by logoImageView
+    button.backgroundColor = .clear
     button.addTarget(self, action: #selector(openHamsterAppTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(openHamsterAppTouchUpAction), for: .touchUpInside)
     button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
     button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
-
+    
     return button
   }()
 
@@ -106,12 +120,19 @@ class KeyboardToolbarView: NibLessView {
       setupAppearance()
       candidateBarView.setStyle(self.style)
     }
+    
+    // Ensure logo image is also rounded if it has a background
+    let radius = logoImageView.bounds.height * 0.2237
+    logoImageView.layer.cornerRadius = radius
+    logoImageView.layer.cornerCurve = .continuous
   }
 
   override func constructViewHierarchy() {
     addSubview(commonFunctionBar)
     if keyboardContext.displayAppIconButton {
-      commonFunctionBar.addSubview(iconButton)
+      commonFunctionBar.addSubview(logoContainer)
+      logoContainer.addSubview(logoImageView)
+      logoContainer.addSubview(iconButton)
     }
     if keyboardContext.displayKeyboardDismissButton {
       commonFunctionBar.addSubview(dismissKeyboardButton)
@@ -128,11 +149,23 @@ class KeyboardToolbarView: NibLessView {
 
     if keyboardContext.displayAppIconButton {
       constraints.append(contentsOf: [
-        iconButton.leadingAnchor.constraint(equalTo: commonFunctionBar.leadingAnchor),
-        iconButton.heightAnchor.constraint(equalTo: iconButton.widthAnchor),
-        iconButton.topAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.topAnchor),
-        commonFunctionBar.bottomAnchor.constraint(greaterThanOrEqualTo: iconButton.bottomAnchor),
-        iconButton.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+        logoContainer.leadingAnchor.constraint(equalTo: commonFunctionBar.leadingAnchor),
+        logoContainer.heightAnchor.constraint(equalTo: logoContainer.widthAnchor),
+        logoContainer.topAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.topAnchor),
+        commonFunctionBar.bottomAnchor.constraint(greaterThanOrEqualTo: logoContainer.bottomAnchor),
+        logoContainer.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+        
+        // ImageView centered and 50% size
+        logoImageView.centerXAnchor.constraint(equalTo: logoContainer.centerXAnchor),
+        logoImageView.centerYAnchor.constraint(equalTo: logoContainer.centerYAnchor),
+        logoImageView.widthAnchor.constraint(equalTo: logoContainer.widthAnchor, multiplier: 0.5),
+        logoImageView.heightAnchor.constraint(equalTo: logoContainer.heightAnchor, multiplier: 0.5),
+        
+        // Button fills container (on top)
+        iconButton.topAnchor.constraint(equalTo: logoContainer.topAnchor),
+        iconButton.bottomAnchor.constraint(equalTo: logoContainer.bottomAnchor),
+        iconButton.leadingAnchor.constraint(equalTo: logoContainer.leadingAnchor),
+        iconButton.trailingAnchor.constraint(equalTo: logoContainer.trailingAnchor),
       ])
     }
 
@@ -152,7 +185,8 @@ class KeyboardToolbarView: NibLessView {
   override func setupAppearance() {
     self.style = appearance.candidateBarStyle
     if keyboardContext.displayAppIconButton {
-      iconButton.tintColor = style.toolbarButtonFrontColor
+      // iconButton.tintColor = style.toolbarButtonFrontColor // Button is now touch overlay, icon is in ImageView
+      logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
     }
     if keyboardContext.displayKeyboardDismissButton {
       dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
@@ -197,16 +231,16 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func openHamsterAppTouchDownAction() {
-    iconButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
   }
 
   @objc func openHamsterAppTouchUpAction() {
-    iconButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
     actionHandler.handle(.release, on: .url(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/main"), id: "openHamster"))
   }
 
   @objc func touchCancel() {
     dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
-    iconButton.backgroundColor = style.toolbarButtonBackgroundColor
+    logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
   }
 }
