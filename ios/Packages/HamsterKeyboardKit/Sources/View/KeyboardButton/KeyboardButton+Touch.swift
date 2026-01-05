@@ -30,6 +30,11 @@ public extension KeyboardButton {
   }
 
   func tryHandleRelease(_ touch: UITouch, event: UIEvent?) {
+    // 语言切换菜单：手势释放时确认选择
+    if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
+      overlay.confirmSelection()
+    }
+
     guard isPressed else { return }
     isPressed = false
     updateButtonStyle(isPressed: false)
@@ -67,6 +72,11 @@ public extension KeyboardButton {
   }
 
   func tryHandleCancel() {
+    // 语言切换菜单：手势取消时移除菜单
+    if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
+      overlay.removeFromSuperview()
+    }
+
     isPressed = false
     updateButtonStyle(isPressed: false)
     touchBeginTimestamp = nil
@@ -140,6 +150,13 @@ public extension KeyboardButton {
       }
       return
     }
+    
+    // 语言切换菜单：处理拖拽选择
+    if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
+      overlay.handleDrag(at: currentPoint, in: self)
+      return
+    }
+
     // TODO: 其他划动处理
     swipeGestureHandle = nil
     dragAction(start: startLocation, current: currentPoint)

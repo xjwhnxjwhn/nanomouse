@@ -17,7 +17,7 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
       switch self {
       case .chinese: return "中"
       case .japanese: return "日"
-      case .english: return "EN"
+      case .english: return "英"
       }
     }
   }
@@ -25,13 +25,15 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private let style: KeyboardActionCalloutStyle
   private let options: [LanguageOption]
   private let onSelect: (LanguageOption) -> Void
+  private var highlightedOption: LanguageOption?
 
   private let menuContainer = UIView()
   private let stackView = UIStackView()
+  private var optionButtons: [UIButton] = []
 
-  private let buttonSize = CGSize(width: 44, height: 32)
+  private let buttonSize = CGSize(width: 44, height: 44)
   private let padding: CGFloat = 8
-  private let spacing: CGFloat = 6
+  private let spacing: CGFloat = 8
   private let edgeInset: CGFloat = 4
 
   init(
@@ -80,6 +82,48 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     )
   }
 
+  /// 处理拖拽手势选择
+  func handleDrag(at point: CGPoint, in view: UIView) {
+    let localPoint = view.convert(point, to: stackView)
+    
+    // 查找包含触摸点的按钮
+    var foundOption: LanguageOption?
+    for button in optionButtons {
+      if button.frame.contains(view.convert(point, to: stackView)) {
+        foundOption = LanguageOption(rawValue: button.tag)
+        break
+      }
+    }
+
+    if foundOption != highlightedOption {
+      highlightedOption = foundOption
+      updateHighlightState()
+      
+      // 触觉反馈
+      if foundOption != nil {
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
+      }
+    }
+  }
+
+  /// 确认选择
+  func confirmSelection() {
+    if let option = highlightedOption {
+      onSelect(option)
+    }
+    removeFromSuperview()
+  }
+
+  private func updateHighlightState() {
+    for button in optionButtons {
+      let isHighlighted = button.tag == highlightedOption?.rawValue
+      button.backgroundColor = isHighlighted ? style.callout.textColor.withAlphaComponent(0.1) : .clear
+      button.isHighlighted = isHighlighted
+    }
+  }
+
   private func setupView() {
     backgroundColor = .clear
 
@@ -88,12 +132,12 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     addGestureRecognizer(tap)
 
     menuContainer.backgroundColor = style.callout.backgroundColor
-    menuContainer.layer.cornerRadius = style.callout.cornerRadius
-    menuContainer.layer.borderColor = style.callout.borderColor.cgColor
-    menuContainer.layer.borderWidth = 1
+    menuContainer.layer.cornerRadius = 10 // Rounded styling
+    menuContainer.layer.borderColor = UIColor.clear.cgColor
+    menuContainer.layer.borderWidth = 0
     menuContainer.layer.shadowColor = style.callout.shadowColor.cgColor
-    menuContainer.layer.shadowOpacity = 1
-    menuContainer.layer.shadowRadius = style.callout.shadowRadius
+    menuContainer.layer.shadowOpacity = 0.5
+    menuContainer.layer.shadowRadius = 4
     menuContainer.layer.shadowOffset = CGSize(width: 0, height: 2)
 
     addSubview(menuContainer)
@@ -105,13 +149,24 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     stackView.spacing = spacing
 
     for option in options {
-      let button = UIButton(type: .system)
+      let button = UIButton(type: .custom) // Use custom for better control
       button.setTitle(option.title, for: .normal)
       button.setTitleColor(style.callout.textColor, for: .normal)
-      button.titleLabel?.font = UIFont.preferredFont(forTextStyle: .callout)
+      
+      // 使用 SF Pro Rounded 字体
+      let fontSize: CGFloat = 20
+      if let descriptor = UIFont.systemFont(ofSize: fontSize, weight: .bold).fontDescriptor.withDesign(.rounded) {
+        button.titleLabel?.font = UIFont(descriptor: descriptor, size: fontSize)
+      } else {
+        button.titleLabel?.font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
+      }
+      
+      button.layer.cornerRadius = 6
       button.tag = option.rawValue
       button.addTarget(self, action: #selector(handleOptionTap(_:)), for: .touchUpInside)
+      
       stackView.addArrangedSubview(button)
+      optionButtons.append(button)
     }
   }
 
