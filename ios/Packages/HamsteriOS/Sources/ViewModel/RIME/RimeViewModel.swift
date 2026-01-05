@@ -314,10 +314,19 @@ public extension RimeViewModel {
         keyboards: nil
       )
 
-      // TODO: 内置雾凇方案，将默认选择方案改为雾凇拼音
-      let rimeSchema = RimeSchema(schemaId: "rime_ice", schemaName: "雾凇拼音")
-      rimeContext.selectSchemas = [rimeSchema]
-      rimeContext.currentSchema = rimeSchema
+      if let rimeIce = rimeContext.schemas.first(where: { $0.schemaId == "rime_ice" }) {
+        if !rimeContext.selectSchemas.contains(rimeIce) {
+          rimeContext.appendSelectSchema(rimeIce)
+        }
+        if rimeContext.currentSchema == nil {
+          rimeContext.currentSchema = rimeIce
+        }
+      }
+      if let japanese = rimeContext.schemas.first(where: { $0.schemaId == "japanese" }) {
+        if !rimeContext.selectSchemas.contains(japanese) {
+          rimeContext.appendSelectSchema(japanese)
+        }
+      }
 
       /// 在另存一份用于应用配置还原
       try HamsterConfigurationRepositories.shared.saveToUserDefaultsOnDefault(hamsterConfiguration)

@@ -247,12 +247,15 @@ public extension RimeContext {
     // 检测文件目录是否存在不存在，新建
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxSharedSupportDirectory)
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
+    try FileManager.ensureExtraInputSchemaFiles(in: FileManager.sandboxSharedSupportDirectory)
+    removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
 
+    let traits = Rime.createTraits(
+      sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
+      userDataDir: FileManager.sandboxUserDataDirectory.path
+    )
     if !isRunning {
-      Rime.shared.start(Rime.createTraits(
-        sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
-        userDataDir: FileManager.sandboxUserDataDirectory.path
-      ), maintenance: true, fullCheck: true)
+      Rime.shared.start(traits, maintenance: true, fullCheck: true)
     }
     // 此 API 根据用户配置的 scheme_list 参数获取列表，当方案不提供 schema_list 参数时，获取为空
     var schemas = Rime.shared.getSchemas().sorted()
@@ -276,13 +279,11 @@ public extension RimeContext {
         } else {
           // 写完 schema_list 参数后需要重新编译方案词库文件
           Rime.shared.shutdown()
-          Rime.shared.start(Rime.createTraits(
-            sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
-            userDataDir: FileManager.sandboxUserDataDirectory.path
-          ), maintenance: true, fullCheck: true)
+          Rime.shared.start(traits, maintenance: true, fullCheck: true)
         }
       }
     }
+    ensureSchemaListContains(schemaId: "japanese", schemas: &schemas, traits: traits)
 
     // 提前在部署阶段加载 RimeSwitch hotKey, 此步骤放在键盘启动阶段会减慢启动速度
     // 加载Switcher切换键
@@ -398,14 +399,19 @@ public extension RimeContext {
       Logger.statistics.error("rime init file directory error: \(error.localizedDescription)")
       throw error
     }
+    removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
 
     Rime.shared.shutdown()
-    Rime.shared.start(Rime.createTraits(
+    let traits = Rime.createTraits(
       sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
       userDataDir: FileManager.sandboxUserDataDirectory.path
-    ), maintenance: true, fullCheck: true)
+    )
+    Rime.shared.start(traits, maintenance: true, fullCheck: true)
 
     let schemas = Rime.shared.getSchemas().sorted()
+
+    var mutableSchemas = schemas
+    ensureSchemaListContains(schemaId: "japanese", schemas: &mutableSchemas, traits: traits)
 
     Rime.shared.shutdown()
 
@@ -413,23 +419,23 @@ public extension RimeContext {
     var selectSchemas = self.selectSchemas
     if !selectSchemas.isEmpty {
       // 取交集
-      let intersection = Set(schemas).intersection(selectSchemas)
+      let intersection = Set(mutableSchemas).intersection(selectSchemas)
       if !intersection.isEmpty {
         selectSchemas = Array(intersection).sorted()
       } else {
-        if !schemas.isEmpty {
-          selectSchemas = [schemas[0]]
+        if !mutableSchemas.isEmpty {
+          selectSchemas = [mutableSchemas[0]]
         }
       }
     } else {
-      if !schemas.isEmpty {
-        selectSchemas = [schemas[0]]
+      if !mutableSchemas.isEmpty {
+        selectSchemas = [mutableSchemas[0]]
       }
     }
 
     /// 切换 Main 线程 修改 @MainActor 标记的属性值
-    if !schemas.isEmpty {
-      self.schemas = schemas
+    if !mutableSchemas.isEmpty {
+      self.schemas = mutableSchemas
       self.selectSchemas = selectSchemas
       resetCurrentSchema()
       resetLatestSchema()
@@ -441,6 +447,40 @@ public extension RimeContext {
     // 部署后将方案copy至AppGroup下供keyboard使用
     try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)
     try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)
+  }
+
+  private func ensureSchemaListContains(
+    schemaId: String,
+    schemas: inout [RimeSchema],
+    traits: IRimeTraits
+  ) {
+    guard !schemas.isEmpty else { return }
+    guard !schemas.contains(where: { $0.schemaId == schemaId }) else { return }
+    if !FileManager.default.fileExists(atPath: FileManager.sandboxUserDataDefaultCustomYaml.path) {
+      _ = FileManager.default.createFile(atPath: FileManager.sandboxUserDataDefaultCustomYaml.path, contents: nil)
+    }
+    let availableSchemas = Rime.shared.getAvailableRimeSchemas().sorted()
+    Logger.statistics.info("rime available schemas: \(availableSchemas)")
+    guard availableSchemas.contains(where: { $0.schemaId == schemaId }) else { return }
+    var schemaIds = schemas.map { $0.schemaId }
+    schemaIds.append(schemaId)
+    let handled = Rime.shared.selectRimeSchemas(schemaIds)
+    Logger.statistics.info("rime selectRimeSchemas handled: \(handled)")
+    Logger.statistics.info("rime append schema_list: \(schemaId), handled: \(handled)")
+    guard handled else { return }
+    Rime.shared.shutdown()
+    Rime.shared.start(traits, maintenance: true, fullCheck: true)
+    schemas = Rime.shared.getSchemas().sorted()
+  }
+
+  private func removeJapaneseSchemaPatch(in userDataDir: URL) {
+    let patchURL = userDataDir.appendingPathComponent("japanese.custom.yaml")
+    guard FileManager.default.fileExists(atPath: patchURL.path) else { return }
+    do {
+      try FileManager.default.removeItem(at: patchURL)
+    } catch {
+      Logger.statistics.error("remove japanese.custom.yaml failed: \(error.localizedDescription)")
+    }
   }
 
   var isRunning: Bool {
@@ -546,6 +586,53 @@ public extension RimeContext {
     self.reset()
     self.asciiMode.toggle()
     Rime.shared.asciiMode(asciiMode)
+  }
+
+  /// 设置字母模式（同步到 RIME 引擎）
+  @MainActor
+  func applyAsciiMode(_ mode: Bool) {
+    self.asciiMode = mode
+    Rime.shared.asciiMode(mode)
+  }
+
+  /// 切换到指定输入方案
+  @MainActor
+  func switchSchema(schemaId: String) -> Bool {
+    var schema = schemas.first(where: { $0.schemaId == schemaId })
+    if schema == nil {
+      let refreshedSchemas = Rime.shared.getSchemas().sorted()
+      if !refreshedSchemas.isEmpty {
+        self.schemas = refreshedSchemas
+        var refreshedSelect = self.selectSchemas
+        if !refreshedSelect.isEmpty {
+          let intersection = Set(refreshedSchemas).intersection(refreshedSelect)
+          if !intersection.isEmpty {
+            refreshedSelect = Array(intersection).sorted()
+          } else if let first = refreshedSchemas.first {
+            refreshedSelect = [first]
+          }
+        } else if let first = refreshedSchemas.first {
+          refreshedSelect = [first]
+        }
+        self.selectSchemas = refreshedSelect
+        resetCurrentSchema()
+        resetLatestSchema()
+      }
+      schema = schemas.first(where: { $0.schemaId == schemaId })
+    }
+    guard let schema else {
+      Logger.statistics.error("rime schema not found: \(schemaId)")
+      return false
+    }
+    let handle = Rime.shared.setSchema(schema.schemaId)
+    Logger.statistics.info("rime set schema: \(schema.schemaName), handle = \(handle)")
+    if handle {
+      latestSchema = currentSchema
+      currentSchema = schema
+      optionState = schema.schemaName
+    }
+    reset()
+    return handle
   }
 }
 

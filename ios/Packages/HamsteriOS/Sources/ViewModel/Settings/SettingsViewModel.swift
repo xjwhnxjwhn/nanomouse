@@ -269,10 +269,20 @@ extension SettingsViewModel {
     // 部署 RIME
     try rimeViewModel.rimeContext.deployment(configuration: &configuration)
 
-    // TODO: 内置雾凇方案，将默认选择方案改为雾凇拼音
-    let rimeSchema = RimeSchema(schemaId: "rime_ice", schemaName: "雾凇拼音")
-    rimeViewModel.rimeContext.selectSchemas = [rimeSchema]
-    rimeViewModel.rimeContext.currentSchema = rimeSchema
+    let rimeContext = rimeViewModel.rimeContext
+    if let rimeIce = rimeContext.schemas.first(where: { $0.schemaId == "rime_ice" }) {
+      if !rimeContext.selectSchemas.contains(rimeIce) {
+        rimeContext.appendSelectSchema(rimeIce)
+      }
+      if rimeContext.currentSchema == nil {
+        rimeContext.currentSchema = rimeIce
+      }
+    }
+    if let japanese = rimeContext.schemas.first(where: { $0.schemaId == "japanese" }) {
+      if !rimeContext.selectSchemas.contains(japanese) {
+        rimeContext.appendSelectSchema(japanese)
+      }
+    }
 
     // 修改应用首次运行标志
     UserDefaults.standard.isFirstRunning = false
