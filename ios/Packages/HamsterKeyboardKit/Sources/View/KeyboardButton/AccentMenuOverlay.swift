@@ -50,8 +50,10 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     )
 
     // 防止超出顶部
+    // 原生行为通常始终在上方，即使空间紧凑也不应翻转到下方
+    // 我们优先保持在上方，如果超出边界则贴顶显示
     if origin.y < edgeInset {
-      origin.y = buttonFrame.maxY + 8
+      origin.y = edgeInset
     }
 
     // 防止超出左右边界
@@ -78,7 +80,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     // 查找包含触摸点的按钮
     var foundChar: String?
     for button in charButtons {
-      if button.frame.contains(localPoint) {
+      if button.frame.contains(view.convert(point, to: stackView)) {
         foundChar = chars[button.tag]
         break
       }
@@ -160,7 +162,8 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
       
       let attributes: [NSAttributedString.Key: Any] = [
         .font: font,
-        .foregroundColor: style.callout.textColor
+        .foregroundColor: style.callout.textColor,
+        .underlineStyle: 0 // Explicitly remove underline
       ]
       
       let attributedTitle = NSAttributedString(string: char, attributes: attributes)
