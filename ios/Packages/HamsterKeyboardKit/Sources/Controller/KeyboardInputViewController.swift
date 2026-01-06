@@ -478,65 +478,92 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
   
   /// 更新文本替换建议
-  /// - Parameter pendingText: 刚刚输入但尚未反映在 documentContextBeforeInput 中的文本
-  func updateTextReplacementSuggestion(pendingText: String = "") {
+  /// - Parameters:
+  ///   - pendingText: 刚刚输入但尚未反映在 documentContextBeforeInput 中的文本
+  ///   - rimePreview: RIME 引擎中待上屏的预览文本（用于中文/日文输入时预判）
+  /// 更新文本替换建议
+  /// - Parameters:
+  ///   - pendingText: 刚刚输入但尚未反映在 documentContextBeforeInput 中的文本
+  ///   - rimePreview: RIME 引擎中待上屏的预览文本（用于中文/日文输入时预判）
+  func updateTextReplacementSuggestion(pendingText: String = "", rimePreview: String = "") {
     guard keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true else {
       rimeContext.textReplacementSuggestions = []
       return
     }
     
-    // 获取光标前的文本，并追加待处理的文本
-    var beforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
-    beforeInput.append(pendingText)
-    
-    guard !beforeInput.isEmpty else {
-      rimeContext.textReplacementSuggestions = []
-      return
-    }
-    
-    // 提取最后一个单词
-    let trimmed = beforeInput.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else {
-      rimeContext.textReplacementSuggestions = []
-      return
-    }
-    
-    var wordStartIndex = trimmed.endIndex
-    for index in trimmed.indices.reversed() {
-      let char = trimmed[index]
-      if char.isWhitespace || char.isNewline {
-        wordStartIndex = trimmed.index(after: index)
-        break
+    // 获取光标前的文本
+    let baseBeforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
+    var suggestions = [(shortcut: String, replacement: String)]()
+    var seenReplacements = Set<String>()
+
+    // 本地函数：尝试匹配并添加结果
+    func tryMatch(with content: String) {
+      var beforeInput = baseBeforeInput
+      beforeInput.append(content)
+      
+      guard !beforeInput.isEmpty else { return }
+      
+      let trimmed = beforeInput.trimmingCharacters(in: .whitespaces)
+      guard !trimmed.isEmpty else { return }
+      
+      var wordStartIndex = trimmed.endIndex
+      for index in trimmed.indices.reversed() {
+        let char = trimmed[index]
+        if char.isWhitespace || char.isNewline {
+          wordStartIndex = trimmed.index(after: index)
+          break
+        }
+        if index == trimmed.startIndex {
+          wordStartIndex = index
+        }
       }
-      if index == trimmed.startIndex {
-        wordStartIndex = index
+      
+      let lastWord = String(trimmed[wordStartIndex...])
+      guard !lastWord.isEmpty else { return }
+      
+      let matches = systemTextReplacementManager.getAllSuggestions(for: lastWord)
+      for match in matches {
+        if !seenReplacements.contains(match.replacement) {
+          suggestions.append(match)
+          seenReplacements.insert(match.replacement)
+        }
+      }
+      if !matches.isEmpty {
+        Logger.statistics.info("SystemTextReplacement: matched '\(lastWord, privacy: .public)' -> \(matches.count) results")
       }
     }
     
-    let lastWord = String(trimmed[wordStartIndex...])
-    guard !lastWord.isEmpty else {
-      rimeContext.textReplacementSuggestions = []
-      return
+    // 1. 尝试使用 pendingText (英文输入)
+    if !pendingText.isEmpty {
+      tryMatch(with: pendingText)
     }
     
-    // 查找所有匹配的文本替换
-    let suggestions = systemTextReplacementManager.getAllSuggestions(for: lastWord)
+    // 2. 尝试使用 rimePreview (RIME 候选文字，如 '抽')
+    if !rimePreview.isEmpty {
+      tryMatch(with: rimePreview)
+    }
+    
+    // 3. 尝试使用 userInputKey (RIME 原始输入码，如 'chou')
+    // 只有在没有 pendingText 的情况下（即中文输入模式），且 userInputKey 不为空
+    if pendingText.isEmpty, !rimeContext.userInputKey.isEmpty, rimeContext.userInputKey != rimePreview {
+      tryMatch(with: rimeContext.userInputKey)
+    }
     
     if !suggestions.isEmpty {
       var candidates = [CandidateSuggestion]()
       for (index, suggestion) in suggestions.enumerated() {
         let candidate = CandidateSuggestion(
-          index: -(index + 1),  // 使用负索引标识这是文本替换，-1, -2, -3...
-          label: "⇥",  // 使用特殊标记
+          index: -(index + 1),
+          label: "⇥",
           text: suggestion.replacement,
           title: suggestion.replacement,
-          isAutocomplete: index == 0,  // 只有第一个是自动补全
-          subtitle: suggestion.shortcut  // 显示原始短语作为注释
+          isAutocomplete: index == 0,
+          subtitle: suggestion.shortcut
         )
         candidates.append(candidate)
       }
       rimeContext.textReplacementSuggestions = candidates
-      Logger.statistics.info("SystemTextReplacement: showing \(candidates.count) suggestions for '\(lastWord, privacy: .public)'")
+      Logger.statistics.info("SystemTextReplacement: showing total \(candidates.count) suggestions")
     } else {
       rimeContext.textReplacementSuggestions = []
     }
@@ -640,7 +667,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     //  textDocumentProxy.insertText(text)
     //  return
     // }
-
     // rime 引擎处理
     let handled = self.rimeContext.tryHandleInputText(text)
     Logger.statistics.info("DBG_RIMEINPUT tryHandleInputText: \(text, privacy: .public), handled: \(handled)")
@@ -651,8 +677,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
     
-    // 更新文本替换建议（中文输入时也检测已上屏内容）
-    updateTextReplacementSuggestion()
+    // 更新文本替换建议（使用 RIME 预览文本来预判匹配）
+    let rimePreview = self.rimeContext.rimeContext?.commitTextPreview ?? ""
+    updateTextReplacementSuggestion(rimePreview: rimePreview)
   }
 
   open func selectNextKeyboard() {
