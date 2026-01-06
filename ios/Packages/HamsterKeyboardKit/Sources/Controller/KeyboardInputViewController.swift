@@ -547,6 +547,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 只有在没有 pendingText 的情况下（即中文输入模式），且 userInputKey 不为空
     if pendingText.isEmpty, !rimeContext.userInputKey.isEmpty, rimeContext.userInputKey != rimePreview {
       tryMatch(with: rimeContext.userInputKey)
+      
+      // 额外尝试去除空格的 userInputKey (处理 RIME 拼音分词 'na ga' -> 'naga')
+      let cleanedKey = rimeContext.userInputKey.replacingOccurrences(of: " ", with: "")
+      if cleanedKey != rimeContext.userInputKey {
+        tryMatch(with: cleanedKey)
+      }
     }
     
     if !suggestions.isEmpty {
