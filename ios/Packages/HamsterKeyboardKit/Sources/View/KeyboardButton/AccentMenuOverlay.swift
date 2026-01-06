@@ -17,10 +17,10 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private let stackView = UIStackView()
   private var charButtons: [UIButton] = []
 
-  private let buttonSize = CGSize(width: 44, height: 44)
-  private let padding: CGFloat = 8
-  private let spacing: CGFloat = 4
-  private let edgeInset: CGFloat = 4
+  private let buttonSize = CGSize(width: 36, height: 44) // 宽度从 44 减小到 36，更紧凑
+  private let padding: CGFloat = 4 // padding 从 8 减小到 4
+  private let spacing: CGFloat = 0 // spacing 从 4 减小到 0，紧密排列
+  private let edgeInset: CGFloat = 2 // 边缘留白减小
 
   init(
     style: KeyboardActionCalloutStyle,
@@ -50,10 +50,12 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     )
 
     // 防止超出顶部
-    // 原生行为通常始终在上方，即使空间紧凑也不应翻转到下方
-    // 我们优先保持在上方，如果超出边界则贴顶显示
-    if origin.y < edgeInset {
-      origin.y = edgeInset
+    // 允许气泡延伸到键盘视图的上方（即负坐标区域），覆盖候选栏
+    // 只要不超出整个屏幕的可视范围即可（这里 bounds 通常是 keyboardView 的 bounds）
+    // 为了防止其被顶部导航栏完全遮挡，我们可以设置一个更宽松的负数限制，或者完全移除限制
+    // 但为了避免过于夸张，我们限制其最多超出 bounds 顶部一定距离（例如 -50）
+    if origin.y < -50 {
+      origin.y = -50
     }
 
     // 防止超出左右边界
