@@ -104,6 +104,10 @@ public class RimeContext {
   @MainActor @Published
   public var rimeContext: IRimeContext? = nil
 
+  /// 系统文本替换建议（当匹配时显示在候选栏，支持多个值）
+  @MainActor @Published
+  public var textReplacementSuggestions: [CandidateSuggestion] = []
+
   /// rime option
   @MainActor @Published
   public var optionState: String? = nil

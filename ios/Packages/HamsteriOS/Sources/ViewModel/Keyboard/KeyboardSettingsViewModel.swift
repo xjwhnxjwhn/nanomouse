@@ -96,6 +96,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableSystemTextReplacement: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement ?? false
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableSystemTextReplacement = newValue
+    }
+  }
+
   public var lockShiftState: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? true
@@ -717,6 +727,18 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           toggleValue: { [unowned self] in enableEmbeddedInputMode },
           toggleHandled: { [unowned self] in
             enableEmbeddedInputMode = $0
+          })
+      ]),
+
+    .init(
+      footer: "开启后，键盘会自动应用 iOS 系统设置中的「文本替换」\n（设置 > 通用 > 键盘 > 文本替换）",
+      items: [
+        .init(
+          text: "系统文本替换",
+          type: .toggle,
+          toggleValue: { [unowned self] in enableSystemTextReplacement },
+          toggleHandled: { [unowned self] in
+            enableSystemTextReplacement = $0
           })
       ]),
 

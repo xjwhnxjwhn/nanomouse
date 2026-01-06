@@ -98,30 +98,35 @@ public class CandidateWordsCollectionView: UICollectionView {
   }
 
   func combine() {
-    self.rimeContext.$suggestions
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] suggestions in
-        guard let self = self else { return }
-        self.reloadData()
-        if self.currentUserInputKey != self.rimeContext.userInputKey {
-          self.currentUserInputKey = self.rimeContext.userInputKey
-          if !suggestions.isEmpty {
-            if self.candidatesViewState.isCollapse() {
-              self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .right, animated: false)
-            } else {
-              self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
-            }
-            return
+    // 合并 suggestions 和 textReplacementSuggestions
+    Publishers.CombineLatest(
+      self.rimeContext.$suggestions,
+      self.rimeContext.$textReplacementSuggestions
+    )
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] suggestions, textReplacements in
+      guard let self = self else { return }
+      self.reloadData()
+      if self.currentUserInputKey != self.rimeContext.userInputKey {
+        self.currentUserInputKey = self.rimeContext.userInputKey
+        let hasSuggestions = !suggestions.isEmpty || !textReplacements.isEmpty
+        if hasSuggestions {
+          if self.candidatesViewState.isCollapse() {
+            self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .right, animated: false)
+          } else {
+            self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
           }
-        }
-
-        if suggestions.isEmpty, self.candidatesViewState != .collapse {
-          self.candidatesViewState = .collapse
-          self.keyboardContext.candidatesViewState = .collapse
-          changeLayout(.collapse)
+          return
         }
       }
-      .store(in: &subscriptions)
+
+      if suggestions.isEmpty && textReplacements.isEmpty && self.candidatesViewState != .collapse {
+        self.candidatesViewState = .collapse
+        self.keyboardContext.candidatesViewState = .collapse
+        changeLayout(.collapse)
+      }
+    }
+    .store(in: &subscriptions)
 
     keyboardContext.$candidatesViewState
       .receive(on: DispatchQueue.main)
@@ -132,6 +137,14 @@ public class CandidateWordsCollectionView: UICollectionView {
         changeLayout(state)
       }
       .store(in: &subscriptions)
+  }
+  
+  /// 获取合并后的候选项列表
+  var combinedSuggestions: [CandidateSuggestion] {
+    var result = [CandidateSuggestion]()
+    result.append(contentsOf: rimeContext.textReplacementSuggestions)
+    result.append(contentsOf: rimeContext.suggestions)
+    return result
   }
 
   func changeLayout(_ state: CandidateBarView.State) {
@@ -155,7 +168,7 @@ public class CandidateWordsCollectionView: UICollectionView {
 
 extension CandidateWordsCollectionView: UICollectionViewDataSource {
   public func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
-    rimeContext.suggestions.count
+    combinedSuggestions.count
   }
 
   public func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -163,8 +176,9 @@ extension CandidateWordsCollectionView: UICollectionViewDataSource {
     let showIndex = toolbarConfig?.displayIndexOfCandidateWord
     let showComment = toolbarConfig?.displayCommentOfCandidateWord
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: CandidateWordCell.identifier, for: indexPath)
-    if let cell = cell as? CandidateWordCell, indexPath.item < rimeContext.suggestions.count {
-      let candidate = rimeContext.suggestions[indexPath.item]
+    let suggestions = combinedSuggestions
+    if let cell = cell as? CandidateWordCell, indexPath.item < suggestions.count {
+      let candidate = suggestions[indexPath.item]
       cell.updateWithCandidateSuggestion(candidate, style: style, showIndex: showIndex, showComment: showComment)
     }
     return cell
@@ -184,7 +198,7 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
 //    }
 //  }
   public func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-    if indexPath.item + 1 >= rimeContext.suggestions.count {
+    if indexPath.item + 1 >= combinedSuggestions.count {
       rimeContext.nextPage()
     }
   }
@@ -193,7 +207,32 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
     guard let _ = collectionView.cellForItem(at: indexPath) else { return }
     // 用于触发反馈
     actionHandler.handle(.press, on: .character(""))
-    self.rimeContext.selectCandidate(index: indexPath.item)
+    
+    let suggestions = combinedSuggestions
+    guard indexPath.item < suggestions.count else { return }
+    let selectedItem = suggestions[indexPath.item]
+    
+    // 检查是否是文本替换候选（index 为负数）
+    if selectedItem.index < 0 {
+      // 执行文本替换
+      if let shortcut = selectedItem.subtitle {
+        // 删除原始短语（shortcut 的长度）
+        for _ in 0..<shortcut.count {
+          keyboardContext.textDocumentProxy.deleteBackward()
+        }
+      }
+      // 插入替换文本
+      keyboardContext.textDocumentProxy.insertText(selectedItem.text)
+      // 清除文本替换建议
+      rimeContext.textReplacementSuggestions = []
+    } else {
+      // 正常的 RIME 候选选择
+      let textReplacementCount = rimeContext.textReplacementSuggestions.count
+      let adjustedIndex = indexPath.item - textReplacementCount
+      if adjustedIndex >= 0 {
+        self.rimeContext.selectCandidate(index: adjustedIndex)
+      }
+    }
   }
 
   public func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
@@ -236,8 +275,9 @@ extension CandidateWordsCollectionView: UICollectionViewDelegateFlowLayout {
     let heightOfCodingArea: CGFloat = keyboardContext.enableEmbeddedInputMode ? 0 : keyboardContext.heightOfCodingArea
     let heightOfToolbar: CGFloat = keyboardContext.heightOfToolbar - heightOfCodingArea - 6
 
-    guard indexPath.item < rimeContext.suggestions.count else { return .zero }
-    let candidate = rimeContext.suggestions[indexPath.item]
+    let suggestions = combinedSuggestions
+    guard indexPath.item < suggestions.count else { return .zero }
+    let candidate = suggestions[indexPath.item]
     let toolbarConfig = keyboardContext.hamsterConfiguration?.toolbar
     let showComment = toolbarConfig?.displayCommentOfCandidateWord ?? false
     let showIndex = toolbarConfig?.displayIndexOfCandidateWord ?? false

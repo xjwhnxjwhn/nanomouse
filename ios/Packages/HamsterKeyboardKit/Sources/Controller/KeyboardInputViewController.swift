@@ -53,6 +53,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
 
+    // 加载系统文本替换
+    let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
+    Logger.statistics.info("SystemTextReplacement: enableSystemTextReplacement = \(enableTextReplacement)")
+    if enableTextReplacement {
+      systemTextReplacementManager.loadLexicon(from: self)
+    }
+
     // fix: 屏幕边缘按键触摸延迟
     // https://stackoverflow.com/questions/39813245/touchesbeganwithevent-is-delayed-at-left-edge-of-screen
     // 注意：添加代码日志中会有警告
@@ -419,6 +426,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
   public lazy var rimeContext = RimeContext()
 
+  /// 系统文本替换管理器
+  /// 用于读取和应用 iOS 系统的「文本替换」设置
+  public lazy var systemTextReplacementManager = SystemTextReplacementManager()
+
   // MARK: - Text And Selection, Implementations UITextInputDelegate
 
   /// 当文档中的选择即将发生变化时，通知输入委托。
@@ -460,6 +471,74 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // fix: 输出栏点击右侧x形按钮后, 输入法候选栏内容没有跟随输入栏一同清空
     if !self.textDocumentProxy.hasText {
       self.rimeContext.reset()
+    }
+    
+    // 更新文本替换建议
+    updateTextReplacementSuggestion()
+  }
+  
+  /// 更新文本替换建议
+  /// - Parameter pendingText: 刚刚输入但尚未反映在 documentContextBeforeInput 中的文本
+  func updateTextReplacementSuggestion(pendingText: String = "") {
+    guard keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true else {
+      rimeContext.textReplacementSuggestions = []
+      return
+    }
+    
+    // 获取光标前的文本，并追加待处理的文本
+    var beforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
+    beforeInput.append(pendingText)
+    
+    guard !beforeInput.isEmpty else {
+      rimeContext.textReplacementSuggestions = []
+      return
+    }
+    
+    // 提取最后一个单词
+    let trimmed = beforeInput.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else {
+      rimeContext.textReplacementSuggestions = []
+      return
+    }
+    
+    var wordStartIndex = trimmed.endIndex
+    for index in trimmed.indices.reversed() {
+      let char = trimmed[index]
+      if char.isWhitespace || char.isNewline {
+        wordStartIndex = trimmed.index(after: index)
+        break
+      }
+      if index == trimmed.startIndex {
+        wordStartIndex = index
+      }
+    }
+    
+    let lastWord = String(trimmed[wordStartIndex...])
+    guard !lastWord.isEmpty else {
+      rimeContext.textReplacementSuggestions = []
+      return
+    }
+    
+    // 查找所有匹配的文本替换
+    let suggestions = systemTextReplacementManager.getAllSuggestions(for: lastWord)
+    
+    if !suggestions.isEmpty {
+      var candidates = [CandidateSuggestion]()
+      for (index, suggestion) in suggestions.enumerated() {
+        let candidate = CandidateSuggestion(
+          index: -(index + 1),  // 使用负索引标识这是文本替换，-1, -2, -3...
+          label: "⇥",  // 使用特殊标记
+          text: suggestion.replacement,
+          title: suggestion.replacement,
+          isAutocomplete: index == 0,  // 只有第一个是自动补全
+          subtitle: suggestion.shortcut  // 显示原始短语作为注释
+        )
+        candidates.append(candidate)
+      }
+      rimeContext.textReplacementSuggestions = candidates
+      Logger.statistics.info("SystemTextReplacement: showing \(candidates.count) suggestions for '\(lastWord, privacy: .public)'")
+    } else {
+      rimeContext.textReplacementSuggestions = []
     }
   }
 
@@ -549,6 +628,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   open func insertText(_ text: String) {
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
     if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+      // 先更新文本替换建议（在插入文本之前，传入待插入的文本）
+      updateTextReplacementSuggestion(pendingText: text)
+      // 再插入文本
       self.textDocumentProxy.insertText(text)
       return
     }
@@ -568,6 +650,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       self.insertTextPatch(text)
       return
     }
+    
+    // 更新文本替换建议（中文输入时也检测已上屏内容）
+    updateTextReplacementSuggestion()
   }
 
   open func selectNextKeyboard() {
@@ -602,12 +687,56 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func openUrl(_ url: URL?) {
-    let selector = sel_registerName("openURL:")
-    var responder = self as UIResponder?
-    while let r = responder, !r.responds(to: selector) {
+    guard let url = url else {
+      Logger.statistics.error("openUrl: URL is nil")
+      return
+    }
+
+    Logger.statistics.info("openUrl: Attempting to open URL: \(url.absoluteString, privacy: .public)")
+
+    // 键盘扩展中打开 URL 的方法：
+    // 通过响应链向上查找 UIApplication 实例，调用新版 open 方法
+
+    var responder: UIResponder? = self
+    while let r = responder {
+      // 检查类名是否为 UIApplication（避免直接引用 UIApplication.shared）
+      let className = String(describing: type(of: r))
+      if className == "UIApplication" {
+        Logger.statistics.info("openUrl: Found UIApplication via responder chain")
+
+        // 使用新版 open:options:completionHandler: 选择器
+        // 方法签名: - (void)openURL:(NSURL *)url options:(NSDictionary *)options completionHandler:(void (^)(BOOL))completion
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        if r.responds(to: selector) {
+          Logger.statistics.info("openUrl: Calling open:options:completionHandler:")
+
+          // 使用 NSInvocation 风格调用（通过 perform 无法传递三个参数）
+          // 改用闭包包装的方式
+          let imp = r.method(for: selector)
+          typealias OpenURLFunction = @convention(c) (AnyObject, Selector, URL, [UIApplication.OpenExternalURLOptionsKey: Any], ((Bool) -> Void)?) -> Void
+          let function = unsafeBitCast(imp, to: OpenURLFunction.self)
+          function(r, selector, url, [:], { success in
+            Logger.statistics.info("openUrl: open:options:completionHandler: completed, success: \(success)")
+          })
+          return
+        }
+      }
+
       responder = r.next
     }
-    _ = responder?.perform(selector, with: url)
+
+    Logger.statistics.info("openUrl: UIApplication not found in responder chain, trying extensionContext")
+
+    // 如果响应链方法都失败了，尝试 extensionContext
+    if let extensionContext = extensionContext {
+      Logger.statistics.info("openUrl: Using extensionContext")
+      extensionContext.open(url, completionHandler: { success in
+        Logger.statistics.info("openUrl: extensionContext.open completed, success: \(success)")
+      })
+      return
+    }
+
+    Logger.statistics.error("openUrl: All methods failed, URL not opened")
   }
 
   open func resetInputEngine() {
@@ -615,6 +744,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
+    // 空格键特殊处理：当没有 RIME 用户输入时，尝试执行文本替换
+    if keyCode == XK_space && rimeContext.userInputKey.isEmpty {
+      if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
+        Logger.statistics.info("SystemTextReplacement: space key pressed with no RIME input, trying replacement")
+        if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
+          textDocumentProxy.insertText(.space)
+          return
+        }
+      }
+    }
+    
     guard rimeContext.tryHandleInputCode(keyCode) else {
       tryHandleSpecificCode(keyCode)
       return
@@ -999,6 +1139,9 @@ private extension KeyboardInputViewController {
   func insertTextPatch(_ insertText: String) {
     // 替换为成对符号
     let text = keyboardContext.getPairSymbols(insertText)
+    
+    // 先更新文本替换建议（在插入文本之前）
+    updateTextReplacementSuggestion(pendingText: text)
 
     // 检测光标是否需要回退
     if keyboardContext.cursorBackOfSymbols(key: text) {

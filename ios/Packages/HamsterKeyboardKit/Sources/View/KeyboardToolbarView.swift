@@ -194,31 +194,40 @@ class KeyboardToolbarView: NibLessView {
   }
 
   func combine() {
-    rimeContext.userInputKeyPublished
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] in
-        guard let self = self else { return }
-        let isEmpty = $0.isEmpty
-        self.commonFunctionBar.isHidden = !isEmpty
-        self.candidateBarView.isHidden = isEmpty
+    Publishers.CombineLatest(
+      rimeContext.userInputKeyPublished,
+      rimeContext.$textReplacementSuggestions
+    )
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] userInputKey, textReplacementSuggestions in
+      guard let self = self else { return }
+      
+      // 有 RIME 输入或有文本替换建议时，显示候选栏
+      let hasContent = !userInputKey.isEmpty || !textReplacementSuggestions.isEmpty
+      let isEmpty = !hasContent
+      
+      self.commonFunctionBar.isHidden = !isEmpty
+      self.candidateBarView.isHidden = isEmpty
 
-        if self.candidateBarView.superview == nil {
-          candidateBarView.setStyle(self.style)
-          addSubview(candidateBarView)
-          candidateBarView.fillSuperview()
-        }
-
-        // 检测是否启用内嵌编码
-        guard !keyboardContext.enableEmbeddedInputMode else { return }
-        if self.keyboardContext.keyboardType.isChineseNineGrid {
-          // Debug
-          // self.phoneticArea.text = inputKeys + " | " + self.rimeContext.t9UserInputKey
-          candidateBarView.phoneticLabel.text = self.rimeContext.t9UserInputKey
-        } else {
-          candidateBarView.phoneticLabel.text = $0
-        }
+      if self.candidateBarView.superview == nil {
+        candidateBarView.setStyle(self.style)
+        addSubview(candidateBarView)
+        candidateBarView.fillSuperview()
       }
-      .store(in: &subscriptions)
+
+      // 检测是否启用内嵌编码
+      guard !keyboardContext.enableEmbeddedInputMode else { return }
+      if self.keyboardContext.keyboardType.isChineseNineGrid {
+        // Debug
+        // self.phoneticArea.text = inputKeys + " | " + self.rimeContext.t9UserInputKey
+        candidateBarView.phoneticLabel.text = self.rimeContext.t9UserInputKey
+      } else {
+        // 如果是文本替换建议，且没有 RIME 输入，则不显示拼音标签
+        // 或者显示文本替换的快捷短语？这里选择保持原逻辑，如果 userInputKey 为空则显示空
+        candidateBarView.phoneticLabel.text = userInputKey
+      }
+    }
+    .store(in: &subscriptions)
   }
 
   @objc func dismissKeyboardTouchDownAction() {

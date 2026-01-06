@@ -149,6 +149,10 @@ public struct KeyboardConfiguration: Codable, Hashable {
   // 按键下方边框
   public var enableButtonUnderBorder: Bool?
 
+  /// 启用系统文本替换
+  /// 开启后，键盘会读取 iOS 系统设置中的「文本替换」并自动应用
+  public var enableSystemTextReplacement: Bool?
+
   public init(
     useKeyboardType: String? = "chinese",
     disableSwipeLabel: Bool? = false,
@@ -193,7 +197,8 @@ public struct KeyboardConfiguration: Codable, Hashable {
     showCurrentInputSchemaNameForSpaceButton: Bool? = true,
     showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = false,
     showUppercasedCharacterOnChineseKeyboard: Bool? = true,
-    enableButtonUnderBorder: Bool? = true) {
+    enableButtonUnderBorder: Bool? = true,
+    enableSystemTextReplacement: Bool? = false) {
     self.useKeyboardType = useKeyboardType
     self.disableSwipeLabel = disableSwipeLabel
     self.upSwipeOnLeft = upSwipeOnLeft
@@ -238,6 +243,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.showCurrentInputSchemaNameOnLoadingTextForSpaceButton = showCurrentInputSchemaNameOnLoadingTextForSpaceButton
     self.showUppercasedCharacterOnChineseKeyboard = showUppercasedCharacterOnChineseKeyboard
     self.enableButtonUnderBorder = enableButtonUnderBorder
+    self.enableSystemTextReplacement = enableSystemTextReplacement
   }
 
   public init(from decoder: Decoder) throws {
@@ -286,6 +292,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.showCurrentInputSchemaNameOnLoadingTextForSpaceButton = try container.decodeIfPresent(Bool.self, forKey: .showCurrentInputSchemaNameOnLoadingTextForSpaceButton)
     self.showUppercasedCharacterOnChineseKeyboard = try container.decodeIfPresent(Bool.self, forKey: .showUppercasedCharacterOnChineseKeyboard)
     self.enableButtonUnderBorder = try container.decodeIfPresent(Bool.self, forKey: .enableButtonUnderBorder)
+    self.enableSystemTextReplacement = try container.decodeIfPresent(Bool.self, forKey: .enableSystemTextReplacement)
   }
 
   enum CodingKeys: CodingKey {
@@ -333,6 +340,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     case showCurrentInputSchemaNameOnLoadingTextForSpaceButton
     case showUppercasedCharacterOnChineseKeyboard
     case enableButtonUnderBorder
+    case enableSystemTextReplacement
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -381,5 +389,6 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.showCurrentInputSchemaNameOnLoadingTextForSpaceButton, forKey: .showCurrentInputSchemaNameOnLoadingTextForSpaceButton)
     try container.encodeIfPresent(self.showUppercasedCharacterOnChineseKeyboard, forKey: .showUppercasedCharacterOnChineseKeyboard)
     try container.encodeIfPresent(self.enableButtonUnderBorder, forKey: .enableButtonUnderBorder)
+    try container.encodeIfPresent(self.enableSystemTextReplacement, forKey: .enableSystemTextReplacement)
   }
 }

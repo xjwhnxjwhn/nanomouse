@@ -109,34 +109,48 @@ class CandidatesPagingCollectionView: UICollectionView {
   }
 
   func combine() {
-    rimeContext.$rimeContext
-      .receive(on: DispatchQueue.main)
-      .sink { [weak self] context in
-        guard let self = self else { return }
-        guard let context = context else { return }
-        guard let highlightedIndex = context.menu?.highlightedCandidateIndex else { return }
-        guard let pageCandidates = context.menu?.candidates else { return }
+    // 合并 RIME 上下文和文本替换建议
+    Publishers.CombineLatest(
+      rimeContext.$rimeContext,
+      rimeContext.$textReplacementSuggestions
+    )
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] context, textReplacementSuggestions in
+      guard let self = self else { return }
+      
+      var candidates = [CandidateSuggestion]()
+      
+      // 添加所有文本替换建议作为首选项
+      candidates.append(contentsOf: textReplacementSuggestions)
+      
+      // 添加 RIME 候选项
+      if let context = context,
+         let highlightedIndex = context.menu?.highlightedCandidateIndex,
+         let pageCandidates = context.menu?.candidates {
         let labels = context.labels ?? [String]()
         let selectKeys = (context.menu?.selectKeys ?? "").map { String($0) }
-        var candidates = [CandidateSuggestion]()
+        let textReplacementCount = textReplacementSuggestions.count
+        
         for (index, candidate) in pageCandidates.enumerated() {
+          let adjustedIndex = textReplacementCount == 0 ? index : index + textReplacementCount
           let suggestion = CandidateSuggestion(
-            index: index,
+            index: adjustedIndex,
             label: indexLabel(index, labels: labels, selectKeys: selectKeys),
             text: candidate.text,
             title: candidate.text,
-            isAutocomplete: index == highlightedIndex,
+            isAutocomplete: index == highlightedIndex && textReplacementSuggestions.isEmpty,
             subtitle: candidate.comment
           )
           candidates.append(suggestion)
         }
-
-        var snapshot = NSDiffableDataSourceSnapshot<Int, CandidateSuggestion>()
-        snapshot.appendSections([0])
-        snapshot.appendItems(candidates, toSection: 0)
-        diffableDataSource.applySnapshotUsingReloadData(snapshot)
       }
-      .store(in: &subscriptions)
+
+      var snapshot = NSDiffableDataSourceSnapshot<Int, CandidateSuggestion>()
+      snapshot.appendSections([0])
+      snapshot.appendItems(candidates, toSection: 0)
+      diffableDataSource.applySnapshotUsingReloadData(snapshot)
+    }
+    .store(in: &subscriptions)
   }
 
   /// 显示 index 对应的 label
@@ -172,7 +186,34 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
     guard let _ = collectionView.cellForItem(at: indexPath) else { return }
     // 用于触发反馈
     actionHandler.handle(.press, on: .character(""))
-    self.rimeContext.selectCandidate(index: indexPath.item)
+    
+    // 获取选中的候选项
+    let items = diffableDataSource.snapshot(for: indexPath.section).items
+    guard indexPath.item < items.count else { return }
+    let selectedItem = items[indexPath.item]
+    
+    // 检查是否是文本替换候选（index 为负数）
+    if selectedItem.index < 0 {
+      // 执行文本替换
+      if let shortcut = selectedItem.subtitle {
+        // 删除原始短语（shortcut 的长度）
+        for _ in 0..<shortcut.count {
+          keyboardContext.textDocumentProxy.deleteBackward()
+        }
+      }
+      // 插入替换文本
+      keyboardContext.textDocumentProxy.insertText(selectedItem.text)
+      // 清除文本替换建议
+      rimeContext.textReplacementSuggestions = []
+    } else {
+      // 正常的 RIME 候选选择
+      // 如果有文本替换候选，需要调整索引
+      let textReplacementCount = rimeContext.textReplacementSuggestions.count
+      let adjustedIndex = indexPath.item - textReplacementCount
+      if adjustedIndex >= 0 {
+        self.rimeContext.selectCandidate(index: adjustedIndex)
+      }
+    }
   }
 
   public func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
