@@ -45,6 +45,12 @@ public extension KeyboardButton {
       overlay.confirmSelection()
     }
 
+    // 变音符号菜单：手势释放时确认选择
+    if let overlay = superview?.viewWithTag(Self.accentMenuOverlayTag) as? AccentMenuOverlay {
+      shouldApplyReleaseAction = false
+      overlay.confirmSelection()
+    }
+
     guard isPressed else { return }
     isPressed = false
     updateButtonStyle(isPressed: false)
@@ -84,6 +90,11 @@ public extension KeyboardButton {
   func tryHandleCancel() {
     // 语言切换菜单：手势取消时移除菜单
     if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
+      overlay.removeFromSuperview()
+    }
+    
+    // 变音符号菜单：手势取消时移除菜单
+    if let overlay = superview?.viewWithTag(Self.accentMenuOverlayTag) as? AccentMenuOverlay {
       overlay.removeFromSuperview()
     }
 
@@ -167,6 +178,12 @@ public extension KeyboardButton {
       return
     }
 
+    // 变音符号菜单：处理拖拽选择
+    if let overlay = superview?.viewWithTag(Self.accentMenuOverlayTag) as? AccentMenuOverlay {
+      overlay.handleDrag(at: currentPoint, in: self)
+      return
+    }
+
     // TODO: 其他划动处理
     swipeGestureHandle = nil
     dragAction(start: startLocation, current: currentPoint)
@@ -230,6 +247,14 @@ public extension KeyboardButton {
       presentLanguageMenu()
       return
     }
+
+    // 检查是否有关联的变音符号
+    if case .character(let char) = item.action, let accents = AccentCharacterProvider.accents(for: char) {
+      shouldApplyReleaseAction = false
+      presentAccentMenu(for: accents)
+      return
+    }
+
     // 空格长按不需要应用 release
     shouldApplyReleaseAction = shouldApplyReleaseAction && item.action != .space
     Logger.statistics.debug("longPressAction()")
@@ -415,14 +440,5 @@ private extension KeyboardButton {
     return options
   }
 
-  func handleLanguageSelection(_ option: LanguageMenuOverlay.LanguageOption) {
-    switch option {
-    case .chinese:
-      actionHandler.handle(.release, on: .shortCommand(.setLanguageChinese))
-    case .japanese:
-      actionHandler.handle(.release, on: .shortCommand(.setLanguageJapanese))
-    case .english:
-      actionHandler.handle(.release, on: .shortCommand(.setLanguageEnglish))
-    }
-  }
+
 }

@@ -292,6 +292,43 @@ public class KeyboardButton: UIControl {
     }
   }
 
+  func handleLanguageSelection(_ option: LanguageMenuOverlay.LanguageOption) {
+    switch option {
+    case .chinese:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageChinese))
+    case .japanese:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageJapanese))
+    case .english:
+      actionHandler.handle(.release, on: .shortCommand(.setLanguageEnglish))
+    }
+  }
+
+  // MARK: - Accent Menu Support
+
+  static let accentMenuOverlayTag = 8118
+
+  func presentAccentMenu(for accents: [String]) {
+    guard let container = superview else { return }
+    // 移除已存在的菜单
+    container.viewWithTag(Self.accentMenuOverlayTag)?.removeFromSuperview()
+
+    let overlay = AccentMenuOverlay(style: actionCalloutStyle, chars: accents) { [weak self] char in
+      self?.handleAccentSelection(char)
+    }
+    overlay.tag = Self.accentMenuOverlayTag
+    overlay.frame = container.bounds
+    overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    container.addSubview(overlay)
+    
+    // 必须确保气泡在正确的位置
+    overlay.positionMenu(above: frame, in: overlay.bounds)
+  }
+
+  func handleAccentSelection(_ char: String) {
+    Logger.statistics.info("Accent selected: \(char)")
+    actionHandler.handle(.release, on: .character(char))
+  }
+
   @objc func handleRimeAsciiModeChange() {
     guard isLanguageSwitchKey() else { return }
     DispatchQueue.main.async { [weak self] in
