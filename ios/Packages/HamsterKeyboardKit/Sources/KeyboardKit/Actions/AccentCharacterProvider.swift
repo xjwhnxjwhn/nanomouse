@@ -12,15 +12,26 @@ public struct AccentCharacterProvider {
   public static func accents(for key: String) -> [String]? {
     switch key.lowercased() {
     case "a":
-      return ["ā", "á", "ǎ", "à", "a", "â", "ä", "à", "å", "ã", "æ"]
+      // Pinyin: ā á ǎ à
+      // European: â ä å ã æ (removed duplicate à, a)
+      return ["ā", "á", "ǎ", "à", "â", "ä", "å", "ã", "æ"]
     case "o":
-      return ["ō", "ó", "ǒ", "ò", "o", "ô", "ö", "ò", "õ", "œ"]
+      // Pinyin: ō ó ǒ ò
+      // European: ô ö õ œ (removed duplicate ò, o)
+      return ["ō", "ó", "ǒ", "ò", "ô", "ö", "õ", "œ"]
     case "e":
-      return ["ē", "é", "ě", "è", "e", "ê", "ë", "è"]
+      // Pinyin: ē é ě è
+      // European: ê ë (removed duplicate è, e)
+      return ["ē", "é", "ě", "è", "ê", "ë"]
     case "i":
-      return ["ī", "í", "ǐ", "ì", "i", "î", "ï", "ì"]
+      // Pinyin: ī í ǐ ì
+      // European: î ï (removed duplicate ì, i)
+      return ["ī", "í", "ǐ", "ì", "î", "ï"]
     case "u":
-      return ["ū", "ú", "ǔ", "ù", "u", "û", "ü", "ù"]
+      // Pinyin: ū ú ǔ ù
+      // European: û ü (removed duplicate ù, u)
+      // Note: ü is also used in Pinyin as v, but kept here for European support on u key
+      return ["ū", "ú", "ǔ", "ù", "û", "ü"]
     case "v":
       // v 在拼音输入中通常映射为 ü
       return ["ü", "ǖ", "ǘ", "ǚ", "ǜ"]

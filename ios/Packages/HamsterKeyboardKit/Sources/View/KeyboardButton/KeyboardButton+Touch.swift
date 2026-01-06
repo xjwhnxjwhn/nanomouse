@@ -250,6 +250,9 @@ public extension KeyboardButton {
 
     // 检查是否有关联的变音符号
     if case .character(let char) = item.action, let accents = AccentCharacterProvider.accents(for: char) {
+      // 隐藏当前显示的按键气泡（放大镜），避免遮挡
+      calloutContext.input.reset()
+      
       shouldApplyReleaseAction = false
       presentAccentMenu(for: accents)
       return
