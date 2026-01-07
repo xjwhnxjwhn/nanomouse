@@ -539,7 +539,7 @@ public class KeyboardContext: ObservableObject {
   }
 
   var enableClassifySymbolicKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.enableSymbolKeyboard ?? false
+    hamsterConfiguration?.keyboard?.enableSymbolKeyboard ?? true
   }
 
   var enableButtonUnderBorder: Bool {

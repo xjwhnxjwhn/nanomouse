@@ -165,7 +165,7 @@ open class iPadChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
     var result = KeyboardActions()
     result.append(.nextKeyboard)
     if let action = keyboardSwitchActionForBottomRow(for: context) { result.append(action) }
-    result.append(.keyboardType(.classifySymbolic))
+    result.append(.keyboardType(.chineseSymbolic))
     result.append(.space)
     if let action = keyboardSwitchActionForBottomRow(for: context) { result.append(action) }
     result.append(.dismissKeyboard)

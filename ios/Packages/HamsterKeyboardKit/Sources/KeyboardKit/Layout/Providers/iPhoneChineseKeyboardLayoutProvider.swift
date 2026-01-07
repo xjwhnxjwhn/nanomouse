@@ -182,7 +182,8 @@ open class iPhoneChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
     if needsInputSwitch { result.append(.nextKeyboard) }
 
     if context.displayClassifySymbolButton {
-      result.append(.keyboardType(.classifySymbolic))
+      // 改为 .symbolic 以便触发“短按简单符号，长按分类符号”逻辑
+      result.append(.keyboardType(.chineseSymbolic))
     }
 
     if context.keyboardType.isChinesePrimaryKeyboard, context.chineseEnglishSwitchButtonIsOnLeftOfSpaceButton, let action = needsChineseEnglishSwitchAction(for: context) {

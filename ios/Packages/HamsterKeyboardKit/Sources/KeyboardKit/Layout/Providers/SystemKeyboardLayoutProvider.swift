@@ -273,8 +273,8 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
     switch context.keyboardType {
     case .chinese(let casing): return .shift(currentCasing: casing)
     case .alphabetic(let casing): return .shift(currentCasing: casing)
-    case .numeric: return context.enableClassifySymbolicKeyboard ? .keyboardType(.classifySymbolic) : .keyboardType(.symbolic)
-    case .chineseNumeric: return context.enableClassifySymbolicKeyboard ? .keyboardType(.classifySymbolic) : .keyboardType(.chineseSymbolic)
+    case .numeric: return .keyboardType(.symbolic)
+    case .chineseNumeric: return .keyboardType(.chineseSymbolic)
     case .symbolic: return context.enableNineGridOfNumericKeyboard ? .keyboardType(.numericNineGrid) : .keyboardType(.numeric)
     case .chineseSymbolic: return context.enableNineGridOfNumericKeyboard ? .keyboardType(.numericNineGrid) : .keyboardType(.chineseNumeric)
     default: return nil

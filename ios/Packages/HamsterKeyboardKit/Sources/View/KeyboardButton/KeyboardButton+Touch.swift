@@ -278,6 +278,15 @@ public extension KeyboardButton {
         return
     }
 
+    // 检查是否是 "#+=" 键 (keyboardType == .symbolic 或 .chineseSymbolic)
+    if case .keyboardType(let type) = item.action, (type == .symbolic || type == .chineseSymbolic) {
+        if keyboardContext.enableClassifySymbolicKeyboard {
+            shouldApplyReleaseAction = false
+            keyboardContext.setKeyboardType(.classifySymbolic)
+            return
+        }
+    }
+
     // 空格长按不需要应用 release
     shouldApplyReleaseAction = shouldApplyReleaseAction && item.action != .space
     Logger.statistics.debug("longPressAction()")

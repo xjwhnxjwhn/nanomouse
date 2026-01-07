@@ -155,7 +155,7 @@ open class NumericNineGridKeyboardLayoutProvider: KeyboardLayoutProvider {
     for actions: KeyboardActionRows,
     context: KeyboardContext
   ) -> KeyboardActions {
-    return [.returnLastKeyboard, .keyboardType(.classifySymbolicOfLight)]
+    return [.returnLastKeyboard, .keyboardType(.symbolic)]
   }
 
   /**

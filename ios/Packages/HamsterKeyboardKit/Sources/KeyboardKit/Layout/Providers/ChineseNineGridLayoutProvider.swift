@@ -15,7 +15,7 @@ public class ChineseNineGridLayoutProvider: KeyboardLayoutProvider {
 //    [.delimiter, .chineseNineGrid(Symbol(char: "ABC")), .chineseNineGrid(Symbol(char: "DEF")), .backspace],
     [.chineseNineGrid(Symbol(char: "GHI")), .chineseNineGrid(Symbol(char: "JKL")), .chineseNineGrid(Symbol(char: "MNO")), .cleanSpellingArea],
     [.chineseNineGrid(Symbol(char: "PQRS")), .chineseNineGrid(Symbol(char: "TUV")), .chineseNineGrid(Symbol(char: "WXYZ"))],
-    [.keyboardType(.classifySymbolic), .keyboardType(.numericNineGrid), .space, .keyboardType(.alphabetic(.lowercased))],
+    [.keyboardType(.chineseSymbolic), .keyboardType(.numericNineGrid), .space, .keyboardType(.alphabetic(.lowercased))],
   ]
 
   static let insets = UIEdgeInsets(top: 3, left: 3, bottom: 3, right: 3)
