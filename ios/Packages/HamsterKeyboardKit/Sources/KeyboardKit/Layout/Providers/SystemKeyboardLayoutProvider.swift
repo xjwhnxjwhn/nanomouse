@@ -208,6 +208,16 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
     if let swipe = context.keyboardSwipe[keyboardTypeKey]?[actionKey] {
       return swipe
     }
+    
+    // Fallback: 如果是 .symbol 类型但没有匹配，尝试用对应的 .character 类型查找
+    // 这使得英文键盘（使用 .symbol 类型）可以复用中文键盘（使用 .character 类型）的 YAML 配置格式
+    if case .symbol(let symbol) = action {
+      let charAction = KeyboardAction.character(symbol.char.lowercased())
+      if let swipe = context.keyboardSwipe[keyboardTypeKey]?[charAction] {
+        return swipe
+      }
+    }
+    
     return []
   }
 
