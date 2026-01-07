@@ -55,12 +55,23 @@ echo "📦 Uploading to GitHub Releases..."
 
 # Title default: "Nanomouse 1.0.0"
 TITLE="Nanomouse $VERSION"
+NOTES="$2"
 
-gh release create "$VERSION" \
-    "$DMG_PATH" \
-    --title "$TITLE" \
-    --generate-notes \
-    --draft
+if [ -n "$NOTES" ]; then
+    echo "📝 Using custom release notes..."
+    gh release create "$VERSION" \
+        "$DMG_PATH" \
+        --title "$TITLE" \
+        --notes "$NOTES" \
+        --draft
+else
+    echo "📝 Auto-generating release notes from commits..."
+    gh release create "$VERSION" \
+        "$DMG_PATH" \
+        --title "$TITLE" \
+        --generate-notes \
+        --draft
+fi
 
 echo "✅ Draft Release Created!"
 echo "   Go to GitHub to publish it."
