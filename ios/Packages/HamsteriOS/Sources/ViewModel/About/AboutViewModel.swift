@@ -41,6 +41,14 @@ public class AboutViewModel: ObservableObject {
           }
         }
       }),
+      .init(text: "隐私政策", secondaryText: "", type: .settings, buttonAction: {
+        let link = "https://github.com/xjwhnxjwhn/nanomouse/blob/main/PRIVACY.md"
+        if let url = URL(string: link) {
+          DispatchQueue.main.async {
+            UIApplication.shared.open(url)
+          }
+        }
+      }),
       .init(text: "联系邮箱", secondaryText: "nanomouse.official@gmail.com", type: .settings, buttonAction: {
         let link = "nanomouse.official@gmail.com"
         if let url = URL(string: "mailto:\(link)") {

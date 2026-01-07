@@ -5,7 +5,7 @@
 
 🐭 **Cross-platform Pinyin input optimization — type faster, type easier**
 
-[中文说明](./README.md)
+[中文说明](./README.md) | [隐私政策](./PRIVACY.md) | [Privacy Policy](./PRIVACY_EN.md)
 
 ---
 

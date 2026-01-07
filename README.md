@@ -5,7 +5,7 @@
 
 🐭 **让拼音输入更快、更顺手的跨平台输入法方案**
 
-[English](./README_EN.md)
+[English](./README_EN.md) | [隐私政策](./PRIVACY.md) | [Privacy Policy](./PRIVACY_EN.md)
 
 ---
 
