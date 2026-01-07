@@ -26,12 +26,20 @@ if [ -f "$MAC_DIR/.env" ]; then
 fi
 
 # Extract Team ID from Code Sign Identity if not explicitly set
-# Identity format usually: "Developer ID Application: Name (TEAMID)"
 if [ -z "$DEVELOPMENT_TEAM" ] && [ -n "$CODE_SIGN_IDENTITY" ]; then
-    # Extract text inside the last set of parentheses
-    DEVELOPMENT_TEAM=$(echo "$CODE_SIGN_IDENTITY" | sed -n 's/.*(\(.*\)).*/\1/p')
-    if [ -n "$DEVELOPMENT_TEAM" ]; then
-        echo "🆔 Extracted Team ID from identity: $DEVELOPMENT_TEAM"
+    # 1. Try extract text inside the last set of parentheses: "Name (TEAMID)"
+    EXTRACTED_ID=$(echo "$CODE_SIGN_IDENTITY" | sed -n 's/.*(\(.*\)).*/\1/p')
+    
+    if [ -n "$EXTRACTED_ID" ]; then
+        DEVELOPMENT_TEAM="$EXTRACTED_ID"
+        echo "🆔 Extracted Team ID from certificate name: $DEVELOPMENT_TEAM"
+    else
+        # 2. Fallback: Check if the identity string itself looks like a Team ID (10 alphanumeric chars)
+        # Regex: Start, 10 digit/upper-case, End.
+        if [[ "$CODE_SIGN_IDENTITY" =~ ^[A-Z0-9]{10}$ ]]; then
+            DEVELOPMENT_TEAM="$CODE_SIGN_IDENTITY"
+            echo "🆔 Used CODE_SIGN_IDENTITY directly as Team ID: $DEVELOPMENT_TEAM"
+        fi
     fi
 fi
 
