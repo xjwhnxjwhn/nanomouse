@@ -25,15 +25,35 @@ if [ -f "$MAC_DIR/.env" ]; then
     source "$MAC_DIR/.env"
 fi
 
+# Extract Team ID from Code Sign Identity if not explicitly set
+# Identity format usually: "Developer ID Application: Name (TEAMID)"
+if [ -z "$DEVELOPMENT_TEAM" ] && [ -n "$CODE_SIGN_IDENTITY" ]; then
+    # Extract text inside the last set of parentheses
+    DEVELOPMENT_TEAM=$(echo "$CODE_SIGN_IDENTITY" | sed -n 's/.*(\(.*\)).*/\1/p')
+    if [ -n "$DEVELOPMENT_TEAM" ]; then
+        echo "🆔 Extracted Team ID from identity: $DEVELOPMENT_TEAM"
+    fi
+fi
+
 # 1. Build GUI App
 echo "📦 Building SCT GUI..."
 cd "$GUI_DIR"
-xcodebuild -project SCT.xcodeproj \
-           -scheme SCT \
-           -configuration Release \
-           -derivedDataPath "$BUILD_DIR/SCT-Build" \
-           -quiet \
-           clean build
+
+# Construct xcodebuild args
+XCODEBUILD_ARGS=(
+    -project SCT.xcodeproj
+    -scheme SCT
+    -configuration Release
+    -derivedDataPath "$BUILD_DIR/SCT-Build"
+    -quiet
+)
+
+# Override Development Team if we have one (to fix stale project settings)
+if [ -n "$DEVELOPMENT_TEAM" ]; then
+    XCODEBUILD_ARGS+=(DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM")
+fi
+
+xcodebuild "${XCODEBUILD_ARGS[@]}" clean build
 
 # Check if build was successful
 GUI_APP_PATH="$BUILD_DIR/SCT-Build/Build/Products/Release/SCT.app"
