@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		345C5E777B1015DC6904BC51 /* rime-hangyl.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */; };
+		6573E9BEF9748631D4085E9F /* rime-stroke.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 3127118D3E89F5C0488E9F5B /* rime-stroke.zip */; };
+		AC53C1BFB0DB743114945231 /* rime-terra-pinyin.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */; };
+		B6316891C66348BBA1FE33C7 /* rime-jaroomaji.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */; };
 		C00C26B72B0698E300E92F89 /* HamsterKeyboardKit in Frameworks */ = {isa = PBXBuildFile; productRef = C00C26B62B0698E300E92F89 /* HamsterKeyboardKit */; };
 		C00C26C72B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
 		C00C26C82B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
@@ -61,13 +65,9 @@
 		C0A602B32A185D88000DC924 /* HamsterKeyboardInputViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */; };
 		C0C7EAEC29E5A236008D4EE1 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0C7EAEF29E5A236008D4EE1 /* InfoPlist.strings */; };
 		C0D672B429F1E0E7002D0439 /* SharedSupport.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D672B329F1E066002D0439 /* SharedSupport.zip */; };
+		C0D856CB2B026FDB003DB275 /* rime-japanese.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CD2B026FDC003DB275 /* rime-japanese.zip */; };
 		C0D856CC2B026FF6003DB275 /* rime-ice.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CA2B026FDA003DB275 /* rime-ice.zip */; };
 		C0DA3F422AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */; };
-		C0D856CB2B026FDB003DB275 /* rime-japanese.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CD2B026FDC003DB275 /* rime-japanese.zip */; };
-		B6316891C66348BBA1FE33C7 /* rime-jaroomaji.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */; };
-		AC53C1BFB0DB743114945231 /* rime-terra-pinyin.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */; };
-		6573E9BEF9748631D4085E9F /* rime-stroke.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 3127118D3E89F5C0488E9F5B /* rime-stroke.zip */; };
-		345C5E777B1015DC6904BC51 /* rime-hangyl.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */; };
 		F4D8BF30CB5DB3AD6B4E9A12 /* rime-hannomps.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 30E0D285658D98DE7E92B572 /* rime-hannomps.zip */; };
 /* End PBXBuildFile section */
 
@@ -122,6 +122,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		30E0D285658D98DE7E92B572 /* rime-hannomps.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hannomps.zip"; sourceTree = "<group>"; };
+		3127118D3E89F5C0488E9F5B /* rime-stroke.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-stroke.zip"; sourceTree = "<group>"; };
+		53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hangyl.zip"; sourceTree = "<group>"; };
+		7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-terra-pinyin.zip"; sourceTree = "<group>"; };
+		9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji.zip"; sourceTree = "<group>"; };
 		C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HamsterKeyboardInputViewController.swift; sourceTree = "<group>"; };
 		C00749622ABAD48C00C5CD0A /* HamsterFileServer */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsterFileServer; path = Packages/HamsterFileServer; sourceTree = "<group>"; };
 		C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = boost_filesystem.xcframework; sourceTree = "<group>"; };
@@ -179,13 +184,8 @@
 		C0D672B329F1E066002D0439 /* SharedSupport.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = SharedSupport.zip; sourceTree = "<group>"; };
 		C0D856C92B0213E5003DB275 /* HamsterDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterDebug.entitlements; sourceTree = "<group>"; };
 		C0D856CA2B026FDA003DB275 /* rime-ice.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-ice.zip"; sourceTree = "<group>"; };
-		C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployBackgroundIntent.swift; sourceTree = "<group>"; };
 		C0D856CD2B026FDC003DB275 /* rime-japanese.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-japanese.zip"; sourceTree = "<group>"; };
-		9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji.zip"; sourceTree = "<group>"; };
-		7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-terra-pinyin.zip"; sourceTree = "<group>"; };
-		3127118D3E89F5C0488E9F5B /* rime-stroke.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-stroke.zip"; sourceTree = "<group>"; };
-		53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hangyl.zip"; sourceTree = "<group>"; };
-		30E0D285658D98DE7E92B572 /* rime-hannomps.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hannomps.zip"; sourceTree = "<group>"; };
+		C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployBackgroundIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

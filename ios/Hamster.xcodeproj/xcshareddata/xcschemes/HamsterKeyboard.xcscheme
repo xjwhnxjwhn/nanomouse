@@ -80,9 +80,9 @@
       allowLocationSimulation = "YES"
       launchAutomaticallySubstyle = "2">
       <RemoteRunnable
-         runnableDebuggingMode = "1"
-         BundleIdentifier = "com.apple.MobileSMS"
-         RemotePath = "/Applications/MobileSMS.app">
+         runnableDebuggingMode = "0"
+         BundleIdentifier = "com.apple.mobilenotes"
+         RemotePath = "/var/containers/Bundle/Application/4339CFA7-C77E-4D57-ADCB-6DAD18772E77/MobileNotes.app">
       </RemoteRunnable>
       <MacroExpansion>
          <BuildableReference
@@ -100,6 +100,7 @@
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES"
+      askForAppToLaunch = "Yes"
       launchAutomaticallySubstyle = "2">
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
