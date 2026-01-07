@@ -408,6 +408,180 @@ swipe:
           swipe:
             - direction: up
               action: shortCommand(#上个输入方案)
+    # 英文 26 键滑动设置
+    - keyboardType: alphabetic
+      keys:
+        - action: character(a)
+          swipe:
+            - direction: up
+              action: character(`)
+            - direction: down
+              action: character(~)
+        - action: character(b)
+          swipe:
+            - direction: up
+              action: character(<)
+            - direction: down
+              action: character(>)
+        - action: character(c)
+          swipe:
+            - direction: up
+              action: character(.)
+            - direction: down
+              action: character(>)
+        - action: character(d)
+          swipe:
+            - direction: up
+              action: character(=)
+            - direction: down
+              action: character(+)
+        - action: character(e)
+          swipe:
+            - direction: up
+              action: character(3)
+            - direction: down
+              action: character(#)
+        - action: character(f)
+          swipe:
+            - direction: up
+              action: character([)
+            - direction: down
+              action: character({)
+        - action: character(g)
+          swipe:
+            - direction: up
+              action: character(])
+            - direction: down
+              action: character(})
+        - action: character(h)
+          swipe:
+            - direction: up
+              action: character(\)
+            - direction: down
+              action: character(|)
+        - action: character(i)
+          swipe:
+            - direction: up
+              action: character(8)
+            - direction: down
+              action: character(*)
+        - action: character(j)
+          swipe:
+            - direction: up
+              action: character(/)
+            - direction: down
+              action: character(?)
+        - action: character(k)
+          swipe:
+            - direction: up
+              action: character(;)
+            - direction: down
+              action: character(:)
+        - action: character(l)
+          swipe:
+            - direction: up
+              action: character(')
+            - direction: down
+              action: character(")
+        - action: character(m)
+          swipe:
+            - direction: up
+              action: shortCommand(#行尾)
+            - direction: down
+              action: character(,)
+        - action: character(n)
+          swipe:
+            - direction: up
+              action: character(')
+            - direction: down
+              action: character(,)
+        - action: character(o)
+          swipe:
+            - direction: up
+              action: character(9)
+            - direction: down
+              action: character(()
+        - action: character(p)
+          swipe:
+            - direction: up
+              action: character(0)
+            - direction: down
+              action: character())
+        - action: character(q)
+          swipe:
+            - direction: up
+              action: character(1)
+            - direction: down
+              action: character(!)
+        - action: character(r)
+          swipe:
+            - direction: up
+              action: character(4)
+            - direction: down
+              action: character($)
+        - action: character(s)
+          swipe:
+            - direction: up
+              action: character(-)
+            - direction: down
+              action: character(_)
+        - action: character(t)
+          swipe:
+            - direction: up
+              action: character(5)
+            - direction: down
+              action: character(%)
+        - action: character(u)
+          swipe:
+            - direction: up
+              action: character(7)
+            - direction: down
+              action: character(&)
+        - action: character(v)
+          swipe:
+            - direction: up
+              action: character(")
+            - direction: down
+              action: character(,)
+        - action: character(w)
+          swipe:
+            - direction: up
+              action: character(2)
+            - direction: down
+              action: character(@)
+        - action: character(x)
+          swipe:
+            - direction: up
+              action: character(,)
+            - direction: down
+              action: character(<)
+        - action: character(y)
+          swipe:
+            - direction: up
+              action: character(6)
+            - direction: down
+              action: character(^)
+        - action: character(z)
+          swipe:
+            - direction: up
+              action: shortCommand(#行首)
+            - direction: down
+              action: character(')
+        - action: space
+          swipe:
+            - direction: up
+              action: shortCommand(#次选上屏)
+              display: false
+        - action: enter
+          swipe:
+            - direction: up
+              action: shortCommand(#换行)
+        - action: backspace
+          swipe:
+            - direction: up
+              action: shortCommand(#重输)
+            - direction: left
+              action: shortCommand(#重输)
     # 中文九宫格滑动设置
     - keyboardType: chineseNineGrid
       keys:
