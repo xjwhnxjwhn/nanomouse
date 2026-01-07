@@ -329,6 +329,48 @@ public class KeyboardButton: UIControl {
     actionHandler.handle(.release, on: .character(char))
   }
 
+
+
+  // MARK: - Numeric Keypad Support
+
+  static let numericKeypadOverlayTag = 8119
+
+  func presentNumericKeypad() {
+    var container = superview
+    // 尝试获取键盘控制器的根视图，以确保覆盖整个键盘区域
+    if let handler = actionHandler as? StandardKeyboardActionHandler,
+       let controller = handler.keyboardController as? UIViewController {
+      container = controller.view
+    }
+    
+    guard let container = container else { return }
+    // Remove existing overlay
+    container.viewWithTag(Self.numericKeypadOverlayTag)?.removeFromSuperview()
+
+    let overlay = NumericKeypadOverlay(style: actionCalloutStyle, onInput: { [weak self] char in
+      self?.handleNumericInput(char)
+    }, onDelete: { [weak self] in
+      self?.handleNumericDelete()
+    })
+    
+    overlay.tag = Self.numericKeypadOverlayTag
+    overlay.frame = container.bounds
+    overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    container.addSubview(overlay)
+  }
+
+  func handleNumericInput(_ char: String) {
+    Logger.statistics.info("Numeric input: \(char)")
+    actionHandler.handle(.release, on: .character(char))
+  }
+  
+  func handleNumericDelete() {
+    Logger.statistics.info("Numeric delete")
+    // Backspace works on .press (or .repeatPress), not .release in StandardKeyboardActionHandler
+    actionHandler.handle(.press, on: .backspace)
+    actionHandler.handle(.release, on: .backspace) // Clean up state if necessary
+  }
+
   @objc func handleRimeAsciiModeChange() {
     guard isLanguageSwitchKey() else { return }
     DispatchQueue.main.async { [weak self] in

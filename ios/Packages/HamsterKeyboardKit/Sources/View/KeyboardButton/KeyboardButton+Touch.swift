@@ -130,6 +130,10 @@ public extension KeyboardButton {
     DispatchQueue.main.asyncAfter(deadline: .now() + repeatDelay) { [weak self] in
       guard let self = self else { return }
       guard self.repeatDate == date else { return }
+      // 防止 keyboardType 类型触发 repeat (这是切换按键，不应重复)
+      if case .keyboardType = self.item.action { return }
+      // 防止 "123" 键触发 repeat，以免干扰长按呼出数字小键盘
+      if self.buttonText == "123" { return }
       self.repeatTimer.start(action: self.repeatAction)
     }
   }
@@ -249,6 +253,7 @@ public extension KeyboardButton {
     }
 
     // 检查是否有关联的变音符号
+
     if case .character(let char) = item.action, let accents = AccentCharacterProvider.accents(for: char) {
       // 隐藏当前显示的按键气泡（放大镜），避免遮挡
       removeInputCallout()
@@ -256,6 +261,21 @@ public extension KeyboardButton {
       shouldApplyReleaseAction = false
       presentAccentMenu(for: accents)
       return
+    }
+    
+    // 检查是否是 "123" 键 (keyboadType == .numeric 或 文本为 "123")
+    // 支持中文/日文模式下的切换键
+    if case .keyboardType(.numeric) = item.action {
+        shouldApplyReleaseAction = false
+        presentNumericKeypad()
+        return
+    }
+    
+    // 额外检查：有些自定义或非标准键盘可能 Action 不是 .numeric 但显示文本是 "123"
+    if buttonText == "123" {
+        shouldApplyReleaseAction = false
+        presentNumericKeypad()
+        return
     }
 
     // 空格长按不需要应用 release
