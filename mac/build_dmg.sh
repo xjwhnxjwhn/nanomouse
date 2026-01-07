@@ -90,6 +90,14 @@ mkdir -p "$STAGING_DIR/$INSTALLER_APP_NAME/Contents/Resources"
 cp "$INSTALLERS_DIR/install_core.sh" "$STAGING_DIR/$INSTALLER_APP_NAME/Contents/Resources/"
 chmod +x "$STAGING_DIR/$INSTALLER_APP_NAME/Contents/Resources/install_core.sh"
 
+# 2.1 Code Sign Installer Wrapper (Required for Notarization)
+if [ -n "$CODE_SIGN_IDENTITY" ]; then
+    echo "🔏 Signing Installer Wrapper..."
+    # Note: --timestamp is implicit in recent macOS, but we add it explicitly to be safe.
+    # --options runtime is crucial for notarization.
+    codesign --force --options runtime --deep --timestamp --sign "$CODE_SIGN_IDENTITY" "$STAGING_DIR/$INSTALLER_APP_NAME"
+fi
+
 # 3. Assemble DMG Content
 echo "📂 Assembling DMG Content..."
 
