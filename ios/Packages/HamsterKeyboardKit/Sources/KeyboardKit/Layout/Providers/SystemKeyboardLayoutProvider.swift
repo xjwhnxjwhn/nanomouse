@@ -196,11 +196,13 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
     }()
 
     let actionKey: KeyboardAction = {
-      if case .character(let char) = action {
-        return .character(char.lowercased())
-      }
-      if case .symbol(let symbol) = action {
-        return .symbol(Symbol(char: symbol.char.lowercased()))
+      if let ls = action.lookupString {
+        if case .character = action {
+          return .character(ls)
+        }
+        if case .symbol = action {
+          return .symbol(Symbol(char: ls))
+        }
       }
       return action
     }()
@@ -208,12 +210,18 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
     if let swipe = context.keyboardSwipe[keyboardTypeKey]?[actionKey] {
       return swipe
     }
-    
-    // Fallback: 如果是 .symbol 类型但没有匹配，尝试用对应的 .character 类型查找
-    // 这使得英文键盘（使用 .symbol 类型）可以复用中文键盘（使用 .character 类型）的 YAML 配置格式
-    if case .symbol(let symbol) = action {
-      let charAction = KeyboardAction.character(symbol.char.lowercased())
-      if let swipe = context.keyboardSwipe[keyboardTypeKey]?[charAction] {
+
+    // Fallback: 如果精确匹配失败，尝试使用对应的另一种类型查找
+    // 这使得不同 Action 类型的按键可以共享 YAML 配置
+    if let ls = action.lookupString {
+      let fallbackAction: KeyboardAction = {
+        if case .symbol = action {
+          return .character(ls)
+        } else {
+          return .symbol(Symbol(char: ls))
+        }
+      }()
+      if let swipe = context.keyboardSwipe[keyboardTypeKey]?[fallbackAction] {
         return swipe
       }
     }

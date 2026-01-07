@@ -263,6 +263,11 @@ public extension RimeContext {
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxSharedSupportDirectory)
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
     try FileManager.ensureExtraInputSchemaFiles(in: FileManager.sandboxSharedSupportDirectory)
+    
+    // 从 Bundle 复制最新的 hamster.yaml 覆盖沙盒版本
+    // 这样开发时修改 hamster.yaml 无需重新打包 ZIP
+    try FileManager.copyBundleHamsterYaml(to: FileManager.sandboxSharedSupportDirectory)
+    
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
     removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
 

@@ -394,6 +394,8 @@ public extension FileManager {
         try fm.removeItem(atPath: dst.path)
       } else {
         try ensureExtraInputSchemaFiles(in: dst)
+        // 每次都从 Bundle 复制最新的 hamster.yaml
+        try copyBundleHamsterYaml(to: dst)
         return
       }
     }
@@ -411,6 +413,25 @@ public extension FileManager {
 
     // 解压缩额外输入方案zip文件
     try ensureExtraInputSchemaFiles(in: dst)
+    
+    // 从 Bundle 复制最新的 hamster.yaml
+    try copyBundleHamsterYaml(to: dst)
+  }
+  
+  /// 从 Bundle 复制 hamster.yaml 覆盖目标目录中的版本
+  /// 这样可以在不更新 ZIP 的情况下修改 hamster.yaml
+  public static func copyBundleHamsterYaml(to dst: URL) throws {
+    let fm = FileManager.default
+    let bundleHamsterYaml = appSharedSupportDirectory.appendingPathComponent("hamster.yaml")
+    let dstHamsterYaml = dst.appendingPathComponent("hamster.yaml")
+    
+    if fm.fileExists(atPath: bundleHamsterYaml.path) {
+      if fm.fileExists(atPath: dstHamsterYaml.path) {
+        try fm.removeItem(at: dstHamsterYaml)
+      }
+      try fm.copyItem(at: bundleHamsterYaml, to: dstHamsterYaml)
+      Logger.statistics.debug("copied hamster.yaml from Bundle to \(dstHamsterYaml.path)")
+    }
   }
 
   static func ensureExtraInputSchemaFiles(in dst: URL) throws {

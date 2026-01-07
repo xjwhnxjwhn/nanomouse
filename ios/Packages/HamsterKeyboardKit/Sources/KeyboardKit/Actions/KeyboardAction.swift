@@ -495,4 +495,26 @@ public extension KeyboardAction {
     default: return false
     }
   }
+
+  /**
+   The character associated with the action, if any.
+   */
+  var character: String? {
+    switch self {
+    case .character(let char): return char
+    case .characterOfDark(let char): return char
+    case .characterMargin(let char): return char
+    case .symbol(let symbol): return symbol.char
+    case .symbolOfDark(let symbol): return symbol.char
+    case .chineseNineGrid(let symbol): return symbol.char
+    default: return nil
+    }
+  }
+
+  /**
+   The character string (lowercased) to use for lookup or matching.
+   */
+  var lookupString: String? {
+    character?.lowercased()
+  }
 }
