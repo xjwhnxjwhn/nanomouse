@@ -45,7 +45,8 @@ open class iPadKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
     context: KeyboardContext
   ) -> KeyboardActionRows {
     let characters = actionCharacters(for: inputs, context: context)
-    let actions = KeyboardActionRows(symbols: characters)
+    // 使用 .character() 而非 .symbol()，以支持变音符号气泡和划动手势
+    let actions = KeyboardActionRows(characters: characters)
     guard actions.count == 3 else { return actions }
     var result = KeyboardActionRows()
     result.append(topLeadingActions(for: context) + actions[0] + topTrailingActions(for: context))

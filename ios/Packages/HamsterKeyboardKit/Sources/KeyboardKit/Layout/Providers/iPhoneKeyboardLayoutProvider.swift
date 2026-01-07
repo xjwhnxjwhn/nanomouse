@@ -38,7 +38,8 @@ open class iPhoneKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
     context: KeyboardContext
   ) -> KeyboardActionRows {
     let characters = actionCharacters(for: inputs, context: context)
-    let actions = KeyboardActionRows(symbols: characters)
+    // 使用 .character() 而非 .symbol()，以支持变音符号气泡和划动手势
+    let actions = KeyboardActionRows(characters: characters)
     guard isExpectedActionSet(actions) else { return actions }
     var result = KeyboardActionRows()
     result.append(topLeadingActions(for: actions, context: context) + actions[0] + topTrailingActions(for: actions, context: context))
