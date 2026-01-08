@@ -306,6 +306,7 @@ public extension RimeContext {
     }
     ensureSchemaListContains(schemaId: "japanese", schemas: &schemas, traits: traits)
     ensureSchemaListContains(schemaId: "jaroomaji", schemas: &schemas, traits: traits)
+    ensureSchemaListContains(schemaId: "jaroomaji-easy", schemas: &schemas, traits: traits)
 
     // 提前在部署阶段加载 RimeSwitch hotKey, 此步骤放在键盘启动阶段会减慢启动速度
     // 加载Switcher切换键
@@ -434,6 +435,7 @@ public extension RimeContext {
     var mutableSchemas = schemas
     ensureSchemaListContains(schemaId: "japanese", schemas: &mutableSchemas, traits: traits)
     ensureSchemaListContains(schemaId: "jaroomaji", schemas: &mutableSchemas, traits: traits)
+    ensureSchemaListContains(schemaId: "jaroomaji-easy", schemas: &mutableSchemas, traits: traits)
 
     Rime.shared.shutdown()
 

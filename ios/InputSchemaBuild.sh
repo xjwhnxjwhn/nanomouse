@@ -127,6 +127,7 @@ patch:
   schema_list/+:
     - schema: japanese        # 日语
     - schema: jaroomaji       # 日语罗马字
+    - schema: jaroomaji-easy  # 日语罗马字（英文码显示）
 DEFAULT_CONFIG
     # === Nanomouse 配置结束 ===
     
@@ -160,6 +161,61 @@ rm -rf $OUTPUT/.$jaroomaji_scheme_name && \
     zip -r $jaroomaji_scheme_name.zip ./*
   ) && \
   cp -R $OUTPUT/.$jaroomaji_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+
+# === 内置方案：日语罗马字（英文码显示）(rime-jaroomaji-easy) ===
+jaroomaji_easy_scheme_name=rime-jaroomaji-easy
+
+rm -rf $OUTPUT/.$jaroomaji_easy_scheme_name && \
+  mkdir -p $OUTPUT/.$jaroomaji_easy_scheme_name && (
+    JAROOMAJI_SRC="$OUTPUT/.$jaroomaji_scheme_name/jaroomaji.schema.yaml" \
+    JAROOMAJI_EASY_DST="$OUTPUT/.$jaroomaji_easy_scheme_name/jaroomaji-easy.schema.yaml" \
+    python3 - <<'PY'
+import os
+import re
+from pathlib import Path
+
+src = Path(os.environ["JAROOMAJI_SRC"])
+dst = Path(os.environ["JAROOMAJI_EASY_DST"])
+text = src.read_text(encoding="utf-8")
+
+text = text.replace("schema_id: jaroomaji", "schema_id: jaroomaji-easy", 1)
+text = text.replace("name: 日本語ローマ字", "name: 日本語ローマ字 Easy", 1)
+
+lines = text.splitlines()
+out = []
+inside_translator = False
+skip_preedit = False
+preedit_replaced = False
+for line in lines:
+    if line.startswith("translator:"):
+        inside_translator = True
+        out.append(line)
+        continue
+    if inside_translator:
+        if skip_preedit:
+            if re.match(r"^  [A-Za-z_]", line):
+                skip_preedit = False
+            else:
+                continue
+        if line.startswith("  preedit_format:"):
+            out.append("  comment_format:")
+            out.append('    - "xform/ //"')
+            out.append("  preedit_format:")
+            out.append('    - "xform/ //"')
+            preedit_replaced = True
+            skip_preedit = True
+            continue
+    out.append(line)
+
+if not preedit_replaced:
+    raise SystemExit("preedit_format not found in jaroomaji.schema.yaml")
+
+dst.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY
+    cd $OUTPUT/.$jaroomaji_easy_scheme_name
+    zip -r $jaroomaji_easy_scheme_name.zip jaroomaji-easy.schema.yaml
+  ) && \
+  cp -R $OUTPUT/.$jaroomaji_easy_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
 
 # === 依赖方案：terra_pinyin.extended (rime-terra-pinyin) ===
 terra_pinyin_scheme_name=rime-terra-pinyin

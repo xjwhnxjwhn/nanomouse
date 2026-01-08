@@ -36,6 +36,7 @@ public enum HamsterConstants {
   public static let extraInputSchemaZipFiles = [
     "rime-japanese.zip",
     "rime-jaroomaji.zip",
+    "rime-jaroomaji-easy.zip",
     "rime-terra-pinyin.zip",
     "rime-stroke.zip",
     "rime-hangyl.zip",
