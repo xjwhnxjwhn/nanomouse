@@ -36,6 +36,7 @@ import UIKit
 open class KeyboardInputViewController: UIInputViewController, KeyboardController {
   /// 语言切换循环抑制窗口（用于长按气泡选择时，避免 release 触发循环切换）
   var languageCycleSuppressionUntil: Date?
+  private var keyboardRootView: KeyboardRootView?
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -88,10 +89,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   /// 内存回收
-//  override open func didReceiveMemoryWarning() {
-//    shutdownRIME()
-//    setupRIME()
-//  }
+  override open func didReceiveMemoryWarning() {
+    super.didReceiveMemoryWarning()
+    resetAutocomplete()
+    systemTextReplacementManager.clear()
+    Task { @MainActor in
+      rimeContext.reset()
+      rimeContext.textReplacementSuggestions = []
+    }
+  }
 
   // MARK: - Keyboard View Controller Lifecycle
 
@@ -108,6 +114,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
 
   open func viewWillSetupKeyboard() {
+    if let keyboardRootView = keyboardRootView {
+      if keyboardRootView.superview == nil {
+        keyboardRootView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(keyboardRootView)
+        NSLayoutConstraint.activate([
+          keyboardRootView.topAnchor.constraint(equalTo: view.topAnchor),
+          keyboardRootView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+          keyboardRootView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+          keyboardRootView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+      }
+      return
+    }
+
     let keyboardRootView = KeyboardRootView(
       keyboardLayoutProvider: keyboardLayoutProvider,
       appearance: keyboardAppearance,
@@ -116,6 +136,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       calloutContext: calloutContext,
       rimeContext: rimeContext
     )
+    self.keyboardRootView = keyboardRootView
 
     // 设置键盘的View
     keyboardRootView.translatesAutoresizingMaskIntoConstraints = false

@@ -128,6 +128,10 @@ public class RimeContext {
     }
   }
 
+  deinit {
+    Rime.shared.clearNotificationDelegate(self)
+  }
+
   public init() {}
 
   func setMaximumNumberOfCandidateWords(_ count: Int) {
@@ -230,6 +234,7 @@ public extension RimeContext {
   /// RIME 关闭
   /// 注意：仅用于键盘扩展调用
   func shutdown() {
+    Rime.shared.clearNotificationDelegate(self)
     Rime.shared.shutdown()
   }
 

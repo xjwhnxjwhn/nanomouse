@@ -38,6 +38,7 @@ public class Rime {
   private var deployFailureCallback: DeployCallbackFunction?
   private var changeModeCallback: ChangeCallbackFunction?
   private var loadingSchemaCallback: ChangeCallbackFunction?
+  private weak var notificationDelegate: IRimeNotificationDelegate?
 
   private init() {}
 
@@ -64,8 +65,15 @@ public class Rime {
     return traits
   }
 
-  public func setNotificationDelegate(_ delegate: IRimeNotificationDelegate) {
+  public func setNotificationDelegate(_ delegate: IRimeNotificationDelegate?) {
+    notificationDelegate = delegate
     rimeAPI.setNotificationDelegate(delegate)
+  }
+
+  public func clearNotificationDelegate(_ delegate: IRimeNotificationDelegate) {
+    if notificationDelegate === delegate {
+      setNotificationDelegate(nil)
+    }
   }
 
   public func setupRime(sharedSupportDir: String, userDataDir: String) {

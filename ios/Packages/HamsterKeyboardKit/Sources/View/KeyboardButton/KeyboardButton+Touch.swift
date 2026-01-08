@@ -134,7 +134,9 @@ public extension KeyboardButton {
       if case .keyboardType = self.item.action { return }
       // 防止 "123" 键触发 repeat，以免干扰长按呼出数字小键盘
       if self.buttonText == "123" { return }
-      self.repeatTimer.start(action: self.repeatAction)
+      self.repeatTimer.start { [weak self] in
+        self?.repeatAction()
+      }
     }
   }
 

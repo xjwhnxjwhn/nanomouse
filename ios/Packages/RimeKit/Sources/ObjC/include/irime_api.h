@@ -30,7 +30,7 @@ typedef uintptr_t RimeSessionId;
  */
 @interface IRimeAPI : NSObject
 
-- (void)setNotificationDelegate:(id<IRimeNotificationDelegate>)delegate;
+- (void)setNotificationDelegate:(id<IRimeNotificationDelegate> _Nullable)delegate;
 
 // MARK: start and shutdown
 - (void)setup:(IRimeTraits *)traits;

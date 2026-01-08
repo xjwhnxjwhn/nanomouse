@@ -122,6 +122,10 @@ open class SpaceCursorDragGestureHandler: DragGestureHandler {
   
   private var dragMode: DragMode = .manual
   private var timer: Timer?
+
+  deinit {
+    stopTimer()
+  }
   
   private func startTimer() {
     timer?.invalidate()
