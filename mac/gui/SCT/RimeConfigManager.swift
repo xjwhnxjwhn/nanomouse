@@ -46,6 +46,17 @@ final class RimeConfigManager: ObservableObject {
         rimePath.appendingPathComponent("build", isDirectory: true)
     }
 
+    /// 统一在主线程更新状态消息，避免后台线程发布。
+    private func setStatusMessage(_ message: String) {
+        if Thread.isMainThread {
+            statusMessage = message
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.statusMessage = message
+            }
+        }
+    }
+
     /// Executes a block of code with security-scoped access to the Rime directory.
     func withSecurityScopedAccess<T>(_ action: () throws -> T) rethrows -> T {
         let isScoped = rimePath.startAccessingSecurityScopedResource()
@@ -286,16 +297,33 @@ final class RimeConfigManager: ObservableObject {
     }
 
     deinit {
-        folderMonitor?.cancel()
+        stopMonitoring()
+    }
+
+    private func stopMonitoring() {
+        // 先停止旧的监控，避免重复监听与句柄泄漏。
+        if let monitor = folderMonitor {
+            monitor.cancel()
+            folderMonitor = nil
+            folderDescriptor = -1
+            return
+        }
+
+        if folderDescriptor != -1 {
+            close(folderDescriptor)
+            folderDescriptor = -1
+        }
     }
 
     private func startMonitoring() {
         withSecurityScopedAccess {
-            folderDescriptor = open(rimePath.path, O_EVTONLY)
-            guard folderDescriptor != -1 else { return }
+            stopMonitoring()
+            let descriptor = open(rimePath.path, O_EVTONLY)
+            guard descriptor != -1 else { return }
+            folderDescriptor = descriptor
 
             folderMonitor = DispatchSource.makeFileSystemObjectSource(
-                fileDescriptor: folderDescriptor,
+                fileDescriptor: descriptor,
                 eventMask: .write,
                 queue: DispatchQueue.main
             )
@@ -306,10 +334,8 @@ final class RimeConfigManager: ObservableObject {
                 self?.loadConfig()
             }
 
-            folderMonitor?.setCancelHandler { [weak self] in
-                if let descriptor = self?.folderDescriptor {
-                    close(descriptor)
-                }
+            folderMonitor?.setCancelHandler {
+                close(descriptor)
             }
 
             folderMonitor?.resume()
@@ -400,7 +426,9 @@ final class RimeConfigManager: ObservableObject {
             }
 
             let buildDefaultURL = buildPath.appendingPathComponent("default.yaml")
-            let useBuildDefault = !hasSharedSupportAccess && fileManager.fileExists(atPath: buildDefaultURL.path)
+            let useBuildDefault = !hasSharedSupportAccess
+                && !fileExists(named: "default.yaml")
+                && fileManager.fileExists(atPath: buildDefaultURL.path)
             let defaultBase = useBuildDefault ? loadYamlDictionary(from: buildDefaultURL) : loadYamlDictionary(named: "default.yaml")
             let defaultPatch = loadPatchDictionary(named: "default.custom.yaml")
             patchConfigs[.default] = defaultPatch
@@ -654,22 +682,48 @@ final class RimeConfigManager: ObservableObject {
         }
     }
 
+    private func resolveSquirrelExecutable() -> URL? {
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "im.rime.inputmethod.Squirrel") {
+            let executable = appURL.appendingPathComponent("Contents/MacOS/Squirrel")
+            if fileManager.isExecutableFile(atPath: executable.path) {
+                return executable
+            }
+        }
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let userPath = home.appendingPathComponent("Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel")
+        if fileManager.isExecutableFile(atPath: userPath.path) {
+            return userPath
+        }
+
+        let systemPath = URL(fileURLWithPath: "/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel")
+        if fileManager.isExecutableFile(atPath: systemPath.path) {
+            return systemPath
+        }
+
+        return nil
+    }
+
     /// Triggers Squirrel to reload its configuration.
     func deploy() {
         isDirty = false
-        let squirrelAppPath = "/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel"
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: squirrelAppPath)
-        process.arguments = ["--reload"]
+        if let executable = resolveSquirrelExecutable() {
+            process.executableURL = executable
+            process.arguments = ["--reload"]
 
-        do {
-            try process.run()
-            statusMessage = L10n.deployTriggered
-        } catch {
-            // Fallback: touch the config files if the app is not found or fails
-            statusMessage = L10n.deployFailed
-            touchConfigFiles()
+            do {
+                try process.run()
+                setStatusMessage(L10n.deployTriggered)
+                return
+            } catch {
+                // Continue to fallback
+            }
         }
+
+        // Fallback: touch the config files if the app is not found or fails
+        setStatusMessage(L10n.deployFailed)
+        touchConfigFiles()
     }
 
     private func touchConfigFiles() {
@@ -681,7 +735,7 @@ final class RimeConfigManager: ObservableObject {
                     try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: fileURL.path)
                 }
             }
-            statusMessage = L10n.timestampUpdated
+            setStatusMessage(L10n.timestampUpdated)
         }
     }
 
@@ -984,9 +1038,13 @@ final class RimeConfigManager: ObservableObject {
         withSecurityScopedAccess {
             let fileName = "\(domain.rawValue).custom.yaml"
             let url = rimePath.appendingPathComponent(fileName)
-            try? content.write(to: url, atomically: true, encoding: .utf8)
-            loadConfig() // Reload to sync UI
-            statusMessage = String(format: L10n.saveSuccess, fileName)
+            do {
+                try content.write(to: url, atomically: true, encoding: .utf8)
+                loadConfig() // Reload to sync UI
+                setStatusMessage(String(format: L10n.saveSuccess, fileName))
+            } catch {
+                setStatusMessage(String(format: L10n.saveFailed, error.localizedDescription))
+            }
         }
     }
     private func updateVirtualHotkeyPairs(_ pairs: [[String]], prevAction: String, nextAction: String, in domain: ConfigDomain) {
@@ -1069,9 +1127,9 @@ final class RimeConfigManager: ObservableObject {
             // allowUnicode: true ensures Chinese characters are not escaped
             let yaml = try Yams.dump(object: root, width: -1, allowUnicode: true, sortKeys: true)
             try yaml.write(to: url, atomically: true, encoding: .utf8)
-            statusMessage = String(format: L10n.saveSuccess, fileName)
+            setStatusMessage(String(format: L10n.saveSuccess, fileName))
         } catch {
-            statusMessage = String(format: L10n.saveFailed, error.localizedDescription)
+            setStatusMessage(String(format: L10n.saveFailed, error.localizedDescription))
         }
     }
 
