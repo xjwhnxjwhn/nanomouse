@@ -425,12 +425,25 @@ public extension FileManager {
     let bundleHamsterYaml = appSharedSupportDirectory.appendingPathComponent("hamster.yaml")
     let dstHamsterYaml = dst.appendingPathComponent("hamster.yaml")
     
+    Logger.statistics.debug("DBG_DEPLOY copyBundleHamsterYaml: bundlePath=\(bundleHamsterYaml.path)")
+    Logger.statistics.debug("DBG_DEPLOY copyBundleHamsterYaml: dstPath=\(dstHamsterYaml.path)")
+    Logger.statistics.debug("DBG_DEPLOY copyBundleHamsterYaml: bundleExists=\(fm.fileExists(atPath: bundleHamsterYaml.path))")
+    
     if fm.fileExists(atPath: bundleHamsterYaml.path) {
       if fm.fileExists(atPath: dstHamsterYaml.path) {
+        Logger.statistics.debug("DBG_DEPLOY removing existing dst hamster.yaml")
         try fm.removeItem(at: dstHamsterYaml)
       }
       try fm.copyItem(at: bundleHamsterYaml, to: dstHamsterYaml)
-      Logger.statistics.debug("copied hamster.yaml from Bundle to \(dstHamsterYaml.path)")
+      Logger.statistics.debug("DBG_DEPLOY SUCCESS: copied hamster.yaml from Bundle to \(dstHamsterYaml.path)")
+      
+      // 验证拷贝后的文件大小
+      if let attrs = try? fm.attributesOfItem(atPath: dstHamsterYaml.path),
+         let size = attrs[.size] as? Int {
+        Logger.statistics.debug("DBG_DEPLOY copied file size: \(size) bytes")
+      }
+    } else {
+      Logger.statistics.error("DBG_DEPLOY FAILED: Bundle hamster.yaml not found at \(bundleHamsterYaml.path)")
     }
   }
 

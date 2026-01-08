@@ -8,6 +8,7 @@
 
 import CoreGraphics
 import UIKit
+import OSLog
 
 /**
  This is a base class for any keyboard layout providers that
@@ -207,7 +208,10 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
       return action
     }()
 
+    Logger.statistics.debug("DBG_SWIPE itemSwipes: keyboardType=\(String(describing: context.keyboardType)), keyboardTypeKey=\(String(describing: keyboardTypeKey)), action=\(String(describing: action)), actionKey=\(String(describing: actionKey))")
+
     if let swipe = context.keyboardSwipe[keyboardTypeKey]?[actionKey] {
+      Logger.statistics.debug("DBG_SWIPE found direct match, count=\(swipe.count)")
       return swipe
     }
 
@@ -221,11 +225,14 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
           return .symbol(Symbol(char: ls))
         }
       }()
+      Logger.statistics.debug("DBG_SWIPE trying fallback: fallbackAction=\(String(describing: fallbackAction))")
       if let swipe = context.keyboardSwipe[keyboardTypeKey]?[fallbackAction] {
+        Logger.statistics.debug("DBG_SWIPE found fallback match, count=\(swipe.count)")
         return swipe
       }
     }
     
+    Logger.statistics.debug("DBG_SWIPE no swipe config found")
     return []
   }
 

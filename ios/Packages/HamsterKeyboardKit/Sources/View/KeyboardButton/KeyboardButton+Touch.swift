@@ -312,22 +312,31 @@ public extension KeyboardButton {
   }
 
   func swipeAction(direction: SwipeDirection) {
-    Logger.statistics.debug("swipeAction(), direction: \(direction.debugDescription)")
+    Logger.statistics.debug("DBG_SWIPE swipeAction(), direction: \(direction.debugDescription), action: \(String(describing: self.item.action)), swipes count: \(self.item.swipes.count)")
+    for swipe: KeySwipe in self.item.swipes {
+      Logger.statistics.debug("DBG_SWIPE available swipe: direction=\(String(describing: swipe.direction)), action=\(String(describing: swipe.action))")
+    }
     switch direction {
     case .up:
-      if let swipe = item.swipes.first(where: { $0.direction == .up }) {
+      if let swipe = self.item.swipes.first(where: { $0.direction == .up }) {
+        Logger.statistics.debug("DBG_SWIPE matched UP swipe: \(String(describing: swipe.action))")
         actionHandler.handle(.swipeUp(swipe), on: swipe.action)
+      } else {
+        Logger.statistics.debug("DBG_SWIPE no UP swipe configured")
       }
     case .down:
-      if let swipe = item.swipes.first(where: { $0.direction == .down }) {
+      if let swipe = self.item.swipes.first(where: { $0.direction == .down }) {
+        Logger.statistics.debug("DBG_SWIPE matched DOWN swipe: \(String(describing: swipe.action))")
         actionHandler.handle(.swipeDown(swipe), on: swipe.action)
+      } else {
+        Logger.statistics.debug("DBG_SWIPE no DOWN swipe configured")
       }
     case .left:
-      if let swipe = item.swipes.first(where: { $0.direction == .left }) {
+      if let swipe = self.item.swipes.first(where: { $0.direction == .left }) {
         actionHandler.handle(.swipeLeft(swipe), on: swipe.action)
       }
     case .right:
-      if let swipe = item.swipes.first(where: { $0.direction == .right }) {
+      if let swipe = self.item.swipes.first(where: { $0.direction == .right }) {
         actionHandler.handle(.swipeRight(swipe), on: swipe.action)
       }
     }
