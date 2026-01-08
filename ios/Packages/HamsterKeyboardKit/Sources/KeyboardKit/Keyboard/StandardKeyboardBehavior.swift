@@ -158,13 +158,19 @@ open class StandardKeyboardBehavior: KeyboardBehavior {
    been performed on an action.
 
    当对某个操作执行特定手势时，是否切换到大写锁定。
+   支持双击和长按 Shift 键切换到大写锁定。
    */
   open func shouldSwitchToCapsLock(
     after gesture: KeyboardGesture,
     on action: KeyboardAction
   ) -> Bool {
     switch action {
-    case .shift: return isDoubleShiftTap
+    case .shift:
+      // 双击 Shift 切换到大写锁定
+      if isDoubleShiftTap { return true }
+      // 长按 Shift 也切换到大写锁定
+      if gesture == .longPress { return true }
+      return false
     default: return false
     }
   }

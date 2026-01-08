@@ -86,10 +86,12 @@ public extension KeyboardAction {
    action is long pressed.
    
    默认情况下，长按该操作时应触发的操作。
+   长按 Shift 键会切换到大写锁定。
    */
   var standardLongPressAction: GestureAction? {
     switch self {
     case .space: return { _ in }
+    case .shift: return { _ in } // 长按 Shift 触发大写锁定，实际逻辑在 shouldSwitchToCapsLock 中处理
     default: return nil
     }
   }
