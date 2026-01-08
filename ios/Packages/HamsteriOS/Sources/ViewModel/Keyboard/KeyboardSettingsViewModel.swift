@@ -48,7 +48,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var upSwipeOnLeft: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.upSwipeOnLeft ?? true
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.upSwipeOnLeft ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.upSwipeOnLeft = newValue
@@ -78,7 +78,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var swipeLabelUpAndDownLayout: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.swipeLabelUpAndDownLayout ?? false
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.swipeLabelUpAndDownLayout ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.swipeLabelUpAndDownLayout = newValue
@@ -98,7 +98,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var enableSystemTextReplacement: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement ?? false
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement = newValue
@@ -108,7 +108,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var lockShiftState: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? true
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState = newValue
@@ -248,7 +248,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var enableNineGridOfNumericKeyboard: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNineGridOfNumericKeyboard ?? true
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNineGridOfNumericKeyboard ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNineGridOfNumericKeyboard = newValue
@@ -328,7 +328,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var heightOfCodingArea: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfCodingArea ?? 10
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfCodingArea ?? 20
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfCodingArea = newValue
@@ -338,7 +338,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var codingAreaFontSize: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.codingAreaFontSize ?? 12
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.codingAreaFontSize ?? 20
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.codingAreaFontSize = newValue
@@ -358,7 +358,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var displayAppIconButton: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.displayAppIconButton ?? false
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.displayAppIconButton ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.displayAppIconButton = newValue
@@ -368,7 +368,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var displayKeyboardDismissButton: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.displayKeyboardDismissButton ?? false
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.displayKeyboardDismissButton ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.displayKeyboardDismissButton = newValue

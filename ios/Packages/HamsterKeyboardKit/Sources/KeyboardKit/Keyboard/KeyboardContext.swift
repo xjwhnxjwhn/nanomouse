@@ -372,12 +372,12 @@ public class KeyboardContext: ObservableObject {
 
   /// 工具栏应用图标按钮
   var displayAppIconButton: Bool {
-    hamsterConfiguration?.toolbar?.displayAppIconButton ?? false
+    hamsterConfiguration?.toolbar?.displayAppIconButton ?? true
   }
 
   /// 工具栏键盘 dismiss 按键
   var displayKeyboardDismissButton: Bool {
-    hamsterConfiguration?.toolbar?.displayKeyboardDismissButton ?? false
+    hamsterConfiguration?.toolbar?.displayKeyboardDismissButton ?? true
   }
 
   /// 数字九宫格符号列表
@@ -397,7 +397,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 工具栏编码区高度
   var heightOfCodingArea: CGFloat {
-    CGFloat(hamsterConfiguration?.toolbar?.heightOfCodingArea ?? 15)
+    CGFloat(hamsterConfiguration?.toolbar?.heightOfCodingArea ?? 20)
   }
 
   var numberKeyProcessByRimeOnNineGridOfNumericKeyboard: Bool {
@@ -434,12 +434,12 @@ public class KeyboardContext: ObservableObject {
 
   /// 上划显示在左侧
   var upSwipeOnLeft: Bool {
-    hamsterConfiguration?.keyboard?.upSwipeOnLeft ?? true
+    hamsterConfiguration?.keyboard?.upSwipeOnLeft ?? false
   }
 
   /// 划动上下布局
   var swipeLabelUpAndDownLayout: Bool {
-    hamsterConfiguration?.keyboard?.swipeLabelUpAndDownLayout ?? false
+    hamsterConfiguration?.keyboard?.swipeLabelUpAndDownLayout ?? true
   }
 
   /// 划动上下不规则布局
@@ -464,7 +464,7 @@ public class KeyboardContext: ObservableObject {
 
   /// Shift 状态锁定
   var lockShiftState: Bool {
-    hamsterConfiguration?.keyboard?.lockShiftState ?? true
+    hamsterConfiguration?.keyboard?.lockShiftState ?? false
   }
 
   /// 光标回退

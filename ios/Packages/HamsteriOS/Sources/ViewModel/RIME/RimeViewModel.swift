@@ -53,7 +53,7 @@ public class RimeViewModel {
   // 非造词用户保持默认值 true
   public var overrideDictFiles: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.rime?.overrideDictFiles ?? true
+      HamsterAppDependencyContainer.shared.configuration.rime?.overrideDictFiles ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.rime?.overrideDictFiles = newValue
