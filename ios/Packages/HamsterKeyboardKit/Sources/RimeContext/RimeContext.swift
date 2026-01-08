@@ -320,6 +320,8 @@ public extension RimeContext {
     Rime.shared.shutdown()
 
     // 当用户选择输入方案如果不为空时，则取与输入方案列表的交集
+    // 注意：新用户 selectSchemas 为空时不自动选择 schemas[0]，
+    // 由 loadAppData() 统一添加 rime_ice 和 japanese
     var selectSchemas = self.selectSchemas
     if !selectSchemas.isEmpty {
       // 取交集
@@ -327,15 +329,11 @@ public extension RimeContext {
       if !intersection.isEmpty {
         selectSchemas = Array(intersection).sorted()
       } else {
-        if !schemas.isEmpty {
-          selectSchemas = [schemas[0]]
-        }
-      }
-    } else {
-      if !schemas.isEmpty {
-        selectSchemas = [schemas[0]]
+        // 交集为空时保持 selectSchemas 为空，由 loadAppData() 处理
+        selectSchemas = []
       }
     }
+    // else: 新用户 selectSchemas 保持为空
 
     self.schemas = schemas
     self.selectSchemas = selectSchemas
@@ -440,6 +438,8 @@ public extension RimeContext {
     Rime.shared.shutdown()
 
     // 当用户选择输入方案如果不为空时，则取与输入方案列表的交集
+    // 注意：新用户 selectSchemas 为空时不自动选择 schemas[0]，
+    // 由 loadAppData() 统一添加 rime_ice 和 japanese
     var selectSchemas = self.selectSchemas
     if !selectSchemas.isEmpty {
       // 取交集
@@ -447,15 +447,11 @@ public extension RimeContext {
       if !intersection.isEmpty {
         selectSchemas = Array(intersection).sorted()
       } else {
-        if !mutableSchemas.isEmpty {
-          selectSchemas = [mutableSchemas[0]]
-        }
-      }
-    } else {
-      if !mutableSchemas.isEmpty {
-        selectSchemas = [mutableSchemas[0]]
+        // 交集为空时保持 selectSchemas 为空，由 loadAppData() 处理
+        selectSchemas = []
       }
     }
+    // else: 新用户 selectSchemas 保持为空
 
     /// 切换 Main 线程 修改 @MainActor 标记的属性值
     if !mutableSchemas.isEmpty {
