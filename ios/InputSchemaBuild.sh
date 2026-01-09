@@ -180,6 +180,8 @@ text = src.read_text(encoding="utf-8")
 
 text = text.replace("schema_id: jaroomaji", "schema_id: jaroomaji-easy", 1)
 text = text.replace("name: 日本語ローマ字", "name: 日本語ローマ字 Easy", 1)
+text = re.sub(r'^\\s*- "derive/xtu/s/"\\s*\\n', "", text, flags=re.MULTILINE)
+text = re.sub(r'^\\s*- "derive/XTU/S/"\\s*\\n', "", text, flags=re.MULTILINE)
 
 lines = text.splitlines()
 out = []
