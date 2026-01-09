@@ -1018,6 +1018,13 @@ private extension KeyboardInputViewController {
         self?.syncKeyboardTypeForJapaneseIfNeeded(reason: "ascii")
       }
       .store(in: &cancellables)
+
+    keyboardContext.keyboardTypePublished
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.normalizeJapaneseAlphabeticCaseIfNeeded(reason: "keyboardType")
+      }
+      .store(in: &cancellables)
   }
 
   func applyDefaultLanguageIfNeeded(reason: String) {
@@ -1038,18 +1045,27 @@ private extension KeyboardInputViewController {
   }
 
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
-    if rimeContext.asciiModeSnapshot == false, rimeContext.currentSchema?.isJapaneseSchema == true {
+    let japaneseActive = rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true
+    keyboardContext.isAutoCapitalizationEnabled = !japaneseActive
+
+    if japaneseActive {
       if !keyboardContext.keyboardType.isAlphabetic(.lowercased) {
         Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> alphabetic.lowercased (reason: \(reason, privacy: .public))")
         setKeyboardType(.alphabetic(.lowercased))
         return
       }
-    }
-
-    if keyboardContext.keyboardType.isAlphabetic {
       Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (reason: \(reason, privacy: .public))")
       keyboardRootView?.reloadKeyboardView()
     }
+  }
+
+  func normalizeJapaneseAlphabeticCaseIfNeeded(reason: String) {
+    guard rimeContext.asciiModeSnapshot == false, rimeContext.currentSchema?.isJapaneseSchema == true else {
+      return
+    }
+    guard keyboardContext.keyboardType.isAlphabetic(.auto) else { return }
+    Logger.statistics.info("DBG_LANGSWITCH normalize alphabetic.auto -> lowercased (reason: \(reason, privacy: .public))")
+    setKeyboardType(.alphabetic(.lowercased))
   }
 
   /**
