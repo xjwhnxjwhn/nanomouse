@@ -77,13 +77,9 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   }
   
   private func setupContainer() {
-    containerView.backgroundColor = style.callout.backgroundColor
+    // 容器背景透明，不需要矩形背景层
+    containerView.backgroundColor = .clear
     containerView.layer.cornerRadius = 10
-    // 容器阴影
-    containerView.layer.shadowColor = UIColor.black.cgColor
-    containerView.layer.shadowOpacity = 0.2
-    containerView.layer.shadowRadius = 10
-    containerView.layer.shadowOffset = CGSize(width: 0, height: 4)
     
     addSubview(containerView)
     containerView.translatesAutoresizingMaskIntoConstraints = false
