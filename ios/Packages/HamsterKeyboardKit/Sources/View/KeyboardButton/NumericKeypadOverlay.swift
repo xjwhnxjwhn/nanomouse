@@ -11,6 +11,7 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   private let style: KeyboardActionCalloutStyle
   private let onInput: (String) -> Void
   private let onDelete: () -> Void
+  private let enableHapticFeedback: Bool
 
   private let containerView = UIView()
   private let stackView = UIStackView()
@@ -29,10 +30,12 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
 
   init(
     style: KeyboardActionCalloutStyle,
+    enableHapticFeedback: Bool = false,
     onInput: @escaping (String) -> Void,
     onDelete: @escaping () -> Void
   ) {
     self.style = style
+    self.enableHapticFeedback = enableHapticFeedback
     self.onInput = onInput
     self.onDelete = onDelete
     super.init(frame: .zero)
@@ -141,9 +144,11 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     let title = sender.attributedTitle(for: .normal)?.string ?? sender.title(for: .normal)
     guard let title = title else { return }
     
-    // Haptic feedback
-    let generator = UIImpactFeedbackGenerator(style: .light)
-    generator.impactOccurred()
+    // 跟随键盘整体的振动设置
+    if enableHapticFeedback {
+      let generator = UIImpactFeedbackGenerator(style: .light)
+      generator.impactOccurred()
+    }
     
     if title == "⌫" {
       onDelete()

@@ -347,11 +347,19 @@ public class KeyboardButton: UIControl {
     // Remove existing overlay
     container.viewWithTag(Self.numericKeypadOverlayTag)?.removeFromSuperview()
 
-    let overlay = NumericKeypadOverlay(style: actionCalloutStyle, onInput: { [weak self] char in
-      self?.handleNumericInput(char)
-    }, onDelete: { [weak self] in
-      self?.handleNumericDelete()
-    })
+    // 获取键盘振动设置
+    let enableHaptic = keyboardContext.hamsterConfiguration?.keyboard?.enableHapticFeedback ?? false
+
+    let overlay = NumericKeypadOverlay(
+      style: actionCalloutStyle,
+      enableHapticFeedback: enableHaptic,
+      onInput: { [weak self] char in
+        self?.handleNumericInput(char)
+      },
+      onDelete: { [weak self] in
+        self?.handleNumericDelete()
+      }
+    )
     
     overlay.tag = Self.numericKeypadOverlayTag
     overlay.frame = container.bounds
