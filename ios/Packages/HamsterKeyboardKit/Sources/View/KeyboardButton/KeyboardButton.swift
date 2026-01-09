@@ -358,6 +358,9 @@ public class KeyboardButton: UIControl {
       },
       onDelete: { [weak self] in
         self?.handleNumericDelete()
+      },
+      onNewline: { [weak self] in
+        self?.handleNumericNewline()
       }
     )
     
@@ -367,9 +370,10 @@ public class KeyboardButton: UIControl {
     container.addSubview(overlay)
   }
 
-  func handleNumericInput(_ char: String) {
-    Logger.statistics.info("Numeric input: \(char)")
-    actionHandler.handle(.release, on: .character(char))
+  func handleNumericInput(_ text: String) {
+    Logger.statistics.info("Numeric input: \(text)")
+    // 直接使用 textDocumentProxy 插入文本，避免自动补全括号等行为
+    keyboardContext.textDocumentProxy.insertText(text)
   }
   
   func handleNumericDelete() {
@@ -377,6 +381,11 @@ public class KeyboardButton: UIControl {
     // Backspace works on .press (or .repeatPress), not .release in StandardKeyboardActionHandler
     actionHandler.handle(.press, on: .backspace)
     actionHandler.handle(.release, on: .backspace) // Clean up state if necessary
+  }
+  
+  func handleNumericNewline() {
+    Logger.statistics.info("Numeric newline")
+    actionHandler.handle(.release, on: .primary(.return))
   }
 
   @objc func handleRimeAsciiModeChange() {
