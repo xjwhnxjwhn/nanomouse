@@ -180,8 +180,57 @@ text = src.read_text(encoding="utf-8")
 
 text = text.replace("schema_id: jaroomaji", "schema_id: jaroomaji-easy", 1)
 text = text.replace("name: 日本語ローマ字", "name: 日本語ローマ字 Easy", 1)
-text = re.sub(r'^\\s*- "derive/xtu/s/"\\s*\\n', "", text, flags=re.MULTILINE)
-text = re.sub(r'^\\s*- "derive/XTU/S/"\\s*\\n', "", text, flags=re.MULTILINE)
+
+# 移除单辅音直接映射小促音的快捷规则（保留显式 xtu/xtsu）
+def should_drop_xtu(line: str) -> bool:
+    m = re.search(r'derive/(x|X)tu/([^"]+)/', line)
+    if not m:
+        return False
+    target = m.group(2)
+    return target not in ("xtsu", "XTSU")
+
+# 移除 L 作为长音符的快捷规则，改为 L 与 X 同样输入小假名
+def should_drop_long_vowel_l(line: str) -> bool:
+    return bool(re.search(r'^\s*- "derive/-/l/"\s*$', line) or re.search(r'^\s*- "derive/-/L/"\s*$', line))
+
+lines = [line for line in text.splitlines() if not should_drop_xtu(line) and not should_drop_long_vowel_l(line)]
+
+def insert_before_marker(lines: list[str], marker: str, extra: list[str]) -> list[str]:
+    for i, line in enumerate(lines):
+        if marker in line:
+            return lines[:i] + extra + lines[i:]
+    return lines + extra
+
+lower_l_rules = [
+    '    - "derive/xa/la/"',
+    '    - "derive/xi/li/"',
+    '    - "derive/xu/lu/"',
+    '    - "derive/xe/le/"',
+    '    - "derive/xo/lo/"',
+    '    - "derive/xya/lya/"',
+    '    - "derive/xyu/lyu/"',
+    '    - "derive/xyo/lyo/"',
+    '    - "derive/xwa/lwa/"',
+    '    - "derive/xtu/ltu/"',
+]
+
+upper_l_rules = [
+    '    - "derive/XA/LA/"',
+    '    - "derive/XI/LI/"',
+    '    - "derive/XU/LU/"',
+    '    - "derive/XE/LE/"',
+    '    - "derive/XO/LO/"',
+    '    - "derive/XYA/LYA/"',
+    '    - "derive/XYU/LYU/"',
+    '    - "derive/XYO/LYO/"',
+    '    - "derive/XWA/LWA/"',
+    '    - "derive/XTU/LTU/"',
+]
+
+lines = insert_before_marker(lines, "# か行", lower_l_rules)
+lines = insert_before_marker(lines, "# カ行", upper_l_rules)
+
+text = "\n".join(lines) + "\n"
 
 lines = text.splitlines()
 out = []
