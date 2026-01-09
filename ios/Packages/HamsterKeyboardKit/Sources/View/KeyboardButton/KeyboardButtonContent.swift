@@ -179,12 +179,19 @@ public class KeyboardButtonContentView: NibLessView {
     let showUpSwipeLabel = upSwipeLabel.superview != nil
     let showDownSwipeLabel = downSwipeLabel.superview != nil
 
+    let swipeEdgeInset: CGFloat = 3
+
     // 划动上下布局
     if keyboardContext.swipeLabelUpAndDownLayout {
       // TODO: 不规则上下布局
       if keyboardContext.swipeLabelUpAndDownIrregularLayout {
         if showUpSwipeLabel {
-          upSwipeLabel.frame = CGRect(x: self.oldBounds.width / 3 * 2, y: 2, width: self.oldBounds.width / 3, height: self.oldBounds.height * 0.75 / 2)
+          upSwipeLabel.frame = CGRect(
+            x: self.oldBounds.width / 3 * 2,
+            y: swipeEdgeInset,
+            width: self.oldBounds.width / 3,
+            height: self.oldBounds.height * 0.75 / 2
+          )
           upSwipeLabel.textAlignment = .center
         }
 
@@ -197,14 +204,19 @@ public class KeyboardButtonContentView: NibLessView {
         }
 
         if showDownSwipeLabel {
-          downSwipeLabel.frame = CGRect(x: 0, y: self.oldBounds.height * 0.75 - 2, width: self.oldBounds.width, height: self.oldBounds.height * 0.3)
+          downSwipeLabel.frame = CGRect(
+            x: 0,
+            y: self.oldBounds.height * 0.75 - swipeEdgeInset,
+            width: self.oldBounds.width,
+            height: self.oldBounds.height * 0.3
+          )
         }
       } else {
         // 标准上下布局
         let swipeHeight = self.oldBounds.height * 0.18
 
         if showUpSwipeLabel {
-          upSwipeLabel.frame = CGRect(x: 0, y: 0, width: self.oldBounds.width, height: swipeHeight)
+          upSwipeLabel.frame = CGRect(x: 0, y: swipeEdgeInset, width: self.oldBounds.width, height: swipeHeight)
         }
 
         let contentHeight = self.oldBounds.height * 0.66
@@ -213,16 +225,21 @@ public class KeyboardButtonContentView: NibLessView {
         textContentView.label.minimumScaleFactor = 0.85
 
         if showDownSwipeLabel {
-          downSwipeLabel.frame = CGRect(x: 0, y: swipeHeight + contentHeight - 1, width: self.oldBounds.width, height: swipeHeight)
+          downSwipeLabel.frame = CGRect(
+            x: 0,
+            y: swipeHeight + contentHeight - 1 - swipeEdgeInset,
+            width: self.oldBounds.width,
+            height: swipeHeight
+          )
         }
       }
     } else { // 划动上布局
       let swipeHeight = self.oldBounds.height * 0.3
       let halfWidth = self.oldBounds.width / 2
-      let swipeLabelFrame = CGRect(x: 0, y: 0, width: halfWidth, height: swipeHeight)
-      let leftFrame = swipeLabelFrame.offsetBy(dx: 0, dy: -1)
-      let rightFrame = swipeLabelFrame.offsetBy(dx: halfWidth, dy: -1)
-      let middleFrame = CGRect(origin: CGPoint(x: 0, y: -1), size: CGSize(width: self.oldBounds.width, height: swipeHeight))
+      let swipeLabelFrame = CGRect(x: 0, y: swipeEdgeInset, width: halfWidth, height: swipeHeight)
+      let leftFrame = swipeLabelFrame
+      let rightFrame = swipeLabelFrame.offsetBy(dx: halfWidth, dy: 0)
+      let middleFrame = CGRect(origin: CGPoint(x: 0, y: swipeEdgeInset), size: CGSize(width: self.oldBounds.width, height: swipeHeight))
       let upSwipeLabelIsEmpty = upSwipeLabel.text?.isEmpty ?? true
       let downSwipeLabelIsEmpty = downSwipeLabel.text?.isEmpty ?? true
       let upSwipeOnLeft = keyboardContext.upSwipeOnLeft

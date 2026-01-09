@@ -257,7 +257,7 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 在给定的 `isPressed` 状态下，用于特定 `action` 的按键样式。
   open func buttonStyle(for action: KeyboardAction, isPressed: Bool) -> KeyboardButtonStyle {
-    let swipeFont = UIFont.systemFont(ofSize: 8)
+    let swipeFont = UIFont.systemFont(ofSize: 15)
 
     // 开启键盘配色
     if let hamsterColor = hamsterColor() {
@@ -287,7 +287,7 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   }
 
   open func buttonStyle(for key: Key, isPressed: Bool) -> KeyboardButtonStyle {
-    let swipeFont = UIFont.systemFont(ofSize: 8)
+    let swipeFont = UIFont.systemFont(ofSize: 15)
     let action = key.action
 
     // 开启键盘配色
