@@ -149,6 +149,14 @@ public class SettingsViewModel: ObservableObject {
           }
         ),
         .init(
+          icon: UIImage(systemName: "square.grid.3x3")!,
+          text: "键盘布局",
+          accessoryType: .disclosureIndicator,
+          navigationAction: { [unowned self] in
+            self.mainViewModel.subViewSubject.send(.keyboardLayout)
+          }
+        ),
+        .init(
           icon: UIImage(systemName: "paintpalette")!,
           text: "键盘配色",
           accessoryType: .disclosureIndicator,

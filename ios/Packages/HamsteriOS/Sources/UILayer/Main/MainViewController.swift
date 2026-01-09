@@ -14,6 +14,7 @@ protocol SubViewControllerFactory {
   func makeInputSchemaViewController() -> InputSchemaViewController
   func makeFinderViewController() -> FinderViewController
   func makeKeyboardSettingsViewController() -> KeyboardSettingsViewController
+  func makeKeyboardLayoutViewController() -> KeyboardLayoutViewController
   func makeKeyboardColorViewController() -> KeyboardColorViewController
   func makeKeyboardFeedbackViewController() -> KeyboardFeedbackViewController
   func makeUploadInputSchemaViewController() -> UploadInputSchemaViewController
@@ -36,6 +37,9 @@ open class MainViewController: UISplitViewController {
 
   private lazy var keyboardSettingsViewController: KeyboardSettingsViewController
     = subViewControllerFactory.makeKeyboardSettingsViewController()
+
+  private lazy var keyboardLayoutViewController: KeyboardLayoutViewController
+    = subViewControllerFactory.makeKeyboardLayoutViewController()
 
   private lazy var keyboardColorViewController: KeyboardColorViewController
     = subViewControllerFactory.makeKeyboardColorViewController()
@@ -147,6 +151,8 @@ extension MainViewController {
       presentUploadInputSchemaViewController()
     case .keyboardSettings:
       presentKeyboardSettingsViewController()
+    case .keyboardLayout:
+      presentKeyboardLayoutViewController()
     case .colorSchema:
       presentKeyboardColorViewController()
     case .feedback:
@@ -184,6 +190,10 @@ extension MainViewController {
 
   func presentKeyboardSettingsViewController() {
     presentViewController(keyboardSettingsViewController)
+  }
+
+  func presentKeyboardLayoutViewController() {
+    presentViewController(keyboardLayoutViewController)
   }
 
   func presentKeyboardColorViewController() {

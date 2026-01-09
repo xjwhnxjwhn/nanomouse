@@ -828,17 +828,6 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     .init(
       items: [
         .init(
-          text: "键盘布局",
-          accessoryType: .disclosureIndicator,
-          type: .navigation,
-          navigationAction: { [unowned self] in
-            self.subViewSubject.send(.keyboardLayout)
-          })
-      ]
-    ),
-    .init(
-      items: [
-        .init(
           text: "候选栏设置",
           accessoryType: .disclosureIndicator,
           type: .navigation,
