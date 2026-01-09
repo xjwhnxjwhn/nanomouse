@@ -303,7 +303,7 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     
     // 跟随键盘振动设置
     if enableHapticFeedback {
-      let generator = UIImpactFeedbackGenerator(style: .light)
+      let generator = UIImpactFeedbackGenerator(style: .medium)
       generator.impactOccurred()
     }
     
@@ -344,7 +344,7 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     guard sender.state == .began else { return }
     
     // 触发振动反馈
-    let generator = UIImpactFeedbackGenerator(style: .light)
+    let generator = UIImpactFeedbackGenerator(style: .medium)
     generator.impactOccurred()
     
     // 如果有内容，先上屏

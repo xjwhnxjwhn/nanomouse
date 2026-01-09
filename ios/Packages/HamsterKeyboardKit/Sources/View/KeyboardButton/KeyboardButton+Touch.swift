@@ -240,7 +240,7 @@ public extension KeyboardButton {
 
   func longPressAction() {
     // 长按触发振动反馈（常开，不遵从系统振动设置）
-    let generator = UIImpactFeedbackGenerator(style: .light)
+    let generator = UIImpactFeedbackGenerator(style: .medium)
     generator.impactOccurred()
 
     if isLanguageSwitchKey {

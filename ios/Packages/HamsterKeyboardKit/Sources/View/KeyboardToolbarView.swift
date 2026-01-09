@@ -8,6 +8,7 @@
 import Combine
 import HamsterKit
 import HamsterUIKit
+import RimeKit
 import UIKit
 
 /**
@@ -26,6 +27,9 @@ class KeyboardToolbarView: NibLessView {
   private var userInterfaceStyle: UIUserInterfaceStyle
   private var oldBounds: CGRect = .zero
   private var subscriptions = Set<AnyCancellable>()
+  private var lastKeyboardType: KeyboardType?
+  private var lastAsciiModeSnapshot: Bool = false
+  private var traditionalizeHintWorkItem: DispatchWorkItem?
 
   private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
@@ -33,6 +37,18 @@ class KeyboardToolbarView: NibLessView {
     recognizer.cancelsTouchesInView = false
     recognizer.delegate = self
     return recognizer
+  }()
+
+  private lazy var traditionalizeHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.textAlignment = .center
+    label.adjustsFontSizeToFitWidth = true
+    label.minimumScaleFactor = 0.7
+    label.alpha = 0
+    label.isHidden = true
+    label.isUserInteractionEnabled = false
+    return label
   }()
 
   lazy var logoContainer: RoundedContainer = {
@@ -106,12 +122,15 @@ class KeyboardToolbarView: NibLessView {
     // KeyboardToolbarView 为 candidateBarStyle 样式根节点, 这里生成一次，减少计算次数
     self.style = appearance.candidateBarStyle
     self.userInterfaceStyle = keyboardContext.colorScheme
+    self.lastKeyboardType = keyboardContext.keyboardType
+    self.lastAsciiModeSnapshot = rimeContext.asciiModeSnapshot
 
     super.init(frame: .zero)
 
     setupSubview()
 
     combine()
+    observeKeyboardState()
   }
 
   func setupSubview() {
@@ -146,6 +165,7 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       commonFunctionBar.addSubview(dismissKeyboardButton)
     }
+    commonFunctionBar.addSubview(traditionalizeHintLabel)
   }
 
   override func activateViewConstraints() {
@@ -188,6 +208,13 @@ class KeyboardToolbarView: NibLessView {
       ])
     }
 
+    constraints.append(contentsOf: [
+      traditionalizeHintLabel.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
+      traditionalizeHintLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+      traditionalizeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
+      traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.trailingAnchor, constant: -8),
+    ])
+
     NSLayoutConstraint.activate(constraints)
   }
 
@@ -200,6 +227,9 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
     }
+    let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
+    traditionalizeHintLabel.font = style.phoneticTextFont.withSize(hintFontSize)
+    traditionalizeHintLabel.textColor = style.candidateTextColor
   }
 
   func combine() {
@@ -217,6 +247,9 @@ class KeyboardToolbarView: NibLessView {
       
       self.commonFunctionBar.isHidden = !isEmpty
       self.candidateBarView.isHidden = isEmpty
+      if hasContent {
+        self.hideTraditionalizeHint(animated: false)
+      }
 
       if self.candidateBarView.superview == nil {
         candidateBarView.setStyle(self.style)
@@ -237,6 +270,33 @@ class KeyboardToolbarView: NibLessView {
       }
     }
     .store(in: &subscriptions)
+  }
+
+  private func observeKeyboardState() {
+    keyboardContext.keyboardTypePublished
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] keyboardType in
+        guard let self = self else { return }
+        let wasChinese = self.lastKeyboardType?.isChinesePrimaryKeyboard ?? false
+        self.lastKeyboardType = keyboardType
+        if keyboardType.isChinesePrimaryKeyboard, !wasChinese {
+          self.showTraditionalizeHintIfNeeded()
+        }
+      }
+      .store(in: &subscriptions)
+
+    NotificationCenter.default.publisher(for: RimeContext.rimeAsciiModeDidChangeNotification)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        guard let self = self else { return }
+        let previous = self.lastAsciiModeSnapshot
+        let current = self.rimeContext.asciiModeSnapshot
+        self.lastAsciiModeSnapshot = current
+        if previous && !current {
+          self.showTraditionalizeHintIfNeeded()
+        }
+      }
+      .store(in: &subscriptions)
   }
 
   @objc func dismissKeyboardTouchDownAction() {
@@ -272,11 +332,55 @@ class KeyboardToolbarView: NibLessView {
     return true
   }
 
+  private func traditionalizeHintText() -> String {
+    let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
+    let isSimplified = simplifiedModeKey.isEmpty ? true : Rime.shared.simplifiedChineseMode(key: simplifiedModeKey)
+    return isSimplified ? "长按此处可切换繁简" : "長按此處可切換繁簡"
+  }
+
+  private func showTraditionalizeHintIfNeeded() {
+    guard canToggleTraditionalizationFromToolbar else { return }
+    traditionalizeHintWorkItem?.cancel()
+    traditionalizeHintLabel.text = traditionalizeHintText()
+    traditionalizeHintLabel.isHidden = false
+    UIView.animate(withDuration: 0.12) {
+      self.traditionalizeHintLabel.alpha = 1
+    }
+    let workItem = DispatchWorkItem { [weak self] in
+      self?.hideTraditionalizeHint(animated: true)
+    }
+    traditionalizeHintWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: workItem)
+  }
+
+  private func hideTraditionalizeHint(animated: Bool) {
+    traditionalizeHintWorkItem?.cancel()
+    traditionalizeHintWorkItem = nil
+    guard !traditionalizeHintLabel.isHidden else { return }
+    let hide = {
+      self.traditionalizeHintLabel.alpha = 0
+    }
+    let completion: (Bool) -> Void = { _ in
+      self.traditionalizeHintLabel.isHidden = true
+    }
+    if animated {
+      UIView.animate(withDuration: 0.12, animations: hide, completion: completion)
+    } else {
+      hide()
+      traditionalizeHintLabel.isHidden = true
+    }
+  }
+
   @objc private func handleTraditionalizeLongPress(_ sender: UILongPressGestureRecognizer) {
     guard sender.state == .began else { return }
     guard canToggleTraditionalizationFromToolbar else { return }
     let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
     guard !simplifiedModeKey.isEmpty else { return }
+    
+    // 振动反馈
+    let generator = UIImpactFeedbackGenerator(style: .medium)
+    generator.impactOccurred()
+    
     rimeContext.switchTraditionalSimplifiedChinese(simplifiedModeKey)
   }
 }
