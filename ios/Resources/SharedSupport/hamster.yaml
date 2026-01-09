@@ -272,7 +272,13 @@ swipe:
             #   action: character(#)
             #   display: false
             - direction: down
-              action: keyboardType(alphabetic)
+              action: character(#)
+              label: "#"
+        - action: character(3)
+          swipe:
+            - direction: down
+              action: character(#)
+              label: "#"
         - action: character(f)
           swipe:
             - direction: up
