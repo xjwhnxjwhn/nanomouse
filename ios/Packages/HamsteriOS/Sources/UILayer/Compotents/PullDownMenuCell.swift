@@ -61,14 +61,12 @@ public class PullDownMenuCell: NibLessTableViewCell {
 
       valueButton.topAnchor.constraint(equalToSystemSpacingBelow: contentView.topAnchor, multiplier: 1),
       contentView.bottomAnchor.constraint(equalToSystemSpacingBelow: valueButton.bottomAnchor, multiplier: 1),
-      valueButton.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      valueButton.leadingAnchor.constraint(greaterThanOrEqualTo: titleLabel.trailingAnchor, constant: 8),
       contentView.trailingAnchor.constraint(equalToSystemSpacingAfter: valueButton.trailingAnchor, multiplier: 1),
-
     ])
   }
 
   func updateWithSettingItem(_ item: SettingItemModel) {
-    guard settingItem != item else { return }
     self.settingItem = item
     setNeedsUpdateConfiguration()
   }

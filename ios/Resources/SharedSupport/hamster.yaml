@@ -45,6 +45,12 @@ keyboard:
   # chineseNineGrid: 中文九宫格
   # custom(name): 自定义键盘，其中 name 对应自定义键盘配置(customizeKeyboards)中的 name。如: custom(中文26键)
   useKeyboardType: chinese
+  # 进入键盘默认语言:
+  # followLast: 跟随上次使用
+  # chinese: 中文
+  # japanese: 日语
+  # english: 英文
+  defaultLanguageMode: followLast
   # 关闭划动文本显示
   disableSwipeLabel: false
   # 上下显示划动文本不规则布局

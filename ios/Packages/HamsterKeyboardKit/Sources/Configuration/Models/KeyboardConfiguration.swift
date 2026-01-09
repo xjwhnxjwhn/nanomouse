@@ -12,6 +12,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
   /// 使用键盘类型
   public var useKeyboardType: String?
 
+  /// 进入键盘默认语言
+  public var defaultLanguageMode: KeyboardDefaultLanguage?
+
   /// 关闭划动显示文本
   public var disableSwipeLabel: Bool?
 
@@ -155,6 +158,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
 
   public init(
     useKeyboardType: String? = "chinese",
+    defaultLanguageMode: KeyboardDefaultLanguage? = nil,
     disableSwipeLabel: Bool? = false,
     upSwipeOnLeft: Bool? = false,
     swipeLabelUpAndDownLayout: Bool? = true,
@@ -200,6 +204,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = false) {
     self.useKeyboardType = useKeyboardType
+    self.defaultLanguageMode = defaultLanguageMode
     self.disableSwipeLabel = disableSwipeLabel
     self.upSwipeOnLeft = upSwipeOnLeft
     self.swipeLabelUpAndDownLayout = swipeLabelUpAndDownLayout
@@ -249,6 +254,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.useKeyboardType = try container.decodeIfPresent(String.self, forKey: .useKeyboardType)
+    self.defaultLanguageMode = try container.decodeIfPresent(KeyboardDefaultLanguage.self, forKey: .defaultLanguageMode)
     self.disableSwipeLabel = try container.decodeIfPresent(Bool.self, forKey: .disableSwipeLabel)
     self.upSwipeOnLeft = try container.decodeIfPresent(Bool.self, forKey: .upSwipeOnLeft)
     self.swipeLabelUpAndDownLayout = try container.decodeIfPresent(Bool.self, forKey: .swipeLabelUpAndDownLayout)
@@ -297,6 +303,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
 
   enum CodingKeys: CodingKey {
     case useKeyboardType
+    case defaultLanguageMode
     case disableSwipeLabel
     case upSwipeOnLeft
     case swipeLabelUpAndDownLayout
@@ -346,6 +353,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encodeIfPresent(self.useKeyboardType, forKey: .useKeyboardType)
+    try container.encodeIfPresent(self.defaultLanguageMode, forKey: .defaultLanguageMode)
     try container.encodeIfPresent(self.disableSwipeLabel, forKey: .disableSwipeLabel)
     try container.encodeIfPresent(self.upSwipeOnLeft, forKey: .upSwipeOnLeft)
     try container.encodeIfPresent(self.swipeLabelUpAndDownLayout, forKey: .swipeLabelUpAndDownLayout)
@@ -391,4 +399,16 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.enableButtonUnderBorder, forKey: .enableButtonUnderBorder)
     try container.encodeIfPresent(self.enableSystemTextReplacement, forKey: .enableSystemTextReplacement)
   }
+}
+
+/// 键盘默认语言模式
+public enum KeyboardDefaultLanguage: String, Codable, CaseIterable {
+  /// 跟随上次使用的语言
+  case followLast
+  /// 中文
+  case chinese
+  /// 日语
+  case japanese
+  /// 英文
+  case english
 }

@@ -35,14 +35,8 @@ public extension KeyboardButton {
       Logger.statistics.info("DBG_LANGSWITCH menu confirmSelection, suppress releaseAction")
       shouldApplyReleaseAction = false
       swipeGestureHandle = nil
-      if let handler = actionHandler as? StandardKeyboardActionHandler {
-        handler.suppressNextLanguageSwitchRelease = true
-        if let controller = handler.keyboardController as? KeyboardInputViewController {
-          controller.languageCycleSuppressionUntil = Date().addingTimeInterval(0.8)
-          Logger.statistics.info("DBG_LANGSWITCH set languageCycleSuppressionUntil")
-        }
-      }
       overlay.confirmSelection()
+      clearLanguageSwitchSuppression()
     }
 
     // 变音符号菜单：手势释放时确认选择
@@ -91,6 +85,7 @@ public extension KeyboardButton {
     // 语言切换菜单：手势取消时移除菜单
     if let overlay = superview?.viewWithTag(Self.languageMenuOverlayTag) as? LanguageMenuOverlay {
       overlay.removeFromSuperview()
+      clearLanguageSwitchSuppression()
     }
     
     // 变音符号菜单：手势取消时移除菜单
@@ -482,5 +477,12 @@ private extension KeyboardButton {
     return options
   }
 
+  func clearLanguageSwitchSuppression() {
+    guard let handler = actionHandler as? StandardKeyboardActionHandler else { return }
+    handler.suppressNextLanguageSwitchRelease = false
+    if let controller = handler.keyboardController as? KeyboardInputViewController {
+      controller.languageCycleSuppressionUntil = nil
+    }
+  }
 
 }

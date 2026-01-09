@@ -37,6 +37,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   /// 语言切换循环抑制窗口（用于长按气泡选择时，避免 release 触发循环切换）
   var languageCycleSuppressionUntil: Date?
   private var keyboardRootView: KeyboardRootView?
+  private var didApplyDefaultLanguage = false
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -46,6 +47,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // setupNextKeyboardBehavior()
     // KeyboardUrlOpener.shared.controller = self
     setupCombineRIMEInput()
+    setupRIMELanguageObservation()
   }
 
   override open func viewWillAppear(_ animated: Bool) {
@@ -53,6 +55,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     setupRIME()
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
+    syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
 
     // 加载系统文本替换
     let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
@@ -74,6 +77,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
 //    viewWillHandleDictationResult()
+  }
+
+  override open func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    didApplyDefaultLanguage = false
   }
 
   override open func viewDidLayoutSubviews() {
@@ -356,7 +364,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    您可以用自定义实现来替代它。
    */
   public lazy var inputSetProvider: InputSetProvider = StandardInputSetProvider(
-    keyboardContext: keyboardContext
+    keyboardContext: keyboardContext,
+    rimeContext: rimeContext
   ) {
     didSet { refreshProperties() }
   }
@@ -995,6 +1004,54 @@ private extension KeyboardInputViewController {
     )
   }
 
+  func setupRIMELanguageObservation() {
+    NotificationCenter.default.publisher(for: RimeContext.rimeSchemaDidChangeNotification)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.syncKeyboardTypeForJapaneseIfNeeded(reason: "schema")
+      }
+      .store(in: &cancellables)
+
+    NotificationCenter.default.publisher(for: RimeContext.rimeAsciiModeDidChangeNotification)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.syncKeyboardTypeForJapaneseIfNeeded(reason: "ascii")
+      }
+      .store(in: &cancellables)
+  }
+
+  func applyDefaultLanguageIfNeeded(reason: String) {
+    guard didApplyDefaultLanguage == false else { return }
+    let configuredMode = keyboardContext.hamsterConfiguration?.keyboard?.defaultLanguageMode ?? .followLast
+    didApplyDefaultLanguage = true
+
+    switch configuredMode {
+    case .followLast:
+      syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultFollowLast-\(reason)")
+    case .chinese:
+      setLanguageMode(.chinese)
+    case .japanese:
+      setLanguageMode(.japanese)
+    case .english:
+      setLanguageMode(.english)
+    }
+  }
+
+  func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
+    if rimeContext.asciiModeSnapshot == false, rimeContext.currentSchema?.isJapaneseSchema == true {
+      if !keyboardContext.keyboardType.isAlphabetic(.lowercased) {
+        Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> alphabetic.lowercased (reason: \(reason, privacy: .public))")
+        setKeyboardType(.alphabetic(.lowercased))
+        return
+      }
+    }
+
+    if keyboardContext.keyboardType.isAlphabetic {
+      Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (reason: \(reason, privacy: .public))")
+      keyboardRootView?.reloadKeyboardView()
+    }
+  }
+
   /**
    Set up an initial width to avoid broken SwiftUI layouts.
 
@@ -1063,7 +1120,12 @@ private extension KeyboardInputViewController {
 //        }
 //      }
 
-      guard await !self.rimeContext.isRunning else { return }
+      if await self.rimeContext.isRunning {
+        await MainActor.run { [weak self] in
+          self?.applyDefaultLanguageIfNeeded(reason: "alreadyRunning")
+        }
+        return
+      }
 
       if let maximumNumberOfCandidateWords = await self.keyboardContext.hamsterConfiguration?.rime?.maximumNumberOfCandidateWords {
         await self.rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
@@ -1077,6 +1139,10 @@ private extension KeyboardInputViewController {
 
       let simplifiedModeKey = await self.keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
       await self.rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: simplifiedModeKey)
+
+      await MainActor.run { [weak self] in
+        self?.applyDefaultLanguageIfNeeded(reason: "startup")
+      }
     }
   }
 

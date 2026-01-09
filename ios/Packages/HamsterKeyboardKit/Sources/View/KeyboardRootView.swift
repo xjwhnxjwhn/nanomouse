@@ -354,36 +354,7 @@ class KeyboardRootView: NibLessView {
 
         Logger.statistics.debug("KeyboardRootView keyboardType combine: \($0.yamlString)")
 
-        guard let keyboardView = chooseKeyboard(keyboardType: $0) else {
-          Logger.statistics.error("\($0.yamlString) cannot find keyboardView.")
-          return
-        }
-
-        if keyboardContext.enableToolbar {
-          // NSLayoutConstraint.deactivate(toolbarCollapseDynamicConstraints)
-          toolbarCollapseDynamicConstraints.removeAll(keepingCapacity: true)
-          toolbarExpandDynamicConstraints.removeAll(keepingCapacity: true)
-
-          primaryKeyboardView.subviews.forEach { $0.removeFromSuperview() }
-          primaryKeyboardView.removeFromSuperview()
-
-          primaryKeyboardView = keyboardView
-          addSubview(primaryKeyboardView)
-
-          // 工具栏收缩时约束
-          toolbarCollapseDynamicConstraints = createToolbarCollapseDynamicConstraints()
-
-          // 工具栏展开时约束
-          toolbarExpandDynamicConstraints = createToolbarExpandDynamicConstraints()
-
-          NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
-        } else {
-          NSLayoutConstraint.deactivate(constraints)
-          primaryKeyboardView.removeFromSuperview()
-          primaryKeyboardView = keyboardView
-          addSubview(primaryKeyboardView)
-          NSLayoutConstraint.activate(createNoToolbarConstraints())
-        }
+        updatePrimaryKeyboardView(for: $0)
       }
       .store(in: &subscriptions)
   }
@@ -443,5 +414,39 @@ class KeyboardRootView: NibLessView {
     // 保存 cache
 //    tempKeyboardViewCache[keyboardType] = tempKeyboardView
     return tempKeyboardView
+  }
+
+  /// 强制刷新当前键盘视图
+  func reloadKeyboardView() {
+    updatePrimaryKeyboardView(for: currentKeyboardType)
+  }
+
+  private func updatePrimaryKeyboardView(for keyboardType: KeyboardType) {
+    guard let keyboardView = chooseKeyboard(keyboardType: keyboardType) else {
+      Logger.statistics.error("\(keyboardType.yamlString) cannot find keyboardView.")
+      return
+    }
+
+    if keyboardContext.enableToolbar {
+      toolbarCollapseDynamicConstraints.removeAll(keepingCapacity: true)
+      toolbarExpandDynamicConstraints.removeAll(keepingCapacity: true)
+
+      primaryKeyboardView.subviews.forEach { $0.removeFromSuperview() }
+      primaryKeyboardView.removeFromSuperview()
+
+      primaryKeyboardView = keyboardView
+      addSubview(primaryKeyboardView)
+
+      toolbarCollapseDynamicConstraints = createToolbarCollapseDynamicConstraints()
+      toolbarExpandDynamicConstraints = createToolbarExpandDynamicConstraints()
+
+      NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
+    } else {
+      NSLayoutConstraint.deactivate(constraints)
+      primaryKeyboardView.removeFromSuperview()
+      primaryKeyboardView = keyboardView
+      addSubview(primaryKeyboardView)
+      NSLayoutConstraint.activate(createNoToolbarConstraints())
+    }
   }
 }

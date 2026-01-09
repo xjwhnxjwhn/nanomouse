@@ -22,9 +22,11 @@ open class StandardInputSetProvider: InputSetProviderProxy {
    要使用的键盘上下文。
    */
   public let keyboardContext: KeyboardContext
+  public let rimeContext: RimeContext?
 
   public lazy var englishProvider = EnglishInputSetProvider()
   public lazy var chineseProvider = ChineseInputSetProvider()
+  public lazy var japaneseProvider = JapaneseInputSetProvider()
 
   /**
    Create a standard provider.
@@ -34,9 +36,11 @@ open class StandardInputSetProvider: InputSetProviderProxy {
       - provider: ``InputSetProvider`` instances, by default only `English`.
    */
   public init(
-    keyboardContext: KeyboardContext
+    keyboardContext: KeyboardContext,
+    rimeContext: RimeContext? = nil
   ) {
     self.keyboardContext = keyboardContext
+    self.rimeContext = rimeContext
   }
 
   /**
@@ -45,7 +49,15 @@ open class StandardInputSetProvider: InputSetProviderProxy {
    用于特定键盘上下文的 provider。
    */
   open func provider(for context: KeyboardContext) -> InputSetProvider {
-    context.keyboardType.isChinese ? chineseProvider : englishProvider
+    if context.keyboardType.isChinese { return chineseProvider }
+    if shouldUseJapaneseProvider { return japaneseProvider }
+    return englishProvider
+  }
+
+  private var shouldUseJapaneseProvider: Bool {
+    guard let rimeContext else { return false }
+    if rimeContext.asciiModeSnapshot { return false }
+    return rimeContext.currentSchema?.isJapaneseSchema == true
   }
 
   /**

@@ -75,7 +75,22 @@ public class KeyboardButtonContentView: NibLessView {
     if keyboardContext.keyboardType.isCustom, let buttonText = item.key?.label.text, !buttonText.isEmpty {
       return buttonText
     }
+    if let japaneseOverride = japaneseDashLabelOverride() {
+      return japaneseOverride
+    }
     return appearance.buttonText(for: action) ?? ""
+  }
+
+  private func japaneseDashLabelOverride() -> String? {
+    guard keyboardContext.keyboardType.isAlphabetic else { return nil }
+    guard rimeContext.asciiModeSnapshot == false else { return nil }
+    guard rimeContext.currentSchema?.isJapaneseSchema == true else { return nil }
+    switch action {
+    case .symbol(let symbol), .symbolOfDark(let symbol):
+      return symbol.char == "-" ? "ー" : nil
+    default:
+      return nil
+    }
   }
 
   private func languageSwitchButtonText() -> String? {

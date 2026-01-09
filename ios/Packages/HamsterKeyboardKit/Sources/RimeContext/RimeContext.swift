@@ -530,6 +530,9 @@ public extension RimeContext {
 public extension RimeContext {
   /// 设置用户输入方案
   func setupRimeInputSchema() {
+    if currentSchema == nil {
+      resetCurrentSchema()
+    }
     let schema: RimeSchema
     if let currentSchema = currentSchema {
       schema = currentSchema

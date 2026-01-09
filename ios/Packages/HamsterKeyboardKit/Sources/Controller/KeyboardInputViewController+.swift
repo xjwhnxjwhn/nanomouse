@@ -195,8 +195,8 @@ public extension KeyboardInputViewController {
       rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
       setKeyboardType(keyboardContext.selectKeyboard)
 
-      // 如果是 Romaji 方案，强制使用 26 键
-      if japaneseSchemaId.lowercased().contains("romaji") || japaneseSchemaId.lowercased().contains("jaroomaji") {
+      // 日语方案统一使用 26 键
+      if rimeContext.currentSchema?.isJapaneseSchema == true {
         setKeyboardType(.alphabetic(.lowercased))
       }
     case .chinese:

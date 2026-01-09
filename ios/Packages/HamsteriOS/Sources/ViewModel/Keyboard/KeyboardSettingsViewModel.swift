@@ -576,6 +576,18 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  /// 进入键盘默认语言
+  public var defaultLanguageMode: KeyboardDefaultLanguage {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.defaultLanguageMode ?? .followLast
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.defaultLanguageMode = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.defaultLanguageMode = newValue
+      resetSignSubject.send(true)
+    }
+  }
+
   /// 键盘布局用户选择设置键盘类型
   public var settingsKeyboardType: KeyboardType? = nil
 
@@ -692,6 +704,23 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   /// 键盘设置选项
   lazy var keyboardSettingsItems: [SettingSectionModel] = [
+    .init(
+      footer: "进入键盘时默认切换到指定语言（未启用对应方案时会自动回退）。",
+      items: [
+        .init(
+          text: "进入键盘默认语言",
+          type: .pullDown,
+          textValue: { [unowned self] in defaultLanguageModeLabel },
+          pullDownMenuActionsBuilder: { [unowned self] in
+            KeyboardDefaultLanguage.allCases.map { option in
+              UIAction(title: labelText(for: option), state: option == defaultLanguageMode ? .on : .off) { _ in
+                defaultLanguageMode = option
+              }
+            }
+          }
+        )
+      ]
+    ),
     .init(
       footer: Self.enableKeyboardAutomaticallyLowercaseRemark,
       items: [
@@ -1685,6 +1714,21 @@ extension KeyboardSettingsViewModel {
       return keyboard.keys?.contains(where: { $0.action == key.action }) ?? false
     }
     return false
+  }
+}
+
+private extension KeyboardSettingsViewModel {
+  var defaultLanguageModeLabel: String {
+    labelText(for: defaultLanguageMode)
+  }
+
+  func labelText(for mode: KeyboardDefaultLanguage) -> String {
+    switch mode {
+    case .followLast: return "跟随上次"
+    case .chinese: return "中文"
+    case .japanese: return "日语"
+    case .english: return "英文"
+    }
   }
 }
 

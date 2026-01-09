@@ -42,6 +42,13 @@ class KeyboardSettingsRootView: NibLessView {
     tableView.delegate = self
     tableView.fillSuperview()
 
+    keyboardSettingsViewModel.resetSignPublished
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.tableView.reloadData()
+      }
+      .store(in: &subscriptions)
+
 //    keyboardSettingsViewModel.$enableSymbolKeyboard
 //      .combineLatest(keyboardSettingsViewModel.$enableNineGridOfNumericKeyboard, keyboardSettingsViewModel.$enableToolbar)
 //      .sink { [unowned self] _ in
