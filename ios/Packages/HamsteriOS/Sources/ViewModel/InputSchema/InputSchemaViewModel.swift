@@ -152,16 +152,45 @@ public class InputSchemaViewModel {
     selectedTraditionalizationOpenccConfig.lowercased() == option.configFileName
   }
 
+  @MainActor
   func selectTraditionalizationOption(_ option: TraditionalizationOption) {
-    if HamsterAppDependencyContainer.shared.configuration.rime == nil {
-      HamsterAppDependencyContainer.shared.configuration.rime = RimeConfiguration()
+    guard !isTraditionalizationOptionSelected(option) else { return }
+
+    var configuration = HamsterAppDependencyContainer.shared.configuration
+    var appConfiguration = HamsterAppDependencyContainer.shared.applicationConfiguration
+
+    if configuration.rime == nil {
+      configuration.rime = RimeConfiguration()
     }
-    if HamsterAppDependencyContainer.shared.applicationConfiguration.rime == nil {
-      HamsterAppDependencyContainer.shared.applicationConfiguration.rime = RimeConfiguration()
+    if appConfiguration.rime == nil {
+      appConfiguration.rime = RimeConfiguration()
     }
-    HamsterAppDependencyContainer.shared.configuration.rime?.traditionalizationOpenccConfig = option.configFileName
-    HamsterAppDependencyContainer.shared.applicationConfiguration.rime?.traditionalizationOpenccConfig = option.configFileName
+
+    configuration.rime?.traditionalizationOpenccConfig = option.configFileName
+    appConfiguration.rime?.traditionalizationOpenccConfig = option.configFileName
+
+    HamsterAppDependencyContainer.shared.configuration = configuration
+    HamsterAppDependencyContainer.shared.applicationConfiguration = appConfiguration
     reloadTableStateSubject.send(true)
+
+    ProgressHUD.animate("正在重新部署……", interaction: false)
+
+    Task.detached { [weak self] in
+      guard let self else { return }
+      var updatedConfiguration = configuration
+      do {
+        try self.rimeContext.deployment(configuration: &updatedConfiguration)
+        await MainActor.run {
+          HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+          ProgressHUD.success("部署完成", interaction: false, delay: 1.2)
+        }
+      } catch {
+        Logger.statistics.error("rime deploy error: \(error)")
+        await MainActor.run {
+          ProgressHUD.failed("重新部署失败：\(error.localizedDescription)", interaction: false, delay: 2)
+        }
+      }
+    }
   }
 
   var isJapaneseEnabled: Bool {

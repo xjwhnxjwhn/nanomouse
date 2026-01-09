@@ -27,6 +27,14 @@ class KeyboardToolbarView: NibLessView {
   private var oldBounds: CGRect = .zero
   private var subscriptions = Set<AnyCancellable>()
 
+  private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
+    let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
+    recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
+    recognizer.cancelsTouchesInView = false
+    recognizer.delegate = self
+    return recognizer
+  }()
+
   lazy var logoContainer: RoundedContainer = {
     let view = RoundedContainer(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -110,6 +118,7 @@ class KeyboardToolbarView: NibLessView {
     constructViewHierarchy()
     activateViewConstraints()
     setupAppearance()
+    commonFunctionBar.addGestureRecognizer(traditionalizeLongPressGesture)
   }
 
   override func layoutSubviews() {
@@ -251,5 +260,37 @@ class KeyboardToolbarView: NibLessView {
   @objc func touchCancel() {
     dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
+  }
+
+  private var canToggleTraditionalizationFromToolbar: Bool {
+    guard !commonFunctionBar.isHidden else { return false }
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
+    guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
+    guard rimeContext.asciiModeSnapshot == false else { return false }
+    guard rimeContext.userInputKey.isEmpty else { return false }
+    guard rimeContext.textReplacementSuggestions.isEmpty else { return false }
+    return true
+  }
+
+  @objc private func handleTraditionalizeLongPress(_ sender: UILongPressGestureRecognizer) {
+    guard sender.state == .began else { return }
+    guard canToggleTraditionalizationFromToolbar else { return }
+    let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
+    guard !simplifiedModeKey.isEmpty else { return }
+    rimeContext.switchTraditionalSimplifiedChinese(simplifiedModeKey)
+  }
+}
+
+extension KeyboardToolbarView: UIGestureRecognizerDelegate {
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+    guard gestureRecognizer === traditionalizeLongPressGesture else { return true }
+    let point = touch.location(in: commonFunctionBar)
+    if keyboardContext.displayAppIconButton, logoContainer.frame.contains(point) {
+      return false
+    }
+    if keyboardContext.displayKeyboardDismissButton, dismissKeyboardButton.frame.contains(point) {
+      return false
+    }
+    return true
   }
 }

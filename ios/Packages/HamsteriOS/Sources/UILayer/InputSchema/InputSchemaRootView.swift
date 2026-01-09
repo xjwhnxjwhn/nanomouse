@@ -96,6 +96,12 @@ extension InputSchemaRootView: UITableViewDataSource {
     }
     return "雾凇拼音 · 繁体方案"
   }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
+    guard section >= groupCount else { return nil }
+    return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
+  }
 }
 
 extension InputSchemaRootView: UITableViewDelegate {
