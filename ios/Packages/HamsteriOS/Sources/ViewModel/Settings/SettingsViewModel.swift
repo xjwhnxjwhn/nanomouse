@@ -17,7 +17,7 @@ public class SettingsViewModel: ObservableObject {
   private unowned let mainViewModel: MainViewModel
   private let rimeViewModel: RimeViewModel
   private let backupViewModel: BackupViewModel
-    private static let fullAccessGuideFooter = "未开启也可基础输入；开启“完全访问权限”后，可用完整词库写入、配置同步与键盘震动等功能。\n联网仅用于你的 iCloud 同步，不会上传到其他服务器。\n路径：设置 > 通用 > 键盘 > 键盘 > Nanomouse > 允许完全访问"
+    private static let fullAccessGuideFooter = "未开启也可基础输入；开启“完全访问权限”后，可用完整词库写入、配置同步与键盘震动等功能。\n联网仅用于你的 iCloud 同步，不会上传到其他服务器。\n路径：点击“打开设置” -> 键盘 -> 开启“允许完全访问”"
 
   init(mainViewModel: MainViewModel, rimeViewModel: RimeViewModel, backupViewModel: BackupViewModel) {
     self.mainViewModel = mainViewModel
@@ -106,10 +106,13 @@ public class SettingsViewModel: ObservableObject {
     let sections = [
         SettingSectionModel(title: "键盘权限", footer: Self.fullAccessGuideFooter, items: [
             .init(
-                text: "打开系统设置",
-                type: .button,
-                buttonAction: { [weak self] in
-                    self?.openSystemSettings()
+                icon: UIImage(systemName: "gearshape")!,
+                text: "打开设置 (请手动开启完全访问)",
+                accessoryType: .disclosureIndicator,
+                navigationAction: { [weak self] in
+                    Task { @MainActor in
+                        self?.openSystemSettings()
+                    }
                 }
             )
         ]),
