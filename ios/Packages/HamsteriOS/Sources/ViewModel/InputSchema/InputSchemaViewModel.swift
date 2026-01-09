@@ -92,6 +92,26 @@ public class InputSchemaViewModel {
     self.rimeContext = rimeContext
   }
 
+  enum TraditionalizationOption: String, CaseIterable {
+    case s2t
+    case s2hk
+    case s2tw
+    case s2twp
+
+    var configFileName: String {
+      "\(rawValue).json"
+    }
+
+    var displayName: String {
+      switch self {
+      case .s2t: return "s2t（通用繁体）"
+      case .s2hk: return "s2hk（香港繁体）"
+      case .s2tw: return "s2tw（台湾繁体）"
+      case .s2twp: return "s2twp（台湾常用词）"
+      }
+    }
+  }
+
   enum SchemaGroup: Int, CaseIterable {
     case chineseEnglish
     case japanese
@@ -118,6 +138,30 @@ public class InputSchemaViewModel {
 
   func isSchemaSelected(_ schema: RimeSchema) -> Bool {
     rimeContext.selectSchemas.contains(schema)
+  }
+
+  var shouldShowRimeIceTraditionalizationSection: Bool {
+    rimeContext.selectSchemas.contains(where: { $0.schemaId == "rime_ice" })
+  }
+
+  var selectedTraditionalizationOpenccConfig: String {
+    HamsterAppDependencyContainer.shared.configuration.rime?.traditionalizationOpenccConfig ?? "s2twp.json"
+  }
+
+  func isTraditionalizationOptionSelected(_ option: TraditionalizationOption) -> Bool {
+    selectedTraditionalizationOpenccConfig.lowercased() == option.configFileName
+  }
+
+  func selectTraditionalizationOption(_ option: TraditionalizationOption) {
+    if HamsterAppDependencyContainer.shared.configuration.rime == nil {
+      HamsterAppDependencyContainer.shared.configuration.rime = RimeConfiguration()
+    }
+    if HamsterAppDependencyContainer.shared.applicationConfiguration.rime == nil {
+      HamsterAppDependencyContainer.shared.applicationConfiguration.rime = RimeConfiguration()
+    }
+    HamsterAppDependencyContainer.shared.configuration.rime?.traditionalizationOpenccConfig = option.configFileName
+    HamsterAppDependencyContainer.shared.applicationConfiguration.rime?.traditionalizationOpenccConfig = option.configFileName
+    reloadTableStateSubject.send(true)
   }
 
   var isJapaneseEnabled: Bool {

@@ -258,6 +258,9 @@ rime:
   # RIME 重新部署时，是否覆盖词库文件
   # 如果使用自造词，需要改为 false, 否则部署时会覆盖键盘自造词文件
   overrideDictFiles: true
+  # 雾凇拼音繁体方案（OpenCC 配置）
+  # 可选：s2t.json | s2hk.json | s2tw.json | s2twp.json
+  traditionalizationOpenccConfig: s2twp.json
   # 覆盖词库文件的正则表达式
   # 使用场景：
   # 在开启 overrideDictFiles 后，每次重新部署会按照正则表达式符合的条件翻盖文件

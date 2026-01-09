@@ -57,30 +57,44 @@ class InputSchemaRootView: NibLessView {
 
 extension InputSchemaRootView: UITableViewDataSource {
   func numberOfSections(in tableView: UITableView) -> Int {
-    InputSchemaViewModel.SchemaGroup.allCases.count
+    let baseSections = InputSchemaViewModel.SchemaGroup.allCases.count
+    return baseSections + (inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection ? 1 : 0)
   }
 
   public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return 0 }
-    return inputSchemaViewModel.schemas(in: group).count
+    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
+    if section < groupCount {
+      guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return 0 }
+      return inputSchemaViewModel.schemas(in: group).count
+    }
+    return InputSchemaViewModel.TraditionalizationOption.allCases.count
   }
 
   public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = self.tableView.dequeueReusableCell(withIdentifier: Self.cellIdentifier, for: indexPath)
-    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) else { return cell }
-    let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
-
+    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
     var config = UIListContentConfiguration.cell()
-    config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
-    cell.contentConfiguration = config
-    cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
 
+    if indexPath.section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) {
+      let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
+      config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
+      cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
+    } else {
+      let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
+      config.text = option.displayName
+      cell.accessoryType = inputSchemaViewModel.isTraditionalizationOptionSelected(option) ? .checkmark : .none
+    }
+
+    cell.contentConfiguration = config
     return cell
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return nil }
-    return group.title
+    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
+    if section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: section) {
+      return group.title
+    }
+    return "雾凇拼音 · 繁体方案"
   }
 }
 
@@ -88,9 +102,14 @@ extension InputSchemaRootView: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     Task {
       do {
-        guard let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) else { return }
-        let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
-        try await inputSchemaViewModel.checkboxForInputSchema(schema)
+        let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
+        if indexPath.section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) {
+          let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
+          try await inputSchemaViewModel.checkboxForInputSchema(schema)
+        } else {
+          let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
+          inputSchemaViewModel.selectTraditionalizationOption(option)
+        }
       } catch {
         ProgressHUD.failed(error.localizedDescription, delay: 1.5)
       }

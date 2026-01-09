@@ -19,6 +19,10 @@ public struct RimeConfiguration: Codable, Hashable {
   /// 如果使用自造词，需要改为 false, 否则部署时会覆盖键盘自造词文件
   public var overrideDictFiles: Bool?
 
+  /// 雾凇拼音繁体转换 OpenCC 配置
+  /// 例如: s2t.json | s2hk.json | s2tw.json | s2twp.json
+  public var traditionalizationOpenccConfig: String?
+
   /// 覆盖词库文件的正则表达式
   /// 使用场景：
   /// 在开启 overrideDictFiles 后，每次重新部署会按照正则表达式符合的条件翻盖文件
@@ -33,11 +37,13 @@ public struct RimeConfiguration: Codable, Hashable {
     maximumNumberOfCandidateWords: Int? = 100,
     keyValueOfSwitchSimplifiedAndTraditional: String? = nil,
     overrideDictFiles: Bool? = nil,
+    traditionalizationOpenccConfig: String? = "s2twp.json",
     regexOnOverrideDictFiles: [String]? = nil,
     regexOnCopyAppGroupDictFile: [String]? = nil) {
     self.maximumNumberOfCandidateWords = maximumNumberOfCandidateWords
     self.keyValueOfSwitchSimplifiedAndTraditional = keyValueOfSwitchSimplifiedAndTraditional
     self.overrideDictFiles = overrideDictFiles
+    self.traditionalizationOpenccConfig = traditionalizationOpenccConfig
     self.regexOnOverrideDictFiles = regexOnOverrideDictFiles
     self.regexOnCopyAppGroupDictFile = regexOnCopyAppGroupDictFile
   }
@@ -47,6 +53,7 @@ public struct RimeConfiguration: Codable, Hashable {
     self.maximumNumberOfCandidateWords = try container.decodeIfPresent(Int.self, forKey: .maximumNumberOfCandidateWords)
     self.keyValueOfSwitchSimplifiedAndTraditional = try container.decodeIfPresent(String.self, forKey: .keyValueOfSwitchSimplifiedAndTraditional)
     self.overrideDictFiles = try container.decodeIfPresent(Bool.self, forKey: .overrideDictFiles)
+    self.traditionalizationOpenccConfig = try container.decodeIfPresent(String.self, forKey: .traditionalizationOpenccConfig)
     self.regexOnOverrideDictFiles = try container.decodeIfPresent([String].self, forKey: .regexOnOverrideDictFiles)
     self.regexOnCopyAppGroupDictFile = try container.decodeIfPresent([String].self, forKey: .regexOnCopyAppGroupDictFile)
   }
@@ -55,6 +62,7 @@ public struct RimeConfiguration: Codable, Hashable {
     case maximumNumberOfCandidateWords
     case keyValueOfSwitchSimplifiedAndTraditional
     case overrideDictFiles
+    case traditionalizationOpenccConfig
     case regexOnOverrideDictFiles
     case regexOnCopyAppGroupDictFile
   }
@@ -64,6 +72,7 @@ public struct RimeConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.maximumNumberOfCandidateWords, forKey: .maximumNumberOfCandidateWords)
     try container.encodeIfPresent(self.keyValueOfSwitchSimplifiedAndTraditional, forKey: .keyValueOfSwitchSimplifiedAndTraditional)
     try container.encodeIfPresent(self.overrideDictFiles, forKey: .overrideDictFiles)
+    try container.encodeIfPresent(self.traditionalizationOpenccConfig, forKey: .traditionalizationOpenccConfig)
     try container.encodeIfPresent(self.regexOnOverrideDictFiles, forKey: .regexOnOverrideDictFiles)
     try container.encodeIfPresent(self.regexOnCopyAppGroupDictFile, forKey: .regexOnCopyAppGroupDictFile)
   }

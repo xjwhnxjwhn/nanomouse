@@ -275,6 +275,7 @@ public extension RimeContext {
     
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
     removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
+    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
 
     let traits = Rime.createTraits(
       sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
@@ -373,6 +374,7 @@ public extension RimeContext {
     // 检测文件目录是否存在不存在，新建
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxSharedSupportDirectory)
     try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
+    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
 
     // 判断是否需要覆盖键盘词库文件，如果为否，则先copy键盘词库文件至应用目录
     if let overrideDictFiles = configuration.rime?.overrideDictFiles, overrideDictFiles == false {
@@ -427,6 +429,8 @@ public extension RimeContext {
     }
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
     removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
+    let configuration = (try? HamsterConfigurationRepositories.shared.loadConfiguration()) ?? HamsterConfiguration()
+    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
 
     Rime.shared.shutdown()
     let traits = Rime.createTraits(
@@ -517,6 +521,86 @@ public extension RimeContext {
       try FileManager.default.removeItem(at: patchURL)
     } catch {
       Logger.statistics.error("remove jaroomaji.custom.yaml failed: \(error.localizedDescription)")
+    }
+  }
+
+  private func updateRimeIceTraditionalizationPatch(in userDataDir: URL, configuration: HamsterConfiguration) {
+    let openccConfig = configuration.rime?.traditionalizationOpenccConfig?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedConfig = (openccConfig?.isEmpty == false) ? openccConfig! : "s2twp.json"
+    let patchURL = userDataDir.appendingPathComponent("rime_ice.custom.yaml")
+    let fm = FileManager.default
+
+    if !fm.fileExists(atPath: patchURL.path) {
+      let content = """
+      # Nanomouse 拼音优化配置
+      # https://github.com/xjwhnxjwhn/nanomouse
+
+      patch:
+        \"speller/algebra/+\":
+          # 后鼻音简化：ng → nn
+          - derive/ng$/nn/
+          # 键位优化：uan → vn
+          - derive/uan$/vn/
+          # 键位优化：uang → vnn
+          - derive/uang$/vnn/
+        traditionalize/opencc_config: \(normalizedConfig)
+      """
+      do {
+        try content.write(to: patchURL, atomically: true, encoding: .utf8)
+      } catch {
+        Logger.statistics.error("write rime_ice.custom.yaml failed: \(error.localizedDescription)")
+      }
+      return
+    }
+
+    guard let raw = try? String(contentsOf: patchURL, encoding: .utf8) else { return }
+    var lines = raw.components(separatedBy: .newlines)
+    var updated = false
+
+    for index in lines.indices {
+      let line = lines[index]
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+      if trimmed.hasPrefix("traditionalize/opencc_config:") {
+        let indent = line.prefix { $0 == " " || $0 == "\t" }
+        lines[index] = "\(indent)traditionalize/opencc_config: \(normalizedConfig)"
+        updated = true
+      } else if trimmed == "traditionalize:" {
+        let indent = line.prefix { $0 == " " || $0 == "\t" }
+        var cursor = index + 1
+        var replaced = false
+        while cursor < lines.count {
+          let target = lines[cursor]
+          if target.trimmingCharacters(in: .whitespaces).isEmpty {
+            cursor += 1
+            continue
+          }
+          let targetIndent = target.prefix { $0 == " " || $0 == "\t" }
+          if targetIndent.count <= indent.count { break }
+          let targetTrimmed = target.trimmingCharacters(in: .whitespaces)
+          if targetTrimmed.hasPrefix("opencc_config:") {
+            lines[cursor] = "\(targetIndent)opencc_config: \(normalizedConfig)"
+            replaced = true
+            break
+          }
+          cursor += 1
+        }
+        if !replaced {
+          lines.insert("\(indent)  opencc_config: \(normalizedConfig)", at: index + 1)
+        }
+        updated = true
+      }
+    }
+
+    if !updated, let patchIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "patch:" }) {
+      lines.insert("  traditionalize/opencc_config: \(normalizedConfig)", at: patchIndex + 1)
+      updated = true
+    }
+
+    guard updated else { return }
+    let content = lines.joined(separator: "\n")
+    if content != raw {
+      try? content.write(to: patchURL, atomically: true, encoding: .utf8)
     }
   }
 
