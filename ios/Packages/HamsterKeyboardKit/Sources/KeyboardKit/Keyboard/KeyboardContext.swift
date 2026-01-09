@@ -527,7 +527,7 @@ public class KeyboardContext: ObservableObject {
   // 空格按钮加载文字显示当前输入方案
   // 当开启此选项后， loadingTextForSpaceButton 设置的值无效
   var showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool {
-    hamsterConfiguration?.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? false
+    hamsterConfiguration?.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? true
   }
 
   var showUppercasedCharacterOnChineseKeyboard: Bool {

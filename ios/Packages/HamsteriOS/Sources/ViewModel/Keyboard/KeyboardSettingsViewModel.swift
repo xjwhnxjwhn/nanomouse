@@ -308,7 +308,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var candidateWordFontSize: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize ?? 20
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize ?? 23
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize = newValue
@@ -318,7 +318,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var heightOfToolbar: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar ?? 50
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar ?? 55
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar = newValue
@@ -525,7 +525,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   // 当开启此选项后， loadingTextForSpaceButton 设置的值无效
   public var showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? false
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton = newValue
