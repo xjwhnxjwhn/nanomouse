@@ -64,7 +64,7 @@ public class RimeViewModel {
   lazy var settings: [SettingSectionModel] = [
     .init(
       title: "简繁切换",
-      footer: "配置文件中`switches`简繁转换选项的配置名称，仓用于中文简体与繁体之间快速切换。",
+      footer: "配置文件中`switches`简繁转换选项的配置名称，用于中文简体与繁体之间快速切换。",
       items: [
         .init(
           icon: UIImage(systemName: "square.and.pencil"),

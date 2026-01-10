@@ -42,6 +42,9 @@ public enum SettingsSubView: String {
   /// 关于页面
   case about
 
+  /// 开启完全访问引导页面
+  case fullAccessGuide
+
   /// 主页面
   case main
 

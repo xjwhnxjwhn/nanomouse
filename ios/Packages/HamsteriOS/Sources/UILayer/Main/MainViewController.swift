@@ -22,6 +22,8 @@ protocol SubViewControllerFactory {
   func makeBackupViewController() -> BackupViewController
   func makeAboutViewController() -> AboutViewController
   func makeRimeViewController() -> RimeViewController
+  func makeFullAccessGuideViewController() -> FullAccessGuideViewController
+
 }
 
 open class MainViewController: UISplitViewController {
@@ -61,6 +63,9 @@ open class MainViewController: UISplitViewController {
 
   private lazy var aboutViewController: AboutViewController
     = subViewControllerFactory.makeAboutViewController()
+
+  private lazy var fullAccessGuideViewController: FullAccessGuideViewController
+    = subViewControllerFactory.makeFullAccessGuideViewController()
 
   private lazy var primaryNavigationViewController: UINavigationController = {
     let vc = UINavigationController(rootViewController: settingsViewController)
@@ -165,6 +170,8 @@ extension MainViewController {
       presentAppleCloudViewController()
     case .about:
       presentAboutViewController()
+    case .fullAccessGuide:
+      presentFullAccessGuideViewController()
     case .main:
       presentMainViewController()
     default:
@@ -218,6 +225,10 @@ extension MainViewController {
 
   func presentAboutViewController() {
     presentViewController(aboutViewController)
+  }
+
+  func presentFullAccessGuideViewController() {
+    presentViewController(fullAccessGuideViewController)
   }
 
   private func presentViewController(_ vc: UIViewController) {

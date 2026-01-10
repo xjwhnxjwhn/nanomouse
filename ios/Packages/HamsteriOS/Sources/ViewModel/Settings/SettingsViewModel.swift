@@ -107,12 +107,10 @@ public class SettingsViewModel: ObservableObject {
         SettingSectionModel(title: "键盘权限", footer: Self.fullAccessGuideFooter, items: [
             .init(
                 icon: UIImage(systemName: "gearshape")!,
-                text: "打开设置 (请手动开启完全访问)",
+                text: "开启完全访问",
                 accessoryType: .disclosureIndicator,
                 navigationAction: { [weak self] in
-                    Task { @MainActor in
-                        self?.openSystemSettings()
-                    }
+                    self?.mainViewModel.subViewSubject.send(.fullAccessGuide)
                 }
             )
         ]),

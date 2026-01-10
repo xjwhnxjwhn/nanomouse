@@ -264,6 +264,12 @@ extension HamsterAppDependencyContainer: AboutViewModelFactory {
   }
 }
 
+extension HamsterAppDependencyContainer: FullAccessGuideViewModelFactory {
+  public func makeFullAccessGuideViewModel() -> FullAccessGuideViewModel {
+    return FullAccessGuideViewModel()
+  }
+}
+
 extension HamsterAppDependencyContainer: OpenSourceViewControllerFactory {
   func makeOpenSourceViewController() -> OpenSourceViewController {
     return OpenSourceViewController(openSourceViewModelFactory: self)
@@ -344,5 +350,9 @@ extension HamsterAppDependencyContainer: SubViewControllerFactory {
       openSourceViewControllerFactory: self
     )
     return aboutViewController
+  }
+
+  public func makeFullAccessGuideViewController() -> FullAccessGuideViewController {
+    FullAccessGuideViewController(viewModel: makeFullAccessGuideViewModel())
   }
 }
