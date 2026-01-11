@@ -420,7 +420,10 @@ public class KeyboardButton: UIControl {
       if enableButtonUnderBorder {
         underShadowShape.opacity = 1
       }
-      removeInputCallout()
+      // 延迟移除气泡，使其持续时间更接近原生 iOS 键盘
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+        self?.removeInputCallout()
+      }
     }
   }
 
@@ -476,6 +479,11 @@ extension KeyboardButton {
 
   /// 添加 input 按键气泡
   func addInputCallout() {
+    // DEBUG: 检查气泡条件
+    let configSetting = keyboardContext.hamsterConfiguration?.keyboard?.displayButtonBubbles ?? false
+    let typeSetting = keyboardContext.keyboardType.displayButtonBubbles
+    // print("DBG_BUBBLE: config=\(configSetting), type=\(typeSetting), keyboardType=\(keyboardContext.keyboardType)")
+    
     guard keyboardContext.displayButtonBubbles else { return }
     // 屏幕横向无按键气泡
     guard keyboardContext.interfaceOrientation.isPortrait else { return }
