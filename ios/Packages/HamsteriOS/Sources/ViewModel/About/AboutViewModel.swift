@@ -33,8 +33,8 @@ public class AboutViewModel: ObservableObject {
         UIPasteboard.general.string = AppInfo.rimeVersion
         ProgressHUD.success("复制成功", interaction: false, delay: 1.5)
       }),
-      .init(text: "许可证", secondaryText: "GPLv3", type: .settings, buttonAction: {
-        let link = "https://www.gnu.org/licenses/gpl-3.0.html"
+      .init(text: "许可证", secondaryText: "MIT", type: .settings, buttonAction: {
+        let link = "https://opensource.org/licenses/MIT"
         if let url = URL(string: link) {
           DispatchQueue.main.async {
             UIApplication.shared.open(url)
