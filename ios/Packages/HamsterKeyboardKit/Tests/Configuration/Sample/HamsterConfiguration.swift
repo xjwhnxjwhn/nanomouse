@@ -698,7 +698,7 @@ keyboards:
           - action: space
             width: available
             label:
-              loadingText: "Nanomouse"
+              loadingText: "NanoMouse"
               text: "空格"
           - action: character(,)
             label: "，"
@@ -865,7 +865,7 @@ keyboards:
           - action: space
             width: available
             label:
-              loadingText: "Nanomouse"
+              loadingText: "NanoMouse"
               text: "空格"
           - action: character(，)
             label: "，"

@@ -50,13 +50,13 @@ public class Rime {
     let traits = IRimeTraits()
     traits.sharedDataDir = sharedSupportDir
     traits.userDataDir = userDataDir
-    traits.distributionCodeName = "Nanomouse"
-    traits.distributionName = "Nanomouse"
+    traits.distributionCodeName = "NanoMouse"
+    traits.distributionName = "NanoMouse"
     traits.distributionVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
     // appName设置名字后, 在重复调用rimeAPI.setup()方法时会产生异常
     // utilities.cc:365] Check failed: !IsGoogleLoggingInitialized() You called InitGoogleLogging() twice!
     // 所以需要判断是否首次运行
-    traits.appName = "rime.Nanomouse"
+    traits.appName = "rime.NanoMouse"
     if !models.isEmpty {
       traits.modules = models
 //    traits.modules = ["core", "dict", "gears", "levers", "lua"]

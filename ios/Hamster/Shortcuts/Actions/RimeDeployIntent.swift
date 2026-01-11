@@ -23,7 +23,7 @@ struct RimeDeployIntent: AppIntent {
     .requiresAuthentication
   }
 
-  static var description = IntentDescription("Nanomouse - RIME 重新部署")
+  static var description = IntentDescription("NanoMouse - RIME 重新部署")
 
   @MainActor
   func perform() async throws -> some ReturnsValue {

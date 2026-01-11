@@ -441,7 +441,7 @@ extension InputSchemaViewModel {
 }
 
 public extension InputSchemaViewModel {
-  // static let copyright = "云端存储内容均为Nanomouse用户自主上传，内容立场与Nanomouse无关，版权归原作者所有，如有侵权，请联系我(nanomouse.official@gmail.com)删除。"
+  // static let copyright = "云端存储内容均为NanoMouse用户自主上传，内容立场与NanoMouse无关，版权归原作者所有，如有侵权，请联系我(nanomouse.official@gmail.com)删除。"
   static let copyright = "开源输入方案均来自：https://github.com/xjwhnxjwhn/nanomouse 项目，希望将输入方案内置到鼠输入法的作者，可以提交 PR，或者联系我（nanomouse.official@gmail.com）。"
   // 单位： byte
   static let maxFileSize = 50 * 1024 * 1024

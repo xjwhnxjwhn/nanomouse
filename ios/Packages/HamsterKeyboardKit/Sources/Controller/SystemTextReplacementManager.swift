@@ -1,7 +1,7 @@
 //
 //  SystemTextReplacementManager.swift
 //
-//  Created by Nanomouse on 2026/1/6.
+//  Created by NanoMouse on 2026/1/6.
 //
 
 import OSLog

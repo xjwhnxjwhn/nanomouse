@@ -103,9 +103,9 @@ rm -rf $OUTPUT/.$input_scheme_name && \
   git clone --depth 1 https://github.com/iDvel/$input_scheme_name $OUTPUT/.$input_scheme_name && (
     cd $OUTPUT/.$input_scheme_name
     
-    # === Nanomouse: 添加拼音映射规则 ===
+    # === NanoMouse: 添加拼音映射规则 ===
     cat > rime_ice.custom.yaml << 'NANOMOUSE_CONFIG'
-# Nanomouse 拼音优化配置
+# NanoMouse 拼音优化配置
 # https://github.com/xjwhnxjwhn/nanomouse
 
 patch:
@@ -118,9 +118,9 @@ patch:
     - derive/uang$/vnn/
 NANOMOUSE_CONFIG
 
-    # === Nanomouse: 添加日语方案（增量，不覆盖原列表） ===
+    # === NanoMouse: 添加日语方案（增量，不覆盖原列表） ===
     cat > default.custom.yaml << 'DEFAULT_CONFIG'
-# Nanomouse 默认方案配置
+# NanoMouse 默认方案配置
 # 增量追加日语方案，保留原有 schema_list
 
 patch:
@@ -129,7 +129,7 @@ patch:
     - schema: jaroomaji       # 日语罗马字
     - schema: jaroomaji-easy  # 日语罗马字（英文码显示）
 DEFAULT_CONFIG
-    # === Nanomouse 配置结束 ===
+    # === NanoMouse 配置结束 ===
     
     # 提前编译
     # export DYLD_FALLBACK_LIBRARY_PATH=$DYLD_FALLBACK_LIBRARY_PATH:$WORK/.deps/dist/lib

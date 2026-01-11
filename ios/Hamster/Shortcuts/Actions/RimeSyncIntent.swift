@@ -14,7 +14,7 @@ import OSLog
 struct RimeSyncIntent: AppIntent {
   static var title: LocalizedStringResource = "RIME 同步"
 
-  static var description = IntentDescription("Nanomouse - RIME 同步")
+  static var description = IntentDescription("NanoMouse - RIME 同步")
 
   static var openAppWhenRun: Bool {
     return false
