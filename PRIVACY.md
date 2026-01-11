@@ -4,7 +4,7 @@
 
 ## 概述
 
-Nanomouse（以下简称"本应用"）是一款开源的跨平台输入法应用。我们高度重视您的隐私，并承诺保护您的个人信息。本隐私政策旨在向您说明本应用如何处理您的数据。
+鼠输入法（NanoMouse）（以下简称"本应用"）是一款开源的跨平台输入法应用。我们高度重视您的隐私，并承诺保护您的个人信息。本隐私政策旨在向您说明本应用如何处理您的数据。
 
 ## 数据收集
 
@@ -21,7 +21,9 @@ Nanomouse（以下简称"本应用"）是一款开源的跨平台输入法应用
 如果您启用了 iCloud 同步功能：
 
 - 您的输入法配置文件和用户词库将通过 Apple 的 iCloud 服务在您的设备之间同步。
-- 这些数据由 Apple 根据其 [iCloud 条款](https://www.apple.com/legal/internet-services/icloud/) 进行管理。
+- 这些数据由 Apple 根据其
+  [iCloud 条款](https://www.apple.com/legal/internet-services/icloud/)
+  进行管理。
 - 本应用不访问、读取或存储您的 iCloud 账户信息。
 - 您可以随时在应用设置中禁用 iCloud 同步。
 
@@ -45,7 +47,8 @@ Nanomouse（以下简称"本应用"）是一款开源的跨平台输入法应用
 
 ## 开源代码
 
-本应用是开源软件，源代码公开于 [GitHub](https://github.com/xjwhnxjwhn/nanomouse)。您可以自行审查代码以验证本隐私政策的声明。
+本应用是开源软件，源代码公开于
+[GitHub](https://github.com/xjwhnxjwhn/nanomouse)。您可以自行审查代码以验证本隐私政策的声明。
 
 ## 儿童隐私
 
