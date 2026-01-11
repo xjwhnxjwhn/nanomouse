@@ -14,7 +14,7 @@ public extension UserDefaults {
   /// AppGroup 共享 UserDefaults
   static let hamster = UserDefaults(suiteName: HamsterConstants.appGroupName) ?? .standard
 
-  // MARK: - Nanomouse 1.0 版本相关参数
+  // MARK: - 鼠输入法 1.0 版本相关参数
 
   func _removeFirstRunningForV1() {
     removeObject(forKey: Self._appFirstLaunchForV1)
@@ -188,7 +188,7 @@ public extension UserDefaults {
     return nil
   }
 
-  // MARK: - Nanomouse 2.0
+  // MARK: - 鼠输入法 2.0
 
   /// 应用首次运行
   var isFirstRunning: Bool {

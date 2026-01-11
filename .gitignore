@@ -16,3 +16,6 @@ dist/
 *.userdb/
 # Xcode User State
 *.xcuserstate
+
+# AppStore
+AppStore用/

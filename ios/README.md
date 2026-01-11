@@ -1,4 +1,4 @@
-# Nanomouse 输入法
+# 鼠输入法（NanoMouse）
 
 一款基于「[中州韻輸入法引擎／Rime Input Method Engine](https://github.com/rime/librime)」的 iOS 版本输入法.
 
@@ -34,7 +34,7 @@ xed .
 
 # 第三方库
 
-Nanomouse的功能的开发离不开这些开源项目：
+鼠输入法（NanoMouse）的功能的开发离不开这些开源项目：
 
 * [librime](https://github.com/rime/librime) (BSD License)
 * [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit.git) (MIT License)

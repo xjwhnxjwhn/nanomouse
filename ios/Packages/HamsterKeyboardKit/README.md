@@ -1,6 +1,6 @@
 # HamsterKeyboard
 
-Nanomouse 输入法键盘包。
+鼠输入法（NanoMouse）键盘包。
 
 基于 [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) v7.8.0 源码改造。
 

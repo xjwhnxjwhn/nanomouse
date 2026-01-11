@@ -8,12 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		345C5E777B1015DC6904BC51 /* rime-hangyl.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */; };
+		4A438822FEFD4E6892DBDFC0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */; };
 		6573E9BEF9748631D4085E9F /* rime-stroke.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 3127118D3E89F5C0488E9F5B /* rime-stroke.zip */; };
 		6611EB412F0ECE25005608B9 /* hamster.yaml in Resources */ = {isa = PBXBuildFile; fileRef = C0C9041C2A56412200AF3F15 /* hamster.yaml */; };
 		6611EB422F0ECE26005608B9 /* hamster.yaml in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0C9041C2A56412200AF3F15 /* hamster.yaml */; };
+		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
 		AC53C1BFB0DB743114945231 /* rime-terra-pinyin.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */; };
 		B6316891C66348BBA1FE33C7 /* rime-jaroomaji.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */; };
-		C07131E84BF741FEB9BEA794 /* rime-jaroomaji-easy.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9621704840AC4015955622B1 /* rime-jaroomaji-easy.zip */; };
 		C00C26B72B0698E300E92F89 /* HamsterKeyboardKit in Frameworks */ = {isa = PBXBuildFile; productRef = C00C26B62B0698E300E92F89 /* HamsterKeyboardKit */; };
 		C00C26C72B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
 		C00C26C82B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
@@ -62,9 +63,8 @@
 		C03EC3BD2B066C1100DB741E /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03EC3BC2B066C1100DB741E /* KeyboardViewController.swift */; };
 		C03EC3CC2B066D4100DB741E /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C03EC3CE2B066D4100DB741E /* InfoPlist.strings */; };
 		C03EC3D32B066DDC00DB741E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C02435932A0490220080CFB4 /* Assets.xcassets */; };
-		4A438822FEFD4E6892DBDFC0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */; };
-		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
 		C053ADC32A5D503200EA7EEE /* HamsteriOS in Frameworks */ = {isa = PBXBuildFile; productRef = C053ADC22A5D503200EA7EEE /* HamsteriOS */; };
+		C07131E84BF741FEB9BEA794 /* rime-jaroomaji-easy.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = 9621704840AC4015955622B1 /* rime-jaroomaji-easy.zip */; };
 		C09F6AF72A07FB3900F2EF18 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C02435932A0490220080CFB4 /* Assets.xcassets */; };
 		C0A602B32A185D88000DC924 /* HamsterKeyboardInputViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */; };
 		C0C7EAEC29E5A236008D4EE1 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0C7EAEF29E5A236008D4EE1 /* InfoPlist.strings */; };
@@ -120,12 +120,14 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		30E0D285658D98DE7E92B572 /* rime-hannomps.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hannomps.zip"; sourceTree = "<group>"; };
 		3127118D3E89F5C0488E9F5B /* rime-stroke.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-stroke.zip"; sourceTree = "<group>"; };
 		53AA6815A7E65FAD491B75FF /* rime-hangyl.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-hangyl.zip"; sourceTree = "<group>"; };
 		7C565549EA9799EEEA4EE743 /* rime-terra-pinyin.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-terra-pinyin.zip"; sourceTree = "<group>"; };
-		9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji.zip"; sourceTree = "<group>"; };
 		9621704840AC4015955622B1 /* rime-jaroomaji-easy.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji-easy.zip"; sourceTree = "<group>"; };
+		9E18268C6A82460F85FC8D5F /* rime-jaroomaji.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-jaroomaji.zip"; sourceTree = "<group>"; };
+		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HamsterKeyboardInputViewController.swift; sourceTree = "<group>"; };
 		C00749622ABAD48C00C5CD0A /* HamsterFileServer */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsterFileServer; path = Packages/HamsterFileServer; sourceTree = "<group>"; };
 		C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = boost_filesystem.xcframework; sourceTree = "<group>"; };
@@ -147,7 +149,6 @@
 		C02435952A0490220080CFB4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C02435962A0490220080CFB4 /* Hamster.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Hamster.entitlements; sourceTree = "<group>"; };
 		C02435972A0490220080CFB4 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C02C4D972AC105CA00FF91BA /* IntentProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentProvider.swift; sourceTree = "<group>"; };
 		C03319D92A2DFEBB00CE4950 /* AppDelegete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegete.swift; sourceTree = "<group>"; };
 		C03319DB2A2DFEF700CE4950 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
@@ -155,7 +156,6 @@
 		C03E8025296D4F4C0083E53A /* Hamster.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hamster.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C03E803C296D53650083E53A /* HamsterKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HamsterKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C03E8040296D53650083E53A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C03EC3A72B06670F00DB741E /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3A92B06671600DB741E /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C03EC3AA2B06671800DB741E /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
@@ -803,7 +803,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -847,7 +847,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = "$(TARGET_NAME)";

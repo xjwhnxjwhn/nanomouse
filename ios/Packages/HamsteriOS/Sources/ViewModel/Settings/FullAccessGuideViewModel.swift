@@ -36,7 +36,7 @@ public class FullAccessGuideViewModel: ObservableObject {
 
   // 隐私承诺文案
   let privacyPromise = """
-  Nanomouse 是开源软件，代码完全公开可查。
+  鼠输入法（NanoMouse）是开源软件，代码完全公开可查。
   · 不收集输入内容
   · 不上传个人信息
   · 联网仅用于 iCloud 同步

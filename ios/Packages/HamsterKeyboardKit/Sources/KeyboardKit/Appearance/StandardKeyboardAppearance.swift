@@ -150,7 +150,7 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     }
   }
 
-  /// Nanomouse配色
+  /// 鼠输入法配色
   open func hamsterColor() -> HamsterKeyboardColor? {
     guard keyboardContext.hamsterConfiguration?.keyboard?.enableColorSchema ?? false else { return nil }
 

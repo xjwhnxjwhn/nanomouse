@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Nanomouse 应用常量
+/// 鼠输入法应用常量
 public enum HamsterConstants {
   /// AppGroup ID
   public static let appGroupName = "group.com.XiangqingZHANG.nanomouse"

@@ -532,7 +532,7 @@ public extension RimeContext {
 
     if !fm.fileExists(atPath: patchURL.path) {
       let content = """
-      # Nanomouse 拼音优化配置
+      # 鼠输入法拼音优化配置
       # https://github.com/xjwhnxjwhn/nanomouse
 
       patch:

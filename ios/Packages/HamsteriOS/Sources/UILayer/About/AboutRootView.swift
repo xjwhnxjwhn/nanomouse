@@ -36,7 +36,7 @@ class AboutRootView: NibLessView {
 
   lazy var titleLabel: UILabel = {
     let titleLabel = UILabel(frame: .zero)
-    titleLabel.text = "Nanomouse"
+    titleLabel.text = "鼠输入法"
     titleLabel.font = UIFont.preferredFont(forTextStyle: .title2)
     return titleLabel
   }()

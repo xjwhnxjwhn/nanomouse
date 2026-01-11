@@ -1,3 +1,3 @@
 # HamsteriOS
 
-Nanomouse 输入法设置主App
+鼠输入法（NanoMouse）设置主App
