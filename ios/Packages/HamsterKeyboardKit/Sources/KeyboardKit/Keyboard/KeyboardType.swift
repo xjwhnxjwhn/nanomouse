@@ -284,9 +284,9 @@ public extension KeyboardType {
   /// 显示按键气泡的键盘类型
   var displayButtonBubbles: Bool {
     switch self {
-    case .chinese: return true
-    case .alphabetic: return true
-    case .custom: return true
+    case .chinese(_): return true
+    case .alphabetic(_): return true
+    case .custom(_, _): return true
     default:
       return false
     }

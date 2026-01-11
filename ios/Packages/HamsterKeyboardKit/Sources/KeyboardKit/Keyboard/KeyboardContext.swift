@@ -367,7 +367,8 @@ public class KeyboardContext: ObservableObject {
 
   /// 是否开启按键气泡
   var displayButtonBubbles: Bool {
-    (hamsterConfiguration?.keyboard?.displayButtonBubbles ?? false) && keyboardType.displayButtonBubbles
+    // 移除键盘类型限制，只要配置开启就显示气泡
+    hamsterConfiguration?.keyboard?.displayButtonBubbles ?? false
   }
 
   /// 工具栏应用图标按钮

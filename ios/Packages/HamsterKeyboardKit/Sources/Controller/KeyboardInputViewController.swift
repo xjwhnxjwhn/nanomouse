@@ -38,6 +38,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   var languageCycleSuppressionUntil: Date?
   private var keyboardRootView: KeyboardRootView?
   private var didApplyDefaultLanguage = false
+  private var wasJapaneseActive = false
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -1049,6 +1050,7 @@ private extension KeyboardInputViewController {
     keyboardContext.isAutoCapitalizationEnabled = !japaneseActive
 
     if japaneseActive {
+      wasJapaneseActive = true
       if !keyboardContext.keyboardType.isAlphabetic(.lowercased) {
         Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> alphabetic.lowercased (reason: \(reason, privacy: .public))")
         setKeyboardType(.alphabetic(.lowercased))
@@ -1056,6 +1058,15 @@ private extension KeyboardInputViewController {
       }
       Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (reason: \(reason, privacy: .public))")
       keyboardRootView?.reloadKeyboardView()
+      return
+    }
+
+    if wasJapaneseActive {
+      wasJapaneseActive = false
+      if keyboardContext.keyboardType.isAlphabetic {
+        Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (leave japanese, reason: \(reason, privacy: .public))")
+        keyboardRootView?.reloadKeyboardView()
+      }
     }
   }
 

@@ -487,7 +487,19 @@ extension KeyboardButton {
     guard keyboardContext.displayButtonBubbles else { return }
     // 屏幕横向无按键气泡
     guard keyboardContext.interfaceOrientation.isPortrait else { return }
-    guard item.action.showKeyBubble else { return }
+    let shouldShowBubble: Bool = {
+      if item.action.showKeyBubble { return true }
+      if keyboardContext.keyboardType.isAlphabetic {
+        switch item.action {
+        case .symbol, .symbolOfDark:
+          return true
+        default:
+          return false
+        }
+      }
+      return false
+    }()
+    guard shouldShowBubble else { return }
     guard inputCalloutView.superview == nil else { return }
 
     inputCalloutView.setText(buttonText)
