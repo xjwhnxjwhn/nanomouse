@@ -25,6 +25,14 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   // 计算结果（nil=未计算）
   private var calculatedResult: String?
   
+  // App 主题色 (米色)
+  private var themeColor: UIColor {
+    return UIColor(red: 0.706, green: 0.671, blue: 0.608, alpha: 1.0)
+  }
+  
+  // 是否正在显示启动提示
+  private var isShowingHint: Bool = false
+  
   // Grid: 4x5
   // 1 2 3 ÷ (
   // 4 5 6 × )
@@ -92,7 +100,7 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   }
   
   private func setupCandidateBar() {
-    candidateButton.backgroundColor = style.callout.backgroundColor.darker(by: 5) ?? .lightGray.withAlphaComponent(0.2)
+    candidateButton.backgroundColor = getCandidateBarBackgroundColor()
     candidateButton.layer.cornerRadius = 6
     candidateButton.contentHorizontalAlignment = .center
     candidateButton.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
@@ -109,6 +117,20 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     ])
     
     updateCandidateDisplay()
+    
+    // 显示启动提示 1 秒
+    showStartupHint()
+  }
+  
+  private func showStartupHint() {
+    isShowingHint = true
+    updateCandidateDisplay()
+    
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+      guard let self = self, self.isShowingHint else { return }
+      self.isShowingHint = false
+      self.updateCandidateDisplay()
+    }
   }
   
   private func setupGrid() {
@@ -147,11 +169,7 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     }
     
     // 运算符和特殊键使用不同的背景色
-    let isOperator = ["+", "-", "×", "÷", "="].contains(key)
-    let bgColor = isOperator 
-      ? UIColor.systemOrange.withAlphaComponent(0.3) 
-      : (style.callout.backgroundColor.darker(by: 10) ?? .lightGray.withAlphaComponent(0.3))
-    button.backgroundColor = bgColor
+    button.backgroundColor = getButtonBackgroundColor(for: key)
     button.layer.cornerRadius = 6
     
     // Explicitly using NSAttributedString to avoid any system default underlines
@@ -184,6 +202,13 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   }
   
   private func updateCandidateDisplay() {
+    if isShowingHint && currentExpression.isEmpty {
+      candidateButton.setTitle("长按空格以换行", for: .normal)
+      candidateButton.titleLabel?.alpha = 0.6
+      return
+    }
+    
+    candidateButton.titleLabel?.alpha = 1.0
     var displayText = currentExpression
     // 如果有计算结果，表达式已经包含 = 了，直接追加结果
     if let result = calculatedResult {
@@ -204,10 +229,16 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     guard !exprPart.isEmpty else { return }
     
     // 将显示符号转换为计算符号
-    let expr = exprPart
+    var expr = exprPart
       .replacingOccurrences(of: "×", with: "*")
       .replacingOccurrences(of: "÷", with: "/")
     
+    // 浮点数转换：将整数 1 转换为 1.0，防止 NSExpression 执行整除
+    // 使用正则匹配不带小数点的数字，并追加 .0
+    if let regex = try? NSRegularExpression(pattern: "(?<!\\.)\\b(\\d+)\\b(?!\\.)", options: []) {
+      expr = regex.stringByReplacingMatches(in: expr, options: [], range: NSRange(expr.startIndex..., in: expr), withTemplate: "$1.0")
+    }
+
     // 安全计算：使用 @try/@catch 防止崩溃
     calculatedResult = safeEvaluate(expr)
   }
@@ -265,11 +296,16 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
       // 检查是否为有效数字（非 NaN、非无穷大）
       guard doubleResult.isFinite else { return "Error" }
       
-      // 格式化结果
-      if doubleResult.truncatingRemainder(dividingBy: 1) == 0 {
-        return String(Int(doubleResult))
+      // 格式化结果：最多保留 4 位小数，且自动去除末尾无用的零
+      let formatter = NumberFormatter()
+      formatter.maximumFractionDigits = 4
+      formatter.minimumFractionDigits = 0
+      formatter.usesGroupingSeparator = false // 日常计算不需要千分位
+      
+      if let formatted = formatter.string(from: NSNumber(value: doubleResult)) {
+        return formatted
       } else {
-        return String(format: "%.6g", doubleResult)
+        return String(doubleResult)
       }
     } catch {
       return nil
@@ -295,6 +331,12 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
   }
   
   @objc private func handleKeyTap(_ sender: UIButton) {
+    // 任何按键交互都清除提示
+    if isShowingHint {
+      isShowingHint = false
+      updateCandidateDisplay()
+    }
+    
     guard let key = sender.accessibilityIdentifier else { return }
     
     // 跟随键盘振动设置
@@ -355,12 +397,41 @@ final class NumericKeypadOverlay: UIView, UIGestureRecognizerDelegate {
     sender.backgroundColor = style.callout.textColor.withAlphaComponent(0.15)
   }
   
+  private func getButtonBackgroundColor(for key: String) -> UIColor {
+    return UIColor { [weak self] traitCollection in
+      guard let self = self else { return .clear }
+      
+      let isDark = traitCollection.userInterfaceStyle == .dark
+      let isOperator = ["+", "-", "×", "÷", "="].contains(key)
+      
+      if isOperator {
+        return self.themeColor.withAlphaComponent(isDark ? 0.4 : 0.6)
+      }
+      
+      if isDark {
+        return self.style.callout.backgroundColor.darker(by: 10) ?? .lightGray.withAlphaComponent(0.3)
+      } else {
+        // 浅色模式下，使用更明亮的背景（类原生键盘颜色），避免发灰
+        return UIColor(white: 0.95, alpha: 0.8)
+      }
+    }
+  }
+  
+  private func getCandidateBarBackgroundColor() -> UIColor {
+    return UIColor { [weak self] traitCollection in
+      guard let self = self else { return .clear }
+      if traitCollection.userInterfaceStyle == .dark {
+        return self.style.callout.backgroundColor.darker(by: 5) ?? .lightGray.withAlphaComponent(0.2)
+      } else {
+        // 浅色模式下候选栏也使用明亮颜色
+        return UIColor(white: 0.9, alpha: 0.9)
+      }
+    }
+  }
+  
   @objc private func handleTouchUp(_ sender: UIButton) {
     guard let key = sender.accessibilityIdentifier else { return }
-    let isOperator = ["+", "-", "×", "÷", "="].contains(key)
-    sender.backgroundColor = isOperator 
-      ? UIColor.systemOrange.withAlphaComponent(0.3) 
-      : (style.callout.backgroundColor.darker(by: 10) ?? .lightGray.withAlphaComponent(0.3))
+    sender.backgroundColor = getButtonBackgroundColor(for: key)
   }
 
   @objc private func handleBackgroundTap() {
