@@ -112,23 +112,32 @@ patch:
   "speller/algebra/+":
     # 后鼻音简化：ng → nn
     - derive/ng$/nn/
+    # 纠错：强力锁定音节映射，防止分词器切分（针对 S/D 邻居键误触）
+    - derive/^shi$/dhi/
+    - derive/^sha$/dha/
+    - derive/^shu$/dhu/
+    - derive/^she$/dhe/
+    - derive/^shai$/dhai/
+    - derive/^shei$/dhei/
+    - derive/^shao$/dhao/
+    - derive/^shou$/dhou/
+    - derive/^shan$/dhan/
+    - derive/^shen$/dhen/
+    - derive/^shang$/dhang/
+    - derive/^sheng$/dheng/
+    - derive/^shua$/dhua/
+    - derive/^shuan$/dhuan/
+    - derive/^shuang$/dhuang/
+    - derive/^shui$/dhui/
+    - derive/^shuai$/dhuai/
+    - derive/^sh/dh/
+    - abbrev/^sh/dh/
     # 键位优化：uan → vn
     - derive/uan$/vn/
     # 键位优化：uang → vnn
     - derive/uang$/vnn/
 NANOMOUSE_CONFIG
 
-    # === NanoMouse: 添加日语方案（增量，不覆盖原列表） ===
-    cat > default.custom.yaml << 'DEFAULT_CONFIG'
-# NanoMouse 默认方案配置
-# 增量追加日语方案，保留原有 schema_list
-
-patch:
-  schema_list/+:
-    - schema: japanese        # 日语
-    # - schema: jaroomaji       # 日语罗马字 (太大了，为防 OOM 暂时禁用，只保留 Easy 版)
-    - schema: jaroomaji-easy  # 日语罗马字（英文码显示）
-DEFAULT_CONFIG
     # === NanoMouse 配置结束 ===
     
     # 提前编译

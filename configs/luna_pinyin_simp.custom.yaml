@@ -5,6 +5,26 @@ patch:
   "speller/algebra/+":
     # 后鼻音简化：ng → nn
     - derive/ng$/nn/
+    # 纠错：强力锁定音节映射，防止分词器切分（针对 S/D 邻居键误触）
+    - derive/^shi$/dhi/
+    - derive/^sha$/dha/
+    - derive/^shu$/dhu/
+    - derive/^she$/dhe/
+    - derive/^shai$/dhai/
+    - derive/^shei$/dhei/
+    - derive/^shao$/dhao/
+    - derive/^shou$/dhou/
+    - derive/^shan$/dhan/
+    - derive/^shen$/dhen/
+    - derive/^shang$/dhang/
+    - derive/^sheng$/dheng/
+    - derive/^shua$/dhua/
+    - derive/^shuan$/dhuan/
+    - derive/^shuang$/dhuang/
+    - derive/^shui$/dhui/
+    - derive/^shuai$/dhuai/
+    - derive/^sh/dh/
+    - abbrev/^sh/dh/
     # 键位优化：uan → vn
     - derive/uan$/vn/
     # 键位优化：uang → vnn（直接映射，vn + nn）

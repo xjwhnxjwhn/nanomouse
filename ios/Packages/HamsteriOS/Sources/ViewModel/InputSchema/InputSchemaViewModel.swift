@@ -203,6 +203,8 @@ public class InputSchemaViewModel {
       return "rime-japanese"
     case "jaroomaji":
       return "rime-jaroomaji"
+    case "jaroomaji-easy":
+      return "rime-jaroomaji-easy"
     default:
       return schema.schemaName
     }
