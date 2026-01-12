@@ -27,6 +27,56 @@ patterns.
 
 ## 🖥️ Platform Support
 
+### iOS — A Full-Featured Keyboard App
+
+Built on [Hamster](https://github.com/imfuxiao/Hamster), this isn't just a
+config — it's **a complete iOS keyboard app**.
+
+**Key Features:**
+
+| Feature                          | Description                                                          |
+| -------------------------------- | -------------------------------------------------------------------- |
+| 📱 **Native Keyboard Feel**      | Key bubbles, haptic feedback, smooth like system keyboard            |
+| 🔤 **Long-Press Accent Menu**    | Hold any key for extended characters, slide to select (full Latin)   |
+| 🔢 **Long-Press Numeric Keypad** | Hold `123` key for T9 keypad, **includes Calculator**                |
+| 🌐 **CN/JP/EN Quick Switch**     | Long-press CN/EN Key, pop-up menu for instant switching              |
+| 🔁 **Trad/Simp Quick Switch**    | Long-press candidate bar to toggle Traditional/Simplified output     |
+| ⇧ **Caps Lock**                  | Long-press or double-tap Shift to lock uppercase                     |
+| 🔣 **Complex Symbol Keyboard**   | Long-press symbol key (`#+=`) for categorized symbol view            |
+| 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement |
+| 🎌 **Multiple Schemas**          | Rime Ice, Double Pinyin, Japanese Romaji, Stroke input...            |
+
+**Screenshots:**
+
+<p align="center">
+  <img src="assetsForGithub/1.jpg" width="30%" />
+  <img src="assetsForGithub/2.1.jpg" width="30%" />
+  <img src="assetsForGithub/2.2.jpg" width="30%" />
+  <img src="assetsForGithub/2.3.jpg" width="30%" />
+  <img src="assetsForGithub/2.5.jpg" width="30%" />
+  <img src="assetsForGithub/2.6.jpg" width="30%" />
+</p>
+
+**Core Input Schemas:**
+
+- **Rime Ice (rime-ice)**
+  - Includes: Full Pinyin, Double Pinyin
+    (Flypy/Ziranma/MSPY/Sogou/Ziguang/Jiajia etc.)
+- **Japanese Romaji Easy (jaroomaji-easy)**
+  - Optimized for mobile, removes redundant rules for smoother typing
+
+**Other Built-in Schemas:**
+
+- Terra Pinyin (terra-pinyin)
+- Japanese Romaji (jaroomaji)
+- Japanese Input (rime-japanese)
+- Stroke Input (stroke)
+- Vietnamese/Korean (Available upon request)
+
+Source code: `ios/` directory | [Build instructions](./ios/README.md)
+
+---
+
 ### macOS — Squirrel + SCT GUI Configuration
 
 **One-click install:** Download
@@ -46,43 +96,6 @@ and run.
 > installation
 >
 > ✅ Have existing customizations? Auto-backup and smart merge, never overwrites
-
----
-
-### iOS — A Full-Featured Keyboard App
-
-Built on [Hamster](https://github.com/imfuxiao/Hamster), this isn't just a
-config — it's **a complete iOS keyboard app**.
-
-**Key Features:**
-
-| Feature                          | Description                                                          |
-| -------------------------------- | -------------------------------------------------------------------- |
-| 📱 **Native Keyboard Feel**      | Key bubbles, haptic feedback, smooth like system keyboard            |
-| 🔤 **Long-Press Accent Menu**    | Hold any key for extended characters, slide to select with haptics   |
-| 🔢 **Long-Press Numeric Keypad** | Hold `123` key for quick number input without switching layouts      |
-| 🌐 **CN/JP/EN Quick Switch**     | Long-press globe key, instant language switching                     |
-| 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement |
-| 🎌 **Multiple Schemas**          | Rime Ice, Double Pinyin, Japanese Romaji, Stroke input...            |
-
-**Built-in Input Schemas:**
-
-- Rime Ice (rime-ice) — Modern Pinyin
-- Terra Pinyin (terra-pinyin)
-- Japanese Romaji (jaroomaji)
-- Stroke Input (stroke)
-- Vietnamese (hannomps)
-- Korean (hangyl)
-
-Source code: `ios/` directory | [Build instructions](./ios/README.md)
-
----
-
-### Windows — Weasel
-
-1. Install [Weasel](https://rime.im/download/)
-2. Download config files from `configs/` to `%APPDATA%\Rime`
-3. Right-click taskbar icon → Deploy
 
 ---
 
