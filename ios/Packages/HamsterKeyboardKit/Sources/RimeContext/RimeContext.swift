@@ -241,6 +241,8 @@ public extension RimeContext {
   /// RIME 部署
   /// 注意：仅可用于主 App 调用
   func deployment(configuration: inout HamsterConfiguration) throws {
+    let overrideDictFilesValue = configuration.rime?.overrideDictFiles
+    Logger.statistics.debug("DBG_DEPLOY deployment start: overrideDictFiles=\(String(describing: overrideDictFilesValue))")
     // 如果开启 iCloud，则先将 iCloud 下文件增量复制到 Sandbox
     if let enableAppleCloud = configuration.general?.enableAppleCloud, enableAppleCloud == true {
       let regex = configuration.general?.regexOnCopyFile ?? []
@@ -272,6 +274,13 @@ public extension RimeContext {
     // 从 Bundle 复制最新的 hamster.yaml 覆盖沙盒版本
     // 这样开发时修改 hamster.yaml 无需重新打包 ZIP
     try FileManager.copyBundleHamsterYaml(to: FileManager.sandboxSharedSupportDirectory)
+
+    let jaroomajiEasySchemaPath = FileManager.sandboxSharedSupportDirectory.appendingPathComponent("jaroomaji-easy.schema.yaml")
+    let jaroomajiEasyDictPath = FileManager.sandboxSharedSupportDirectory.appendingPathComponent("jaroomaji-easy.dict.yaml")
+    let sandboxSchemaExists = FileManager.default.fileExists(atPath: jaroomajiEasySchemaPath.path)
+    let sandboxDictExists = FileManager.default.fileExists(atPath: jaroomajiEasyDictPath.path)
+    Logger.statistics.debug("DBG_DEPLOY sandbox jaroomaji-easy: schemaExists=\(sandboxSchemaExists) dictExists=\(sandboxDictExists)")
+    print("DBG_DEPLOY sandbox jaroomaji-easy: schemaExists=\(sandboxSchemaExists) dictExists=\(sandboxDictExists)")
     
     removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
     removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
@@ -366,6 +375,13 @@ public extension RimeContext {
     // 将 Sandbox 目录下方案复制到AppGroup下
     try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)
     try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)
+
+    let appGroupSchemaPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.schema.yaml")
+    let appGroupDictPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.dict.yaml")
+    let appGroupSchemaExists = FileManager.default.fileExists(atPath: appGroupSchemaPath.path)
+    let appGroupDictExists = FileManager.default.fileExists(atPath: appGroupDictPath.path)
+    Logger.statistics.debug("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
+    print("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
   }
 
   /// RIME 同步

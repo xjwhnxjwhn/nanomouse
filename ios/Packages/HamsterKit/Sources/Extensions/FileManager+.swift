@@ -449,16 +449,64 @@ public extension FileManager {
 
   static func ensureExtraInputSchemaFiles(in dst: URL) throws {
     let fm = FileManager.default
+    Logger.statistics.debug("DBG_DEPLOY extraInputSchemaZipFiles: \(HamsterConstants.extraInputSchemaZipFiles)")
     for extraZip in HamsterConstants.extraInputSchemaZipFiles {
       let extraSrc = appSharedSupportDirectory.appendingPathComponent(extraZip)
-      guard fm.fileExists(atPath: extraSrc.path) else { continue }
+      let isJaroomajiEasy = extraZip.contains("jaroomaji-easy")
+      let exists = fm.fileExists(atPath: extraSrc.path)
+      if !exists {
+        Logger.statistics.debug("DBG_DEPLOY extra schema zip missing: \(extraZip) path=\(extraSrc.path)")
+        if isJaroomajiEasy {
+          print("DBG_DEPLOY jaroomaji-easy zip missing: \(extraSrc.path)")
+        }
+        continue
+      }
+      
+      var sizeInfo = ""
+      if let attrs = try? fm.attributesOfItem(atPath: extraSrc.path),
+         let size = attrs[.size] as? NSNumber {
+        sizeInfo = " size=\(size)"
+      }
+      Logger.statistics.debug("DBG_DEPLOY extra schema zip found: \(extraZip) path=\(extraSrc.path)\(sizeInfo)")
+      if isJaroomajiEasy {
+        print("DBG_DEPLOY jaroomaji-easy zip found: \(extraSrc.lastPathComponent)\(sizeInfo)")
+      }
       
       // 强制覆盖 jaroomaji，以确保 build 脚本的 patch 生效
       let forceOverwrite = extraZip.contains("jaroomaji")
       
-      guard forceOverwrite || needsUnzip(extraSrc, dst: dst) else { continue }
+      let shouldUnzip = forceOverwrite || needsUnzip(extraSrc, dst: dst)
+      Logger.statistics.debug("DBG_DEPLOY extra schema zip decision: \(extraZip) forceOverwrite=\(forceOverwrite) shouldUnzip=\(shouldUnzip)")
+      if isJaroomajiEasy {
+        print("DBG_DEPLOY jaroomaji-easy unzip? forceOverwrite=\(forceOverwrite) shouldUnzip=\(shouldUnzip) dst=\(dst.path)")
+        if let archive = Archive(url: extraSrc, accessMode: .read) {
+          var hasSchema = false
+          var hasDict = false
+          for entry in archive {
+            if entry.path == "jaroomaji-easy.schema.yaml" { hasSchema = true }
+            if entry.path == "jaroomaji-easy.dict.yaml" { hasDict = true }
+            if hasSchema && hasDict { break }
+          }
+          Logger.statistics.debug("DBG_DEPLOY jaroomaji-easy zip entries: schema=\(hasSchema) dict=\(hasDict)")
+          print("DBG_DEPLOY jaroomaji-easy zip entries: schema=\(hasSchema) dict=\(hasDict)")
+        } else {
+          Logger.statistics.error("DBG_DEPLOY jaroomaji-easy zip open failed: \(extraSrc.path)")
+          print("DBG_DEPLOY jaroomaji-easy zip open failed: \(extraSrc.path)")
+        }
+      }
+
+      guard shouldUnzip else { continue }
       Logger.statistics.debug("unzip extra src: \(extraSrc), dst: \(dst)")
       try fm.unzipOverwrite(extraSrc, dst: dst)
+      
+      if isJaroomajiEasy {
+        let schemaPath = dst.appendingPathComponent("jaroomaji-easy.schema.yaml")
+        let dictPath = dst.appendingPathComponent("jaroomaji-easy.dict.yaml")
+        let schemaExists = fm.fileExists(atPath: schemaPath.path)
+        let dictExists = fm.fileExists(atPath: dictPath.path)
+        Logger.statistics.debug("DBG_DEPLOY jaroomaji-easy after unzip: schemaExists=\(schemaExists) dictExists=\(dictExists)")
+        print("DBG_DEPLOY jaroomaji-easy after unzip: schemaExists=\(schemaExists) dictExists=\(dictExists)")
+      }
     }
   }
 

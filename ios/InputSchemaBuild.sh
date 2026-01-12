@@ -126,7 +126,7 @@ NANOMOUSE_CONFIG
 patch:
   schema_list/+:
     - schema: japanese        # 日语
-    - schema: jaroomaji       # 日语罗马字
+    # - schema: jaroomaji       # 日语罗马字 (太大了，为防 OOM 暂时禁用，只保留 Easy 版)
     - schema: jaroomaji-easy  # 日语罗马字（英文码显示）
 DEFAULT_CONFIG
     # === NanoMouse 配置结束 ===
@@ -168,103 +168,142 @@ jaroomaji_easy_scheme_name=rime-jaroomaji-easy
 rm -rf $OUTPUT/.$jaroomaji_easy_scheme_name && \
   mkdir -p $OUTPUT/.$jaroomaji_easy_scheme_name && (
     JAROOMAJI_SRC="$OUTPUT/.$jaroomaji_scheme_name/jaroomaji.schema.yaml" \
+    JAROOMAJI_DIR="$OUTPUT/.$jaroomaji_scheme_name" \
     JAROOMAJI_EASY_DST="$OUTPUT/.$jaroomaji_easy_scheme_name/jaroomaji-easy.schema.yaml" \
+    JAROOMAJI_EASY_DIR="$OUTPUT/.$jaroomaji_easy_scheme_name" \
     python3 - <<'PY'
 import os
 import re
 from pathlib import Path
 
 src = Path(os.environ["JAROOMAJI_SRC"])
+src_dir = Path(os.environ["JAROOMAJI_DIR"])
 dst = Path(os.environ["JAROOMAJI_EASY_DST"])
+dst_dir = Path(os.environ["JAROOMAJI_EASY_DIR"])
 text = src.read_text(encoding="utf-8")
 
+# 1. 基础信息修改
 text = text.replace("schema_id: jaroomaji", "schema_id: jaroomaji-easy", 1)
 text = text.replace("name: 日本語ローマ字", "name: 日本語ローマ字 Easy", 1)
+text = text.replace("dictionary: jaroomaji", "dictionary: jaroomaji-easy", 1)
 
-# 移除单辅音直接映射小促音的快捷规则（保留显式 xtu/xtsu）
-def should_drop_xtu(line: str) -> bool:
-    m = re.search(r'derive/(x|X)tu/([^"]+)/', line)
+# 2. 移除单辅音直接映射小促音的 Algebra 规则（解决 Stupid 问题）
+def should_drop_xtu_single(line: str) -> bool:
+    m = re.search(r'derive/([xX][tT][uU])/([^"]+)/', line)
     if not m:
         return False
     target = m.group(2)
-    return target not in ("xtsu", "XTSU")
+    if target.lower() == "xtsu":
+        return False
+    # 如果映射结果只有 1 个字符，说明是 Stupid 规则（如 s -> xtu）
+    return len(target) == 1
 
-# 移除 L 作为长音符的快捷规则，改为 L 与 X 同样输入小假名
-def should_drop_long_vowel_l(line: str) -> bool:
-    return bool(re.search(r'^\s*- "derive/-/l/"\s*$', line) or re.search(r'^\s*- "derive/-/L/"\s*$', line))
-
-lines = [line for line in text.splitlines() if not should_drop_xtu(line) and not should_drop_long_vowel_l(line)]
-
-def insert_before_marker(lines: list[str], marker: str, extra: list[str]) -> list[str]:
-    for i, line in enumerate(lines):
-        if marker in line:
-            return lines[:i] + extra + lines[i:]
-    return lines + extra
-
-lower_l_rules = [
-    '    - "derive/xa/la/"',
-    '    - "derive/xi/li/"',
-    '    - "derive/xu/lu/"',
-    '    - "derive/xe/le/"',
-    '    - "derive/xo/lo/"',
-    '    - "derive/xya/lya/"',
-    '    - "derive/xyu/lyu/"',
-    '    - "derive/xyo/lyo/"',
-    '    - "derive/xwa/lwa/"',
-    '    - "derive/xtu/ltu/"',
-]
-
-upper_l_rules = [
-    '    - "derive/XA/LA/"',
-    '    - "derive/XI/LI/"',
-    '    - "derive/XU/LU/"',
-    '    - "derive/XE/LE/"',
-    '    - "derive/XO/LO/"',
-    '    - "derive/XYA/LYA/"',
-    '    - "derive/XYU/LYU/"',
-    '    - "derive/XYO/LYO/"',
-    '    - "derive/XWA/LWA/"',
-    '    - "derive/XTU/LTU/"',
-]
-
-lines = insert_before_marker(lines, "# か行", lower_l_rules)
-lines = insert_before_marker(lines, "# カ行", upper_l_rules)
+lines = []
+for line in text.splitlines():
+    if should_drop_xtu_single(line):
+        continue
+    lines.append(line)
 
 text = "\n".join(lines) + "\n"
 
-lines = text.splitlines()
-out = []
-inside_translator = False
-skip_preedit = False
-preedit_replaced = False
-for line in lines:
-    if line.startswith("translator:"):
-        inside_translator = True
-        out.append(line)
-        continue
-    if inside_translator:
-        if skip_preedit:
-            if re.match(r"^  [A-Za-z_]", line):
-                skip_preedit = False
-            else:
+# 3. 注入特殊的促音渲染规则并启用预编辑 (实现 iOS 原生感模式)
+# 启用连打补全 (解决 Progressive Lag 问题)
+text = text.replace("enable_completion: false", "enable_completion: true", 1)
+
+# 启用按音节删除 (实现 iOS 原生删除体验)
+if "speller:" in text:
+    text = text.replace("speller:", "speller:\n  backspace_by_syllable: true", 1)
+
+# 注入 KeyBinder 规则：强制 BackSpace 删除整个假名 (音节)
+# 这是在移动端实现“按假名删除”的最稳健方法
+backspace_rule = "    - { when: composing, accept: BackSpace, send: Control+BackSpace }"
+if "key_binder:" in text:
+    # 在 bindings: 下方注入
+    text = re.sub(r'(?m)^(  bindings:\s*\n)', r'\1' + backspace_rule + '\n', text)
+
+# 清理 preedit_format：移除单字母直接变促音的规则（Stupid 回显根源）
+# 同时也移除大写字符的单字母促音规则
+def is_bad_preedit(line: str) -> bool:
+    # 匹配类似 - "xform/s/っ/" 或 - "xform/S/ッ/" 的行
+    return bool(re.search(r'xform/[A-Za-z]/[っッ]/', line))
+
+lines = [l for l in text.splitlines() if not is_bad_preedit(l)]
+text = "\n".join(lines) + "\n"
+
+# 注入我们的双辅音渲染规则：在 preedit_format 列表的最顶部加入
+sokuon_rule = "    - 'xform/([bcdfghjklmpqrstvwxyz])\\1/っ$1/'"
+sokuon_rule_caps = "    - 'xform/([BCDFGHJKLMPQRSTVWXYZ])\\1/ッ$1/'"
+# 注入到 preedit_format: 下方
+text = re.sub(r'(?m)^  preedit_format:\s*\n', 
+              lambda m: m.group(0) + sokuon_rule + "\n" + sokuon_rule_caps + "\n", 
+              text)
+
+dst.write_text(text, encoding="utf-8")
+
+# 4. 定向音节合并：将 xtu 合并到下一个音节中（i xtu syo -> i ssyo）
+# 核心：必须保留其他音节间的空格，防止 Rime 编译器产生组合爆炸(Hang/OOM)
+consonants = set("bcdfghjklmnpqrstvwxyz")
+
+def transform_code(code: str) -> str:
+    tokens = code.split(" ")
+    res = []
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        # 如果是促音标记且后面还有音节，则尝试合并
+        if tok.lower() == "xtu" and i + 1 < len(tokens):
+            nxt = tokens[i+1]
+            if nxt and nxt[0].lower() in consonants:
+                # 合并：首字母双写 + 剩余部分
+                doubled = nxt[0] + nxt[0] + nxt[1:]
+                res.append(doubled)
+                i += 2
                 continue
-        if line.startswith("  preedit_format:"):
-            out.append("  comment_format:")
-            out.append('    - "xform/ //"')
-            out.append("  preedit_format:")
-            out.append('    - "xform/ //"')
-            preedit_replaced = True
-            skip_preedit = True
-            continue
-    out.append(line)
+        res.append(tok)
+        i += 1
+    # 保持空格分隔，确保 O(n) 构建性能
+    return " ".join(res)
 
-if not preedit_replaced:
-    raise SystemExit("preedit_format not found in jaroomaji.schema.yaml")
+def transform_dict(src_p, dst_p):
+    in_body = False
+    out_lines = []
+    with src_p.open("r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            if line.startswith("name: "):
+                line = line.replace("jaroomaji", "jaroomaji-easy", 1)
+            if line.startswith("..."):
+                in_body = True
+                out_lines.append(line)
+                continue
+            if not in_body:
+                out_lines.append(line)
+                continue
+            if "\t" in line:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) >= 2:
+                    parts[1] = transform_code(parts[1])
+                    line = "\t".join(parts) + "\n"
+            out_lines.append(line)
+    dst_p.write_text("".join(out_lines), encoding="utf-8")
 
-dst.write_text("\n".join(out) + "\n", encoding="utf-8")
+# 生成主词库描述文件
+main_dict = src_dir / "jaroomaji.dict.yaml"
+main_text = main_dict.read_text(encoding="utf-8")
+main_text = main_text.replace("name: jaroomaji", "name: jaroomaji-easy", 1)
+main_text = re.sub(r'(?m)^\s*-\s+jaroomaji\.', "  - jaroomaji-easy.", main_text)
+(dst_dir / "jaroomaji-easy.dict.yaml").write_text(main_text, encoding="utf-8")
+
+# 对子词库进行定向合并转换
+for p in src_dir.glob("jaroomaji.*.dict.yaml"):
+    if p.name == "jaroomaji.dict.yaml": continue
+    suffix = p.name.replace("jaroomaji.", "")
+    transform_dict(p, dst_dir / f"jaroomaji-easy.{suffix}")
+
+
+
 PY
     cd $OUTPUT/.$jaroomaji_easy_scheme_name
-    zip -r $jaroomaji_easy_scheme_name.zip jaroomaji-easy.schema.yaml
+    zip -r $jaroomaji_easy_scheme_name.zip ./*
   ) && \
   cp -R $OUTPUT/.$jaroomaji_easy_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
 
