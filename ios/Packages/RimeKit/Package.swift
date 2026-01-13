@@ -19,11 +19,11 @@ let package = Package(
       name: "librimeRIME",
       path: "../../Frameworks/librime.xcframework"),
     .binaryTarget(
-      name: "boost_atomicRIME",
-      path: "../../Frameworks/boost_atomic.xcframework"),
-    .binaryTarget(
       name: "boost_filesystemRIME",
       path: "../../Frameworks/boost_filesystem.xcframework"),
+    .binaryTarget(
+      name: "boost_localeRIME",
+      path: "../../Frameworks/boost_locale.xcframework"),
     .binaryTarget(
       name: "boost_regexRIME",
       path: "../../Frameworks/boost_regex.xcframework"),
@@ -45,9 +45,36 @@ let package = Package(
     .binaryTarget(
       name: "libyaml-cppRIME",
       path: "../../Frameworks/libyaml-cpp.xcframework"),
+    .binaryTarget(
+      name: "icudataRIME",
+      path: "../../Frameworks/icudata.xcframework"),
+    .binaryTarget(
+      name: "icui18nRIME",
+      path: "../../Frameworks/icui18n.xcframework"),
+    .binaryTarget(
+      name: "icuioRIME",
+      path: "../../Frameworks/icuio.xcframework"),
+    .binaryTarget(
+      name: "icuucRIME",
+      path: "../../Frameworks/icuuc.xcframework"),
     .target(
       name: "RimeKitObjC",
-      dependencies: [],
+      dependencies: [
+        "librimeRIME",
+        "boost_filesystemRIME",
+        "boost_localeRIME",
+        "boost_regexRIME",
+        "boost_systemRIME",
+        "libglogRIME",
+        "libleveldbRIME",
+        "libmarisaRIME",
+        "libopenccRIME",
+        "libyaml-cppRIME",
+        "icudataRIME",
+        "icui18nRIME",
+        "icuioRIME",
+        "icuucRIME",
+      ],
       path: "Sources/ObjC",
       linkerSettings: [
         .linkedLibrary("c++"),
@@ -64,8 +91,8 @@ let package = Package(
       dependencies: [
         "RimeKit",
         "librimeRIME",
-        "boost_atomicRIME",
         "boost_filesystemRIME",
+        "boost_localeRIME",
         "boost_regexRIME",
         "boost_systemRIME",
         "libglogRIME",
@@ -73,5 +100,9 @@ let package = Package(
         "libmarisaRIME",
         "libopenccRIME",
         "libyaml-cppRIME",
+        "icudataRIME",
+        "icui18nRIME",
+        "icuioRIME",
+        "icuucRIME",
       ]),
   ])

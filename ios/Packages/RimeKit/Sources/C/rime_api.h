@@ -8,7 +8,7 @@
 #ifndef RIME_API_H_
 #define RIME_API_H_
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(RIME_USE_CXX_LINKAGE)
 extern "C" {
 #endif
 
@@ -729,7 +729,7 @@ RIME_API RimeApi* rime_get_api(void);
   static void rime_##name##_finalize() {}                           \
   RIME_REGISTER_MODULE(name)
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(RIME_USE_CXX_LINKAGE)
 }
 #endif
 

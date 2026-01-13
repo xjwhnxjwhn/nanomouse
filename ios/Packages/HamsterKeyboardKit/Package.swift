@@ -25,11 +25,11 @@ let package = Package(
       name: "librime",
       path: "../../Frameworks/librime.xcframework"),
     .binaryTarget(
-      name: "boost_atomic",
-      path: "../../Frameworks/boost_atomic.xcframework"),
-    .binaryTarget(
       name: "boost_filesystem",
       path: "../../Frameworks/boost_filesystem.xcframework"),
+    .binaryTarget(
+      name: "boost_locale",
+      path: "../../Frameworks/boost_locale.xcframework"),
     .binaryTarget(
       name: "boost_regex",
       path: "../../Frameworks/boost_regex.xcframework"),
@@ -51,6 +51,18 @@ let package = Package(
     .binaryTarget(
       name: "libyaml-cpp",
       path: "../../Frameworks/libyaml-cpp.xcframework"),
+    .binaryTarget(
+      name: "icudata",
+      path: "../../Frameworks/icudata.xcframework"),
+    .binaryTarget(
+      name: "icui18n",
+      path: "../../Frameworks/icui18n.xcframework"),
+    .binaryTarget(
+      name: "icuio",
+      path: "../../Frameworks/icuio.xcframework"),
+    .binaryTarget(
+      name: "icuuc",
+      path: "../../Frameworks/icuuc.xcframework"),
     .target(
       name: "HamsterKeyboardKit",
       dependencies: [
@@ -72,8 +84,8 @@ let package = Package(
         // "ZippyJSON",
         "RimeKit",
         "librime",
-        "boost_atomic",
         "boost_filesystem",
+        "boost_locale",
         "boost_regex",
         "boost_system",
         "libglog",
@@ -81,6 +93,10 @@ let package = Package(
         "libmarisa",
         "libopencc",
         "libyaml-cpp",
+        "icudata",
+        "icui18n",
+        "icuio",
+        "icuuc",
       ],
       path: "Tests"),
   ])

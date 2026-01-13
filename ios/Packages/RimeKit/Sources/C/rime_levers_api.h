@@ -9,7 +9,7 @@
 
 #include "rime_api.h"
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(RIME_USE_CXX_LINKAGE)
 extern "C" {
 #endif
 
@@ -72,7 +72,7 @@ typedef struct rime_levers_api_t {
 
 } RimeLeversApi;
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(RIME_USE_CXX_LINKAGE)
 }
 #endif
 
