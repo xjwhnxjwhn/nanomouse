@@ -6,11 +6,17 @@ static id<IRimeNotificationDelegate> notificationDelegate = nil;
 
 // 全局 Rime API 指针
 static RimeApi *rime = NULL;
+static BOOL rimeVersionLogged = NO;
 
 // 获取 Rime API 指针（懒加载）
 static RimeApi* getRimeApi(void) {
   if (rime == NULL) {
     rime = rime_get_api();
+    if (!rimeVersionLogged && rime && rime->get_version) {
+      const char *ver = rime->get_version();
+      NSLog(@"[RimeKit] librime version: %s", ver ? ver : "unknown");
+      rimeVersionLogged = YES;
+    }
   }
   return rime;
 }
