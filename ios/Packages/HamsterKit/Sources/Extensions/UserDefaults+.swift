@@ -204,6 +204,28 @@ public extension UserDefaults {
     }
   }
 
+  /// 最近一次启动的应用版本（用于判断是否需要自动重新部署）
+  var lastLaunchedAppVersion: String? {
+    get {
+      return string(forKey: Self.lastLaunchedAppVersionKey)
+    }
+    set {
+      setValue(newValue, forKey: Self.lastLaunchedAppVersionKey)
+      Logger.statistics.debug("save lastLaunchedAppVersion: \(newValue ?? "nil")")
+    }
+  }
+
+  /// 最近一次刷新 SharedSupport 的版本标记
+  var lastSharedSupportVersion: String? {
+    get {
+      return string(forKey: Self.lastSharedSupportVersionKey)
+    }
+    set {
+      setValue(newValue, forKey: Self.lastSharedSupportVersionKey)
+      Logger.statistics.debug("save lastSharedSupportVersion: \(newValue ?? "nil")")
+    }
+  }
+
   /// 是否覆盖 RIME 的用户数据目录
   var overrideRimeDirectory: Bool {
     get {
@@ -353,6 +375,8 @@ extension UserDefaults {
   // MARK: - 2.0 版本
 
   public static let isFirstRunningOfKey = "com.XiangqingZHANG.nanomouse.UserDefaults.isFirstRunning"
+  private static let lastLaunchedAppVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastLaunchedAppVersion"
+  private static let lastSharedSupportVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastSharedSupportVersion"
   private static let overrideRimeDirectoryOfKey = "com.XiangqingZHANG.nanomouse.UserDefaults.overrideRimeDirectory"
   private static let schemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.schemas"
   private static let selectSchemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.selectSchemas"

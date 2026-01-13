@@ -7,6 +7,7 @@
 
 import HamsteriOS
 import HamsterKit
+import OSLog
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
@@ -48,6 +49,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       HamsterAppDependencyContainer.shared.mainViewModel.navigationToRIME()
       HamsterAppDependencyContainer.shared.mainViewModel.execShortcutCommand(shortItemType)
     }
+
+    autoRedeployIfNeededOnVersionChange()
   }
 
   // 通过URL打开App
@@ -125,5 +128,40 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     // Called as the scene transitions from the foreground to the background.
     // Use this method to save data, release shared resources, and store enough scene-specific state information
     // to restore the scene back to its current state.
+  }
+
+  private func autoRedeployIfNeededOnVersionChange() {
+    let currentVersion = AppInfo.appVersion
+    let sharedSupportVersion = AppInfo.sharedSupportVersion
+    let defaults = UserDefaults.standard
+    let lastVersion = defaults.lastLaunchedAppVersion
+    let lastSharedSupportVersion = defaults.lastSharedSupportVersion
+
+    guard lastVersion != currentVersion else { return }
+    defaults.lastLaunchedAppVersion = currentVersion
+
+    guard defaults.isFirstRunning == false else { return }
+
+    Task.detached(priority: .utility) {
+      do {
+        if !sharedSupportVersion.isEmpty, sharedSupportVersion != lastSharedSupportVersion {
+          try FileManager.initSandboxSharedSupportDirectory(override: true)
+          defaults.lastSharedSupportVersion = sharedSupportVersion
+        }
+
+        try FileManager.initSandboxUserDataDirectory(override: true, unzip: true)
+      } catch {
+        Logger.statistics.error("auto redeploy initSandboxUserDataDirectory error: \(error.localizedDescription)")
+      }
+
+      var configuration = HamsterAppDependencyContainer.shared.configuration
+      configuration.rime?.overrideDictFiles = false
+      do {
+        try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &configuration)
+        Logger.statistics.info("auto redeploy success for app version: \(currentVersion)")
+      } catch {
+        Logger.statistics.error("auto redeploy error: \(error.localizedDescription)")
+      }
+    }
   }
 }

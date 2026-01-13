@@ -18,4 +18,8 @@ public enum AppInfo {
   public static let rimeVersion: String = {
     Self.infoDictionary["rimeVersion"] as? String ?? ""
   }()
+
+  public static let sharedSupportVersion: String = {
+    Self.infoDictionary["sharedSupportVersion"] as? String ?? ""
+  }()
 }
