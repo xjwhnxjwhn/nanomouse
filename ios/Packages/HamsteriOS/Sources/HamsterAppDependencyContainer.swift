@@ -37,7 +37,7 @@ open class HamsterAppDependencyContainer {
   }()
 
   public lazy var backupViewModel: BackupViewModel = {
-    let vm = BackupViewModel(fileBrowserViewModel: makeFileBrowserViewModel(rootURL: FileManager.sandboxBackupDirectory))
+    let vm = BackupViewModel(fileBrowserViewModel: makeFileBrowserViewModel(rootURL: FileManager.appGroupBackupDirectory))
     return vm
   }()
 
@@ -120,10 +120,10 @@ open class HamsterAppDependencyContainer {
     if UserDefaults.standard.isFirstRunning {
       do {
         // 首次运行解压 zip 文件（包含应用内置输入方案及配置文件）
-        try FileManager.initSandboxSharedSupportDirectory(override: true)
+        try FileManager.initAppGroupSharedSupportDirectory(override: true)
 
         // 读取 SharedSupport/hamster.yaml, 生成默认应用配置
-        let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
+        let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
 
         // 作为应用的默认配置，可从默认值中恢复
         try HamsterConfigurationRepositories.shared.saveToUserDefaultsOnDefault(hamsterConfiguration)
@@ -135,6 +135,18 @@ open class HamsterAppDependencyContainer {
         Logger.statistics.error("init SharedSupport error: \(error.localizedDescription)")
       }
       return
+    }
+
+    // 确保 AppGroup 目录可用
+    do {
+      if !FileManager.default.fileExists(atPath: FileManager.appGroupSharedSupportDirectoryURL.path) {
+        try FileManager.initAppGroupSharedSupportDirectory(override: false)
+      }
+      if !FileManager.default.fileExists(atPath: FileManager.appGroupUserDataDirectoryURL.path) {
+        try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+      }
+    } catch {
+      Logger.statistics.error("init AppGroup directory error: \(error.localizedDescription)")
     }
 
     // 非首次启动从 UserDefault 文件中加载
@@ -151,7 +163,9 @@ open class HamsterAppDependencyContainer {
     } catch {
       Logger.statistics.error("load configuration from UserDefault error: \(error.localizedDescription)")
       // 如果从 UserDefaults 加载失败，则尝试从配置文件中加载一次
-      if let hamsterConfiguration = try? HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport) {
+      if let hamsterConfiguration = try? HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport) {
+        self.configuration = hamsterConfiguration
+      } else if let hamsterConfiguration = try? HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport) {
         self.configuration = hamsterConfiguration
       } else {
         self.configuration = HamsterConfiguration()

@@ -104,7 +104,8 @@ public extension KeyboardInputViewController {
 
   private var selectedSchemasSnapshot: [RimeSchema] {
     let persisted = loadPersistedSchemas().select
-    return persisted.isEmpty ? rimeContext.selectSchemas : persisted
+    let selected = persisted.isEmpty ? rimeContext.selectSchemas : persisted
+    return selected.filter { !$0.isJapaneseSchema || isSchemaAvailable($0.schemaId) }
   }
 
   private var japaneseSchemaId: String? {
@@ -115,6 +116,7 @@ public extension KeyboardInputViewController {
     let persistedSummary = "select=[\(persistedSelectIds)], current=\(persisted.current?.schemaId ?? "nil"), latest=\(persisted.latest?.schemaId ?? "nil")"
 
     if let latest = persisted.latest, latest.isJapaneseSchema,
+       isSchemaAvailable(latest.schemaId),
        selectedJapaneseSchemas.contains(latest) || selectedJapaneseSchemas.isEmpty
     {
       Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(latest.schemaId, privacy: .public) (source: latest, \(persistedSummary, privacy: .public))")
@@ -122,13 +124,15 @@ public extension KeyboardInputViewController {
     }
 
     if let current = persisted.current, current.isJapaneseSchema,
+       isSchemaAvailable(current.schemaId),
        selectedJapaneseSchemas.contains(current) || selectedJapaneseSchemas.isEmpty
     {
       Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(current.schemaId, privacy: .public) (source: current, \(persistedSummary, privacy: .public))")
       return current.schemaId
     }
 
-    if let selectedFirst = selectedJapaneseSchemas.first {
+    if let selectedFirst = selectedJapaneseSchemas.first,
+       isSchemaAvailable(selectedFirst.schemaId) {
       Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(selectedFirst.schemaId, privacy: .public) (source: selected, \(persistedSummary, privacy: .public))")
       return selectedFirst.schemaId
     }
@@ -138,7 +142,7 @@ public extension KeyboardInputViewController {
       return currentRuntime.schemaId
     }
 
-    let fallback = rimeContext.schemas.first(where: { $0.isJapaneseSchema })?.schemaId
+    let fallback = rimeContext.schemas.first(where: { $0.isJapaneseSchema && isSchemaAvailable($0.schemaId) })?.schemaId
     Logger.statistics.info("DBG_LANGSWITCH japaneseSchemaId resolved: \(fallback ?? "nil", privacy: .public) (source: fallback, \(persistedSummary, privacy: .public))")
     return fallback
   }
@@ -151,6 +155,14 @@ public extension KeyboardInputViewController {
 
   private var isJapaneseEnabled: Bool {
     selectedSchemasSnapshot.contains(where: { $0.isJapaneseSchema })
+  }
+
+  private func isSchemaAvailable(_ schemaId: String) -> Bool {
+    let fileName = "\(schemaId).schema.yaml"
+    let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
+    let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)
+    let fm = FileManager.default
+    return fm.fileExists(atPath: userDataPath.path) || fm.fileExists(atPath: sharedSupportPath.path)
   }
 
   func currentLanguageMode() -> LanguageMode {

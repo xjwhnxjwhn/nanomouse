@@ -276,6 +276,7 @@ public extension UserDefaults {
     }
   }
 
+
   /// RIME: 当前输入方案Schema
   var currentSchema: RimeSchema? {
     get {

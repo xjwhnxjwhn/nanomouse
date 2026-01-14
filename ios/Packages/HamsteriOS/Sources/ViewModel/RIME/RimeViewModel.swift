@@ -256,7 +256,10 @@ public extension RimeViewModel {
       _ = URL.iCloudDocumentURL
 
       // 增加同步路径检测（sync_dir），检测是否有权限写入。
-      if let syncDir = FileManager.sandboxInstallationYaml.getSyncPath() {
+      let installationYaml = FileManager.default.fileExists(atPath: FileManager.appGroupInstallationYaml.path)
+        ? FileManager.appGroupInstallationYaml
+        : FileManager.sandboxInstallationYaml
+      if let syncDir = installationYaml.getSyncPath() {
         if !FileManager.default.fileExists(atPath: syncDir) {
           do {
             try FileManager.default.createDirectory(atPath: syncDir, withIntermediateDirectories: true)
@@ -290,7 +293,7 @@ public extension RimeViewModel {
       HamsterAppDependencyContainer.shared.resetHamsterConfiguration()
 
       // 重新读取 Hamster.yaml 生成 configuration
-      let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
+      let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
 
       // 保存配置至 build/hamster.yaml
       // try? HamsterConfigurationRepositories.shared.saveToYAML(config: configuration, path: FileManager.hamsterConfigFileOnBuild)
@@ -300,7 +303,7 @@ public extension RimeViewModel {
   //    )
       try? HamsterConfigurationRepositories.shared.saveToPropertyList(
         config: hamsterConfiguration,
-        path: FileManager.sandboxUserDataDirectory.appendingPathComponent("/build/hamster.plist")
+        path: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")
       )
 
       HamsterAppDependencyContainer.shared.configuration = hamsterConfiguration
@@ -320,14 +323,6 @@ public extension RimeViewModel {
         }
         if rimeContext.currentSchema == nil {
           rimeContext.currentSchema = rimeIce
-        }
-      }
-      if !rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema }) {
-        if let japaneseSchema = rimeContext.schemas.first(where: { $0.schemaId == "jaroomaji-easy" })
-          ?? rimeContext.schemas.first(where: { $0.schemaId == "japanese" })
-          ?? rimeContext.schemas.first(where: { $0.isJapaneseSchema })
-        {
-          rimeContext.appendSelectSchema(japaneseSchema)
         }
       }
 

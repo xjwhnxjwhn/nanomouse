@@ -60,8 +60,8 @@ public class AppleCloudViewModel: ObservableObject {
     do {
       ProgressHUD.animate("拷贝中……", interaction: false)
       let regexList = regexOnCopyFile.split(separator: ",").map { String($0) }
-      try FileManager.copySandboxSharedSupportDirectoryToAppleCloud(regexList)
-      try FileManager.copySandboxUserDataDirectoryToAppleCloud(regexList)
+      try FileManager.copyAppGroupSharedSupportDirectoryToAppleCloud(regexList)
+      try FileManager.copyAppGroupUserDirectoryToAppleCloud(regexList)
       ProgressHUD.success("拷贝成功", interaction: false, delay: 1.5)
     } catch {
       Logger.statistics.error("apple cloud copy to iCloud error: \(error)")

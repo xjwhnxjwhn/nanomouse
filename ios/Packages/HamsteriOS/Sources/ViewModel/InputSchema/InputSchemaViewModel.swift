@@ -125,7 +125,11 @@ public class InputSchemaViewModel {
   }
 
   func schemas(in group: SchemaGroup) -> [RimeSchema] {
-    rimeContext.schemas.filter { schemaGroup(for: $0) == group }
+    let schemas = rimeContext.schemas.filter { schemaGroup(for: $0) == group }
+    guard group == .japanese else { return schemas }
+    return japaneseSchemas.map { placeholder in
+      schemas.first(where: { $0.schemaId == placeholder.schemaId }) ?? placeholder
+    }
   }
 
   func schemaGroup(for schema: RimeSchema) -> SchemaGroup {
@@ -137,7 +141,15 @@ public class InputSchemaViewModel {
   }
 
   func isSchemaSelected(_ schema: RimeSchema) -> Bool {
-    rimeContext.selectSchemas.contains(schema)
+    if schemaGroup(for: schema) == .japanese, !schemaFileExists(schema.schemaId) {
+      return false
+    }
+    return rimeContext.selectSchemas.contains(schema)
+  }
+
+  func isSchemaAvailable(_ schema: RimeSchema) -> Bool {
+    guard schemaGroup(for: schema) == .japanese else { return true }
+    return schemaFileExists(schema.schemaId)
   }
 
   var shouldShowRimeIceTraditionalizationSection: Bool {
@@ -209,6 +221,137 @@ public class InputSchemaViewModel {
       return schema.schemaName
     }
   }
+
+  private var japaneseSchemas: [RimeSchema] {
+    [
+      .init(schemaId: "japanese", schemaName: "japanese"),
+      .init(schemaId: "jaroomaji", schemaName: "jaroomaji"),
+      .init(schemaId: "jaroomaji-easy", schemaName: "jaroomaji-easy"),
+    ]
+  }
+
+  private func schemaFileExists(_ schemaId: String) -> Bool {
+    let fileName = "\(schemaId).schema.yaml"
+    let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
+    let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)
+    let fm = FileManager.default
+    return fm.fileExists(atPath: userDataPath.path) || fm.fileExists(atPath: sharedSupportPath.path)
+  }
+
+  func downloadJapaneseSchema(_ schema: RimeSchema) {
+    guard let zipFile = HamsterConstants.onDemandJapaneseSchemaZipMap[schema.schemaId] else {
+      ProgressHUD.failed("未找到下载资源", interaction: false, delay: 1.5)
+      return
+    }
+    downloadOnDemandZipFiles([zipFile], title: displayNameForInputSchemaList(schema))
+  }
+
+  func downloadExtraSchema(zipFile: String, title: String) {
+    downloadOnDemandZipFiles([zipFile], title: title)
+  }
+
+  func deleteDownloadedSchema(_ schema: RimeSchema) async {
+    ProgressHUD.animate("删除中……", interaction: false)
+    do {
+      try removeSchemaFiles(schemaId: schema.schemaId)
+      if rimeContext.selectSchemas.contains(schema) {
+        rimeContext.removeSelectSchema(schema)
+      }
+
+      var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
+      try rimeContext.deployment(configuration: &updatedConfiguration)
+
+      await MainActor.run {
+        HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+        reloadTableStateSubject.send(true)
+        ProgressHUD.success("删除完成", interaction: false, delay: 1.0)
+      }
+    } catch {
+      Logger.statistics.error("delete schema failed: \(error.localizedDescription)")
+      await MainActor.run {
+        ProgressHUD.failed("删除失败：\(error.localizedDescription)", interaction: false, delay: 2)
+      }
+    }
+  }
+
+  private func downloadOnDemandZipFiles(_ zipFiles: [String], title: String) {
+    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
+      ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
+      return
+    }
+
+    Task.detached(priority: .userInitiated) { [weak self] in
+      guard let self else { return }
+      await MainActor.run {
+        ProgressHUD.animate("正在下载\(title)…", AnimationType.circleRotateChase, interaction: false)
+      }
+
+      do {
+        try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+
+        for zipFile in zipFiles {
+          let remoteURL = baseURL.appendingPathComponent(zipFile)
+          let tempURL = try await self.downloadZip(from: remoteURL)
+          try await FileManager.default.unzip(tempURL, dst: FileManager.appGroupUserDataDirectoryURL)
+          try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
+        try self.rimeContext.deployment(configuration: &updatedConfiguration)
+
+        await MainActor.run {
+          HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+          self.reloadTableStateSubject.send(true)
+          ProgressHUD.success("\(title)部署完成", interaction: false, delay: 1.2)
+        }
+      } catch {
+        Logger.statistics.error("download on-demand schemas failed: \(error.localizedDescription)")
+        await MainActor.run {
+          ProgressHUD.failed("下载失败：\(error.localizedDescription)", interaction: false, delay: 2)
+        }
+      }
+    }
+  }
+
+  private func downloadZip(from url: URL) async throws -> URL {
+    let (tempURL, response) = try await URLSession.shared.download(from: url)
+    if let httpResponse = response as? HTTPURLResponse,
+       !(200...299).contains(httpResponse.statusCode) {
+      try? FileManager.default.removeItem(at: tempURL)
+      throw StringError("下载失败（HTTP \(httpResponse.statusCode)）")
+    }
+    return tempURL
+  }
+
+  private func removeSchemaFiles(schemaId: String) throws {
+    let fm = FileManager.default
+    let targets: [URL] = [
+      FileManager.appGroupSharedSupportDirectoryURL,
+      FileManager.appGroupUserDataDirectoryURL,
+      FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("build"),
+    ]
+
+    for root in targets {
+      guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
+      for case let fileURL as URL in enumerator {
+        let name = fileURL.lastPathComponent
+        if matchesSchemaFile(name: name, schemaId: schemaId) {
+          try? fm.removeItem(at: fileURL)
+        }
+      }
+    }
+  }
+
+  private func matchesSchemaFile(name: String, schemaId: String) -> Bool {
+    if schemaId == "jaroomaji" {
+      return name.hasPrefix("jaroomaji.") || name.hasPrefix("jaroomaji_")
+    }
+    return name.hasPrefix("\(schemaId).")
+      || name.hasPrefix("\(schemaId)_")
+      || name.hasPrefix("\(schemaId)-")
+      || name == schemaId
+  }
+
 }
 
 // MARK: - CloudKit 方案管理
@@ -285,7 +428,7 @@ extension InputSchemaViewModel {
     do {
       try await downloadInputSchema(info.id, dst: tempInputSchemaZipFile)
       // 删除 Rime 目录并新建
-      try FileManager.createDirectory(override: true, dst: FileManager.sandboxUserDataDirectory)
+      try FileManager.createDirectory(override: true, dst: FileManager.appGroupUserDataDirectoryURL)
       // 安装
       await importZipFile(fileURL: tempInputSchemaZipFile)
       presentDocumentPickerSubject.send(.inputSchema)
@@ -358,14 +501,42 @@ extension InputSchemaViewModel {
 
 extension InputSchemaViewModel {
   func inputSchemaMenus() -> UIMenu {
+    let onDemandMenu = UIMenu(
+      title: "下载其他中英方案",
+      options: .displayInline,
+      children: [
+        UIAction(
+          title: "下载地球拼音",
+          image: UIImage(systemName: "globe.asia.australia"),
+          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-terra-pinyin.zip", title: "地球拼音") }
+        ),
+        UIAction(
+          title: "下载笔画",
+          image: UIImage(systemName: "pencil.and.outline"),
+          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-stroke.zip", title: "笔画") }
+        ),
+        UIAction(
+          title: "下载韩语",
+          image: UIImage(systemName: "character.book.closed"),
+          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-hangyl.zip", title: "韩语") }
+        ),
+        UIAction(
+          title: "下载越南语",
+          image: UIImage(systemName: "character.book.closed"),
+          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-hannomps.zip", title: "越南语") }
+        ),
+      ]
+    )
+
     let barButtonMenu = UIMenu(title: "", children: [
       UIAction(
-        title: "导入方案",
+        title: "从本地导入方案",
         image: UIImage(systemName: "square.and.arrow.down"),
         handler: { [unowned self] _ in self.presentDocumentPickerSubject.send(.documentPicker) }
       ),
+      onDemandMenu,
       UIAction(
-        title: "方案下载",
+        title: "从CloudKit下载方案",
         image: UIImage(systemName: "icloud.and.arrow.down"),
         handler: { [unowned self] _ in self.presentDocumentPickerSubject.send(.downloadCloudInputSchema) }
       ),
@@ -421,8 +592,8 @@ extension InputSchemaViewModel {
     ProgressHUD.animate("方案导入中……", AnimationType.circleRotateChase, interaction: false)
     do {
       // 检测 Rime 目录是否存在
-      try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
-      try await FileManager.default.unzip(fileURL, dst: FileManager.sandboxUserDataDirectory)
+      try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+      try await FileManager.default.unzip(fileURL, dst: FileManager.appGroupUserDataDirectoryURL)
 
       var hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
 

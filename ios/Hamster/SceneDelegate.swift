@@ -136,22 +136,35 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     let defaults = UserDefaults.standard
     let lastVersion = defaults.lastLaunchedAppVersion
     let lastSharedSupportVersion = defaults.lastSharedSupportVersion
+    let versionChanged = lastVersion != currentVersion
+    let sharedSupportChanged = !sharedSupportVersion.isEmpty && sharedSupportVersion != lastSharedSupportVersion
 
-    guard lastVersion != currentVersion else { return }
+    guard versionChanged || sharedSupportChanged else { return }
     defaults.lastLaunchedAppVersion = currentVersion
-
-    guard defaults.isFirstRunning == false else { return }
 
     Task.detached(priority: .utility) {
       do {
+        let fm = FileManager.default
         if !sharedSupportVersion.isEmpty, sharedSupportVersion != lastSharedSupportVersion {
-          try FileManager.initSandboxSharedSupportDirectory(override: true)
+          try FileManager.initAppGroupSharedSupportDirectory(override: true)
           defaults.lastSharedSupportVersion = sharedSupportVersion
+          let buildDir = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("build")
+          if fm.fileExists(atPath: buildDir.path) {
+            try? fm.removeItem(at: buildDir)
+          }
         }
+        // 叠加解压内置方案，保留用户词库
+        try FileManager.initAppGroupUserDataDirectory(override: false, unzip: true)
 
-        try FileManager.initSandboxUserDataDirectory(override: true, unzip: true)
+        // 清理旧版沙盒目录，减少重复占用
+        if fm.fileExists(atPath: FileManager.sandboxSharedSupportDirectory.path) {
+          try? fm.removeItem(at: FileManager.sandboxSharedSupportDirectory)
+        }
+        if fm.fileExists(atPath: FileManager.sandboxUserDataDirectory.path) {
+          try? fm.removeItem(at: FileManager.sandboxUserDataDirectory)
+        }
       } catch {
-        Logger.statistics.error("auto redeploy initSandboxUserDataDirectory error: \(error.localizedDescription)")
+        Logger.statistics.error("auto redeploy initAppGroupUserDataDirectory error: \(error.localizedDescription)")
       }
 
       var configuration = HamsterAppDependencyContainer.shared.configuration

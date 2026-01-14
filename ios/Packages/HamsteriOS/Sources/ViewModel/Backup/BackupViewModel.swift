@@ -78,8 +78,8 @@ public class BackupViewModel {
       }
 
       // 恢复输入方案
-      try FileManager.copyDirectory(override: true, src: FileManager.tempSharedSupportDirectory, dst: FileManager.sandboxSharedSupportDirectory)
-      try FileManager.copyDirectory(override: true, src: FileManager.tempUserDataDirectory, dst: FileManager.sandboxUserDataDirectory)
+      try FileManager.copyDirectory(override: true, src: FileManager.tempSharedSupportDirectory, dst: FileManager.appGroupSharedSupportDirectoryURL)
+      try FileManager.copyDirectory(override: true, src: FileManager.tempUserDataDirectory, dst: FileManager.appGroupUserDataDirectoryURL)
 
       ProgressHUD.success("恢复成功, 请重新部署。", delay: 1.5)
     } catch {
@@ -104,8 +104,8 @@ public class BackupViewModel {
     try FileManager.createDirectory(override: true, dst: FileManager.tempBackupDirectory)
 
     // copy 当前输入方案
-    try FileManager.copyDirectory(override: true, src: FileManager.sandboxSharedSupportDirectory, dst: FileManager.tempSharedSupportDirectory)
-    try FileManager.copyDirectory(override: true, src: FileManager.sandboxUserDataDirectory, dst: FileManager.tempUserDataDirectory)
+    try FileManager.copyDirectory(override: true, src: FileManager.appGroupSharedSupportDirectoryURL, dst: FileManager.tempSharedSupportDirectory)
+    try FileManager.copyDirectory(override: true, src: FileManager.appGroupUserDataDirectoryURL, dst: FileManager.tempUserDataDirectory)
 
     // 读取 UI 操作产生的配置，并保存至备份文件夹
     if let appConfig = try? HamsterConfigurationRepositories.shared.loadAppConfigurationFromUserDefaults() {
@@ -113,7 +113,7 @@ public class BackupViewModel {
     }
 
     // 检测备份文件夹是否存在
-    let backupURL = FileManager.sandboxBackupDirectory
+    let backupURL = FileManager.appGroupBackupDirectory
     if !FileManager.default.fileExists(atPath: backupURL.path) {
       try FileManager.createDirectory(dst: backupURL)
     }

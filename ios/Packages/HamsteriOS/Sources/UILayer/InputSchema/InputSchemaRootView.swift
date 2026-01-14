@@ -53,54 +53,132 @@ class InputSchemaRootView: NibLessView {
   override func activateViewConstraints() {
     tableView.fillSuperview()
   }
+
+  private var hasTraditionalSection: Bool {
+    inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection
+  }
+
+  private var japaneseSectionIndex: Int {
+    hasTraditionalSection ? 2 : 1
+  }
+
+  private var traditionalSectionIndex: Int? {
+    hasTraditionalSection ? 1 : nil
+  }
+
+  private func schemaGroup(for section: Int) -> InputSchemaViewModel.SchemaGroup? {
+    if section == 0 { return .chineseEnglish }
+    if section == japaneseSectionIndex { return .japanese }
+    return nil
+  }
+
+  private func downloadAccessoryView(for schema: RimeSchema) -> UIView {
+    let button = downloadButton(for: schema)
+    guard schema.schemaId == "jaroomaji-easy" else { return button }
+
+    let badge = UILabel()
+    badge.text = "推荐"
+    badge.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+    badge.textColor = .systemOrange
+    badge.sizeToFit()
+
+    let spacing: CGFloat = 6
+    let height = max(badge.bounds.height, button.bounds.height)
+    let width = badge.bounds.width + spacing + button.bounds.width
+    let container = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
+
+    badge.frame = CGRect(
+      x: 0,
+      y: (height - badge.bounds.height) / 2,
+      width: badge.bounds.width,
+      height: badge.bounds.height
+    )
+    button.frame = CGRect(
+      x: badge.frame.maxX + spacing,
+      y: (height - button.bounds.height) / 2,
+      width: button.bounds.width,
+      height: button.bounds.height
+    )
+
+    container.addSubview(badge)
+    container.addSubview(button)
+    return container
+  }
+
+  private func downloadButton(for schema: RimeSchema) -> UIButton {
+    let button = UIButton(type: .system)
+    button.setTitle("下载", for: .normal)
+    button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+    button.sizeToFit()
+    button.addAction(UIAction { [unowned self] _ in
+      self.inputSchemaViewModel.downloadJapaneseSchema(schema)
+    }, for: .touchUpInside)
+    return button
+  }
 }
 
 extension InputSchemaRootView: UITableViewDataSource {
   func numberOfSections(in tableView: UITableView) -> Int {
     let baseSections = InputSchemaViewModel.SchemaGroup.allCases.count
-    return baseSections + (inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection ? 1 : 0)
+    return baseSections + (hasTraditionalSection ? 1 : 0)
   }
 
   public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
-    if section < groupCount {
-      guard let group = InputSchemaViewModel.SchemaGroup(rawValue: section) else { return 0 }
-      return inputSchemaViewModel.schemas(in: group).count
+    if let traditionalSectionIndex, section == traditionalSectionIndex {
+      return InputSchemaViewModel.TraditionalizationOption.allCases.count
     }
-    return InputSchemaViewModel.TraditionalizationOption.allCases.count
+    guard let group = schemaGroup(for: section) else { return 0 }
+    return inputSchemaViewModel.schemas(in: group).count
   }
 
   public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = self.tableView.dequeueReusableCell(withIdentifier: Self.cellIdentifier, for: indexPath)
-    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
     var config = UIListContentConfiguration.cell()
 
-    if indexPath.section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) {
-      let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
-      config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
-      cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
-    } else {
+    if let traditionalSectionIndex, indexPath.section == traditionalSectionIndex {
       let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
       config.text = option.displayName
+      cell.contentConfiguration = config
+      cell.accessoryView = nil
       cell.accessoryType = inputSchemaViewModel.isTraditionalizationOptionSelected(option) ? .checkmark : .none
+      return cell
     }
 
+    guard let group = schemaGroup(for: indexPath.section) else { return cell }
+    let schemas = inputSchemaViewModel.schemas(in: group)
+    let schema = schemas[indexPath.row]
+    let isJapanese = group == .japanese
+    let isAvailable = inputSchemaViewModel.isSchemaAvailable(schema)
+    config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
     cell.contentConfiguration = config
+    if isJapanese, !isAvailable {
+      cell.accessoryView = downloadAccessoryView(for: schema)
+      cell.accessoryType = .none
+    } else {
+      cell.accessoryView = nil
+      cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
+    }
     return cell
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
-    if section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: section) {
+    if let traditionalSectionIndex, section == traditionalSectionIndex {
+      return "雾凇拼音 · 繁体方案"
+    }
+    if let group = schemaGroup(for: section) {
       return group.title
     }
     return "雾凇拼音 · 繁体方案"
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
-    guard section >= groupCount else { return nil }
-    return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
+    if let group = schemaGroup(for: section), group == .japanese {
+      return "日语方案不随安装包内置，右侧可按需下载。"
+    }
+    if let traditionalSectionIndex, section == traditionalSectionIndex {
+      return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
+    }
+    return nil
   }
 }
 
@@ -108,17 +186,42 @@ extension InputSchemaRootView: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     Task {
       do {
-        let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
-        if indexPath.section < groupCount, let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section) {
-          let schema = inputSchemaViewModel.schemas(in: group)[indexPath.row]
-          try await inputSchemaViewModel.checkboxForInputSchema(schema)
-        } else {
+        if let traditionalSectionIndex, indexPath.section == traditionalSectionIndex {
           let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
           inputSchemaViewModel.selectTraditionalizationOption(option)
+          return
+        }
+        if let group = schemaGroup(for: indexPath.section) {
+          let schemas = inputSchemaViewModel.schemas(in: group)
+          let schema = schemas[indexPath.row]
+          if group == .japanese, !inputSchemaViewModel.isSchemaAvailable(schema) { return }
+          try await inputSchemaViewModel.checkboxForInputSchema(schema)
         }
       } catch {
         ProgressHUD.failed(error.localizedDescription, delay: 1.5)
       }
     }
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
+    guard indexPath.section < groupCount,
+          let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section),
+          group == .japanese else { return nil }
+    let schemas = inputSchemaViewModel.schemas(in: group)
+    let schema = schemas[indexPath.row]
+    guard inputSchemaViewModel.isSchemaAvailable(schema) else { return nil }
+
+    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      guard let self else {
+        completion(false)
+        return
+      }
+      Task {
+        await self.inputSchemaViewModel.deleteDownloadedSchema(schema)
+        completion(true)
+      }
+    }
+    return UISwipeActionsConfiguration(actions: [deleteAction])
   }
 }

@@ -32,11 +32,21 @@ public enum HamsterConstants {
   /// RIME 内置输入方案及配置zip包
   public static let inputSchemaZipFile = "SharedSupport.zip"
 
-  /// 额外输入方案 zip 包（会解压到 SharedSupport）
-  public static let extraInputSchemaZipFiles = [
-    "rime-japanese.zip",
-    "rime-jaroomaji.zip",
-    "rime-jaroomaji-easy.zip",
+  /// 额外输入方案 zip 包（按需下载，不随包内置）
+  public static let extraInputSchemaZipFiles: [String] = []
+
+  /// 按需下载的 zip 包基础地址（GitHub raw）
+  public static let onDemandInputSchemaZipBaseURL = "https://raw.githubusercontent.com/xjwhnxjwhn/nanomouse/main/zips"
+
+  /// 日语方案 zip 包（按需下载）
+  public static let onDemandJapaneseSchemaZipMap: [String: String] = [
+    "japanese": "rime-japanese.zip",
+    "jaroomaji": "rime-jaroomaji.zip",
+    "jaroomaji-easy": "rime-jaroomaji-easy.zip",
+  ]
+
+  /// 其他可选方案 zip 包（按需下载）
+  public static let onDemandExtraZipFiles: [String] = [
     "rime-terra-pinyin.zip",
     "rime-stroke.zip",
     "rime-hangyl.zip",

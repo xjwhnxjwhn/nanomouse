@@ -48,7 +48,8 @@ extension FinderSettingsView: UITableViewDataSource {
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    if section == 1 {
+    let item = finderViewModel.settingItems[section]
+    if item.text == "拷贝键盘词库文件至应用" {
       return "指后缀为“.txt”及文件夹名包含“.userdb”下的文件"
     }
     return nil

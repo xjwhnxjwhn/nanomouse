@@ -215,13 +215,13 @@ public extension RimeContext {
 
   /// RIME 启动
   /// 注意：仅用于键盘扩展调用
-  func start(hasFullAccess: Bool) async {
+  func start(hasFullAccess _: Bool) async {
     Rime.shared.setNotificationDelegate(self)
 
     // 启动
     Rime.shared.start(Rime.createTraits(
       sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,
-      userDataDir: hasFullAccess ? FileManager.appGroupUserDataDirectoryURL.path : FileManager.sandboxUserDataDirectory.path
+      userDataDir: FileManager.appGroupUserDataDirectoryURL.path
     ))
 
     // 设置初始输入方案
@@ -243,23 +243,24 @@ public extension RimeContext {
   func deployment(configuration: inout HamsterConfiguration) throws {
     let overrideDictFilesValue = configuration.rime?.overrideDictFiles
     Logger.statistics.debug("DBG_DEPLOY deployment start: overrideDictFiles=\(String(describing: overrideDictFilesValue))")
-    // 如果开启 iCloud，则先将 iCloud 下文件增量复制到 Sandbox
+    // 如果开启 iCloud，则先将 iCloud 下文件增量复制到 AppGroup
     if let enableAppleCloud = configuration.general?.enableAppleCloud, enableAppleCloud == true {
       let regex = configuration.general?.regexOnCopyFile ?? []
       do {
-        try FileManager.copyAppleCloudSharedSupportDirectoryToSandbox(regex)
-        try FileManager.copyAppleCloudUserDataDirectoryToSandbox(regex)
+        try FileManager.copyAppleCloudSharedSupportDirectoryToAppGroup(regex)
+        try FileManager.copyAppleCloudUserDataDirectoryToAppGroup(regex)
       } catch {
         Logger.statistics.error("RIME deploy error \(error.localizedDescription)")
         throw error
       }
     }
 
-    // 判断是否需要覆盖键盘词库文件，如果为否，则先copy键盘词库文件至应用目录
-    if let overrideDictFiles = configuration.rime?.overrideDictFiles, overrideDictFiles == false {
-      let regex = configuration.rime?.regexOnOverrideDictFiles ?? []
+    // 覆盖词库文件（开启时按正则删除用户目录中的词库文件）
+    if let overrideDictFiles = configuration.rime?.overrideDictFiles, overrideDictFiles == true {
+      let regex = configuration.rime?.regexOnOverrideDictFiles
+      let patterns = (regex?.isEmpty == false) ? regex! : ["^.*[.]userdb.*$", "^.*[.]txt$"]
       do {
-        try FileManager.copyAppGroupUserDict(regex)
+        try FileManager.removeMatchedFiles(in: FileManager.appGroupUserDataDirectoryURL, regex: patterns)
       } catch {
         Logger.statistics.error("RIME deploy error \(error.localizedDescription)")
         throw error
@@ -267,28 +268,23 @@ public extension RimeContext {
     }
 
     // 检测文件目录是否存在不存在，新建
-    try FileManager.createDirectory(override: false, dst: FileManager.sandboxSharedSupportDirectory)
-    try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
-    try FileManager.ensureExtraInputSchemaFiles(in: FileManager.sandboxSharedSupportDirectory)
-    
-    // 从 Bundle 复制最新的 hamster.yaml 覆盖沙盒版本
-    // 这样开发时修改 hamster.yaml 无需重新打包 ZIP
-    try FileManager.copyBundleHamsterYaml(to: FileManager.sandboxSharedSupportDirectory)
+    try FileManager.initAppGroupSharedSupportDirectory(override: false)
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
 
-    let jaroomajiEasySchemaPath = FileManager.sandboxSharedSupportDirectory.appendingPathComponent("jaroomaji-easy.schema.yaml")
-    let jaroomajiEasyDictPath = FileManager.sandboxSharedSupportDirectory.appendingPathComponent("jaroomaji-easy.dict.yaml")
-    let sandboxSchemaExists = FileManager.default.fileExists(atPath: jaroomajiEasySchemaPath.path)
-    let sandboxDictExists = FileManager.default.fileExists(atPath: jaroomajiEasyDictPath.path)
-    Logger.statistics.debug("DBG_DEPLOY sandbox jaroomaji-easy: schemaExists=\(sandboxSchemaExists) dictExists=\(sandboxDictExists)")
-    print("DBG_DEPLOY sandbox jaroomaji-easy: schemaExists=\(sandboxSchemaExists) dictExists=\(sandboxDictExists)")
+    let jaroomajiEasySchemaPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.schema.yaml")
+    let jaroomajiEasyDictPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.dict.yaml")
+    let appGroupSchemaExists = FileManager.default.fileExists(atPath: jaroomajiEasySchemaPath.path)
+    let appGroupDictExists = FileManager.default.fileExists(atPath: jaroomajiEasyDictPath.path)
+    Logger.statistics.debug("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
+    print("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
     
-    removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
-    removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
-    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
+    removeJapaneseSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
+    removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
+    updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
 
     let traits = Rime.createTraits(
-      sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
-      userDataDir: FileManager.sandboxUserDataDirectory.path
+      sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,
+      userDataDir: FileManager.appGroupUserDataDirectoryURL.path
     )
     if !isRunning {
       Rime.shared.start(traits, maintenance: true, fullCheck: true)
@@ -297,7 +293,7 @@ public extension RimeContext {
     var schemas = Rime.shared.getSchemas().sorted()
     if schemas.isEmpty {
       // 检测 default.custom.yaml 文件是否存在，后面解析 schema_list 需要存在此文件
-      let defaultCustomFilePath = FileManager.sandboxUserDataDefaultCustomYaml.path
+      let defaultCustomFilePath = FileManager.appGroupUserDataDefaultCustomYaml.path
       var createDefaultCustomFileHandle = false
       if !FileManager.default.fileExists(atPath: defaultCustomFilePath) {
         let handled = FileManager.default.createFile(atPath: defaultCustomFilePath, contents: nil)
@@ -369,44 +365,22 @@ public extension RimeContext {
 //    )
     try? HamsterConfigurationRepositories.shared.saveToPropertyList(
       config: configuration,
-      path: FileManager.sandboxUserDataDirectory.appendingPathComponent("/build/hamster.plist")
+      path: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")
     )
-
-    // 将 Sandbox 目录下方案复制到AppGroup下
-    try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)
-    try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)
-
-    let appGroupSchemaPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.schema.yaml")
-    let appGroupDictPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.dict.yaml")
-    let appGroupSchemaExists = FileManager.default.fileExists(atPath: appGroupSchemaPath.path)
-    let appGroupDictExists = FileManager.default.fileExists(atPath: appGroupDictPath.path)
-    Logger.statistics.debug("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
-    print("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
   }
 
   /// RIME 同步
   /// 注意：仅可用于主 App 调用
   func syncRime(configuration: HamsterConfiguration) throws {
     // 检测文件目录是否存在不存在，新建
-    try FileManager.createDirectory(override: false, dst: FileManager.sandboxSharedSupportDirectory)
-    try FileManager.createDirectory(override: false, dst: FileManager.sandboxUserDataDirectory)
-    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
-
-    // 判断是否需要覆盖键盘词库文件，如果为否，则先copy键盘词库文件至应用目录
-    if let overrideDictFiles = configuration.rime?.overrideDictFiles, overrideDictFiles == false {
-      let regex = configuration.rime?.regexOnOverrideDictFiles ?? []
-      do {
-        try FileManager.copyAppGroupUserDict(regex)
-      } catch {
-        Logger.statistics.error("RIME deploy error \(error.localizedDescription)")
-        throw error
-      }
-    }
+    try FileManager.initAppGroupSharedSupportDirectory(override: false)
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+    updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
 
     if !isRunning {
       Rime.shared.start(Rime.createTraits(
-        sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
-        userDataDir: FileManager.sandboxUserDataDirectory.path
+        sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,
+        userDataDir: FileManager.appGroupUserDataDirectoryURL.path
       ), maintenance: true, fullCheck: true)
     }
     let handled = Rime.shared.API().syncUserData()
@@ -424,12 +398,8 @@ public extension RimeContext {
 //    )
     try? HamsterConfigurationRepositories.shared.saveToPropertyList(
       config: configuration,
-      path: FileManager.sandboxUserDataDirectory.appendingPathComponent("/build/hamster.plist")
+      path: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")
     )
-
-    // 将 Sandbox 目录下方案复制到AppGroup下
-    try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)
-    try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)
   }
 
   /// RIME 重置
@@ -437,21 +407,21 @@ public extension RimeContext {
   func restRime() throws {
     // 重置输入方案目录
     do {
-      try FileManager.initSandboxSharedSupportDirectory(override: true)
-      try FileManager.initSandboxUserDataDirectory(override: true, unzip: true)
+      try FileManager.initAppGroupSharedSupportDirectory(override: true)
+      try FileManager.initAppGroupUserDataDirectory(override: true, unzip: true)
     } catch {
       Logger.statistics.error("rime init file directory error: \(error.localizedDescription)")
       throw error
     }
-    removeJapaneseSchemaPatch(in: FileManager.sandboxUserDataDirectory)
-    removeJaroomajiSchemaPatch(in: FileManager.sandboxUserDataDirectory)
+    removeJapaneseSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
+    removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     let configuration = (try? HamsterConfigurationRepositories.shared.loadConfiguration()) ?? HamsterConfiguration()
-    updateRimeIceTraditionalizationPatch(in: FileManager.sandboxUserDataDirectory, configuration: configuration)
+    updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
 
     Rime.shared.shutdown()
     let traits = Rime.createTraits(
-      sharedSupportDir: FileManager.sandboxSharedSupportDirectory.path,
-      userDataDir: FileManager.sandboxUserDataDirectory.path
+      sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,
+      userDataDir: FileManager.appGroupUserDataDirectoryURL.path
     )
     Rime.shared.start(traits, maintenance: true, fullCheck: true)
 
@@ -491,9 +461,6 @@ public extension RimeContext {
     // 键盘重新同步文件标志
     UserDefaults.hamster.overrideRimeDirectory = true
 
-    // 部署后将方案copy至AppGroup下供keyboard使用
-    try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)
-    try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)
   }
 
   private func ensureSchemaListContains(
@@ -503,8 +470,8 @@ public extension RimeContext {
   ) {
     guard !schemas.isEmpty else { return }
     guard !schemas.contains(where: { $0.schemaId == schemaId }) else { return }
-    if !FileManager.default.fileExists(atPath: FileManager.sandboxUserDataDefaultCustomYaml.path) {
-      _ = FileManager.default.createFile(atPath: FileManager.sandboxUserDataDefaultCustomYaml.path, contents: nil)
+    if !FileManager.default.fileExists(atPath: FileManager.appGroupUserDataDefaultCustomYaml.path) {
+      _ = FileManager.default.createFile(atPath: FileManager.appGroupUserDataDefaultCustomYaml.path, contents: nil)
     }
     let availableSchemas = Rime.shared.getAvailableRimeSchemas().sorted()
     Logger.statistics.info("rime available schemas: \(availableSchemas)")

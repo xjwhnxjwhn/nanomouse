@@ -119,18 +119,28 @@ public class HamsterConfigurationRepositories {
     var configuration = HamsterConfiguration()
 
     // 读取 SharedSupport/hamster.yaml 配置文件，如果存在
-    if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnSandboxSharedSupport.path) {
+    if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnAppGroupSharedSupport.path) {
+      configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
+    } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnSandboxSharedSupport.path) {
       configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
     }
 
     // 读取 Rime/hamster.yaml 配置文件，如果存在，则 merge 不同属性，已 Rime/hamster.yaml 内容为主
-    if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnUserData.path) {
+    if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnAppGroupUserData.path) {
+      let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupUserData)
+      configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
+    } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnUserData.path) {
       let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnUserData)
       configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
     }
 
     // 读取 Rime/hamster.custom.yaml 配置文件，如果存在，并对相异的配置做 merge 合并，已 Rime/hamster.custom.yaml 文件为主
-    if FileManager.default.fileExists(atPath: FileManager.hamsterPatchConfigFileOnUserData.path) {
+    if FileManager.default.fileExists(atPath: FileManager.hamsterPatchConfigFileOnAppGroupUserData.path) {
+      let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnAppGroupUserData)
+      if let patch = patchConfiguration.patch {
+        configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })
+      }
+    } else if FileManager.default.fileExists(atPath: FileManager.hamsterPatchConfigFileOnUserData.path) {
       let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnUserData)
       if let patch = patchConfiguration.patch {
         configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })

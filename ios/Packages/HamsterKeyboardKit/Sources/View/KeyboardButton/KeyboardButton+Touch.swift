@@ -474,11 +474,19 @@ private extension KeyboardButton {
 
   func languageMenuOptions() -> [LanguageMenuOverlay.LanguageOption] {
     var options: [LanguageMenuOverlay.LanguageOption] = [.chinese]
-    if rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema }) {
+    if rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema && isSchemaAvailable($0.schemaId) }) {
       options.append(.japanese)
     }
     options.append(.english)
     return options
+  }
+
+  private func isSchemaAvailable(_ schemaId: String) -> Bool {
+    let fileName = "\(schemaId).schema.yaml"
+    let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
+    let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)
+    let fm = FileManager.default
+    return fm.fileExists(atPath: userDataPath.path) || fm.fileExists(atPath: sharedSupportPath.path)
   }
 
   func clearLanguageSwitchSuppression() {

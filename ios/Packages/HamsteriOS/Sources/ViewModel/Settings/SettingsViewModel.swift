@@ -266,8 +266,8 @@ extension SettingsViewModel {
 
     // 首次启动始化输入方案目录
     do {
-      try FileManager.initSandboxUserDataDirectory(override: true, unzip: true)
-      try FileManager.initSandboxBackupDirectory(override: true)
+      try FileManager.initAppGroupUserDataDirectory(override: true, unzip: true)
+      try FileManager.createDirectory(override: true, dst: FileManager.appGroupBackupDirectory)
     } catch {
       Logger.statistics.error("rime init file directory error: \(error.localizedDescription)")
       throw error
@@ -285,14 +285,6 @@ extension SettingsViewModel {
       }
       if rimeContext.currentSchema == nil {
         rimeContext.currentSchema = rimeIce
-      }
-    }
-    if !rimeContext.selectSchemas.contains(where: { $0.isJapaneseSchema }) {
-      if let japaneseSchema = rimeContext.schemas.first(where: { $0.schemaId == "jaroomaji-easy" })
-        ?? rimeContext.schemas.first(where: { $0.schemaId == "japanese" })
-        ?? rimeContext.schemas.first(where: { $0.isJapaneseSchema })
-      {
-        rimeContext.appendSelectSchema(japaneseSchema)
       }
     }
 

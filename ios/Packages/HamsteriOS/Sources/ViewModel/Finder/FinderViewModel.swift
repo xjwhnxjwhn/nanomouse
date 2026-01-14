@@ -63,6 +63,12 @@ public class FinderViewModel: ObservableObject {
 
   lazy var settingItems: [SettingItemModel] = [
     .init(
+      text: "存储占用统计",
+      buttonAction: { [unowned self] in
+        try await generateStorageReport()
+      }
+    ),
+    .init(
       text: "文本编辑器: 自动换行",
       type: .toggle,
       toggleValue: { [unowned self] in textEditorLineWrappingEnabled },
@@ -143,5 +149,102 @@ public class FinderViewModel: ObservableObject {
       throw error
     }
     ProgressHUD.success("完成", delay: 1.5)
+  }
+}
+
+extension FinderViewModel {
+  private struct StorageSection {
+    let title: String
+    let entries: [(String, Int64)]
+  }
+
+  private func storageReportText() -> String {
+    let appGroupRoot = FileManager.shareURL
+    let sandboxRoot = FileManager.sandboxDirectory
+
+    let appGroupSharedSupport = FileManager.appGroupSharedSupportDirectoryURL
+    let appGroupUserData = FileManager.appGroupUserDataDirectoryURL
+    let appGroupBuild = appGroupUserData.appendingPathComponent("build")
+    let appGroupBackups = FileManager.appGroupBackupDirectory
+    let userdbRegex = ["^.*[.]userdb.*$", "^.*[.]txt$"]
+    let appGroupUserDB = FileManager.directorySize(appGroupUserData, matching: userdbRegex)
+
+    let sandboxSharedSupport = FileManager.sandboxSharedSupportDirectory
+    let sandboxUserData = FileManager.sandboxUserDataDirectory
+    let sandboxBackups = FileManager.sandboxBackupDirectory
+    let sandboxUserDB = FileManager.directorySize(sandboxUserData, matching: userdbRegex)
+    let sandboxLogs = FileManager.sandboxRimeLogDirectory
+
+    let sections: [StorageSection] = [
+      .init(title: "AppGroup", entries: [
+        ("SharedSupport", FileManager.directorySize(appGroupSharedSupport)),
+        ("Rime", FileManager.directorySize(appGroupUserData)),
+        ("Rime/build", FileManager.directorySize(appGroupBuild)),
+        ("Rime/userdb(+.txt)", appGroupUserDB),
+        ("backups", FileManager.directorySize(appGroupBackups)),
+      ]),
+      .init(title: "Sandbox (Documents)", entries: [
+        ("SharedSupport", FileManager.directorySize(sandboxSharedSupport)),
+        ("Rime", FileManager.directorySize(sandboxUserData)),
+        ("Rime/userdb(+.txt)", sandboxUserDB),
+        ("backups", FileManager.directorySize(sandboxBackups)),
+        ("Rime logs", FileManager.directorySize(sandboxLogs)),
+      ]),
+    ]
+
+    var lines: [String] = []
+    lines.append("NanoMouse 存储占用报告")
+    lines.append("生成时间: \(Date())")
+    lines.append("")
+    lines.append("根路径")
+    lines.append("  AppGroup: \(appGroupRoot.path)")
+    lines.append("  Sandbox: \(sandboxRoot.path)")
+    lines.append("")
+
+    for section in sections {
+      lines.append(section.title)
+      for (name, size) in section.entries {
+        lines.append("  \(name): \(FileManager.formatByteCount(size))")
+      }
+      lines.append("")
+    }
+
+    let topAppGroup = FileManager.largestFiles(in: appGroupRoot, limit: 15)
+    if !topAppGroup.isEmpty {
+      lines.append("AppGroup 最大文件")
+      for (index, item) in topAppGroup.enumerated() {
+        let rel = item.0.path.replacingOccurrences(of: appGroupRoot.path, with: "")
+        lines.append("  \(index + 1). \(FileManager.formatByteCount(item.1))  \(rel)")
+      }
+      lines.append("")
+    }
+
+    let topSandbox = FileManager.largestFiles(in: sandboxRoot, limit: 15)
+    if !topSandbox.isEmpty {
+      lines.append("Sandbox 最大文件")
+      for (index, item) in topSandbox.enumerated() {
+        let rel = item.0.path.replacingOccurrences(of: sandboxRoot.path, with: "")
+        lines.append("  \(index + 1). \(FileManager.formatByteCount(item.1))  \(rel)")
+      }
+      lines.append("")
+    }
+
+    return lines.joined(separator: "\n")
+  }
+
+  private func writeStorageReport() throws -> URL {
+    let reportText = storageReportText()
+    let reportURL = FileManager.default.temporaryDirectory.appendingPathComponent("nanomouse_storage_report.txt")
+    try reportText.write(to: reportURL, atomically: true, encoding: .utf8)
+    return reportURL
+  }
+
+  func generateStorageReport() async throws {
+    ProgressHUD.animate("统计中……", interaction: false)
+    let reportURL = try writeStorageReport()
+    await MainActor.run {
+      ProgressHUD.dismiss()
+      presentTextEditorSubject.send(reportURL)
+    }
   }
 }

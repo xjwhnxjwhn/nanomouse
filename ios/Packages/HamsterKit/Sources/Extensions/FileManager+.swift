@@ -249,8 +249,7 @@ public extension FileManager {
 
 public extension FileManager {
   // AppGroup共享目录
-  // 注意：AppGroup已变为Keyboard复制方案使用的中转站
-  // App内部使用位置在 Document 和 iCloud 下
+  // 注意：AppGroup 为键盘与主应用共享的 RIME 目录
   static var shareURL: URL {
     guard let containerURL = FileManager.default.containerURL(
       forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)
@@ -284,7 +283,7 @@ public extension FileManager {
     )
   }
 
-  // 沙盒 Document 目录下备份目录
+  // AppGroup 共享下备份目录
   static var appGroupBackupDirectory: URL {
     shareURL.appendingPathComponent("backups", isDirectory: true)
   }
@@ -314,14 +313,29 @@ public extension FileManager {
     sandboxSharedSupportDirectory.appendingPathComponent("hamster.yaml")
   }
 
+  /// AppGroup/SharedSupport/hamster.yaml 文件
+  static var hamsterConfigFileOnAppGroupSharedSupport: URL {
+    appGroupSharedSupportDirectoryURL.appendingPathComponent("hamster.yaml")
+  }
+
   /// Sandbox/Rime/hamster.yaml 文件
   static var hamsterConfigFileOnUserData: URL {
     sandboxUserDataDirectory.appendingPathComponent("hamster.yaml")
   }
 
+  /// AppGroup/Rime/hamster.yaml 文件
+  static var hamsterConfigFileOnAppGroupUserData: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent("hamster.yaml")
+  }
+
   /// Sandbox/Rime/hamster.custom.yaml 文件
   static var hamsterPatchConfigFileOnUserData: URL {
     sandboxUserDataDirectory.appendingPathComponent("hamster.custom.yaml")
+  }
+
+  /// AppGroup/Rime/hamster.custom.yaml 文件
+  static var hamsterPatchConfigFileOnAppGroupUserData: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent("hamster.custom.yaml")
   }
 
   /// Sandbox/Rime/hamster.app.yaml 文件
@@ -540,11 +554,31 @@ public extension FileManager {
     }
   }
 
-  // 初始化 AppGroup 共享目录下 UserData 目录资源
-  static func initAppGroupUserDataDirectory(override: Bool = false) throws {
+  /// 删除目录下符合正则规则的文件/文件夹
+  static func removeMatchedFiles(in dst: URL, regex: [String]) throws {
+    guard !regex.isEmpty else { return }
+    let fm = FileManager.default
+    guard let enumerator = fm.enumerator(at: dst, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+    for case let fileURL as URL in enumerator {
+      let path = fileURL.path
+      let match = !(regex.first(where: { path.isMatch(regex: $0) }) ?? "").isEmpty
+      if match {
+        try? fm.removeItem(at: fileURL)
+      }
+    }
+  }
+
+  // 初始化 AppGroup 共享目录下 UserData 目录资源（可解压内置方案）
+  static func initAppGroupUserDataDirectory(override: Bool = false, unzip: Bool = false) throws {
     try FileManager.createDirectory(
       override: override, dst: appGroupUserDataDirectoryURL
     )
+
+    if unzip {
+      let src = appSharedSupportDirectory.appendingPathComponent(HamsterConstants.userDataZipFile)
+      // 覆盖解压，不移除现有目录，可保留用户词库
+      try FileManager.default.unzipOverwrite(src, dst: appGroupUserDataDirectoryURL)
+    }
   }
 
   // 初始化沙盒目录下 UserData 目录资源
@@ -672,5 +706,111 @@ public extension FileManager {
     // let regex = ["^.*[.]userdb.*$"]
     try copyAppGroupSharedSupportDirectoryToSandbox(regex, filterMatchBreak: false)
     try copyAppGroupUserDirectoryToSandbox(regex, filterMatchBreak: false)
+  }
+}
+
+// MARK: storage size helpers
+
+public extension FileManager {
+  /// 获取文件占用大小（已分配大小，若不可用则使用文件大小）
+  static func allocatedFileSize(_ url: URL) -> Int64 {
+    let keys: Set<URLResourceKey> = [
+      .isRegularFileKey,
+      .totalFileAllocatedSizeKey,
+      .fileAllocatedSizeKey,
+      .fileSizeKey,
+    ]
+    guard let values = try? url.resourceValues(forKeys: keys),
+          values.isRegularFile == true
+    else { return 0 }
+    if let size = values.totalFileAllocatedSize {
+      return Int64(size)
+    }
+    if let size = values.fileAllocatedSize {
+      return Int64(size)
+    }
+    if let size = values.fileSize {
+      return Int64(size)
+    }
+    return 0
+  }
+
+  /// 获取目录占用大小
+  static func directorySize(_ url: URL) -> Int64 {
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: url.path) else { return 0 }
+    if let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+       values.isDirectory != true
+    {
+      return allocatedFileSize(url)
+    }
+
+    var total: Int64 = 0
+    if let enumerator = fm.enumerator(
+      at: url,
+      includingPropertiesForKeys: [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey],
+      options: [.skipsHiddenFiles],
+      errorHandler: { _, _ in true }
+    ) {
+      for case let fileURL as URL in enumerator {
+        total += allocatedFileSize(fileURL)
+      }
+    }
+    return total
+  }
+
+  /// 获取目录中匹配正则的文件占用大小
+  static func directorySize(_ url: URL, matching regex: [String]) -> Int64 {
+    guard !regex.isEmpty else { return 0 }
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: url.path) else { return 0 }
+    var total: Int64 = 0
+    guard let enumerator = fm.enumerator(
+      at: url,
+      includingPropertiesForKeys: [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey],
+      options: [.skipsHiddenFiles],
+      errorHandler: { _, _ in true }
+    ) else { return 0 }
+
+    for case let fileURL as URL in enumerator {
+      let path = fileURL.path
+      let match = !(regex.first(where: { path.isMatch(regex: $0) }) ?? "").isEmpty
+      guard match else { continue }
+      total += allocatedFileSize(fileURL)
+    }
+    return total
+  }
+
+  /// 获取目录下最大文件列表
+  static func largestFiles(in root: URL, limit: Int = 20) -> [(URL, Int64)] {
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: root.path) else { return [] }
+    var results: [(URL, Int64)] = []
+
+    guard let enumerator = fm.enumerator(
+      at: root,
+      includingPropertiesForKeys: [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .fileSizeKey],
+      options: [.skipsHiddenFiles],
+      errorHandler: { _, _ in true }
+    ) else { return [] }
+
+    for case let fileURL as URL in enumerator {
+      let size = allocatedFileSize(fileURL)
+      guard size > 0 else { continue }
+
+      if results.count < limit {
+        results.append((fileURL, size))
+        results.sort { $0.1 > $1.1 }
+      } else if let last = results.last, size > last.1 {
+        results.removeLast()
+        results.append((fileURL, size))
+        results.sort { $0.1 > $1.1 }
+      }
+    }
+    return results
+  }
+
+  static func formatByteCount(_ bytes: Int64) -> String {
+    ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
   }
 }

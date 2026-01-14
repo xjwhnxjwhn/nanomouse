@@ -11,6 +11,15 @@ else
   WORK="${CI_PRIMARY_REPOSITORY_PATH}"
 fi
 
+# repo root (for zips output)
+if [[ -d "${CI_PRIMARY_REPOSITORY_PATH}/ios/Resources" ]]; then
+  REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH}"
+else
+  REPO_ROOT="$(cd "${CI_PRIMARY_REPOSITORY_PATH}/.." && pwd)"
+fi
+ZIPS_DIR="${REPO_ROOT}/zips"
+mkdir -p "${ZIPS_DIR}"
+
 # 如果方案存在就不再执行
 # if [[  -f Resources/SharedSupport/SharedSupport.zip ]]
 # then
@@ -289,7 +298,7 @@ rm -rf $OUTPUT/.$japanese_scheme_name && \
     cd $OUTPUT/.$japanese_scheme_name
     zip -r $japanese_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$japanese_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$japanese_scheme_name/*.zip $ZIPS_DIR/
 
 # === 内置方案：日语罗马字 (rime-jaroomaji) ===
 jaroomaji_scheme_name=rime-jaroomaji
@@ -303,7 +312,7 @@ rm -rf $OUTPUT/.$jaroomaji_scheme_name && \
     fi
     zip -r $jaroomaji_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$jaroomaji_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$jaroomaji_scheme_name/*.zip $ZIPS_DIR/
 
 # === 内置方案：日语罗马字（英文码显示）(rime-jaroomaji-easy) ===
 jaroomaji_easy_scheme_name=rime-jaroomaji-easy
@@ -448,7 +457,7 @@ PY
     cd $OUTPUT/.$jaroomaji_easy_scheme_name
     zip -r $jaroomaji_easy_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$jaroomaji_easy_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$jaroomaji_easy_scheme_name/*.zip $ZIPS_DIR/
 
 # === 依赖方案：terra_pinyin.extended (rime-terra-pinyin) ===
 terra_pinyin_scheme_name=rime-terra-pinyin
@@ -484,7 +493,7 @@ PY
 
     zip -r $terra_pinyin_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$terra_pinyin_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$terra_pinyin_scheme_name/*.zip $ZIPS_DIR/
 
 # === 依赖方案：stroke (rime-stroke) ===
 stroke_scheme_name=rime-stroke
@@ -494,7 +503,7 @@ rm -rf $OUTPUT/.$stroke_scheme_name && \
     cd $OUTPUT/.$stroke_scheme_name
     zip -r $stroke_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$stroke_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$stroke_scheme_name/*.zip $ZIPS_DIR/
 
 # === 依赖方案：hangyl (rime-hangyl) ===
 hangyl_scheme_name=rime-hangyl
@@ -504,7 +513,7 @@ rm -rf $OUTPUT/.$hangyl_scheme_name && \
     cd $OUTPUT/.$hangyl_scheme_name
     zip -r $hangyl_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$hangyl_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$hangyl_scheme_name/*.zip $ZIPS_DIR/
 
 # === 依赖方案：hannomPS（来自 Rime-Hannom，生成 hannomPS.dict.yaml） ===
 hannom_scheme_name=rime-hannomps
@@ -525,4 +534,4 @@ PY
     fi
     zip -r $hannom_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$hannom_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$hannom_scheme_name/*.zip $ZIPS_DIR/
