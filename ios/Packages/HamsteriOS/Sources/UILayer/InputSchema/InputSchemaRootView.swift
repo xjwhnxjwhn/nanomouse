@@ -204,9 +204,7 @@ extension InputSchemaRootView: UITableViewDelegate {
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    let groupCount = InputSchemaViewModel.SchemaGroup.allCases.count
-    guard indexPath.section < groupCount,
-          let group = InputSchemaViewModel.SchemaGroup(rawValue: indexPath.section),
+    guard let group = schemaGroup(for: indexPath.section),
           group == .japanese else { return nil }
     let schemas = inputSchemaViewModel.schemas(in: group)
     let schema = schemas[indexPath.row]
