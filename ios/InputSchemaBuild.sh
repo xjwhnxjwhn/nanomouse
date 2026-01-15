@@ -152,8 +152,25 @@ patch:
     - abbrev/^(vh).+/$1/
     - abbrev/^(ah).+/$1/
 
-    # 纠错：J/H 邻键误触 (sjan → shan)
+    # 纠错：J/H 邻键误触 (sj* → sh*) - 18 条
+    - derive/^shi$/sji/
+    - derive/^sha$/sja/
+    - derive/^shu$/sju/
+    - derive/^she$/sje/
+    - derive/^shai$/sjai/
+    - derive/^shei$/sjei/
+    - derive/^shao$/sjao/
+    - derive/^shou$/sjou/
     - derive/^shan$/sjan/
+    - derive/^shen$/sjen/
+    - derive/^shang$/sjang/
+    - derive/^sheng$/sjeng/
+    - derive/^shua$/sjua/
+    - derive/^shuan$/sjuan/
+    - derive/^shuang$/sjuang/
+    - derive/^shui$/sjui/
+    - derive/^shuo$/sjuo/
+    - derive/^shuai$/sjuai/
 
     # 纠错：I/O 邻键误触 (yai → yao)
     - derive/^yao$/yai/
@@ -161,11 +178,91 @@ patch:
     # 纠错：Y/T 邻键误触 (yai → tai)
     - derive/^tai$/yai/
 
-    # 纠错：W/Q 邻键误触 (wian → qian)
+    # 纠错：W/Q 邻键误触 (wi* → qi*) - 10 条
+    - derive/^qi$/wi/
+    - derive/^qia$/wia/
     - derive/^qian$/wian/
+    - derive/^qiang$/wiang/
+    - derive/^qiao$/wiao/
+    - derive/^qie$/wie/
+    - derive/^qin$/win/
+    - derive/^qing$/wing/
+    - derive/^qiong$/wiong/
+    - derive/^qiu$/wiu/
 
     # 纠错：R/E 邻键误触 (chr → che)
     - derive/^che$/chr/
+
+    # 纠错：F/G 邻键误触 (fui → gui, fuan → guan)
+    - derive/^gui$/fui/
+    - derive/^guan$/fuan/
+
+    # 纠错：J/H 邻键误触 (zj* → zh*) - 18 条
+    - derive/^zhi$/zji/
+    - derive/^zha$/zja/
+    - derive/^zhe$/zje/
+    - derive/^zhu$/zju/
+    - derive/^zhai$/zjai/
+    - derive/^zhei$/zjei/
+    - derive/^zhao$/zjao/
+    - derive/^zhou$/zjou/
+    - derive/^zhan$/zjan/
+    - derive/^zhen$/zjen/
+    - derive/^zhang$/zjang/
+    - derive/^zheng$/zjeng/
+    - derive/^zhua$/zjua/
+    - derive/^zhuan$/zjuan/
+    - derive/^zhuang$/zjuang/
+    - derive/^zhui$/zjui/
+    - derive/^zhuo$/zjuo/
+    - derive/^zhuai$/zjuai/
+
+    # 纠错：O/I 邻键误触 (sho → shi)
+    - derive/^shi$/sho/
+
+    # 纠错：R/T 邻键误触 (rian → tian, toan → tian)
+    - derive/^tian$/rian/
+    - derive/^tian$/toan/
+
+    # 纠错：O/I 邻键误触 (xo* → xi*) - 10 条
+    - derive/^xi$/xo/
+    - derive/^xia$/xoa/
+    - derive/^xian$/xoan/
+    - derive/^xiang$/xoang/
+    - derive/^xiao$/xoao/
+    - derive/^xie$/xoe/
+    - derive/^xin$/xon/
+    - derive/^xing$/xong/
+    - derive/^xiong$/xoong/
+    - derive/^xiu$/xou/
+
+    # 纠错：S/A 邻键误触 (hs* → h*) - 19 条
+    - derive/^ha$/hsa/
+    - derive/^hai$/hsai/
+    - derive/^han$/hsan/
+    - derive/^hang$/hsang/
+    - derive/^hao$/hsao/
+    - derive/^he$/hse/
+    - derive/^hei$/hsei/
+    - derive/^hen$/hsen/
+    - derive/^heng$/hseng/
+    - derive/^hong$/hsong/
+    - derive/^hou$/hsou/
+    - derive/^hu$/hsu/
+    - derive/^hua$/hsua/
+    - derive/^huai$/hsuai/
+    - derive/^huan$/hsuan/
+    - derive/^huang$/hsuang/
+    - derive/^hui$/hsui/
+    - derive/^hun$/hsun/
+    - derive/^huo$/hsuo/
+
+    # 纠错：韵尾通用规则
+    - derive/ng$/mg/   # M/N 邻键 (mg → ng)
+    - derive/ng$/nh/   # H/G 邻键 (nh → ng)
+    - derive/an$/am/   # M/N 邻键 (am → an)
+    - derive/in$/im/   # M/N 邻键 (im → in)
+    - derive/ao$/ap/   # P/O 邻键 (ap → ao)
 
     # 纠错：X/Z 邻键误触 (xh* → zh*) - 18 条
     - derive/^zhi$/xhi/
