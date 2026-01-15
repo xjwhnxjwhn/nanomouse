@@ -208,7 +208,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var showUppercasedCharacterOnChineseKeyboard: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.showUppercasedCharacterOnChineseKeyboard ?? true
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.showUppercasedCharacterOnChineseKeyboard ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.showUppercasedCharacterOnChineseKeyboard = newValue

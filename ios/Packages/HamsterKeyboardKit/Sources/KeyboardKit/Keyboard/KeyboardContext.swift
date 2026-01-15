@@ -532,7 +532,7 @@ public class KeyboardContext: ObservableObject {
   }
 
   var showUppercasedCharacterOnChineseKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.showUppercasedCharacterOnChineseKeyboard ?? true
+    hamsterConfiguration?.keyboard?.showUppercasedCharacterOnChineseKeyboard ?? false
   }
 
   var enableNineGridOfNumericKeyboard: Bool {

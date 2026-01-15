@@ -200,7 +200,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     labelTextForSpaceButton: String? = "SPACE",
     showCurrentInputSchemaNameForSpaceButton: Bool? = true,
     showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = false,
-    showUppercasedCharacterOnChineseKeyboard: Bool? = true,
+    showUppercasedCharacterOnChineseKeyboard: Bool? = false,
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = false) {
     self.useKeyboardType = useKeyboardType

@@ -150,7 +150,7 @@ keyboard:
   useColorSchemaForDark: ""
 
   # 中文26键显示大写字符
-  showUppercasedCharacterOnChineseKeyboard: true
+  showUppercasedCharacterOnChineseKeyboard: false
 
   # 按键下方边框
   enableButtonUnderBorder: true
