@@ -543,8 +543,12 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   open func buttonFontWeight(for action: KeyboardAction) -> UIFont.Weight? {
     switch action {
     case .backspace: return .regular
-    case .character(let char): return char.isLowercased ? .light : nil
-    case .symbol(let symbol): return symbol.char.isLowercased ? .light : nil
+    case .character(let char):
+      if isAlphabetic(char) { return .medium }
+      return char.isLowercased ? .light : nil
+    case .symbol(let symbol):
+      if isAlphabetic(symbol.char) { return .medium }
+      return symbol.char.isLowercased ? .light : nil
     // default: return buttonImage(for: action) != nil ? .light : nil
     default: return nil
     }
@@ -554,11 +558,20 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     let action = key.action
     switch action {
     case .backspace: return .regular
-    case .character(let char): return char.isLowercased ? .light : nil
-    case .symbol(let symbol): return symbol.char.isLowercased ? .light : nil
+    case .character(let char):
+      if isAlphabetic(char) { return .medium }
+      return char.isLowercased ? .light : nil
+    case .symbol(let symbol):
+      if isAlphabetic(symbol.char) { return .medium }
+      return symbol.char.isLowercased ? .light : nil
     // default: return buttonImage(for: action) != nil ? .light : nil
     default: return nil
     }
+  }
+
+  /// 仅加粗字母，不影响上下滑动符号的字体
+  private func isAlphabetic(_ text: String) -> Bool {
+    text.rangeOfCharacter(from: .letters) != nil
   }
 
   /// The foreground color to use for a certain action.
