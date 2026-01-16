@@ -103,21 +103,7 @@ public class RimeViewModel {
         ),
       ]
     ),
-    .init(
-      items: [
-        .init(
-          text: "重新部署",
-          type: .button,
-          buttonAction: { [unowned self] in
-            Task {
-              await rimeDeploy()
-              reloadTableSubject.send(true)
-            }
-          },
-          favoriteButton: .rimeDeploy
-        ),
-      ]
-    ),
+    .init(items: makeDeployItems()),
     .init(
       footer: """
       注意：
@@ -164,6 +150,37 @@ public class RimeViewModel {
 
   init(rimeContext: RimeContext) {
     self.rimeContext = rimeContext
+  }
+
+  private func makeDeployItems() -> [SettingItemModel] {
+    var items: [SettingItemModel] = [
+      .init(
+        text: "重新部署",
+        type: .button,
+        buttonAction: { [unowned self] in
+          Task {
+            await rimeDeploy()
+            reloadTableSubject.send(true)
+          }
+        },
+        favoriteButton: .rimeDeploy
+      ),
+    ]
+#if DEBUG
+    items.append(
+      .init(
+        text: "Debug: 覆盖内置方案并重新部署",
+        type: .button,
+        buttonAction: { [unowned self] in
+          Task {
+            await rimeRedeployFromBundle()
+            reloadTableSubject.send(true)
+          }
+        }
+      )
+    )
+#endif
+    return items
   }
 }
 
@@ -251,6 +268,49 @@ public extension RimeViewModel {
     }
     closeRimeLogger(fileHandle)
   }
+
+#if DEBUG
+  /// Debug: 覆盖内置方案并重新部署
+  func rimeRedeployFromBundle() async {
+    if isDeploying {
+      Logger.statistics.debug("RIME redeploy ignored: already in progress")
+      return
+    }
+    isDeploying = true
+    defer { isDeploying = false }
+
+    ProgressHUD.animate("覆盖内置方案并重新部署中…", AnimationType.circleRotateChase, interaction: false)
+    var deployError: Error?
+
+    do {
+      try FileManager.initAppGroupSharedSupportDirectory(override: true)
+      let buildDir = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("build")
+      if FileManager.default.fileExists(atPath: buildDir.path) {
+        try? FileManager.default.removeItem(at: buildDir)
+      }
+      try FileManager.initAppGroupUserDataDirectory(override: false, unzip: true)
+    } catch {
+      Logger.statistics.error("debug redeploy initAppGroupUserDataDirectory error: \(error.localizedDescription)")
+      deployError = error
+    }
+
+    var hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
+    hamsterConfiguration.rime?.overrideDictFiles = false
+    do {
+      try rimeContext.deployment(configuration: &hamsterConfiguration)
+      HamsterAppDependencyContainer.shared.configuration = hamsterConfiguration
+    } catch {
+      Logger.statistics.error("debug redeploy error: \(error)")
+      deployError = error
+    }
+
+    if let deployError {
+      ProgressHUD.failed(deployError, interaction: false, delay: 5)
+    } else {
+      ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
+    }
+  }
+#endif
 
   /// RIME 同步
   func rimeSync() async {

@@ -143,6 +143,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   }
 
   private func autoRedeployIfNeededOnVersionChange() {
+    #if DEBUG
+    return
+    #endif
     // 首次安装由 loadAppData 负责，避免并发部署
     if UserDefaults.standard.isFirstRunning {
       return
@@ -207,4 +210,5 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       }
     }
   }
+
 }
