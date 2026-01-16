@@ -15,6 +15,7 @@ import RimeKit
 public class RimeContext {
   public static let rimeSchemaDidChangeNotification = Notification.Name("rimeSchemaDidChangeNotification")
   public static let rimeAsciiModeDidChangeNotification = Notification.Name("rimeAsciiModeDidChangeNotification")
+  private static let deploymentLock = NSLock()
 
   /// 最大候选词数量
   public private(set) lazy var maximumNumberOfCandidateWords: Int = 100
@@ -241,6 +242,10 @@ public extension RimeContext {
   /// RIME 部署
   /// 注意：仅可用于主 App 调用
   func deployment(configuration: inout HamsterConfiguration) throws {
+    // 防止并发部署导致 Rime 崩溃
+    Self.deploymentLock.lock()
+    defer { Self.deploymentLock.unlock() }
+
     let overrideDictFilesValue = configuration.rime?.overrideDictFiles
     Logger.statistics.debug("DBG_DEPLOY deployment start: overrideDictFiles=\(String(describing: overrideDictFilesValue))")
     // 如果开启 iCloud，则先将 iCloud 下文件增量复制到 AppGroup
@@ -270,6 +275,7 @@ public extension RimeContext {
     // 检测文件目录是否存在不存在，新建
     try FileManager.initAppGroupSharedSupportDirectory(override: false)
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+    FileManager.debugRimeUserDataLayout(in: FileManager.appGroupUserDataDirectoryURL, note: "before rime start")
 
     let jaroomajiEasySchemaPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.schema.yaml")
     let jaroomajiEasyDictPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.dict.yaml")
@@ -372,6 +378,10 @@ public extension RimeContext {
   /// RIME 同步
   /// 注意：仅可用于主 App 调用
   func syncRime(configuration: HamsterConfiguration) throws {
+    // 防止并发部署/同步导致 Rime 崩溃
+    Self.deploymentLock.lock()
+    defer { Self.deploymentLock.unlock() }
+
     // 检测文件目录是否存在不存在，新建
     try FileManager.initAppGroupSharedSupportDirectory(override: false)
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
@@ -405,6 +415,10 @@ public extension RimeContext {
   /// RIME 重置
   /// 注意：仅可用于主 App 调用
   func restRime() throws {
+    // 防止并发部署/重置导致 Rime 崩溃
+    Self.deploymentLock.lock()
+    defer { Self.deploymentLock.unlock() }
+
     // 重置输入方案目录
     do {
       try FileManager.initAppGroupSharedSupportDirectory(override: true)

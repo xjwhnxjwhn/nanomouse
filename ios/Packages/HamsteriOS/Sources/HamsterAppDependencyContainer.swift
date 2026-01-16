@@ -145,6 +145,8 @@ open class HamsterAppDependencyContainer {
       if !FileManager.default.fileExists(atPath: FileManager.appGroupUserDataDirectoryURL.path) {
         try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
       }
+      // 修复旧数据不完整导致的词库缺失
+      try FileManager.ensureRimeIceCoreDictsExist(in: FileManager.appGroupUserDataDirectoryURL)
     } catch {
       Logger.statistics.error("init AppGroup directory error: \(error.localizedDescription)")
     }

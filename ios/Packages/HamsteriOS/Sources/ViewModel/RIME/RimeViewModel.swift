@@ -25,6 +25,7 @@ public class RimeViewModel {
   public var openRimeLoggerViewPublished: AnyPublisher<Bool, Never> {
     openRimeLoggerViewSubject.eraseToAnyPublisher()
   }
+  private var isDeploying = false
 
   private lazy var stdoutHandle = FileHandle.standardOutput
   private lazy var readStderrPipe: Pipe = {
@@ -228,6 +229,13 @@ public extension RimeViewModel {
 
   /// RIME 部署
   func rimeDeploy() async {
+    if isDeploying {
+      Logger.statistics.debug("RIME deploy ignored: already in progress")
+      return
+    }
+    isDeploying = true
+    defer { isDeploying = false }
+
     let (fileHandle, filePath) = rimeLogger()
     ProgressHUD.animate("RIME部署中, 请稍候……", AnimationType.circleRotateChase, interaction: false)
     var hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration

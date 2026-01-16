@@ -17,6 +17,7 @@ public class SettingsViewModel: ObservableObject {
   private unowned let mainViewModel: MainViewModel
   private let rimeViewModel: RimeViewModel
   private let backupViewModel: BackupViewModel
+  private var isLoadingAppData = false
     private static let fullAccessGuideFooter = "未开启也可基础输入；开启“完全访问权限”后，可用完整词库写入、配置同步与键盘震动等功能。\n联网仅用于你的 iCloud 同步，不会上传到其他服务器。\n路径：点击“打开设置” -> 键盘 -> 开启“允许完全访问”"
 
   init(mainViewModel: MainViewModel, rimeViewModel: RimeViewModel, backupViewModel: BackupViewModel) {
@@ -228,7 +229,14 @@ extension SettingsViewModel {
     }
 
   /// 启动加载数据
-  func loadAppData() async throws {
+  public func loadAppData() async throws {
+    if isLoadingAppData {
+      return
+    }
+    // 防止多处同时触发首次编译
+    isLoadingAppData = true
+    defer { isLoadingAppData = false }
+
     // PATCH: 仓1.0版本处理
     if let v1FirstRunning = UserDefaults.hamster._firstRunningForV1, v1FirstRunning == false {
       ProgressHUD.animate("迁移 1.0 配置中……", interaction: false)
@@ -268,6 +276,9 @@ extension SettingsViewModel {
     do {
       try FileManager.initAppGroupUserDataDirectory(override: true, unzip: true)
       try FileManager.createDirectory(override: true, dst: FileManager.appGroupBackupDirectory)
+      // 修复旧数据不完整导致的词库缺失
+      try FileManager.ensureRimeIceCoreDictsExist(in: FileManager.appGroupUserDataDirectoryURL)
+      FileManager.debugRimeUserDataLayout(in: FileManager.appGroupUserDataDirectoryURL, note: "after init/unzip")
     } catch {
       Logger.statistics.error("rime init file directory error: \(error.localizedDescription)")
       throw error

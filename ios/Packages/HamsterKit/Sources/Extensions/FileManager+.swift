@@ -554,6 +554,87 @@ public extension FileManager {
     }
   }
 
+  private static let rimeIceCoreDicts = [
+    "cn_dicts/8105.dict.yaml",
+    "cn_dicts/base.dict.yaml",
+    "cn_dicts/ext.dict.yaml",
+    "cn_dicts/tencent.dict.yaml",
+    "cn_dicts/others.dict.yaml",
+  ]
+
+  /// 确保 Rime 核心词库存在，避免旧数据不完整导致缺失
+  static func ensureRimeIceCoreDictsExist(in dst: URL) throws {
+    let fm = FileManager.default
+    let required = rimeIceCoreDicts
+    let missing = required.filter { !fm.fileExists(atPath: dst.appendingPathComponent($0).path) }
+    guard !missing.isEmpty else { return }
+
+    Logger.statistics.error("RIME missing core dicts: \(missing)")
+
+    let src = appSharedSupportDirectory.appendingPathComponent(HamsterConstants.userDataZipFile)
+    guard let archive = Archive(url: src, accessMode: .read) else {
+      throw StringError("读取Zip文件异常")
+    }
+
+    let missingSet = Set(missing)
+    var repaired: [String] = []
+    var samplePaths: [String] = []
+
+    for entry in archive {
+      if samplePaths.count < 5 {
+        samplePaths.append(entry.path)
+      }
+      guard let requiredPath = missing.first(where: { entry.path.hasSuffix($0) }) else { continue }
+      guard missingSet.contains(requiredPath) else { continue }
+      let destinationEntryURL = dst.appendingPathComponent(requiredPath)
+      if fm.fileExists(atPath: destinationEntryURL.path) {
+        try fm.removeItem(at: destinationEntryURL)
+      }
+      if !fm.fileExists(atPath: destinationEntryURL.deletingLastPathComponent().path) {
+        try fm.createDirectory(at: destinationEntryURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+      }
+      _ = try archive.extract(entry, to: destinationEntryURL, skipCRC32: true)
+      repaired.append(requiredPath)
+    }
+
+    let stillMissing = required.filter { !fm.fileExists(atPath: dst.appendingPathComponent($0).path) }
+    if !stillMissing.isEmpty {
+      throw StringError("核心词库缺失：\(stillMissing.joined(separator: ", "))")
+    }
+
+    // 仅在显式开启时输出补写明细，便于验证
+    if UserDefaults.hamster.enableRimeDictRepairLog {
+      Logger.statistics.debug("RIME dict repair dst: \(dst.path)")
+      Logger.statistics.debug("RIME dict repair src: \(src.path)")
+      Logger.statistics.debug("RIME dict repair missing: \(missing.sorted())")
+      Logger.statistics.debug("RIME dict repair archive sample: \(samplePaths)")
+      Logger.statistics.debug("RIME repaired core dicts: \(repaired.sorted())")
+    }
+  }
+
+  /// 输出 Rime 用户目录结构，便于核对实际路径
+  static func debugRimeUserDataLayout(in dst: URL, note: String) {
+    guard UserDefaults.hamster.enableRimeDictRepairLog else { return }
+    let fm = FileManager.default
+    let cnDicts = dst.appendingPathComponent("cn_dicts")
+
+    Logger.statistics.debug("RIME layout \(note): root=\(dst.path)")
+    Logger.statistics.debug("RIME layout \(note): cn_dicts exists=\(fm.fileExists(atPath: cnDicts.path))")
+
+    if let items = try? fm.contentsOfDirectory(atPath: cnDicts.path) {
+      let sample = Array(items.sorted().prefix(20))
+      Logger.statistics.debug("RIME layout \(note): cn_dicts files=\(sample)")
+    } else {
+      Logger.statistics.debug("RIME layout \(note): cn_dicts list failed")
+    }
+
+    let required = rimeIceCoreDicts
+    for path in required {
+      let full = dst.appendingPathComponent(path).path
+      Logger.statistics.debug("RIME layout \(note): exists \(path)=\(fm.fileExists(atPath: full))")
+    }
+  }
+
   /// 删除目录下符合正则规则的文件/文件夹
   static func removeMatchedFiles(in dst: URL, regex: [String]) throws {
     guard !regex.isEmpty else { return }

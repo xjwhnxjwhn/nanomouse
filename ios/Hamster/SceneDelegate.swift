@@ -23,6 +23,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       window.makeKeyAndVisible()
     }
 
+    // 首次安装时主动触发首次编译，避免依赖进入特定页面
+    if UserDefaults.standard.isFirstRunning {
+      Task { @MainActor in
+        do {
+          try await HamsterAppDependencyContainer.shared.settingsViewModel.loadAppData()
+        } catch {
+          Logger.statistics.error("load app data error: \(error)")
+        }
+      }
+    }
+
     /// 外部导入 zip 文件
     if let url = connectionOptions.urlContexts.first?.url {
       if url.pathExtension.lowercased() == "zip" {
@@ -131,6 +142,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   }
 
   private func autoRedeployIfNeededOnVersionChange() {
+    // 首次安装由 loadAppData 负责，避免并发部署
+    if UserDefaults.standard.isFirstRunning {
+      return
+    }
     let currentVersion = AppInfo.appVersion
     let sharedSupportVersion = AppInfo.sharedSupportVersion
     let defaults = UserDefaults.standard

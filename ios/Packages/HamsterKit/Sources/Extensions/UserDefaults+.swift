@@ -240,6 +240,20 @@ public extension UserDefaults {
     }
   }
 
+  /// 是否开启词库补写日志
+  var enableRimeDictRepairLog: Bool {
+    get {
+      if object(forKey: Self.enableRimeDictRepairLogKey) != nil {
+        return bool(forKey: Self.enableRimeDictRepairLogKey)
+      }
+      return false
+    }
+    set {
+      setValue(newValue, forKey: Self.enableRimeDictRepairLogKey)
+      Logger.statistics.debug("save enableRimeDictRepairLog: \(newValue)")
+    }
+  }
+
   /// RIME: 输入方案列表
   var schemas: [RimeSchema] {
     get {
@@ -379,6 +393,7 @@ extension UserDefaults {
   private static let lastLaunchedAppVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastLaunchedAppVersion"
   private static let lastSharedSupportVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastSharedSupportVersion"
   private static let overrideRimeDirectoryOfKey = "com.XiangqingZHANG.nanomouse.UserDefaults.overrideRimeDirectory"
+  private static let enableRimeDictRepairLogKey = "com.XiangqingZHANG.nanomouse.UserDefaults.enableRimeDictRepairLog"
   private static let schemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.schemas"
   private static let selectSchemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.selectSchemas"
   private static let currentSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.currentSchema"
