@@ -77,6 +77,9 @@ patch:
     # 纠错：R/E 邻键误触 (chr → che)
     - derive/^che$/chr/
 
+    # 纠错：R/E 邻键误触 (fri → fei)
+    - derive/^fei$/fri/
+
     # 纠错：F/G 邻键误触 (fui → gui, fuan → guan)
     - derive/^gui$/fui/
     - derive/^guan$/fuan/
@@ -108,6 +111,9 @@ patch:
     - derive/^tian$/rian/
     - derive/^tian$/toan/
 
+    # 纠错：Q/W 邻键误触 (qei → wei)
+    - derive/^wei$/qei/
+
     # 纠错：O/I 邻键误触 (xo* → xi*) - 10 条
     - derive/^xi$/xo/
     - derive/^xia$/xoa/
@@ -120,31 +126,15 @@ patch:
     - derive/^xiong$/xoong/
     - derive/^xiu$/xou/
 
-    # 纠错：S/A 邻键误触 (hs* → h*) - 19 条
-    - derive/^ha$/hsa/
-    - derive/^hai$/hsai/
-    - derive/^han$/hsan/
-    - derive/^hang$/hsang/
-    - derive/^hao$/hsao/
-    - derive/^he$/hse/
-    - derive/^hei$/hsei/
-    - derive/^hen$/hsen/
-    - derive/^heng$/hseng/
-    - derive/^hong$/hsong/
-    - derive/^hou$/hsou/
-    - derive/^hu$/hsu/
-    - derive/^hua$/hsua/
-    - derive/^huai$/hsuai/
-    - derive/^huan$/hsuan/
-    - derive/^huang$/hsuang/
-    - derive/^hui$/hsui/
-    - derive/^hun$/hsun/
-    - derive/^huo$/hsuo/
+    # 纠错：S/A 邻键误触 (hs → ha)
+    - derive/^ha$/hs/
 
     # 纠错：韵尾通用规则
     - derive/ng$/mg/   # M/N 邻键 (mg → ng)
+    - derive/ng$/bg/   # B/N 邻键 (bg → ng)
     - derive/ng$/nh/   # H/G 邻键 (nh → ng)
     - derive/an$/am/   # M/N 邻键 (am → an)
+    - derive/an$/ab/   # B/N 邻键 (ab → an)
     - derive/in$/im/   # M/N 邻键 (im → in)
     - derive/ao$/ap/   # P/O 邻键 (ap → ao)
 
@@ -230,6 +220,10 @@ patch:
 
     # 纠错：I/O 邻键误触 (yiu → you)
     - derive/^you$/yiu/
+
+    # 纠错：X/Z 邻键误触 (xe/xa → ze/za)
+    - derive/^ze$/xe/
+    - derive/^za$/xa/
 
     # 纠错：A/S 邻键误触 (ah* → sh*) - 18 条
     - derive/^shi$/ahi/
