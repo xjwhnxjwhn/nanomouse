@@ -18,7 +18,7 @@ toolbar:
   # 显示键盘 dissmiss 按钮
   displayKeyboardDismissButton: true
   # 工具栏总高度
-  heightOfToolbar: 55
+  heightOfToolbar: 60
   # 拼写区高度(剩余高度由候选文字占用)
   heightOfCodingArea: 20
   # 拼写区字体大小
@@ -26,7 +26,7 @@ toolbar:
   # 候选文字索引字体大小
   candidateLabelFontSize: 12
   # 候选文字字体大小
-  candidateWordFontSize: 23
+  candidateWordFontSize: 25
   # 候选文字备注信息字体大小。
   # 对应 rime 候选字的 comment 信息
   candidateCommentFontSize: 12
