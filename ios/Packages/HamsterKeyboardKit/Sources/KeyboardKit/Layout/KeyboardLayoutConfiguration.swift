@@ -143,7 +143,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPad = KeyboardLayoutConfiguration(
     buttonCornerRadius: 5,
-    buttonInsets: .horizontal(6, vertical: 4),
+    buttonInsets: .horizontal(6, vertical: 2),
     rowHeight: standardPadRowHeight)
 
   /**
@@ -151,7 +151,7 @@ public extension KeyboardLayoutConfiguration
 
    标准 iPad 纵向行高。
    */
-  static let standardPadRowHeight = 64.0
+  static let standardPadRowHeight = 65.3
 
   /**
    The standard config for an iPad in landscape.
@@ -164,7 +164,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPadLandscape = KeyboardLayoutConfiguration(
     buttonCornerRadius: 7,
-    buttonInsets: .horizontal(7, vertical: 6),
+    buttonInsets: .horizontal(7, vertical: 3),
     rowHeight: standardPadLandscapeRowHeight)
 
   /**
@@ -172,7 +172,7 @@ public extension KeyboardLayoutConfiguration
 
    标准 iPad 横向行高度。
    */
-  static let standardPadLandscapeRowHeight = 86.0
+  static let standardPadLandscapeRowHeight = 87.7
 
   /**
    The standard config for a large iPad Pro in portrait.
@@ -185,7 +185,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPadProLarge = KeyboardLayoutConfiguration(
     buttonCornerRadius: 6,
-    buttonInsets: .horizontal(4, vertical: 4),
+    buttonInsets: .horizontal(4, vertical: 2),
     rowHeight: standardPadProLargeRowHeight)
 
   /**
@@ -193,7 +193,7 @@ public extension KeyboardLayoutConfiguration
 
    标准大尺寸 iPad Pro 纵向行高度。
    */
-  static let standardPadProLargeRowHeight = 69.0
+  static let standardPadProLargeRowHeight = 70.4
 
   /**
    The standard config for a large iPad Pro in landscape.
@@ -206,7 +206,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPadProLargeLandscape = KeyboardLayoutConfiguration(
     buttonCornerRadius: 8,
-    buttonInsets: .horizontal(7, vertical: 5),
+    buttonInsets: .horizontal(7, vertical: 2.5),
     rowHeight: standardPadProLargeLandscapeRowHeight)
 
   /**
@@ -214,7 +214,7 @@ public extension KeyboardLayoutConfiguration
 
    标准大尺寸 iPad Pro 横向行高度。
    */
-  static let standardPadProLargeLandscapeRowHeight = 88.0
+  static let standardPadProLargeLandscapeRowHeight = 89.8
 
   /**
    The standard config for an iPhone in portrait.
@@ -227,7 +227,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPhone = KeyboardLayoutConfiguration(
     buttonCornerRadius: 5,
-    buttonInsets: .horizontal(3, vertical: 6),
+    buttonInsets: .horizontal(3, vertical: 3),
     rowHeight: standardPhoneRowHeight)
 
   /**
@@ -235,7 +235,7 @@ public extension KeyboardLayoutConfiguration
 
    标准的 iPhone 纵向行高。
    */
-  static var standardPhoneRowHeight = 54.0
+  static var standardPhoneRowHeight = 55.1
 
   /**
    The standard config for an iPhone in landscape.
@@ -248,7 +248,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPhoneLandscape = KeyboardLayoutConfiguration(
     buttonCornerRadius: 5,
-    buttonInsets: .horizontal(3, vertical: 4),
+    buttonInsets: .horizontal(3, vertical: 2),
     rowHeight: standardPhoneLandscapeRowHeight)
 
   /**
@@ -256,7 +256,7 @@ public extension KeyboardLayoutConfiguration
 
    标准的 iPhone 横向行高。
    */
-  static var standardPhoneLandscapeRowHeight = 40.0
+  static var standardPhoneLandscapeRowHeight = 40.8
 
   /**
    The standard config for an iPhone Pro Max in portrait.
@@ -269,7 +269,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPhoneProMax = KeyboardLayoutConfiguration(
     buttonCornerRadius: 5,
-    buttonInsets: .horizontal(3, vertical: 5.5),
+    buttonInsets: .horizontal(3, vertical: 2.75),
     rowHeight: standardPhoneProMaxRowHeight)
 
   /**
@@ -277,7 +277,7 @@ public extension KeyboardLayoutConfiguration
 
    标准 iPhone Pro Max 纵向行高
    */
-  static var standardPhoneProMaxRowHeight = 56.0
+  static var standardPhoneProMaxRowHeight = 57.1
 
   /**
    The standard config for an iPhone Pro Max in landscape.
@@ -290,7 +290,7 @@ public extension KeyboardLayoutConfiguration
    */
   static var standardPhoneProMaxLandscape = KeyboardLayoutConfiguration(
     buttonCornerRadius: 5,
-    buttonInsets: .horizontal(3, vertical: 4),
+    buttonInsets: .horizontal(3, vertical: 2),
     rowHeight: standardPhoneProMaxLandscapeRowHeight)
 
   /**
@@ -298,5 +298,5 @@ public extension KeyboardLayoutConfiguration
 
    标准 iPhone Pro Max 横向行高。
    */
-  static var standardPhoneProMaxLandscapeRowHeight = 40.0
+  static var standardPhoneProMaxLandscapeRowHeight = 40.8
 }
