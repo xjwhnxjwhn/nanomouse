@@ -624,6 +624,10 @@ public extension RimeContext {
       }
       schema = currentSchema
     }
+    if schema.schemaId == HamsterConstants.azooKeySchemaId {
+      Logger.statistics.info("AzooKey active, skip rime setSchema")
+      return
+    }
     let handle = Rime.shared.setSchema(schema.schemaId)
     Logger.statistics.info("self.rimeEngine set schema: \(schema.schemaName), handle = \(handle)")
   }
@@ -667,6 +671,10 @@ public extension RimeContext {
   /// 根据索引选择候选字
   @MainActor
   func selectCandidate(index: Int) {
+    if currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+      Logger.statistics.info("AzooKey active, skip rime selectCandidate")
+      return
+    }
     _ = Rime.shared.selectCandidate(index: index)
     syncContext()
   }
@@ -835,6 +843,10 @@ extension RimeContext: IRimeNotificationDelegate {
   public func onLoadingSchema(_ loadSchema: String) {
     Logger.statistics.info("HamsterRimeNotification: onLoadingSchema, schema: \(loadSchema)")
     Task { @MainActor in
+      if self.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+        Logger.statistics.info("AzooKey active, ignore rime onLoadingSchema: \(loadSchema, privacy: .public)")
+        return
+      }
       let currentSchema = self.currentSchema
       let schemaID = loadSchema.split(separator: "/").map { String($0) }[0]
       guard !schemaID.isEmpty, currentSchema?.schemaId != schemaID else { return }
@@ -937,6 +949,9 @@ public extension RimeContext {
   /// 分页：下一页
   @MainActor
   func nextPage() {
+    if currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+      return
+    }
     self.pageIndex += 1
     var highlightIndex = 0
     if let menu = rimeContext?.menu {

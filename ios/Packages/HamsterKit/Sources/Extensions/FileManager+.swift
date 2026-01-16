@@ -283,6 +283,26 @@ public extension FileManager {
     )
   }
 
+  // AppGroup共享下: AzooKey 根目录
+  static var appGroupAzooKeyDirectoryURL: URL {
+    shareURL.appendingPathComponent("AzooKey", isDirectory: true)
+  }
+
+  // AppGroup共享下: AzooKey 词库目录
+  static var appGroupAzooKeyDictionaryDirectoryURL: URL {
+    appGroupAzooKeyDirectoryURL.appendingPathComponent("Dictionary", isDirectory: true)
+  }
+
+  // AppGroup共享下: AzooKey 学习数据目录
+  static var appGroupAzooKeyMemoryDirectoryURL: URL {
+    appGroupAzooKeyDirectoryURL.appendingPathComponent("Memory", isDirectory: true)
+  }
+
+  // AppGroup共享下: AzooKey Zenzai 权重目录
+  static var appGroupAzooKeyZenzaiDirectoryURL: URL {
+    appGroupAzooKeyDirectoryURL.appendingPathComponent("Zenzai", isDirectory: true)
+  }
+
   // AppGroup 共享下备份目录
   static var appGroupBackupDirectory: URL {
     shareURL.appendingPathComponent("backups", isDirectory: true)
@@ -358,6 +378,33 @@ public extension FileManager {
   /// AppGroup/Rime/build/hamster.yaml 文件
   static var hamsterConfigFileOnAppGroupBuild: URL {
     appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.yaml")
+  }
+
+  /// AzooKey 词库是否已就绪
+  static func isAzooKeyDictionaryAvailable() -> Bool {
+    let fm = FileManager.default
+    var isDir = ObjCBool(false)
+    if fm.fileExists(atPath: appGroupAzooKeyDictionaryDirectoryURL.path, isDirectory: &isDir),
+       isDir.boolValue
+    {
+      let sentinel = appGroupAzooKeyDictionaryDirectoryURL.appendingPathComponent("mm.binary")
+      return fm.fileExists(atPath: sentinel.path)
+    }
+    return false
+  }
+
+  /// AzooKey Zenzai 权重文件（.gguf）路径
+  static func azooKeyZenzaiWeightURL() -> URL? {
+    let fm = FileManager.default
+    guard let enumerator = fm.enumerator(at: appGroupAzooKeyZenzaiDirectoryURL, includingPropertiesForKeys: nil) else {
+      return nil
+    }
+    for case let fileURL as URL in enumerator {
+      if fileURL.pathExtension.lowercased() == "gguf" {
+        return fileURL
+      }
+    }
+    return nil
   }
 
   // 沙盒 Document 目录下 ShareSupport 目录

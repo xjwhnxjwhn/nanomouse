@@ -1,0 +1,44 @@
+# document: https://github.com/realm/SwiftLint
+disabled_rules:
+  - line_length
+  - nesting
+  - file_length
+  - function_body_length
+  - type_body_length
+
+identifier_name:
+  min_length: 1
+  max_length: 10000 # 長さ上限を無効化
+
+type_name:
+  min_length: 1
+  max_length: 10000 # 長さ上限を無効化
+
+analyzer_rules:
+  - unused_import
+  - unused_declaration
+
+opt_in_rules:
+  - array_init                        # Array()を推奨
+  - closure_end_indentation
+  - comma_inheritance
+  - conditional_returns_on_newline
+  - direct_return
+  - empty_string                      # 同上
+  - explicit_init                     # explicitに.initを書かない
+  - first_where                       # .filter { }.firstよりも.first(where:)を用いる．
+  - implicit_return                   # implicit returnを推奨
+  - modifier_order
+  - operator_usage_whitespace         # 演算子の左右に空白を
+  - reduce_into                       # reduce(into:)を推奨
+  - redundant_nil_coalescing          # ?? nilを禁止
+  - shorthand_optional_binding
+  - sorted_imports                    # importをsortする
+  - toggle_bool                       # .toggleを推奨
+  - unused_parameter
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+
+included:
+  - Sources
+  - Tests

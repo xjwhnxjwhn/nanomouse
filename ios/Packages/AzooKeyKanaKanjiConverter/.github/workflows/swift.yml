@@ -1,0 +1,180 @@
+# This workflow will build a Swift project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-swift
+
+name: Swift Build and Test
+on:
+  push:
+  pull_request:
+
+jobs:
+  macos-build:
+    name: Swift ${{ matrix.swift-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+        swift-version: ["6.1"]
+    steps:
+      - uses: ensan-hcl/setup-swift@swift-6.1.0
+        with:
+          swift-version: ${{ matrix.swift-version }}
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Build
+        run: swift build -Xswiftc -strict-concurrency=complete -Xcxx -xobjective-c++ -v
+      - name: Run tests
+        run: swift test -c release -Xswiftc -strict-concurrency=complete -Xcxx -xobjective-c++ -v
+  ubuntu-build:
+    name: Swift ${{ matrix.swift-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        swift-version: ["6.1"]
+    steps:
+      - uses: ensan-hcl/setup-swift@swift-6.1.0
+        with:
+          swift-version: ${{ matrix.swift-version }}
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Download pre-built llama.cpp binaries
+        run: |
+          wget -O llama-cpp-bin.zip "https://github.com/fkunn1326/llama.cpp/releases/download/b4846/llama-b4846-bin-ubuntu-x64.zip"
+          unzip llama-cpp-bin.zip -d llama-cpp-bin
+      - name: Copy llama.cpp binaries
+        run: cp llama-cpp-bin/build/bin/lib*.so ./
+      - name: Build
+        run: swift build -c release -Xswiftc -strict-concurrency=complete -Xlinker -L./ -v
+      - name: Run tests
+        run: |
+          cp llama-cpp-bin/build/bin/lib*.so .build/*/release/
+          swift test -c release -Xswiftc -strict-concurrency=complete -Xlinker -L./ -v
+  windows-build:
+    name: Swift ${{ matrix.swift-version.tag }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest]
+        swift-version:
+          [{
+            branch: "swift-6.1-release",
+            tag: "6.1-RELEASE"
+          }]
+    steps:
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: ${{ matrix.swift-version.branch }}
+          tag: ${{ matrix.swift-version.tag }}
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Download pre-built llama.cpp binaries
+        shell: pwsh
+        run: |
+          $zipUrl = "https://github.com/fkunn1326/llama.cpp/releases/download/b4846/llama-b4846-bin-win-avx-x64.zip"
+          $zipPath = "llama-cpp-bin.zip"
+          Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath llama-cpp-bin
+      - name: Copy llama.cpp binaries
+        shell: pwsh
+        run: |
+          Copy-Item -Path "llama-cpp-bin/llama.dll" -Destination "./"
+          Copy-Item -Path "llama-cpp-bin/llama.lib" -Destination "./"
+          Copy-Item -Path "llama-cpp-bin/ggml.dll" -Destination "./"
+          Copy-Item -Path "llama-cpp-bin/ggml-*.dll" -Destination "./"
+      - name: Build
+        run: swift build -Xswiftc -strict-concurrency=complete -v
+      - name: Run tests
+        run: swift test -c release -Xswiftc -strict-concurrency=complete -v
+  android-build:
+    # from: finagolfin/swift-android-sdk
+    name: Swift on android
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64, armv7]
+        os: [ubuntu-latest]
+        # You may find the checksum at: https://github.com/finagolfin/swift-android-sdk/blob/main/README.md#swift-cross-compilation-sdk-bundle-for-android
+        swift-version:
+          [{
+            version: "6.1",
+            android: "24",
+            checksum: "971f3b1fd03c059803d625f0a412d7e8c4c6f34440f5216ceaf13e886e8e706f"
+          }]
+
+    steps:
+      - name: Setup Swift toolchain
+        run: |
+          curl -sL https://download.swift.org/swift-${{ matrix.swift-version.version }}-release/ubuntu2204/swift-${{ matrix.swift-version.version }}-RELEASE/swift-${{ matrix.swift-version.version }}-RELEASE-ubuntu22.04.tar.gz -o swift-toolchain.tar.gz
+          tar xf swift-toolchain.tar.gz
+          TOOLCHAIN=${PWD}/swift-${{ matrix.swift-version.version }}-RELEASE-ubuntu22.04/usr
+          echo "TOOLCHAIN=${TOOLCHAIN}" >> $GITHUB_ENV
+          ${TOOLCHAIN}/bin/swift --version
+
+      - name: Setup Swift release Android SDK
+        run: |
+          ${TOOLCHAIN}/bin/swift sdk install https://github.com/finagolfin/swift-android-sdk/releases/download/${{ matrix.swift-version.version }}/swift-${{ matrix.swift-version.version }}-RELEASE-android-${{ matrix.swift-version.android }}-0.1.artifactbundle.tar.gz --checksum ${{ matrix.swift-version.checksum }}
+          ${TOOLCHAIN}/bin/swift sdk list
+
+      - uses: actions/checkout@v5
+        with:
+          path: AzooKeyKanaKanjiConverter
+          submodules: true
+      - name: Build
+        run: |
+          cd AzooKeyKanaKanjiConverter
+          ARCH_TARGET="${{ matrix.arch }}-unknown-linux-android${{ matrix.swift-version.android }}"
+          if ${{ matrix.arch == 'armv7' }}; then
+              ARCH_TARGET="armv7-unknown-linux-androideabi${{ matrix.swift-version.android }}"
+          fi
+          ${TOOLCHAIN}/bin/swift sdk configure --show-configuration swift-${{ matrix.swift-version.version }}-RELEASE-android-${{ matrix.swift-version.android }}-0.1 $ARCH_TARGET
+          ${TOOLCHAIN}/bin/swift build --build-tests --swift-sdk $ARCH_TARGET
+      - name: Get cached Termux app
+        if: ${{ matrix.arch == 'x86_64' }}
+        id: cache-termux
+        uses: actions/cache@v4
+        with:
+          path: ~/termux-debug.apk
+          key: termux-app
+      - name: Get Termux debug app if not cached
+        if: ${{ (matrix.arch == 'x86_64') && (steps.cache-termux.outputs.cache-hit != 'true') }}
+        run: wget -O ~/termux-debug.apk https://github.com/termux/termux-app/releases/download/v0.118.0/termux-app_v0.118.0+github-debug_x86_64.apk
+      - name: Prepare Android emulator
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: |
+          set -x
+          # create the test runner script
+          cat > ~/test-toolchain.sh << EOF
+          adb install ~/termux-debug.apk
+          adb push pack /data/local/tmp
+          EOF
+
+          mkdir -p pack/lib/swift/android
+          TARGET="x86_64-unknown-linux-android${{ matrix.swift-version.android }}"
+
+          cp AzooKeyKanaKanjiConverter/.build/$TARGET/debug/AzooKeyKanaKanjiConverterPackageTests.xctest pack
+          echo 'adb shell /data/local/tmp/pack/AzooKeyKanaKanjiConverterPackageTests.xctest' >> ~/test-toolchain.sh
+
+          cp -r AzooKeyKanaKanjiConverter/.build/$TARGET/debug/AzooKeyKanaKanjiConverter_KanaKanjiConverterModuleTests.resources pack
+          cp -r AzooKeyKanaKanjiConverter/.build/$TARGET/debug/AzooKeyKanaKanjiConverter_KanaKanjiConverterModuleWithDefaultDictionary.resources pack
+          cp ~/.config/swiftpm/swift-sdks/swift-${{ matrix.swift-version.version }}-RELEASE-android-${{ matrix.swift-version.android }}-*.artifactbundle/swift*sdk/android*sysroot/usr/lib/$(echo ${{ matrix.arch }} | sed "s/v7//")-linux-android*/${{ matrix.swift-version.android }}/lib*so pack
+          rm pack/lib{c,dl,log,m}.so
+
+          chmod +x ~/test-toolchain.sh
+
+          echo "TEST SCRIPT:"
+          cat ~/test-toolchain.sh
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run tests
+        if: ${{ matrix.arch == 'x86_64' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          script: ~/test-toolchain.sh

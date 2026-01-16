@@ -341,6 +341,20 @@ public extension UserDefaults {
       set(newValue, forKey: Self.hotKeys)
     }
   }
+
+  /// AzooKey 模式（标准 / Zenzai）
+  var azooKeyMode: AzooKeyMode {
+    get {
+      if let raw = string(forKey: Self.azooKeyModeKey), let mode = AzooKeyMode(rawValue: raw) {
+        return mode
+      }
+      return .standard
+    }
+    set {
+      setValue(newValue.rawValue, forKey: Self.azooKeyModeKey)
+      Logger.statistics.debug("save azooKeyMode: \(newValue.rawValue)")
+    }
+  }
 }
 
 extension UserDefaults {
@@ -399,6 +413,7 @@ extension UserDefaults {
   private static let currentSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.currentSchema"
   private static let latestSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestSchemaForKey"
   private static let hotKeys = "com.XiangqingZHANG.nanomouse.UserDefault.keys.hotKeys"
+  private static let azooKeyModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyMode"
 
   // MARK: - 补丁
 

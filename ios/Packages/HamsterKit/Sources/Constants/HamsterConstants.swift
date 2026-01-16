@@ -45,6 +45,15 @@ public enum HamsterConstants {
     "jaroomaji-easy": "rime-jaroomaji-easy.zip",
   ]
 
+  /// AzooKey 方案 schemaId
+  public static let azooKeySchemaId = "azookey"
+
+  /// AzooKey 词库 zip 包（按需下载）
+  public static let azooKeyDictionaryZipFile = "azookey-dictionary.zip"
+
+  /// AzooKey Zenzai 权重 zip 包（按需下载）
+  public static let azooKeyZenzaiZipFile = "azookey-zenzai.zip"
+
   /// 其他可选方案 zip 包（按需下载）
   public static let onDemandExtraZipFiles: [String] = [
     "rime-terra-pinyin.zip",

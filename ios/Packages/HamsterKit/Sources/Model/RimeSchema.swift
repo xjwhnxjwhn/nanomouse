@@ -44,6 +44,7 @@ public extension RimeSchema {
       "hifumi",
       "jaroomaji",
       "jaromaji",
+      "azookey",
     ]
     return keywords.contains(where: { id.contains($0) || name.contains($0) })
   }

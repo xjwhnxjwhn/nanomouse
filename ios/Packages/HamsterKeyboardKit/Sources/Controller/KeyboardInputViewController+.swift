@@ -49,7 +49,7 @@ public extension KeyboardInputViewController {
     case .newLine:
       self.textDocumentProxy.insertText("\r")
     case .clearSpellingArea:
-      self.rimeContext.reset()
+      self.resetInputEngine()
 //    case .selectColorSchema:
 //      // TODO: 颜色方案切换
 //      break
@@ -158,6 +158,9 @@ public extension KeyboardInputViewController {
   }
 
   private func isSchemaAvailable(_ schemaId: String) -> Bool {
+    if schemaId == HamsterConstants.azooKeySchemaId {
+      return FileManager.isAzooKeyDictionaryAvailable()
+    }
     let fileName = "\(schemaId).schema.yaml"
     let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
     let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)
@@ -187,6 +190,10 @@ public extension KeyboardInputViewController {
     Logger.statistics.info("DBG_LANGSWITCH setLanguageMode: \(String(describing: mode), privacy: .public), currentSchema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
     switch mode {
     case .english:
+      if isAzooKeyActive {
+        azooKeyEngine.reset()
+        clearAzooKeyState()
+      }
       rimeContext.reset()
       rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(true)
@@ -197,21 +204,35 @@ public extension KeyboardInputViewController {
         setLanguageMode(.chinese)
         return
       }
-      // 先切换 schema，再切换键盘类型，确保 UI 刷新时 schema 已更新
-      let switched = rimeContext.switchSchema(schemaId: japaneseSchemaId)
-      Logger.statistics.info("DBG_LANGSWITCH switchSchema japanese: \(japaneseSchemaId, privacy: .public), handled: \(switched)")
-      if !switched, let chineseSchemaId {
-        rimeContext.switchSchema(schemaId: chineseSchemaId)
-      }
-      // 切换 schema 后再关闭 ascii_mode，并在短时间内覆盖异步回调
-      rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
-      setKeyboardType(keyboardContext.selectKeyboard)
-
-      // 日语方案统一使用 26 键
-      if rimeContext.currentSchema?.isJapaneseSchema == true {
+      if japaneseSchemaId == HamsterConstants.azooKeySchemaId {
+        rimeContext.reset()
+        azooKeyEngine.reset()
+        clearAzooKeyState()
+        let azooKeySchema = RimeSchema(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey")
+        rimeContext.setCurrentSchema(azooKeySchema)
+        rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
         setKeyboardType(.alphabetic(.lowercased))
+      } else {
+        // 先切换 schema，再切换键盘类型，确保 UI 刷新时 schema 已更新
+        let switched = rimeContext.switchSchema(schemaId: japaneseSchemaId)
+        Logger.statistics.info("DBG_LANGSWITCH switchSchema japanese: \(japaneseSchemaId, privacy: .public), handled: \(switched)")
+        if !switched, let chineseSchemaId {
+          rimeContext.switchSchema(schemaId: chineseSchemaId)
+        }
+        // 切换 schema 后再关闭 ascii_mode，并在短时间内覆盖异步回调
+        rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
+        setKeyboardType(keyboardContext.selectKeyboard)
+
+        // 日语方案统一使用 26 键
+        if rimeContext.currentSchema?.isJapaneseSchema == true {
+          setKeyboardType(.alphabetic(.lowercased))
+        }
       }
     case .chinese:
+      if isAzooKeyActive {
+        azooKeyEngine.reset()
+        clearAzooKeyState()
+      }
       rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(false)
       // 先切换 schema，再切换键盘类型

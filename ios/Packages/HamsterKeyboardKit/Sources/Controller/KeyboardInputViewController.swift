@@ -8,6 +8,7 @@
 
 import Combine
 import HamsterKit
+import KanaKanjiConverterModule
 import OSLog
 import UIKit
 
@@ -457,9 +458,42 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
   public lazy var rimeContext = RimeContext()
 
+  /// AzooKey 输入引擎（日语专用）
+  lazy var azooKeyEngine = AzooKeyInputEngine()
+
   /// 系统文本替换管理器
   /// 用于读取和应用 iOS 系统的「文本替换」设置
   public lazy var systemTextReplacementManager = SystemTextReplacementManager()
+
+  var isAzooKeyActive: Bool {
+    rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId
+  }
+
+  func updateAzooKeySuggestions(_ suggestions: [CandidateSuggestion]) {
+    rimeContext.userInputKey = azooKeyEngine.currentDisplayText
+    Task { @MainActor in
+      self.rimeContext.suggestions = suggestions
+      self.rimeContext.textReplacementSuggestions = []
+    }
+  }
+
+  func clearAzooKeyState() {
+    rimeContext.userInputKey = ""
+    Task { @MainActor in
+      self.rimeContext.suggestions = []
+      self.rimeContext.textReplacementSuggestions = []
+    }
+  }
+
+  private func azooKeyInputStyle(for text: String) -> InputStyle {
+    guard text.count == 1, let scalar = text.unicodeScalars.first, scalar.isASCII else {
+      return .direct
+    }
+    if CharacterSet.letters.contains(scalar) || text == "-" {
+      return .roman2kana
+    }
+    return .direct
+  }
 
   // MARK: - Text And Selection, Implementations UITextInputDelegate
 
@@ -502,6 +536,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // fix: 输出栏点击右侧x形按钮后, 输入法候选栏内容没有跟随输入栏一同清空
     if !self.textDocumentProxy.hasText {
       self.rimeContext.reset()
+      if self.isAzooKeyActive {
+        self.azooKeyEngine.reset()
+        self.clearAzooKeyState()
+      }
     }
     
     // 更新文本替换建议
@@ -613,6 +651,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func deleteBackward() {
+    if isAzooKeyActive {
+      if azooKeyEngine.isComposing {
+        let suggestions = azooKeyEngine.deleteBackward()
+        if suggestions.isEmpty {
+          clearAzooKeyState()
+        } else {
+          updateAzooKeySuggestions(suggestions)
+        }
+        return
+      }
+    }
     guard !rimeContext.userInputKey.isEmpty else {
       // 获取光标前后上下文，用于删除需要光标居中的符号
       let beforeInput = self.textDocumentProxy.documentContextBeforeInput ?? ""
@@ -650,6 +699,26 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertSymbol(_ symbol: Symbol) {
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isAzooKeyActive {
+      let char = symbol.char
+      let style = azooKeyInputStyle(for: char)
+      if style == .roman2kana {
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: style)
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(char)
+        }
+        return
+      }
+      if azooKeyEngine.isComposing, let commit = azooKeyEngine.commitCandidate(at: 0) {
+        textDocumentProxy.insertText(commit)
+        clearAzooKeyState()
+      }
+      self.insertTextPatch(char)
+      return
+    }
     if self.keyboardContext.keyboardType.isAlphabetic,
        self.rimeContext.asciiModeSnapshot == false,
        self.rimeContext.currentSchema?.isJapaneseSchema == true
@@ -691,6 +760,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertText(_ text: String) {
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isAzooKeyActive {
+      let style = azooKeyInputStyle(for: text)
+      let suggestions = azooKeyEngine.handleInput(text, inputStyle: style)
+      if azooKeyEngine.isComposing {
+        updateAzooKeySuggestions(suggestions)
+      } else {
+        clearAzooKeyState()
+        self.insertTextPatch(text)
+      }
+      return
+    }
     if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
       // 先更新文本替换建议（在插入文本之前，传入待插入的文本）
       updateTextReplacementSuggestion(pendingText: text)
@@ -717,6 +797,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 更新文本替换建议（使用 RIME 预览文本来预判匹配）
     let rimePreview = self.rimeContext.rimeContext?.commitTextPreview ?? ""
     updateTextReplacementSuggestion(rimePreview: rimePreview)
+  }
+
+  func selectAzooKeyCandidate(index: Int) {
+    guard isAzooKeyActive else { return }
+    if let commit = azooKeyEngine.commitCandidate(at: index) {
+      textDocumentProxy.insertText(commit)
+    }
+    clearAzooKeyState()
   }
 
   open func selectNextKeyboard() {
@@ -804,6 +892,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func resetInputEngine() {
+    if isAzooKeyActive {
+      azooKeyEngine.reset()
+      clearAzooKeyState()
+      return
+    }
     rimeContext.reset()
   }
 
@@ -1046,7 +1139,8 @@ private extension KeyboardInputViewController {
   }
 
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
-    let japaneseActive = rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true
+    let japaneseActive = (rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true)
+      || isAzooKeyActive
     keyboardContext.isAutoCapitalizationEnabled = !japaneseActive
 
     if japaneseActive {

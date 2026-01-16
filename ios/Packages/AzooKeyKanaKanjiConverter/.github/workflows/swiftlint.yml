@@ -1,0 +1,24 @@
+name: Swift Build and Test
+on:
+  push:
+  pull_request:
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - name: Install SwiftLint
+        run: |
+          brew update
+          brew install swiftlint
+      - name: Check SwiftLint version
+        run: swiftlint version
+      - name: Run SwiftLint
+        run: |
+          swiftlint --fix --format
+          # too many errors
+          # swiftlint --quiet --strict

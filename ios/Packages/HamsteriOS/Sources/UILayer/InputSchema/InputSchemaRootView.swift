@@ -58,12 +58,20 @@ class InputSchemaRootView: NibLessView {
     inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection
   }
 
+  private var hasAzooKeyModeSection: Bool {
+    inputSchemaViewModel.shouldShowAzooKeyModeSection
+  }
+
   private var japaneseSectionIndex: Int {
-    hasTraditionalSection ? 2 : 1
+    1 + (hasTraditionalSection ? 1 : 0)
   }
 
   private var traditionalSectionIndex: Int? {
     hasTraditionalSection ? 1 : nil
+  }
+
+  private var azooKeyModeSectionIndex: Int? {
+    hasAzooKeyModeSection ? japaneseSectionIndex + 1 : nil
   }
 
   private func schemaGroup(for section: Int) -> InputSchemaViewModel.SchemaGroup? {
@@ -74,7 +82,7 @@ class InputSchemaRootView: NibLessView {
 
   private func downloadAccessoryView(for schema: RimeSchema) -> UIView {
     let button = downloadButton(for: schema)
-    guard schema.schemaId == "jaroomaji-easy" else { return button }
+    guard isRecommendedSchema(schema) else { return button }
 
     let badge = UILabel()
     badge.text = "推荐"
@@ -105,6 +113,10 @@ class InputSchemaRootView: NibLessView {
     return container
   }
 
+  private func isRecommendedSchema(_ schema: RimeSchema) -> Bool {
+    schema.schemaId == "jaroomaji-easy"
+  }
+
   private func downloadButton(for schema: RimeSchema) -> UIButton {
     let button = UIButton(type: .system)
     button.setTitle("下载", for: .normal)
@@ -115,17 +127,31 @@ class InputSchemaRootView: NibLessView {
     }, for: .touchUpInside)
     return button
   }
+
+  private func azooKeyModeDownloadButton() -> UIButton {
+    let button = UIButton(type: .system)
+    button.setTitle("下载", for: .normal)
+    button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
+    button.sizeToFit()
+    button.addAction(UIAction { [unowned self] _ in
+      self.inputSchemaViewModel.downloadAzooKeyZenzai()
+    }, for: .touchUpInside)
+    return button
+  }
 }
 
 extension InputSchemaRootView: UITableViewDataSource {
   func numberOfSections(in tableView: UITableView) -> Int {
     let baseSections = InputSchemaViewModel.SchemaGroup.allCases.count
-    return baseSections + (hasTraditionalSection ? 1 : 0)
+    return baseSections + (hasTraditionalSection ? 1 : 0) + (hasAzooKeyModeSection ? 1 : 0)
   }
 
   public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     if let traditionalSectionIndex, section == traditionalSectionIndex {
       return InputSchemaViewModel.TraditionalizationOption.allCases.count
+    }
+    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+      return InputSchemaViewModel.AzooKeyModeOption.allCases.count
     }
     guard let group = schemaGroup(for: section) else { return 0 }
     return inputSchemaViewModel.schemas(in: group).count
@@ -141,6 +167,20 @@ extension InputSchemaRootView: UITableViewDataSource {
       cell.contentConfiguration = config
       cell.accessoryView = nil
       cell.accessoryType = inputSchemaViewModel.isTraditionalizationOptionSelected(option) ? .checkmark : .none
+      return cell
+    }
+    if let azooKeyModeSectionIndex, indexPath.section == azooKeyModeSectionIndex {
+      let option = InputSchemaViewModel.AzooKeyModeOption.allCases[indexPath.row]
+      config.text = option.displayName
+      cell.contentConfiguration = config
+      let available = inputSchemaViewModel.isAzooKeyModeOptionAvailable(option)
+      if !available, option == .zenzai {
+        cell.accessoryView = azooKeyModeDownloadButton()
+        cell.accessoryType = .none
+      } else {
+        cell.accessoryView = nil
+        cell.accessoryType = inputSchemaViewModel.isAzooKeyModeOptionSelected(option) ? .checkmark : .none
+      }
       return cell
     }
 
@@ -165,6 +205,9 @@ extension InputSchemaRootView: UITableViewDataSource {
     if let traditionalSectionIndex, section == traditionalSectionIndex {
       return "雾凇拼音 · 繁体方案"
     }
+    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+      return "AzooKey 模式"
+    }
     if let group = schemaGroup(for: section) {
       return group.title
     }
@@ -174,6 +217,9 @@ extension InputSchemaRootView: UITableViewDataSource {
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
     if let group = schemaGroup(for: section), group == .japanese {
       return "日语方案不随安装包内置，右侧可按需下载。"
+    }
+    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+      return "Zenzai 为可选增强模式，需要单独下载后启用。"
     }
     if let traditionalSectionIndex, section == traditionalSectionIndex {
       return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
@@ -189,6 +235,12 @@ extension InputSchemaRootView: UITableViewDelegate {
         if let traditionalSectionIndex, indexPath.section == traditionalSectionIndex {
           let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
           inputSchemaViewModel.selectTraditionalizationOption(option)
+          return
+        }
+        if let azooKeyModeSectionIndex, indexPath.section == azooKeyModeSectionIndex {
+          let option = InputSchemaViewModel.AzooKeyModeOption.allCases[indexPath.row]
+          guard inputSchemaViewModel.isAzooKeyModeOptionAvailable(option) else { return }
+          inputSchemaViewModel.selectAzooKeyModeOption(option)
           return
         }
         if let group = schemaGroup(for: indexPath.section) {

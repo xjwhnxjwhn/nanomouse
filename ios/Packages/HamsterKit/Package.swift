@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
   name: "HamsterKit",
   platforms: [
-    .iOS(.v15),
+    .iOS(.v16),
   ],
   products: [
     .library(

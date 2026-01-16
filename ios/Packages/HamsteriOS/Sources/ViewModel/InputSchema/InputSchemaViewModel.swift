@@ -112,6 +112,18 @@ public class InputSchemaViewModel {
     }
   }
 
+  enum AzooKeyModeOption: String, CaseIterable {
+    case standard
+    case zenzai
+
+    var displayName: String {
+      switch self {
+      case .standard: return "标准模式（默认）"
+      case .zenzai: return "Zenzai 增强（需下载）"
+      }
+    }
+  }
+
   enum SchemaGroup: Int, CaseIterable {
     case chineseEnglish
     case japanese
@@ -156,12 +168,41 @@ public class InputSchemaViewModel {
     rimeContext.selectSchemas.contains(where: { $0.schemaId == "rime_ice" })
   }
 
+  var shouldShowAzooKeyModeSection: Bool {
+    rimeContext.selectSchemas.contains(where: { $0.schemaId == HamsterConstants.azooKeySchemaId })
+      && FileManager.isAzooKeyDictionaryAvailable()
+  }
+
+  var selectedAzooKeyMode: AzooKeyMode {
+    UserDefaults.hamster.azooKeyMode
+  }
+
+  func isAzooKeyModeOptionSelected(_ option: AzooKeyModeOption) -> Bool {
+    selectedAzooKeyMode.rawValue == option.rawValue
+  }
+
+  func isAzooKeyModeOptionAvailable(_ option: AzooKeyModeOption) -> Bool {
+    switch option {
+    case .standard:
+      return true
+    case .zenzai:
+      return FileManager.azooKeyZenzaiWeightURL() != nil
+    }
+  }
+
   var selectedTraditionalizationOpenccConfig: String {
     HamsterAppDependencyContainer.shared.configuration.rime?.traditionalizationOpenccConfig ?? "s2twp.json"
   }
 
   func isTraditionalizationOptionSelected(_ option: TraditionalizationOption) -> Bool {
     selectedTraditionalizationOpenccConfig.lowercased() == option.configFileName
+  }
+
+  @MainActor
+  func selectAzooKeyModeOption(_ option: AzooKeyModeOption) {
+    guard isAzooKeyModeOptionAvailable(option) else { return }
+    UserDefaults.hamster.azooKeyMode = AzooKeyMode(rawValue: option.rawValue) ?? .standard
+    reloadTableStateSubject.send(true)
   }
 
   @MainActor
@@ -211,6 +252,8 @@ public class InputSchemaViewModel {
 
   func displayNameForInputSchemaList(_ schema: RimeSchema) -> String {
     switch schema.schemaId {
+    case HamsterConstants.azooKeySchemaId:
+      return "AzooKey（推荐）"
     case "japanese":
       return "rime-japanese"
     case "jaroomaji":
@@ -224,6 +267,7 @@ public class InputSchemaViewModel {
 
   private var japaneseSchemas: [RimeSchema] {
     [
+      .init(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey"),
       .init(schemaId: "japanese", schemaName: "japanese"),
       .init(schemaId: "jaroomaji", schemaName: "jaroomaji"),
       .init(schemaId: "jaroomaji-easy", schemaName: "jaroomaji-easy"),
@@ -231,6 +275,9 @@ public class InputSchemaViewModel {
   }
 
   private func schemaFileExists(_ schemaId: String) -> Bool {
+    if schemaId == HamsterConstants.azooKeySchemaId {
+      return FileManager.isAzooKeyDictionaryAvailable()
+    }
     let fileName = "\(schemaId).schema.yaml"
     let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
     let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)
@@ -239,6 +286,10 @@ public class InputSchemaViewModel {
   }
 
   func downloadJapaneseSchema(_ schema: RimeSchema) {
+    if schema.schemaId == HamsterConstants.azooKeySchemaId {
+      downloadAzooKeyDictionary()
+      return
+    }
     guard let zipFile = HamsterConstants.onDemandJapaneseSchemaZipMap[schema.schemaId] else {
       ProgressHUD.failed("未找到下载资源", interaction: false, delay: 1.5)
       return
@@ -253,6 +304,18 @@ public class InputSchemaViewModel {
   func deleteDownloadedSchema(_ schema: RimeSchema) async {
     ProgressHUD.animate("删除中……", interaction: false)
     do {
+      if schema.schemaId == HamsterConstants.azooKeySchemaId {
+        try removeAzooKeyFiles()
+        if rimeContext.selectSchemas.contains(schema) {
+          rimeContext.removeSelectSchema(schema)
+        }
+        UserDefaults.hamster.azooKeyMode = .standard
+        await MainActor.run {
+          reloadTableStateSubject.send(true)
+          ProgressHUD.success("删除完成", interaction: false, delay: 1.0)
+        }
+        return
+      }
       try removeSchemaFiles(schemaId: schema.schemaId)
       if rimeContext.selectSchemas.contains(schema) {
         rimeContext.removeSelectSchema(schema)
@@ -275,6 +338,16 @@ public class InputSchemaViewModel {
   }
 
   private func downloadOnDemandZipFiles(_ zipFiles: [String], title: String) {
+    downloadOnDemandZipFiles(zipFiles, title: title, destination: FileManager.appGroupUserDataDirectoryURL, needsRimeDeploy: true)
+  }
+
+  private func downloadOnDemandZipFiles(
+    _ zipFiles: [String],
+    title: String,
+    destination: URL,
+    needsRimeDeploy: Bool,
+    onSuccess: (() -> Void)? = nil
+  ) {
     guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
       ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
       return
@@ -287,22 +360,31 @@ public class InputSchemaViewModel {
       }
 
       do {
-        try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+        try FileManager.createDirectory(override: false, dst: destination)
 
         for zipFile in zipFiles {
           let remoteURL = baseURL.appendingPathComponent(zipFile)
           let tempURL = try await self.downloadZip(from: remoteURL)
-          try await FileManager.default.unzip(tempURL, dst: FileManager.appGroupUserDataDirectoryURL)
+          try await FileManager.default.unzip(tempURL, dst: destination)
           try? FileManager.default.removeItem(at: tempURL)
         }
 
-        var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
-        try self.rimeContext.deployment(configuration: &updatedConfiguration)
+        if needsRimeDeploy {
+          var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
+          try self.rimeContext.deployment(configuration: &updatedConfiguration)
 
-        await MainActor.run {
-          HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
-          self.reloadTableStateSubject.send(true)
-          ProgressHUD.success("\(title)部署完成", interaction: false, delay: 1.2)
+          await MainActor.run {
+            HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+            self.reloadTableStateSubject.send(true)
+            onSuccess?()
+            ProgressHUD.success("\(title)部署完成", interaction: false, delay: 1.2)
+          }
+        } else {
+          await MainActor.run {
+            self.reloadTableStateSubject.send(true)
+            onSuccess?()
+            ProgressHUD.success("\(title)下载完成", interaction: false, delay: 1.2)
+          }
         }
       } catch {
         Logger.statistics.error("download on-demand schemas failed: \(error.localizedDescription)")
@@ -350,6 +432,57 @@ public class InputSchemaViewModel {
       || name.hasPrefix("\(schemaId)_")
       || name.hasPrefix("\(schemaId)-")
       || name == schemaId
+  }
+
+  private func downloadAzooKeyDictionary() {
+    downloadOnDemandZipFiles(
+      [HamsterConstants.azooKeyDictionaryZipFile],
+      title: "AzooKey 词库",
+      destination: FileManager.appGroupAzooKeyDirectoryURL,
+      needsRimeDeploy: false
+    ) { [weak self] in
+      guard let self else { return }
+      // 下载完成后默认勾选
+      let azooKeySchema = RimeSchema(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey")
+      let selectedJapanese = self.rimeContext.selectSchemas.filter { self.schemaGroup(for: $0) == .japanese }
+      for item in selectedJapanese where item.schemaId != HamsterConstants.azooKeySchemaId {
+        self.rimeContext.removeSelectSchema(item)
+      }
+      if !self.rimeContext.selectSchemas.contains(azooKeySchema) {
+        self.rimeContext.appendSelectSchema(azooKeySchema)
+      }
+      self.reloadTableStateSubject.send(true)
+    }
+  }
+
+  func downloadAzooKeyZenzai() {
+    downloadOnDemandZipFiles(
+      [HamsterConstants.azooKeyZenzaiZipFile],
+      title: "AzooKey Zenzai",
+      destination: FileManager.appGroupAzooKeyZenzaiDirectoryURL,
+      needsRimeDeploy: false
+    ) { [weak self] in
+      if FileManager.azooKeyZenzaiWeightURL() != nil {
+        UserDefaults.hamster.azooKeyMode = .zenzai
+      } else {
+        UserDefaults.hamster.azooKeyMode = .standard
+      }
+      self?.reloadTableStateSubject.send(true)
+    }
+  }
+
+  private func removeAzooKeyFiles() throws {
+    let fm = FileManager.default
+    let targets: [URL] = [
+      FileManager.appGroupAzooKeyDictionaryDirectoryURL,
+      FileManager.appGroupAzooKeyZenzaiDirectoryURL,
+      FileManager.appGroupAzooKeyMemoryDirectoryURL,
+    ]
+    for target in targets {
+      if fm.fileExists(atPath: target.path) {
+        try? fm.removeItem(at: target)
+      }
+    }
   }
 
 }

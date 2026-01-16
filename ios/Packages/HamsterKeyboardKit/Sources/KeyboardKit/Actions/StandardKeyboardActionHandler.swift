@@ -175,7 +175,12 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
   /// 处理 key 上的手势及动作
   open func action(for gesture: KeyboardGesture, on key: Key) -> KeyboardAction.GestureAction? {
     var processByRIME = key.processByRIME
-    if self.rimeContext.currentSchema?.isJapaneseSchema == true, self.rimeContext.asciiModeSnapshot == false {
+    if self.rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+      if processByRIME == false {
+        Logger.statistics.info("DBG_RIMEINPUT force processByRIME for AzooKey")
+      }
+      processByRIME = true
+    } else if self.rimeContext.currentSchema?.isJapaneseSchema == true, self.rimeContext.asciiModeSnapshot == false {
       if processByRIME == false {
         Logger.statistics.info("DBG_RIMEINPUT force processByRIME for japanese key")
       }

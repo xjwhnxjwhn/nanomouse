@@ -482,6 +482,9 @@ private extension KeyboardButton {
   }
 
   private func isSchemaAvailable(_ schemaId: String) -> Bool {
+    if schemaId == HamsterConstants.azooKeySchemaId {
+      return FileManager.isAzooKeyDictionaryAvailable()
+    }
     let fileName = "\(schemaId).schema.yaml"
     let userDataPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent(fileName)
     let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent(fileName)

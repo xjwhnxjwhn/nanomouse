@@ -230,6 +230,13 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
       let textReplacementCount = rimeContext.textReplacementSuggestions.count
       let adjustedIndex = indexPath.item - textReplacementCount
       if adjustedIndex >= 0 {
+        if rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId,
+           let handler = actionHandler as? StandardKeyboardActionHandler,
+           let controller = handler.keyboardController as? KeyboardInputViewController
+        {
+          controller.selectAzooKeyCandidate(index: adjustedIndex)
+          return
+        }
         self.rimeContext.selectCandidate(index: adjustedIndex)
       }
     }
