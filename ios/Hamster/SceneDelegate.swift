@@ -8,6 +8,7 @@
 import HamsteriOS
 import HamsterKit
 import OSLog
+import ProgressHUD
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
@@ -158,6 +159,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     defaults.lastLaunchedAppVersion = currentVersion
 
     Task.detached(priority: .utility) {
+      await MainActor.run {
+        ProgressHUD.animate("RIME部署中, 请稍候……", AnimationType.circleRotateChase, interaction: false)
+      }
+      var deployError: Error?
       do {
         let fm = FileManager.default
         if !sharedSupportVersion.isEmpty, sharedSupportVersion != lastSharedSupportVersion {
@@ -180,6 +185,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         }
       } catch {
         Logger.statistics.error("auto redeploy initAppGroupUserDataDirectory error: \(error.localizedDescription)")
+        deployError = error
       }
 
       var configuration = HamsterAppDependencyContainer.shared.configuration
@@ -189,6 +195,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         Logger.statistics.info("auto redeploy success for app version: \(currentVersion)")
       } catch {
         Logger.statistics.error("auto redeploy error: \(error.localizedDescription)")
+        deployError = error
+      }
+
+      await MainActor.run {
+        if let deployError {
+          ProgressHUD.failed(deployError, interaction: false, delay: 5)
+        } else {
+          ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
+        }
       }
     }
   }
