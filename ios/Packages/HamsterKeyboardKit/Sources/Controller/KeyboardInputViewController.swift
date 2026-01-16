@@ -712,6 +712,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
         return
       }
+      if char == "ー", azooKeyEngine.isComposing {
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct)
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(char)
+        }
+        return
+      }
       if azooKeyEngine.isComposing, let commit = azooKeyEngine.commitCandidate(at: 0) {
         textDocumentProxy.insertText(commit)
         clearAzooKeyState()
@@ -901,6 +911,47 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
+    if isAzooKeyActive {
+      switch keyCode {
+      case XK_Return:
+        if azooKeyEngine.isComposing {
+          let commit = azooKeyEngine.currentDisplayText
+          if !commit.isEmpty {
+            textDocumentProxy.insertText(commit)
+          }
+          azooKeyEngine.reset()
+          clearAzooKeyState()
+          return
+        }
+        textDocumentProxy.insertText(.newline)
+        return
+      case XK_space:
+        if azooKeyEngine.isComposing {
+          if let commit = azooKeyEngine.commitCandidate(at: 0) {
+            textDocumentProxy.insertText(commit)
+          } else {
+            let fallback = azooKeyEngine.currentDisplayText
+            if !fallback.isEmpty {
+              textDocumentProxy.insertText(fallback)
+            }
+          }
+          clearAzooKeyState()
+          return
+        }
+        if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
+          Logger.statistics.info("SystemTextReplacement: space key pressed (AzooKey), trying replacement")
+          if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
+            textDocumentProxy.insertText(.space)
+            return
+          }
+        }
+        textDocumentProxy.insertText(.space)
+        return
+      default:
+        tryHandleSpecificCode(keyCode)
+        return
+      }
+    }
     // 空格键特殊处理：当没有 RIME 用户输入时，尝试执行文本替换
     if keyCode == XK_space && rimeContext.userInputKey.isEmpty {
       if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {

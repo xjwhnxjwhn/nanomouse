@@ -38,7 +38,7 @@ public extension AlphabeticInputSet {
    */
   static let japanese = AlphabeticInputSet(rows: [
     .init(chars: "qwertyuiop"),
-    .init(chars: "asdfghjkl-"),
+    .init(chars: "asdfghjklー"),
     .init(phone: "zxcvbnm", pad: "zxcvbnm,.")
   ])
 }

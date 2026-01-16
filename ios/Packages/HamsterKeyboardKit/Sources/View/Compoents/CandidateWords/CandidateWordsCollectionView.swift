@@ -111,10 +111,13 @@ public class CandidateWordsCollectionView: UICollectionView {
         self.currentUserInputKey = self.rimeContext.userInputKey
         let hasSuggestions = !suggestions.isEmpty || !textReplacements.isEmpty
         if hasSuggestions {
-          if self.candidatesViewState.isCollapse() {
-            self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .right, animated: false)
-          } else {
-            self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
+          let itemCount = self.numberOfItems(inSection: 0)
+          if itemCount > 0 {
+            if self.candidatesViewState.isCollapse() {
+              self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .right, animated: false)
+            } else {
+              self.scrollToItem(at: IndexPath(item: 0, section: 0), at: .top, animated: false)
+            }
           }
           return
         }
