@@ -469,6 +469,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId
   }
 
+  var isAzooKeyInputActive: Bool {
+    isAzooKeyActive && rimeContext.asciiModeSnapshot == false
+  }
+
   func updateAzooKeySuggestions(_ suggestions: [CandidateSuggestion]) {
     rimeContext.userInputKey = azooKeyEngine.currentDisplayText
     Task { @MainActor in
@@ -651,7 +655,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func deleteBackward() {
-    if isAzooKeyActive {
+    if isAzooKeyInputActive {
       if azooKeyEngine.isComposing {
         let suggestions = azooKeyEngine.deleteBackward()
         if suggestions.isEmpty {
@@ -699,7 +703,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertSymbol(_ symbol: Symbol) {
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
-    if isAzooKeyActive {
+    if isAzooKeyInputActive {
       let char = symbol.char
       let style = azooKeyInputStyle(for: char)
       if style == .roman2kana {
@@ -770,7 +774,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertText(_ text: String) {
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
-    if isAzooKeyActive {
+    if isAzooKeyInputActive {
       let style = azooKeyInputStyle(for: text)
       let suggestions = azooKeyEngine.handleInput(text, inputStyle: style)
       if azooKeyEngine.isComposing {
@@ -810,7 +814,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   func selectAzooKeyCandidate(index: Int) {
-    guard isAzooKeyActive else { return }
+    guard isAzooKeyInputActive else { return }
     if let commit = azooKeyEngine.commitCandidate(at: index) {
       textDocumentProxy.insertText(commit)
     }
@@ -902,7 +906,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func resetInputEngine() {
-    if isAzooKeyActive {
+    if isAzooKeyInputActive {
       azooKeyEngine.reset()
       clearAzooKeyState()
       return
@@ -911,7 +915,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
-    if isAzooKeyActive {
+    if isAzooKeyInputActive {
       switch keyCode {
       case XK_Return:
         if azooKeyEngine.isComposing {
@@ -1191,7 +1195,7 @@ private extension KeyboardInputViewController {
 
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
     let japaneseActive = (rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true)
-      || isAzooKeyActive
+      || isAzooKeyInputActive
     keyboardContext.isAutoCapitalizationEnabled = !japaneseActive
 
     if japaneseActive {
