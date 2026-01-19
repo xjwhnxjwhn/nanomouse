@@ -129,6 +129,10 @@ public class RimeContext {
     }
   }
 
+  /// 混合输入管理器 - 借鉴 AzooKey 的 ComposingText 设计
+  /// 用于管理拼音和数字的混合输入，使 "qian10ming" 能够显示候选词 "前10名"
+  public private(set) lazy var mixedInputManager = MixedInputManager()
+
   deinit {
     Rime.shared.clearNotificationDelegate(self)
   }
@@ -152,6 +156,7 @@ public extension RimeContext {
   func reset() {
     self.pageIndex = 0
     self.userInputKey = ""
+    self.mixedInputManager.reset()  // 重置混合输入管理器
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
@@ -935,7 +940,13 @@ public extension RimeContext {
 
     // 如果输入状态不是待组字阶段, 则重置输入法
     if !status.isComposing {
-      self.commitText = commitText
+      // 借鉴 AzooKey：如果有混合输入（数字），合并到上屏文字
+      if mixedInputManager.hasLiteral && !commitText.isEmpty {
+        self.commitText = mixedInputManager.getCommitText(rimeCommitText: commitText)
+        Logger.statistics.info("DBG_MIXEDINPUT syncContext commit with literal: \(self.commitText, privacy: .public)")
+      } else {
+        self.commitText = commitText
+      }
       self.reset()
       return
     }

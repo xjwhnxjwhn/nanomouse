@@ -681,6 +681,31 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
 
+    // 借鉴 AzooKey：如果混合输入管理器中有直接文本（数字），先删除数字
+    if rimeContext.mixedInputManager.hasLiteral {
+      // 检查最后一个段是否为数字
+      if let lastSegment = rimeContext.mixedInputManager.segments.last, lastSegment.isLiteral {
+        // 删除数字
+        rimeContext.mixedInputManager.deleteBackward()
+        // 更新显示
+        let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? ""
+        if rimeContext.mixedInputManager.hasLiteral {
+          rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+        } else {
+          rimeContext.userInputKey = rimePreedit
+        }
+        Logger.statistics.info("DBG_MIXEDINPUT delete literal, display: \(self.rimeContext.userInputKey, privacy: .public)")
+        // 更新候选词
+        updateMixedInputSuggestions()
+        return
+      }
+    }
+
+    // 同步删除混合输入管理器中的拼音
+    if !rimeContext.mixedInputManager.isEmpty {
+      rimeContext.mixedInputManager.deleteBackward()
+    }
+
     // 拼音九宫格处理
     if keyboardContext.keyboardType.isChineseNineGrid {
       if let selectCandidatePinyin = rimeContext.selectCandidatePinyin {
@@ -695,6 +720,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     // 非九宫格处理
     rimeContext.deleteBackward()
+
+    // 如果还有混合输入（数字），更新候选词
+    if rimeContext.mixedInputManager.hasLiteral {
+      updateMixedInputSuggestions()
+    }
   }
 
   open func deleteBackward(times: Int) {
@@ -744,7 +774,22 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if handled { return }
       }
     }
-    // 检测是否需要顶字上屏
+    // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入（在 insertSymbol 中也需要拦截）
+    let char = symbol.char
+    let isDigit = char.count == 1 && char.first?.isNumber == true
+    if isDigit && !rimeContext.userInputKey.isEmpty {
+      // 数字添加到混合输入管理器，不触发顶码上屏
+      rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
+      // 更新显示：将数字追加到 userInputKey
+      let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? rimeContext.userInputKey
+      rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+      Logger.statistics.info("DBG_MIXEDINPUT insertSymbol digit intercepted: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
+      // 更新候选词（将数字与候选词合并）
+      updateMixedInputSuggestions()
+      return
+    }
+
+    // 检测是否需要顶字上屏（非数字符号才触发）
     if !rimeContext.userInputKey.isEmpty {
       // 内嵌模式需要先清空
       if keyboardContext.enableEmbeddedInputMode {
@@ -793,6 +838,29 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
 
+    // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
+    let isDigit = text.count == 1 && text.first?.isNumber == true
+    if isDigit && !rimeContext.userInputKey.isEmpty {
+      // 数字添加到混合输入管理器，不发送给 RIME
+      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
+      // 更新显示：将数字追加到 userInputKey
+      let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? rimeContext.userInputKey
+      rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+      Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(text, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
+      // 更新候选词（将数字与候选词合并）
+      updateMixedInputSuggestions()
+      return
+    }
+
+    // 非数字字符，同时添加到混合输入管理器
+    if !isDigit && !rimeContext.userInputKey.isEmpty {
+      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: false)
+    } else if !isDigit && rimeContext.userInputKey.isEmpty {
+      // 首次输入，初始化混合输入管理器
+      rimeContext.mixedInputManager.reset()
+      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: false)
+    }
+
     // 字母输入模式，不经过 rime 引擎
     // if rimeContext.asciiMode {
     //  textDocumentProxy.insertText(text)
@@ -807,10 +875,43 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       self.insertTextPatch(text)
       return
     }
-    
+
     // 更新文本替换建议（使用 RIME 预览文本来预判匹配）
     let rimePreview = self.rimeContext.rimeContext?.commitTextPreview ?? ""
     updateTextReplacementSuggestion(rimePreview: rimePreview)
+
+    // 如果有混合输入（数字），更新候选词
+    if rimeContext.mixedInputManager.hasLiteral {
+      updateMixedInputSuggestions()
+    }
+  }
+
+  /// 更新混合输入候选词（将数字与 RIME 候选词合并）
+  private func updateMixedInputSuggestions() {
+    // 获取当前的 RIME 候选词
+    let rimeCandidates = rimeContext.suggestions.map { $0.text }
+
+    // 使用混合输入管理器组合候选词
+    let composedCandidates = rimeContext.mixedInputManager.composeCandidates(rimeCandidates: rimeCandidates)
+
+    // 更新 suggestions
+    Task { @MainActor in
+      var newSuggestions: [CandidateSuggestion] = []
+      for (index, text) in composedCandidates.enumerated() {
+        let suggestion = CandidateSuggestion(
+          index: index,
+          label: "\(index + 1)",
+          text: text,
+          title: text,
+          isAutocomplete: index == 0,
+          subtitle: nil
+        )
+        newSuggestions.append(suggestion)
+      }
+      if !newSuggestions.isEmpty {
+        self.rimeContext.suggestions = newSuggestions
+      }
+    }
   }
 
   func selectAzooKeyCandidate(index: Int) {
@@ -1346,6 +1447,14 @@ private extension KeyboardInputViewController {
           // 九宫格编码转换
           if self.keyboardContext.keyboardType.isChineseNineGrid {
             commitText = commitText.replaceT9pinyin
+          }
+
+          // 借鉴 AzooKey：如果有混合输入（数字），合并到上屏文字
+          if self.rimeContext.mixedInputManager.hasLiteral {
+            commitText = self.rimeContext.mixedInputManager.getCommitText(rimeCommitText: commitText)
+            Logger.statistics.info("DBG_MIXEDINPUT commit with literal: \(commitText, privacy: .public)")
+            // 重置混合输入管理器
+            self.rimeContext.mixedInputManager.reset()
           }
 
           self.textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
