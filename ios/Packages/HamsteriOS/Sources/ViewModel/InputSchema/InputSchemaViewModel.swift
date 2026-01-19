@@ -124,6 +124,25 @@ public class InputSchemaViewModel {
     }
   }
 
+  enum AzooKeyAdvancedOption: String, CaseIterable {
+    case englishCandidate
+    case typographyLetter
+
+    var displayName: String {
+      switch self {
+      case .englishCandidate: return "日语输入中的英语单词转换"
+      case .typographyLetter: return "装饰英文字符转换"
+      }
+    }
+
+    var explanation: String {
+      switch self {
+      case .englishCandidate: return "在罗马字日语输入时显示英语单词候选，如「いんてれsちんg」→「interesting」"
+      case .typographyLetter: return "在英文输入时显示装饰字体候选，如「typography」→「𝕥𝕪𝕡𝕠𝕘𝕣𝕒𝕡𝕙𝕪」"
+      }
+    }
+  }
+
   enum SchemaGroup: Int, CaseIterable {
     case chineseEnglish
     case japanese
@@ -202,6 +221,26 @@ public class InputSchemaViewModel {
   func selectAzooKeyModeOption(_ option: AzooKeyModeOption) {
     guard isAzooKeyModeOptionAvailable(option) else { return }
     UserDefaults.hamster.azooKeyMode = AzooKeyMode(rawValue: option.rawValue) ?? .standard
+    reloadTableStateSubject.send(true)
+  }
+
+  func isAzooKeyAdvancedOptionEnabled(_ option: AzooKeyAdvancedOption) -> Bool {
+    switch option {
+    case .englishCandidate:
+      return UserDefaults.hamster.azooKeyEnglishCandidate
+    case .typographyLetter:
+      return UserDefaults.hamster.azooKeyTypographyLetter
+    }
+  }
+
+  @MainActor
+  func toggleAzooKeyAdvancedOption(_ option: AzooKeyAdvancedOption) {
+    switch option {
+    case .englishCandidate:
+      UserDefaults.hamster.azooKeyEnglishCandidate.toggle()
+    case .typographyLetter:
+      UserDefaults.hamster.azooKeyTypographyLetter.toggle()
+    }
     reloadTableStateSubject.send(true)
   }
 

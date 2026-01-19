@@ -355,6 +355,34 @@ public extension UserDefaults {
       Logger.statistics.debug("save azooKeyMode: \(newValue.rawValue)")
     }
   }
+
+  /// AzooKey 日本語入力中の英単語変換（日语输入中的英语单词转换）
+  var azooKeyEnglishCandidate: Bool {
+    get {
+      if object(forKey: Self.azooKeyEnglishCandidateKey) != nil {
+        return bool(forKey: Self.azooKeyEnglishCandidateKey)
+      }
+      return true  // 默认开启
+    }
+    set {
+      setValue(newValue, forKey: Self.azooKeyEnglishCandidateKey)
+      Logger.statistics.debug("save azooKeyEnglishCandidate: \(newValue)")
+    }
+  }
+
+  /// AzooKey 装飾英字変換（装饰英文字符转换）
+  var azooKeyTypographyLetter: Bool {
+    get {
+      if object(forKey: Self.azooKeyTypographyLetterKey) != nil {
+        return bool(forKey: Self.azooKeyTypographyLetterKey)
+      }
+      return true  // 默认开启
+    }
+    set {
+      setValue(newValue, forKey: Self.azooKeyTypographyLetterKey)
+      Logger.statistics.debug("save azooKeyTypographyLetter: \(newValue)")
+    }
+  }
 }
 
 extension UserDefaults {
@@ -414,6 +442,8 @@ extension UserDefaults {
   private static let latestSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestSchemaForKey"
   private static let hotKeys = "com.XiangqingZHANG.nanomouse.UserDefault.keys.hotKeys"
   private static let azooKeyModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyMode"
+  private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"
+  private static let azooKeyTypographyLetterKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyTypographyLetter"
 
   // MARK: - 补丁
 

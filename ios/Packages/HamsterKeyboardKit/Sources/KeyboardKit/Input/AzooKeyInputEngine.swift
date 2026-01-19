@@ -136,7 +136,7 @@ final class AzooKeyInputEngine {
       requireJapanesePrediction: .autoMix,
       requireEnglishPrediction: .disabled,
       keyboardLanguage: .ja_JP,
-      englishCandidateInRoman2KanaInput: false,
+      englishCandidateInRoman2KanaInput: UserDefaults.hamster.azooKeyEnglishCandidate,
       fullWidthRomanCandidate: false,
       halfWidthKanaCandidate: false,
       learningType: .inputAndOutput,
