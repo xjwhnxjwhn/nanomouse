@@ -735,6 +735,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
     if isAzooKeyInputActive {
       let char = symbol.char
+      // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
+      // AzooKey 的 composingText 会统一管理所有输入（包括数字）
+      let isDigit = char.count == 1 && char.first?.isNumber == true
+      if isDigit && azooKeyEngine.isComposing {
+        // 数字使用 .direct 样式传给 AzooKey 引擎
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct)
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(char)
+        }
+        return
+      }
+
       let style = azooKeyInputStyle(for: char)
       if style == .roman2kana {
         let suggestions = azooKeyEngine.handleInput(char, inputStyle: style)
@@ -820,6 +835,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   open func insertText(_ text: String) {
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
     if isAzooKeyInputActive {
+      // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
+      let isDigit = text.count == 1 && text.first?.isNumber == true
+      if isDigit && azooKeyEngine.isComposing {
+        // 数字使用 .direct 样式传给 AzooKey 引擎
+        let suggestions = azooKeyEngine.handleInput(text, inputStyle: .direct)
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(text)
+        }
+        return
+      }
+
       let style = azooKeyInputStyle(for: text)
       let suggestions = azooKeyEngine.handleInput(text, inputStyle: style)
       if azooKeyEngine.isComposing {
