@@ -406,6 +406,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableUserGuideScrolling: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableUserGuideScrolling ?? true
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableUserGuideScrolling = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.enableUserGuideScrolling = newValue
+    }
+  }
+
   public var spaceDragSensitivity: Int {
     get {
       HamsterAppDependencyContainer.shared.configuration.swipe?.spaceDragSensitivity ?? 5
@@ -992,6 +1002,12 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         toggleValue: { [unowned self] in swipePaging },
         toggleHandled: { [unowned self] in
           swipePaging = $0
+        }),
+      .init(
+        text: "滚动显示用户引导",
+        toggleValue: { [unowned self] in enableUserGuideScrolling },
+        toggleHandled: { [unowned self] in
+          enableUserGuideScrolling = $0
         })
     ]),
 

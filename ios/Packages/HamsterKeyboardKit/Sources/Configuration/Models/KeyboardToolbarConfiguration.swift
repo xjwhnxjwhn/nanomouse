@@ -49,6 +49,9 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
   /// 关闭后为手动分页模式，即通过发送上一页/下一页按键，使 rime 翻页
   public var swipePaging: Bool?
 
+  /// 候选栏空闲时滚动显示用户引导
+  public var enableUserGuideScrolling: Bool?
+
   public init(
     enableToolbar: Bool? = true,
     heightOfToolbar: Int? = 50,
@@ -61,7 +64,8 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     candidateCommentFontSize: Int? = 12,
     displayIndexOfCandidateWord: Bool? = false,
     displayCommentOfCandidateWord: Bool? = false,
-    swipePaging: Bool? = true)
+    swipePaging: Bool? = true,
+    enableUserGuideScrolling: Bool? = true)
   {
     self.enableToolbar = enableToolbar
     self.heightOfToolbar = heightOfToolbar
@@ -75,6 +79,7 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.displayIndexOfCandidateWord = displayIndexOfCandidateWord
     self.displayCommentOfCandidateWord = displayCommentOfCandidateWord
     self.swipePaging = swipePaging
+    self.enableUserGuideScrolling = enableUserGuideScrolling
   }
 
   public init(from decoder: Decoder) throws {
@@ -91,6 +96,7 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.displayIndexOfCandidateWord = try container.decodeIfPresent(Bool.self, forKey: .displayIndexOfCandidateWord)
     self.displayCommentOfCandidateWord = try container.decodeIfPresent(Bool.self, forKey: .displayCommentOfCandidateWord)
     self.swipePaging = try container.decodeIfPresent(Bool.self, forKey: .swipePaging)
+    self.enableUserGuideScrolling = try container.decodeIfPresent(Bool.self, forKey: .enableUserGuideScrolling)
   }
 
   enum CodingKeys: CodingKey {
@@ -106,6 +112,7 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     case displayIndexOfCandidateWord
     case displayCommentOfCandidateWord
     case swipePaging
+    case enableUserGuideScrolling
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -122,5 +129,6 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.displayIndexOfCandidateWord, forKey: .displayIndexOfCandidateWord)
     try container.encodeIfPresent(self.displayCommentOfCandidateWord, forKey: .displayCommentOfCandidateWord)
     try container.encodeIfPresent(self.swipePaging, forKey: .swipePaging)
+    try container.encodeIfPresent(self.enableUserGuideScrolling, forKey: .enableUserGuideScrolling)
   }
 }

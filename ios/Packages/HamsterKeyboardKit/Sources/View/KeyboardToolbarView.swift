@@ -31,6 +31,10 @@ class KeyboardToolbarView: NibLessView {
   private var lastAsciiModeSnapshot: Bool = false
   private var traditionalizeHintWorkItem: DispatchWorkItem?
 
+  /// 用户引导相关属性
+  private var currentTipIndex = 0
+  private var tipTimer: Timer?
+
   private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
     recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
@@ -47,6 +51,18 @@ class KeyboardToolbarView: NibLessView {
     label.minimumScaleFactor = 0.7
     label.alpha = 0
     label.isHidden = true
+    label.isUserInteractionEnabled = false
+    return label
+  }()
+
+  /// 用户引导提示标签
+  private lazy var userGuideLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.textAlignment = .center
+    label.adjustsFontSizeToFitWidth = true
+    label.minimumScaleFactor = 0.7
+    label.alpha = 0
     label.isUserInteractionEnabled = false
     return label
   }()
@@ -138,6 +154,7 @@ class KeyboardToolbarView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     commonFunctionBar.addGestureRecognizer(traditionalizeLongPressGesture)
+    setupUserGuide()
   }
 
   override func layoutSubviews() {
@@ -166,6 +183,7 @@ class KeyboardToolbarView: NibLessView {
       commonFunctionBar.addSubview(dismissKeyboardButton)
     }
     commonFunctionBar.addSubview(traditionalizeHintLabel)
+    commonFunctionBar.addSubview(userGuideLabel)
   }
 
   override func activateViewConstraints() {
@@ -215,6 +233,14 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.trailingAnchor, constant: -8),
     ])
 
+    // 用户引导标签约束
+    constraints.append(contentsOf: [
+      userGuideLabel.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
+      userGuideLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+      userGuideLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
+      userGuideLabel.trailingAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.trailingAnchor, constant: -8),
+    ])
+
     NSLayoutConstraint.activate(constraints)
   }
 
@@ -230,6 +256,11 @@ class KeyboardToolbarView: NibLessView {
     let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
     traditionalizeHintLabel.font = style.phoneticTextFont.withSize(hintFontSize)
     traditionalizeHintLabel.textColor = style.candidateTextColor
+
+    // 用户引导标签样式（字体为候选字体的一半大小）
+    let guideFontSize = style.candidateTextFont.pointSize * 0.5
+    userGuideLabel.font = style.candidateTextFont.withSize(guideFontSize)
+    userGuideLabel.textColor = style.candidateTextColor.withAlphaComponent(0.6)
   }
 
   func combine() {
@@ -376,12 +407,64 @@ class KeyboardToolbarView: NibLessView {
     guard canToggleTraditionalizationFromToolbar else { return }
     let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
     guard !simplifiedModeKey.isEmpty else { return }
-    
+
     // 振动反馈
     let generator = UIImpactFeedbackGenerator(style: .medium)
     generator.impactOccurred()
-    
+
     rimeContext.switchTraditionalSimplifiedChinese(simplifiedModeKey)
+  }
+
+  // MARK: - 用户引导相关方法
+
+  /// 设置用户引导
+  private func setupUserGuide() {
+    // 检查是否启用用户引导
+    guard keyboardContext.hamsterConfiguration?.toolbar?.enableUserGuideScrolling ?? true else {
+      return
+    }
+    // 启动用户引导
+    startUserGuide()
+  }
+
+  /// 启动用户引导
+  private func startUserGuide() {
+    guard tipTimer == nil else { return }
+    showCurrentTip()
+    tipTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
+      self?.fadeToNextTip()
+    }
+  }
+
+  /// 停止用户引导
+  private func stopUserGuide() {
+    tipTimer?.invalidate()
+    tipTimer = nil
+    UIView.animate(withDuration: 0.2) {
+      self.userGuideLabel.alpha = 0
+    }
+  }
+
+  /// 显示当前提示
+  private func showCurrentTip() {
+    let tipText = UserGuideTips.tip(at: currentTipIndex)
+    userGuideLabel.text = tipText
+    UIView.animate(withDuration: 0.3) {
+      self.userGuideLabel.alpha = 1.0
+    }
+  }
+
+  /// 淡入淡出切换到下一条提示
+  private func fadeToNextTip() {
+    UIView.animate(withDuration: 0.3, animations: {
+      self.userGuideLabel.alpha = 0
+    }) { _ in
+      self.currentTipIndex = (self.currentTipIndex + 1) % UserGuideTips.count
+      self.userGuideLabel.text = UserGuideTips.tip(at: self.currentTipIndex)
+      UIView.animate(withDuration: 0.3) {
+        self.userGuideLabel.alpha = 1.0
+      }
+    }
   }
 }
 
