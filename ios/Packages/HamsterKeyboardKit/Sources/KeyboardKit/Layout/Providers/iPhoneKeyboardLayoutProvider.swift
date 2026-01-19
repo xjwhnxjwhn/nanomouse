@@ -251,7 +251,7 @@ private extension iPhoneKeyboardLayoutProvider {
    最后一个 数字/符号 行输入按键的宽度。
    */
   func lastSymbolicInputWidth(for context: KeyboardContext) -> KeyboardLayoutItemWidth {
-    .percentage(0.14)
+    .percentage(0.115)
   }
 
   /**

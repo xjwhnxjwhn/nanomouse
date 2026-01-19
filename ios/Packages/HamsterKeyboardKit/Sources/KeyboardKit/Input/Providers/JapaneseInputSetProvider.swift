@@ -21,14 +21,11 @@ open class JapaneseInputSetProvider: InputSetProvider {
   public var symbolicInputSet: SymbolicInputSet
 
   public init(
-    alphabetic: AlphabeticInputSet = .japanese,
-    numericCurrency: String = "$",
-    symbolicCurrency: String = "£"
+    alphabetic: AlphabeticInputSet = .japanese
   ) {
     self.alphabeticInputSet = alphabetic
-    // Reuse English numeric/symbolic sets for now.
-    self.numericInputSet = .english(currency: numericCurrency)
-    self.symbolicInputSet = .english(currency: symbolicCurrency)
+    self.numericInputSet = .japanese
+    self.symbolicInputSet = .japanese
   }
 }
 
@@ -40,5 +37,23 @@ public extension AlphabeticInputSet {
     .init(chars: "qwertyuiop"),
     .init(chars: "asdfghjklー"),
     .init(phone: "zxcvbnm", pad: "zxcvbnm,.")
+  ])
+}
+
+public extension NumericInputSet {
+  /// 日语键盘数字（参考 AzooKey）
+  static let japanese = NumericInputSet(rows: [
+    .init(chars: "1234567890"),
+    .init(phone: "-/:@()「」¥&", pad: "-/:@()「」¥&"),
+    .init(phone: "。、？！・~", pad: "。、？！・~")
+  ])
+}
+
+public extension SymbolicInputSet {
+  /// 日语键盘符号（参考 AzooKey）
+  static let japanese = SymbolicInputSet(rows: [
+    .init(phone: "[]{}#%^*+=", pad: "[]{}#%^*+="),
+    .init(phone: "_\\;|<>\"'$€", pad: "_\\;|<>\"'$€"),
+    .init(phone: ".,?!…`", pad: ".,?!…`")
   ])
 }
