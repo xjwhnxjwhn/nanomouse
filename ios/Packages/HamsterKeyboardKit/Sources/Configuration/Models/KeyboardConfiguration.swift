@@ -159,7 +159,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
   public init(
     useKeyboardType: String? = "chinese",
     defaultLanguageMode: KeyboardDefaultLanguage? = nil,
-    disableSwipeLabel: Bool? = false,
+    disableSwipeLabel: Bool? = true,
     upSwipeOnLeft: Bool? = false,
     swipeLabelUpAndDownLayout: Bool? = true,
     swipeLabelUpAndDownIrregularLayout: Bool? = false,
@@ -183,7 +183,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     rightSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool? = true,
     symbolsOfGridOfNumericKeyboard: [String]? = nil,
     lockShiftState: Bool? = false,
-    enableEmbeddedInputMode: Bool? = false,
+    enableEmbeddedInputMode: Bool? = true,
     widthOfOneHandedKeyboard: Int? = nil,
     symbolsOfCursorBack: [String]? = nil,
     symbolsOfReturnToMainKeyboard: [String]? = nil,
