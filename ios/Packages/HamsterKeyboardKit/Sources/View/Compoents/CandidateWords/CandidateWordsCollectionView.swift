@@ -233,12 +233,19 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
       let textReplacementCount = rimeContext.textReplacementSuggestions.count
       let adjustedIndex = indexPath.item - textReplacementCount
       if adjustedIndex >= 0 {
-        if rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId,
-           let handler = actionHandler as? StandardKeyboardActionHandler,
+        if let handler = actionHandler as? StandardKeyboardActionHandler,
            let controller = handler.keyboardController as? KeyboardInputViewController
         {
-          controller.selectAzooKeyCandidate(index: adjustedIndex)
-          return
+          // 英语输入模式
+          if controller.isEnglishInputActive && controller.englishEngine.isComposing {
+            controller.selectEnglishCandidate(index: adjustedIndex)
+            return
+          }
+          // AzooKey 日语输入模式
+          if rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+            controller.selectAzooKeyCandidate(index: adjustedIndex)
+            return
+          }
         }
         self.rimeContext.selectCandidate(index: adjustedIndex)
       }

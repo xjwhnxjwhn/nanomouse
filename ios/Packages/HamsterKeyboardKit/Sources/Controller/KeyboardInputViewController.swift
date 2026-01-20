@@ -461,6 +461,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   /// AzooKey 输入引擎（日语专用）
   lazy var azooKeyEngine = AzooKeyInputEngine()
 
+  /// 英语输入引擎
+  lazy var englishEngine = EnglishInputEngine()
+
   /// 系统文本替换管理器
   /// 用于读取和应用 iOS 系统的「文本替换」设置
   public lazy var systemTextReplacementManager = SystemTextReplacementManager()
@@ -473,10 +476,32 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     isAzooKeyActive && rimeContext.asciiModeSnapshot == false
   }
 
+  /// 是否处于英语输入模式（ASCII模式 + 字母键盘）
+  var isEnglishInputActive: Bool {
+    keyboardContext.keyboardType.isAlphabetic && rimeContext.asciiModeSnapshot
+  }
+
   func updateAzooKeySuggestions(_ suggestions: [CandidateSuggestion]) {
     rimeContext.userInputKey = azooKeyEngine.currentDisplayText
     Task { @MainActor in
       self.rimeContext.suggestions = suggestions
+      self.rimeContext.textReplacementSuggestions = []
+    }
+  }
+
+  func updateEnglishSuggestions(_ suggestions: [CandidateSuggestion]) {
+    rimeContext.userInputKey = englishEngine.currentDisplayText
+    Task { @MainActor in
+      self.rimeContext.suggestions = suggestions
+      self.rimeContext.textReplacementSuggestions = []
+    }
+  }
+
+  func clearEnglishState() {
+    englishEngine.reset()
+    rimeContext.userInputKey = ""
+    Task { @MainActor in
+      self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
     }
   }
@@ -655,6 +680,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func deleteBackward() {
+    // 英语输入模式的删除处理
+    if isEnglishInputActive && englishEngine.isComposing {
+      let suggestions = englishEngine.deleteBackward()
+      if suggestions.isEmpty {
+        clearEnglishState()
+      } else {
+        updateEnglishSuggestions(suggestions)
+      }
+      return
+    }
+
     if isAzooKeyInputActive {
       if azooKeyEngine.isComposing {
         let suggestions = azooKeyEngine.deleteBackward()
@@ -733,7 +769,35 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertSymbol(_ symbol: Symbol) {
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
-    if isAzooKeyInputActive {
+
+    // 英语输入模式：使用候选栏
+    if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+      let text = symbol.char
+      Logger.statistics.info("DBG_ENGLISH insertSymbol: \(text, privacy: .public)")
+      let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
+      if isLetter || englishEngine.isComposing {
+        let suggestions = englishEngine.handleInput(text)
+        Logger.statistics.info("DBG_ENGLISH suggestions count: \(suggestions.count), isComposing: \(self.englishEngine.isComposing)")
+        if englishEngine.isComposing {
+          updateEnglishSuggestions(suggestions)
+        } else {
+          clearEnglishState()
+          self.textDocumentProxy.insertText(text)
+        }
+      } else {
+        // 非字母且没有正在输入的内容，提交当前输入后直接上屏
+        if englishEngine.isComposing {
+          if let commit = englishEngine.commitCandidate(at: 0) {
+            textDocumentProxy.insertText(commit)
+          }
+          clearEnglishState()
+        }
+        self.textDocumentProxy.insertText(text)
+      }
+      return
+    }
+
+    if isAzooKeyActive {
       let char = symbol.char
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       // AzooKey 的 composingText 会统一管理所有输入（包括数字）
@@ -860,10 +924,24 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
     if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
-      // 先更新文本替换建议（在插入文本之前，传入待插入的文本）
-      updateTextReplacementSuggestion(pendingText: text)
-      // 再插入文本
-      self.textDocumentProxy.insertText(text)
+      // 英语输入模式：使用候选栏
+      Logger.statistics.info("DBG_ENGLISH insertText: \(text, privacy: .public), isAlphabetic: true, asciiMode: true")
+      let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
+      Logger.statistics.info("DBG_ENGLISH isLetter: \(isLetter), isComposing: \(self.englishEngine.isComposing)")
+      if isLetter || englishEngine.isComposing {
+        let suggestions = englishEngine.handleInput(text)
+        Logger.statistics.info("DBG_ENGLISH suggestions count: \(suggestions.count), isComposing: \(self.englishEngine.isComposing)")
+        if englishEngine.isComposing {
+          updateEnglishSuggestions(suggestions)
+        } else {
+          // 非字母输入且没有正在输入的内容，直接上屏
+          clearEnglishState()
+          self.textDocumentProxy.insertText(text)
+        }
+      } else {
+        // 非字母且没有正在输入的内容，直接上屏
+        self.textDocumentProxy.insertText(text)
+      }
       return
     }
 
@@ -951,6 +1029,23 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     clearAzooKeyState()
   }
 
+  func selectEnglishCandidate(index: Int) {
+    guard isEnglishInputActive else { return }
+    if let commit = englishEngine.commitCandidate(at: index) {
+      textDocumentProxy.insertText(commit)
+    }
+    clearEnglishState()
+  }
+
+  /// 提交英语原始输入文本（用于回车键）
+  func commitEnglishRawText() {
+    guard isEnglishInputActive, englishEngine.isComposing else { return }
+    if let text = englishEngine.commitRawText() {
+      textDocumentProxy.insertText(text)
+    }
+    clearEnglishState()
+  }
+
   open func selectNextKeyboard() {
     // advanceToNextInputMode()
   }
@@ -1036,6 +1131,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func resetInputEngine() {
+    if isEnglishInputActive && englishEngine.isComposing {
+      englishEngine.reset()
+      clearEnglishState()
+      return
+    }
     if isAzooKeyInputActive {
       azooKeyEngine.reset()
       clearAzooKeyState()
@@ -1045,6 +1145,30 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
+    // 英语输入模式的特殊键处理
+    if isEnglishInputActive && englishEngine.isComposing {
+      switch keyCode {
+      case XK_Return:
+        // 回车键：提交原始输入
+        commitEnglishRawText()
+        textDocumentProxy.insertText(.newline)
+        return
+      case XK_space:
+        // 空格键：确认第一个候选词
+        if let commit = englishEngine.commitCandidate(at: 0) {
+          textDocumentProxy.insertText(commit)
+          textDocumentProxy.insertText(.space)
+        }
+        clearEnglishState()
+        return
+      case XK_BackSpace:
+        deleteBackward()
+        return
+      default:
+        break
+      }
+    }
+
     if isAzooKeyInputActive {
       switch keyCode {
       case XK_Return:
