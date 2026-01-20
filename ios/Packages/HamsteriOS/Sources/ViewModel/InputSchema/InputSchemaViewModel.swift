@@ -119,7 +119,26 @@ public class InputSchemaViewModel {
     var displayName: String {
       switch self {
       case .standard: return "标准模式（默认）"
-      case .zenzai: return "Zenzai 增强（需下载）"
+      case .zenzai: return "Zenzai 增强"
+      }
+    }
+  }
+
+  enum ZenzaiModelQuality: String, CaseIterable {
+    case low
+    case high
+
+    var displayName: String {
+      switch self {
+      case .low: return "Low（21MB，适合大多数设备）"
+      case .high: return "High（74MB，仅限 iPhone 15 Pro 及以上）"
+      }
+    }
+
+    var fileName: String {
+      switch self {
+      case .low: return HamsterConstants.azooKeyZenzaiWeightFileLow
+      case .high: return HamsterConstants.azooKeyZenzaiWeightFileHigh
       }
     }
   }
@@ -207,6 +226,61 @@ public class InputSchemaViewModel {
     case .zenzai:
       return FileManager.azooKeyZenzaiWeightURL() != nil
     }
+  }
+
+  /// 检测设备是否支持 High 质量模型（iPhone 15 Pro 及以上，或 M 系列芯片）
+  var isHighQualityZenzaiSupported: Bool {
+    var systemInfo = utsname()
+    uname(&systemInfo)
+    let machineMirror = Mirror(reflecting: systemInfo.machine)
+    let identifier = machineMirror.children.reduce("") { id, element in
+      guard let value = element.value as? Int8, value != 0 else { return id }
+      return id + String(UnicodeScalar(UInt8(value)))
+    }
+
+    // iPhone 15 Pro = iPhone16,1, iPhone 15 Pro Max = iPhone16,2
+    // iPhone 16 系列 = iPhone17,x
+    // iPad Pro M1/M2/M4 = iPad13,x / iPad14,x 等
+    if identifier.hasPrefix("iPhone") {
+      if let range = identifier.range(of: "iPhone"),
+         let majorVersion = Int(identifier[range.upperBound...].prefix(while: { $0.isNumber })) {
+        return majorVersion >= 16 // iPhone 15 Pro 及以上
+      }
+    }
+    // iPad Pro with M chip
+    if identifier.hasPrefix("iPad") {
+      if let range = identifier.range(of: "iPad"),
+         let majorVersion = Int(identifier[range.upperBound...].prefix(while: { $0.isNumber })) {
+        return majorVersion >= 13 // iPad Pro M1 及以上
+      }
+    }
+    // Mac (Catalyst) 或模拟器
+    if identifier.hasPrefix("arm64") || identifier.contains("Mac") {
+      return true
+    }
+    return false
+  }
+
+  func isZenzaiModelQualityAvailable(_ quality: ZenzaiModelQuality) -> Bool {
+    switch quality {
+    case .low:
+      return true
+    case .high:
+      return isHighQualityZenzaiSupported
+    }
+  }
+
+  /// 获取当前已下载的 Zenzai 模型质量
+  var downloadedZenzaiQuality: ZenzaiModelQuality? {
+    guard let url = FileManager.azooKeyZenzaiWeightURL() else { return nil }
+    let fileName = url.lastPathComponent
+    if fileName.contains("xsmall") || fileName == HamsterConstants.azooKeyZenzaiWeightFileLow {
+      return .low
+    }
+    if fileName.contains("small") || fileName == HamsterConstants.azooKeyZenzaiWeightFileHigh {
+      return .high
+    }
+    return .low // 默认当作 low
   }
 
   var selectedTraditionalizationOpenccConfig: String {
@@ -494,19 +568,64 @@ public class InputSchemaViewModel {
     }
   }
 
-  func downloadAzooKeyZenzai() {
-    downloadOnDemandZipFiles(
-      [HamsterConstants.azooKeyZenzaiZipFile],
-      title: "AzooKey Zenzai",
-      destination: FileManager.appGroupAzooKeyZenzaiDirectoryURL,
-      needsRimeDeploy: false
-    ) { [weak self] in
-      if FileManager.azooKeyZenzaiWeightURL() != nil {
-        UserDefaults.hamster.azooKeyMode = .zenzai
-      } else {
-        UserDefaults.hamster.azooKeyMode = .standard
+  func downloadAzooKeyZenzai(quality: ZenzaiModelQuality) {
+    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
+      ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
+      return
+    }
+
+    let fileName = quality.fileName
+    let remoteURL = baseURL.appendingPathComponent(fileName)
+    let destination = FileManager.appGroupAzooKeyZenzaiDirectoryURL
+      .appendingPathComponent(fileName)
+
+    Task.detached(priority: .userInitiated) { [weak self] in
+      await MainActor.run {
+        ProgressHUD.animate("正在下载 Zenzai 模型（\(quality == .low ? "Low" : "High")）…", AnimationType.circleRotateChase, interaction: false)
       }
-      self?.reloadTableStateSubject.send(true)
+
+      do {
+        let zenzaiDir = FileManager.appGroupAzooKeyZenzaiDirectoryURL
+        try FileManager.createDirectory(override: false, dst: zenzaiDir)
+
+        // 删除旧的模型文件（如果有）
+        let fm = FileManager.default
+        if let enumerator = fm.enumerator(at: zenzaiDir, includingPropertiesForKeys: nil) {
+          for case let fileURL as URL in enumerator {
+            if fileURL.pathExtension.lowercased() == "gguf" {
+              try? fm.removeItem(at: fileURL)
+            }
+          }
+        }
+
+        let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+          try? FileManager.default.removeItem(at: tempURL)
+          throw StringError("下载失败（HTTP \(httpResponse.statusCode)）")
+        }
+
+        // 移动到目标位置
+        if fm.fileExists(atPath: destination.path) {
+          try fm.removeItem(at: destination)
+        }
+        try fm.moveItem(at: tempURL, to: destination)
+
+        await MainActor.run {
+          if FileManager.azooKeyZenzaiWeightURL() != nil {
+            UserDefaults.hamster.azooKeyMode = .zenzai
+          } else {
+            UserDefaults.hamster.azooKeyMode = .standard
+          }
+          self?.reloadTableStateSubject.send(true)
+          ProgressHUD.success("Zenzai 模型下载完成", interaction: false, delay: 1.2)
+        }
+      } catch {
+        Logger.statistics.error("download Zenzai weight failed: \(error.localizedDescription)")
+        await MainActor.run {
+          ProgressHUD.failed("下载失败：\(error.localizedDescription)", interaction: false, delay: 2)
+        }
+      }
     }
   }
 

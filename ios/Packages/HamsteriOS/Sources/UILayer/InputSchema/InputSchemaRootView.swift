@@ -141,10 +141,37 @@ class InputSchemaRootView: NibLessView {
     button.setTitle("下载", for: .normal)
     button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
     button.sizeToFit()
-    button.addAction(UIAction { [unowned self] _ in
-      self.inputSchemaViewModel.downloadAzooKeyZenzai()
-    }, for: .touchUpInside)
+    button.showsMenuAsPrimaryAction = true
+    button.menu = zenzaiDownloadMenu()
     return button
+  }
+
+  private func zenzaiDownloadMenu() -> UIMenu {
+    var actions: [UIAction] = []
+
+    // Low 选项始终可用
+    let lowAction = UIAction(
+      title: "Low（21MB）",
+      subtitle: "适合大多数设备",
+      image: UIImage(systemName: "arrow.down.circle")
+    ) { [unowned self] _ in
+      self.inputSchemaViewModel.downloadAzooKeyZenzai(quality: .low)
+    }
+    actions.append(lowAction)
+
+    // High 选项仅在支持的设备上显示
+    if inputSchemaViewModel.isHighQualityZenzaiSupported {
+      let highAction = UIAction(
+        title: "High（74MB）",
+        subtitle: "更高精度",
+        image: UIImage(systemName: "arrow.down.circle.fill")
+      ) { [unowned self] _ in
+        self.inputSchemaViewModel.downloadAzooKeyZenzai(quality: .high)
+      }
+      actions.append(highAction)
+    }
+
+    return UIMenu(title: "选择模型质量", children: actions)
   }
 }
 

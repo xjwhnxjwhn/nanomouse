@@ -51,8 +51,10 @@ public enum HamsterConstants {
   /// AzooKey 词库 zip 包（按需下载）
   public static let azooKeyDictionaryZipFile = "azookey-dictionary.zip"
 
-  /// AzooKey Zenzai 权重 zip 包（按需下载）
-  public static let azooKeyZenzaiZipFile = "azookey-zenzai.zip"
+  /// AzooKey Zenzai 权重文件（按需下载，.gguf 格式）
+  /// Low = xsmall (20MB), High = small (70MB)
+  public static let azooKeyZenzaiWeightFileLow = "zenz-v3.1-xsmall-Q5_K_M.gguf"
+  public static let azooKeyZenzaiWeightFileHigh = "zenz-v3.1-small-Q5_K_M.gguf"
 
   /// 其他可选方案 zip 包（按需下载）
   public static let onDemandExtraZipFiles: [String] = [
