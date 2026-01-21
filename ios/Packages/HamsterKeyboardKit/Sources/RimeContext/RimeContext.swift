@@ -952,7 +952,11 @@ public extension RimeContext {
     }
 
     // 注意赋值顺序
-    self.userInputKey = userInputText
+    if mixedInputManager.hasLiteral {
+      self.userInputKey = mixedInputManager.displayText
+    } else {
+      self.userInputKey = userInputText
+    }
     self.commitText = commitText
     self.suggestions = candidates
   }

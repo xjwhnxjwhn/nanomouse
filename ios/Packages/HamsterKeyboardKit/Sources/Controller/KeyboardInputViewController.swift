@@ -745,7 +745,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         // 更新显示
         let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? ""
         if rimeContext.mixedInputManager.hasLiteral {
-          rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+          rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
         } else {
           rimeContext.userInputKey = rimePreedit
         }
@@ -879,8 +879,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
-      let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? rimeContext.userInputKey
-      rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+      rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT insertSymbol digit intercepted: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
@@ -970,8 +969,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
-      let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? rimeContext.userInputKey
-      rimeContext.userInputKey = rimePreedit + rimeContext.mixedInputManager.literalOnly
+      rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(text, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
