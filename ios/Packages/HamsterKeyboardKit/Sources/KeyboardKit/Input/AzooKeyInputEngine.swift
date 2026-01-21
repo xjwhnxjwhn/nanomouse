@@ -23,6 +23,11 @@ final class AzooKeyInputEngine {
   private let converterLock = NSLock()
   private let conversionLock = NSLock()
   private let prewarmQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.prewarm", qos: .userInitiated)
+  private let zenzaiPrewarmQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.zenzai.prewarm", qos: .utility)
+  private let zenzaiLock = NSLock()
+  private var zenzaiReady = false
+  private var zenzaiPrewarmInProgress = false
+  private let zenzaiMinInputLength = 4
 
   var isComposing: Bool {
     !composingText.convertTarget.isEmpty || !composingText.input.isEmpty
@@ -49,7 +54,11 @@ final class AzooKeyInputEngine {
 
   var requiresLeftSideContext: Bool {
     let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai
-    return zenzaiEnabled && FileManager.azooKeyZenzaiWeightURL() != nil
+    guard zenzaiEnabled, FileManager.azooKeyZenzaiWeightURL() != nil else { return false }
+    zenzaiLock.lock()
+    let ready = zenzaiReady
+    zenzaiLock.unlock()
+    return ready
   }
 
   func reset() {
@@ -92,7 +101,7 @@ final class AzooKeyInputEngine {
       var warmupText = ComposingText()
       // 触发罗马音输入路径（真实首键更接近），而不是直入日文字符。
       warmupText.insertAtCursorPosition("a", inputStyle: .roman2kana)
-      let options = self.makeOptions(inputStyle: .roman2kana, leftSideContext: nil)
+      let (options, _) = self.makeOptions(inputStyle: .roman2kana, leftSideContext: nil, forceZenzai: false)
       guard let converter = self.ensureConverter() else { return }
       guard self.conversionLock.try() else { return }
       converter.setKeyboardLanguage(.ja_JP)
@@ -102,6 +111,9 @@ final class AzooKeyInputEngine {
       self.converterLock.lock()
       self.hasPrewarmed = true
       self.converterLock.unlock()
+      if self.isZenzaiEnabledAndAvailable() {
+        self.prewarmZenzaiIfNeeded()
+      }
     }
   }
 
@@ -111,9 +123,14 @@ final class AzooKeyInputEngine {
     lastInputStyle = inputStyle
     let inputData = composingText.prefixToCursorPosition()
     conversionLock.lock()
-    let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext))
+    let (options, usedZenzai) = makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext)
+    let result = converter.requestCandidates(inputData, options: options)
     conversionLock.unlock()
-    lastCandidates = result.mainResults
+    let candidates = result.mainResults
+    if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
+      return suggestions(from: lastCandidates)
+    }
+    lastCandidates = candidates
     return suggestions(from: lastCandidates)
   }
 
@@ -129,9 +146,14 @@ final class AzooKeyInputEngine {
     guard let converter = ensureConverter() else { return [] }
     let inputData = composingText.prefixToCursorPosition()
     conversionLock.lock()
-    let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext))
+    let (options, usedZenzai) = makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext)
+    let result = converter.requestCandidates(inputData, options: options)
     conversionLock.unlock()
-    lastCandidates = result.mainResults
+    let candidates = result.mainResults
+    if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
+      return suggestions(from: lastCandidates)
+    }
+    lastCandidates = candidates
     return suggestions(from: lastCandidates)
   }
 
@@ -194,7 +216,11 @@ final class AzooKeyInputEngine {
     return result
   }
 
-  private func makeOptions(inputStyle: InputStyle, leftSideContext: String?) -> ConvertRequestOptions {
+  private func makeOptions(
+    inputStyle: InputStyle,
+    leftSideContext: String?,
+    forceZenzai: Bool = false
+  ) -> (ConvertRequestOptions, Bool) {
     let memoryDirectoryURL = FileManager.appGroupAzooKeyMemoryDirectoryURL
     let sharedContainerURL = FileManager.appGroupAzooKeyDirectoryURL
     let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai
@@ -216,13 +242,24 @@ final class AzooKeyInputEngine {
     }
 
     // 仅当开关与权重同时满足时启用 Zenzai
-    if cachedZenzaiEnabled != resolvedZenzaiEnabled || cachedZenzaiWeightURL != weightURL {
-      cachedZenzaiEnabled = resolvedZenzaiEnabled
-      cachedZenzaiWeightURL = weightURL
+    updateZenzaiStateIfNeeded(resolvedEnabled: resolvedZenzaiEnabled, weightURL: weightURL)
+    if resolvedZenzaiEnabled, !forceZenzai {
+      prewarmZenzaiIfNeeded()
     }
 
+    let shouldUseZenzai: Bool = {
+      guard resolvedZenzaiEnabled, let weightURL else { return false }
+      if forceZenzai { return true }
+      zenzaiLock.lock()
+      let ready = zenzaiReady
+      zenzaiLock.unlock()
+      guard ready else { return false }
+      guard composingText.convertTarget.count >= zenzaiMinInputLength else { return false }
+      return true
+    }()
+
     let zenzaiMode: ConvertRequestOptions.ZenzaiMode
-    if resolvedZenzaiEnabled, let weightURL {
+    if shouldUseZenzai, let weightURL {
       let inferenceLimit = inferenceLimitForWeightURL(weightURL)
       zenzaiMode = .on(
         weight: weightURL,
@@ -240,7 +277,7 @@ final class AzooKeyInputEngine {
       providers.append(.typography)
     }
 
-    return ConvertRequestOptions(
+    let options = ConvertRequestOptions(
       N_best: 10,
       needTypoCorrection: nil,
       requireJapanesePrediction: requireJapanesePrediction,
@@ -260,6 +297,7 @@ final class AzooKeyInputEngine {
       preloadDictionary: false,
       metadata: ConvertRequestOptions.Metadata(versionString: "NanoMouse AzooKey")
     )
+    return (options, shouldUseZenzai)
   }
 
   private func inferenceLimitForWeightURL(_ url: URL) -> Int {
@@ -271,6 +309,68 @@ final class AzooKeyInputEngine {
       return 8
     }
     return 5
+  }
+
+  private func isZenzaiEnabledAndAvailable() -> Bool {
+    UserDefaults.hamster.azooKeyMode == .zenzai && FileManager.azooKeyZenzaiWeightURL() != nil
+  }
+
+  private func updateZenzaiStateIfNeeded(resolvedEnabled: Bool, weightURL: URL?) {
+    if cachedZenzaiEnabled != resolvedEnabled || cachedZenzaiWeightURL != weightURL {
+      cachedZenzaiEnabled = resolvedEnabled
+      cachedZenzaiWeightURL = weightURL
+      zenzaiLock.lock()
+      zenzaiReady = false
+      zenzaiPrewarmInProgress = false
+      zenzaiLock.unlock()
+    }
+  }
+
+  private func prewarmZenzaiIfNeeded() {
+    zenzaiLock.lock()
+    if zenzaiReady || zenzaiPrewarmInProgress {
+      zenzaiLock.unlock()
+      return
+    }
+    zenzaiPrewarmInProgress = true
+    zenzaiLock.unlock()
+
+    zenzaiPrewarmQueue.async { [weak self] in
+      guard let self else { return }
+      self.runZenzaiPrewarm()
+    }
+  }
+
+  private func runZenzaiPrewarm() {
+    guard isZenzaiEnabledAndAvailable() else {
+      zenzaiLock.lock()
+      zenzaiPrewarmInProgress = false
+      zenzaiLock.unlock()
+      return
+    }
+    guard let converter = ensureConverter() else {
+      zenzaiLock.lock()
+      zenzaiPrewarmInProgress = false
+      zenzaiLock.unlock()
+      return
+    }
+    if !conversionLock.try() {
+      zenzaiPrewarmQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        self?.runZenzaiPrewarm()
+      }
+      return
+    }
+    var warmupText = ComposingText()
+    warmupText.insertAtCursorPosition("a", inputStyle: .roman2kana)
+    let (options, _) = makeOptions(inputStyle: .roman2kana, leftSideContext: nil, forceZenzai: true)
+    converter.setKeyboardLanguage(.ja_JP)
+    _ = converter.requestCandidates(warmupText, options: options)
+    converter.stopComposition()
+    conversionLock.unlock()
+    zenzaiLock.lock()
+    zenzaiReady = true
+    zenzaiPrewarmInProgress = false
+    zenzaiLock.unlock()
   }
 
   private func suggestions(from candidates: [Candidate]) -> [CandidateSuggestion] {
