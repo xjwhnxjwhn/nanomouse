@@ -17,6 +17,7 @@ final class AzooKeyInputEngine {
   private var cachedDictionaryURL: URL?
   private var cachedZenzaiWeightURL: URL?
   private var cachedZenzaiEnabled = false
+  private var lastInputStyle: InputStyle = .direct
 
   var isComposing: Bool {
     !composingText.convertTarget.isEmpty || !composingText.input.isEmpty
@@ -47,15 +48,17 @@ final class AzooKeyInputEngine {
     converter?.stopComposition()
   }
 
-  func handleInput(_ text: String, inputStyle: InputStyle) -> [CandidateSuggestion] {
+  func handleInput(_ text: String, inputStyle: InputStyle, leftSideContext: String? = nil) -> [CandidateSuggestion] {
     composingText.insertAtCursorPosition(text, inputStyle: inputStyle)
     guard let converter = ensureConverter() else { return [] }
-    let result = converter.requestCandidates(composingText, options: makeOptions())
+    lastInputStyle = inputStyle
+    let inputData = composingText.prefixToCursorPosition()
+    let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext))
     lastCandidates = result.mainResults
     return suggestions(from: lastCandidates)
   }
 
-  func deleteBackward() -> [CandidateSuggestion] {
+  func deleteBackward(leftSideContext: String? = nil) -> [CandidateSuggestion] {
     composingText.deleteBackwardFromCursorPosition(count: 1)
     if composingText.convertTarget.isEmpty {
       lastCandidates = []
@@ -63,7 +66,8 @@ final class AzooKeyInputEngine {
       return []
     }
     guard let converter = ensureConverter() else { return [] }
-    let result = converter.requestCandidates(composingText, options: makeOptions())
+    let inputData = composingText.prefixToCursorPosition()
+    let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext))
     lastCandidates = result.mainResults
     return suggestions(from: lastCandidates)
   }
@@ -110,12 +114,26 @@ final class AzooKeyInputEngine {
     return converter
   }
 
-  private func makeOptions() -> ConvertRequestOptions {
+  private func makeOptions(inputStyle: InputStyle, leftSideContext: String?) -> ConvertRequestOptions {
     let memoryDirectoryURL = FileManager.appGroupAzooKeyMemoryDirectoryURL
     let sharedContainerURL = FileManager.appGroupAzooKeyDirectoryURL
     let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai
     let weightURL = FileManager.azooKeyZenzaiWeightURL()
     let resolvedZenzaiEnabled = zenzaiEnabled && weightURL != nil
+
+    let requireJapanesePrediction: Bool
+    let requireEnglishPrediction: Bool
+    switch inputStyle {
+    case .direct:
+      requireJapanesePrediction = true
+      requireEnglishPrediction = true
+    case .roman2kana:
+      requireJapanesePrediction = true
+      requireEnglishPrediction = false
+    case .mapped:
+      requireJapanesePrediction = true
+      requireEnglishPrediction = false
+    }
 
     // 仅当开关与权重同时满足时启用 Zenzai
     if cachedZenzaiEnabled != resolvedZenzaiEnabled || cachedZenzaiWeightURL != weightURL {
@@ -125,31 +143,54 @@ final class AzooKeyInputEngine {
 
     let zenzaiMode: ConvertRequestOptions.ZenzaiMode
     if resolvedZenzaiEnabled, let weightURL {
-      zenzaiMode = .on(weight: weightURL, inferenceLimit: 10, requestRichCandidates: false, personalizationMode: nil)
+      let inferenceLimit = inferenceLimitForWeightURL(weightURL)
+      zenzaiMode = .on(
+        weight: weightURL,
+        inferenceLimit: inferenceLimit,
+        requestRichCandidates: false,
+        personalizationMode: nil,
+        versionDependentMode: .v3(.init(leftSideContext: leftSideContext, maxLeftSideContextLength: 20))
+      )
     } else {
       zenzaiMode = .off
+    }
+
+    var providers = KanaKanjiConverter.defaultSpecialCandidateProviders
+    if UserDefaults.hamster.azooKeyTypographyLetter {
+      providers.append(.typography)
     }
 
     return ConvertRequestOptions(
       N_best: 10,
       needTypoCorrection: nil,
-      requireJapanesePrediction: .autoMix,
-      requireEnglishPrediction: .disabled,
+      requireJapanesePrediction: requireJapanesePrediction,
+      requireEnglishPrediction: requireEnglishPrediction,
       keyboardLanguage: .ja_JP,
       englishCandidateInRoman2KanaInput: UserDefaults.hamster.azooKeyEnglishCandidate,
-      fullWidthRomanCandidate: false,
-      halfWidthKanaCandidate: false,
+      fullWidthRomanCandidate: true,
+      halfWidthKanaCandidate: true,
       learningType: .inputAndOutput,
       maxMemoryCount: 65536,
       shouldResetMemory: false,
       memoryDirectoryURL: memoryDirectoryURL,
       sharedContainerURL: sharedContainerURL,
       textReplacer: .empty,
-      specialCandidateProviders: nil,
+      specialCandidateProviders: providers,
       zenzaiMode: zenzaiMode,
       preloadDictionary: false,
       metadata: ConvertRequestOptions.Metadata(versionString: "NanoMouse AzooKey")
     )
+  }
+
+  private func inferenceLimitForWeightURL(_ url: URL) -> Int {
+    let name = url.lastPathComponent.lowercased()
+    if name.contains("xsmall") {
+      return 5
+    }
+    if name.contains("small") {
+      return 8
+    }
+    return 5
   }
 
   private func suggestions(from candidates: [Candidate]) -> [CandidateSuggestion] {

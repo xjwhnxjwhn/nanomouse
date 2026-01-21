@@ -683,6 +683,10 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-cxx-interoperability-mode=default",
+				);
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -727,6 +731,10 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-cxx-interoperability-mode=default",
+				);
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -761,6 +769,10 @@
 				SKIP_INSTALL = YES;
 				STRIP_STYLE = "non-global";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-cxx-interoperability-mode=default",
+				);
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -796,6 +808,10 @@
 				SKIP_INSTALL = YES;
 				STRIP_STYLE = "non-global";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				OTHER_SWIFT_FLAGS = (
+					"$(inherited)",
+					"-cxx-interoperability-mode=default",
+				);
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

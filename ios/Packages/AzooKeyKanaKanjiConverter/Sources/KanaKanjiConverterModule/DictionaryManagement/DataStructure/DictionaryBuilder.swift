@@ -159,7 +159,7 @@ public enum DictionaryBuilder {
     ///   - BMP scalars: single 4-hex chunk
     ///   - Non-BMP scalars: surrogate pair (two chunks)
     /// - Special cases: "user", "memory", and "user_shortcuts" are returned as-is
-    package static func escapedIdentifier(_ inputIdentifier: String) -> String {
+    static func escapedIdentifier(_ inputIdentifier: String) -> String {
         switch inputIdentifier {
         case "user", "memory", "user_shortcuts":
             return inputIdentifier

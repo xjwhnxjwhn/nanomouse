@@ -232,7 +232,7 @@ extension Kana2Kanji {
         surfaceCount: Int,
         incrementalCacheInfo: (inputData: ComposingText, lattice: Lattice)?,
         dicdataStoreState: DicdataStoreState
-        ) -> Lattice {
+    ) -> Lattice {
         let indexMap = LatticeDualIndexMap(inputData)
         let latticeIndices = indexMap.indices(inputCount: inputCount, surfaceCount: surfaceCount)
         guard let incrementalCacheInfo else {

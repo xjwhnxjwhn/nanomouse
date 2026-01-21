@@ -8,6 +8,8 @@ let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
     .enableUpcomingFeature("MemberImportVisibility"),
     .enableUpcomingFeature("InternalImportsByDefault"),
+    .interoperabilityMode(.Cxx),
+    .define("ZenzaiCPU", .when(platforms: [.iOS, .macOS])),
 ]
 
 var dependencies: [Package.Dependency] = [
@@ -103,11 +105,19 @@ if checkObjcAvailability() {
 #endif
 
 targets.append(
+    .binaryTarget(
+        name: "llama.cpp",
+        url: "https://github.com/azooKey/llama.cpp/releases/download/b4846/signed-llama.xcframework.zip",
+        checksum: "db3b13169df8870375f212e6ac21194225f1c85f7911d595ab64c8c790068e0a"
+    )
+)
+targets.append(
     .target(
         name: "KanaKanjiConverterModule",
         dependencies: [
             "SwiftUtils",
             .target(name: "EfficientNGram"),
+            .target(name: "llama.cpp"),
             .product(name: "Collections", package: "swift-collections"),
         ],
         swiftSettings: swiftSettings

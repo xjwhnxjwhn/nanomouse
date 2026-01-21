@@ -524,6 +524,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return .direct
   }
 
+  private func azooKeyLeftSideContext() -> String? {
+    let beforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
+    var left = beforeInput.components(separatedBy: "\n").last ?? ""
+    if beforeInput.contains("\n") && left.isEmpty {
+      left = "\n"
+    }
+    let composing = azooKeyEngine.currentDisplayText
+    if !composing.isEmpty, left.hasSuffix(composing) {
+      left.removeLast(composing.count)
+    }
+    return left.isEmpty ? nil : left
+  }
+
   // MARK: - Text And Selection, Implementations UITextInputDelegate
 
   /// 当文档中的选择即将发生变化时，通知输入委托。
@@ -693,7 +706,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     if isAzooKeyInputActive {
       if azooKeyEngine.isComposing {
-        let suggestions = azooKeyEngine.deleteBackward()
+        let suggestions = azooKeyEngine.deleteBackward(leftSideContext: azooKeyLeftSideContext())
         if suggestions.isEmpty {
           clearAzooKeyState()
         } else {
@@ -804,7 +817,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let isDigit = char.count == 1 && char.first?.isNumber == true
       if isDigit && azooKeyEngine.isComposing {
         // 数字使用 .direct 样式传给 AzooKey 引擎
-        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct)
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
         } else {
@@ -816,7 +829,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
       let style = azooKeyInputStyle(for: char)
       if style == .roman2kana {
-        let suggestions = azooKeyEngine.handleInput(char, inputStyle: style)
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: style, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
         } else {
@@ -826,7 +839,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         return
       }
       if char == "ー", azooKeyEngine.isComposing {
-        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct)
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
         } else {
@@ -903,7 +916,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let isDigit = text.count == 1 && text.first?.isNumber == true
       if isDigit && azooKeyEngine.isComposing {
         // 数字使用 .direct 样式传给 AzooKey 引擎
-        let suggestions = azooKeyEngine.handleInput(text, inputStyle: .direct)
+        let suggestions = azooKeyEngine.handleInput(text, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
         } else {
@@ -914,7 +927,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       let style = azooKeyInputStyle(for: text)
-      let suggestions = azooKeyEngine.handleInput(text, inputStyle: style)
+      let suggestions = azooKeyEngine.handleInput(text, inputStyle: style, leftSideContext: azooKeyLeftSideContext())
       if azooKeyEngine.isComposing {
         updateAzooKeySuggestions(suggestions)
       } else {

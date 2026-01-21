@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -15,7 +15,7 @@ let package = Package(
   ],
   dependencies: [
     .package(url: "https://github.com/relatedcode/ProgressHUD.git", exact: "14.1.0"),
-    .package(url: "https://github.com/simonbs/Runestone.git", exact: "0.3.0"),
+    .package(path: "../Runestone"),
     .package(url: "https://github.com/simonbs/TreeSitterLanguages.git", exact: "0.1.7"),
     .package(path: "../HamsterUIKit"),
     .package(path: "../HamsterKit"),
@@ -42,10 +42,12 @@ let package = Package(
         "HamsterFileServer",
       ],
       path: "Sources",
-      resources: [.process("Resources")]
+      resources: [.process("Resources")],
+      swiftSettings: [.interoperabilityMode(.Cxx)]
     ),
     .testTarget(
       name: "HamsteriOSTests",
       dependencies: ["HamsteriOS"],
-      path: "Tests"),
+      path: "Tests",
+      swiftSettings: [.interoperabilityMode(.Cxx)]),
   ])

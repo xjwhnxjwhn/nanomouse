@@ -138,17 +138,7 @@ final class ZenzContext {
     }
 
     func reset_context() throws {
-        llama_free(self.context)
-        var params = Self.ctx_params
-        #if ZenzaiCPU
-        params.offload_kqv = false
-        #endif
-        let context = llama_init_from_model(self.model, params)
-        guard let context else {
-            debug("Could not load context!")
-            throw ZenzError.couldNotLoadContext
-        }
-        self.context = context
+        llama_kv_cache_clear(self.context)
         self.prevInput = []
         self.prevPrompt = []
     }

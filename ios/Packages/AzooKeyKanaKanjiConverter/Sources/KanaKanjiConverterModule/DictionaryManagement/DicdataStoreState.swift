@@ -8,7 +8,6 @@ package final class DicdataStoreState {
 
     var keyboardLanguage: KeyboardLanguage = .ja_JP
     private(set) var dynamicUserDictionary: [DicdataElement] = []
-    private(set) var dynamicUserShortcuts: [DicdataElement] = []
     var learningMemoryManager: LearningManager
 
     var userDictionaryURL: URL?
@@ -74,13 +73,9 @@ package final class DicdataStoreState {
         self.updateLearningConfig(learningConfig)
     }
 
-    func importDynamicUserDictionary(_ dicdata: [DicdataElement], shortcuts: [DicdataElement] = []) {
+    func importDynamicUserDictionary(_ dicdata: [DicdataElement]) {
         self.dynamicUserDictionary = dicdata
         self.dynamicUserDictionary.mutatingForEach {
-            $0.metadata = .isFromUserDictionary
-        }
-        self.dynamicUserShortcuts = shortcuts
-        self.dynamicUserShortcuts.mutatingForEach {
             $0.metadata = .isFromUserDictionary
         }
     }

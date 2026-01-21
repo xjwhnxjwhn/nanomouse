@@ -110,6 +110,8 @@ public final class InputStyleManager {
         for line in content.components(separatedBy: .newlines) {
             // 空行は無視
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
+            // `#`で始まる行はコメントとして無視
+            guard !line.hasPrefix("#") else { continue }
             let cols = line.split(separator: "\t")
             // 要素の無い行は無視
             guard cols.count >= 2 else { continue }
@@ -251,6 +253,10 @@ public extension InputStyleManager {
             let line = rawLine
             // Skip empty
             if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                continue
+            }
+            // Skip comment lines beginning with '#'
+            if line.hasPrefix("#") {
                 continue
             }
 

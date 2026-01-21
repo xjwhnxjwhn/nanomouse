@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -32,7 +32,8 @@ let package = Package(
         .product(name: "KanaKanjiConverterModule", package: "AzooKeyKanaKanjiConverter"),
       ],
       path: "Sources",
-      resources: [.process("Resources")]),
+      resources: [.process("Resources")],
+      swiftSettings: [.interoperabilityMode(.Cxx)]),
     .testTarget(
       name: "HamsterKeyboardKitTests",
       dependencies: [
@@ -44,5 +45,6 @@ let package = Package(
         // "ZippyJSON",
         "RimeKit",
       ],
-      path: "Tests"),
+      path: "Tests",
+      swiftSettings: [.interoperabilityMode(.Cxx)]),
   ])

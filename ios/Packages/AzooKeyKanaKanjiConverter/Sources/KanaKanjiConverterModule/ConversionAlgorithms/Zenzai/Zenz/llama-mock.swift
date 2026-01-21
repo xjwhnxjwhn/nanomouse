@@ -40,6 +40,7 @@ package func llama_model_load_from_file(_: String, _: llama_model_params) -> lla
 
 package func llama_kv_cache_seq_rm(_: llama_context, _: llama_seq_id, _: llama_pos, _: llama_pos) {}
 package func llama_kv_cache_seq_pos_max(_: llama_context, _: llama_seq_id) -> Int { unimplemented() }
+package func llama_kv_cache_clear(_: llama_context) {}
 
 package struct llama_batch {
     package var token: [llama_token]
