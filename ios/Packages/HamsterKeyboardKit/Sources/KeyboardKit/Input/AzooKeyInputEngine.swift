@@ -18,6 +18,11 @@ final class AzooKeyInputEngine {
   private var cachedZenzaiWeightURL: URL?
   private var cachedZenzaiEnabled = false
   private var lastInputStyle: InputStyle = .direct
+  private var hasPrewarmed = false
+  private var prewarmInProgress = false
+  private let converterLock = NSLock()
+  private let conversionLock = NSLock()
+  private let prewarmQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.prewarm", qos: .userInitiated)
 
   var isComposing: Bool {
     !composingText.convertTarget.isEmpty || !composingText.input.isEmpty
@@ -42,10 +47,62 @@ final class AzooKeyInputEngine {
     .joined()
   }
 
+  var requiresLeftSideContext: Bool {
+    let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai
+    return zenzaiEnabled && FileManager.azooKeyZenzaiWeightURL() != nil
+  }
+
   func reset() {
     composingText = ComposingText()
     lastCandidates = []
+    conversionLock.lock()
     converter?.stopComposition()
+    conversionLock.unlock()
+  }
+
+  func prewarmIfNeeded() {
+    converterLock.lock()
+    if hasPrewarmed || prewarmInProgress {
+      converterLock.unlock()
+      return
+    }
+    prewarmInProgress = true
+    converterLock.unlock()
+
+    prewarmQueue.async { [weak self] in
+      guard let self else { return }
+      defer {
+        self.converterLock.lock()
+        self.prewarmInProgress = false
+        self.converterLock.unlock()
+      }
+      guard FileManager.isAzooKeyDictionaryAvailable() else {
+        return
+      }
+      let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai && FileManager.azooKeyZenzaiWeightURL() != nil
+      if zenzaiEnabled {
+        let dictionaryURL = FileManager.appGroupAzooKeyDictionaryDirectoryURL
+        _ = try? Data(contentsOf: dictionaryURL.appendingPathComponent("mm.binary"), options: [.uncached])
+        _ = try? Data(contentsOf: dictionaryURL.appendingPathComponent("louds/charID.chid"), options: [.uncached])
+        self.converterLock.lock()
+        self.hasPrewarmed = true
+        self.converterLock.unlock()
+        return
+      }
+      var warmupText = ComposingText()
+      // 触发罗马音输入路径（真实首键更接近），而不是直入日文字符。
+      warmupText.insertAtCursorPosition("a", inputStyle: .roman2kana)
+      let options = self.makeOptions(inputStyle: .roman2kana, leftSideContext: nil)
+      guard let converter = self.ensureConverter() else { return }
+      guard self.conversionLock.try() else { return }
+      converter.setKeyboardLanguage(.ja_JP)
+      _ = converter.requestCandidates(warmupText, options: options)
+      converter.stopComposition()
+      self.conversionLock.unlock()
+      self.converterLock.lock()
+      self.hasPrewarmed = true
+      self.converterLock.unlock()
+    }
   }
 
   func handleInput(_ text: String, inputStyle: InputStyle, leftSideContext: String? = nil) -> [CandidateSuggestion] {
@@ -53,7 +110,9 @@ final class AzooKeyInputEngine {
     guard let converter = ensureConverter() else { return [] }
     lastInputStyle = inputStyle
     let inputData = composingText.prefixToCursorPosition()
+    conversionLock.lock()
     let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext))
+    conversionLock.unlock()
     lastCandidates = result.mainResults
     return suggestions(from: lastCandidates)
   }
@@ -62,12 +121,16 @@ final class AzooKeyInputEngine {
     composingText.deleteBackwardFromCursorPosition(count: 1)
     if composingText.convertTarget.isEmpty {
       lastCandidates = []
-      ensureConverter()?.stopComposition()
+      conversionLock.lock()
+      converter?.stopComposition()
+      conversionLock.unlock()
       return []
     }
     guard let converter = ensureConverter() else { return [] }
     let inputData = composingText.prefixToCursorPosition()
+    conversionLock.lock()
     let result = converter.requestCandidates(inputData, options: makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext))
+    conversionLock.unlock()
     lastCandidates = result.mainResults
     return suggestions(from: lastCandidates)
   }
@@ -84,15 +147,18 @@ final class AzooKeyInputEngine {
   func commitCandidate(at index: Int) -> String? {
     guard var candidate = candidate(at: index), let converter = ensureConverter() else { return nil }
     candidate.parseTemplate()
+    conversionLock.lock()
     converter.setCompletedData(candidate)
     if candidate.isLearningTarget {
       converter.updateLearningData(candidate)
       converter.commitUpdateLearningData()
     }
     converter.stopComposition()
+    let committedText = candidate.text
+    conversionLock.unlock()
     composingText = ComposingText()
     lastCandidates = []
-    return candidate.text
+    return committedText
   }
 
   private func ensureConverter() -> KanaKanjiConverter? {
@@ -106,12 +172,26 @@ final class AzooKeyInputEngine {
     try? FileManager.createDirectory(override: false, dst: FileManager.appGroupAzooKeyMemoryDirectoryURL)
     try? FileManager.createDirectory(override: false, dst: FileManager.appGroupAzooKeyZenzaiDirectoryURL)
 
+    converterLock.lock()
+    let existingConverter = converter
+    let existingDictionaryURL = cachedDictionaryURL
+    converterLock.unlock()
+
+    if let existingConverter, existingDictionaryURL == dictionaryURL {
+      return existingConverter
+    }
+
+    let newConverter = KanaKanjiConverter(dictionaryURL: dictionaryURL, preloadDictionary: false)
+    newConverter.setKeyboardLanguage(.ja_JP)
+
+    converterLock.lock()
     if converter == nil || cachedDictionaryURL != dictionaryURL {
-      converter = KanaKanjiConverter(dictionaryURL: dictionaryURL, preloadDictionary: false)
-      converter?.setKeyboardLanguage(.ja_JP)
+      converter = newConverter
       cachedDictionaryURL = dictionaryURL
     }
-    return converter
+    let result = converter
+    converterLock.unlock()
+    return result
   }
 
   private func makeOptions(inputStyle: InputStyle, leftSideContext: String?) -> ConvertRequestOptions {

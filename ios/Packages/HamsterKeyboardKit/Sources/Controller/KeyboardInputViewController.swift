@@ -58,6 +58,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
     syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
+    if shouldPrewarmAzooKeyOnAppear {
+      azooKeyEngine.prewarmIfNeeded()
+    }
 
     // 加载系统文本替换
     let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
@@ -525,6 +528,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func azooKeyLeftSideContext() -> String? {
+    guard azooKeyEngine.requiresLeftSideContext else {
+      return nil
+    }
     let beforeInput = textDocumentProxy.documentContextBeforeInput ?? ""
     var left = beforeInput.components(separatedBy: "\n").last ?? ""
     if beforeInput.contains("\n") && left.isEmpty {

@@ -153,6 +153,10 @@ public extension KeyboardInputViewController {
       ?? rimeContext.schemas.first?.schemaId
   }
 
+  var shouldPrewarmAzooKeyOnAppear: Bool {
+    selectedSchemasSnapshot.contains(where: { $0.schemaId == HamsterConstants.azooKeySchemaId })
+  }
+
   private var isJapaneseEnabled: Bool {
     selectedSchemasSnapshot.contains(where: { $0.isJapaneseSchema })
   }
@@ -212,6 +216,7 @@ public extension KeyboardInputViewController {
         rimeContext.setCurrentSchema(azooKeySchema)
         rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
         setKeyboardType(.alphabetic(.lowercased))
+        azooKeyEngine.prewarmIfNeeded()
       } else {
         // 先切换 schema，再切换键盘类型，确保 UI 刷新时 schema 已更新
         let switched = rimeContext.switchSchema(schemaId: japaneseSchemaId)
