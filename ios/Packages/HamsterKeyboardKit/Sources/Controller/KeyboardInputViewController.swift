@@ -1265,8 +1265,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   /// 更新混合输入候选词（将数字与 RIME 候选词合并）
   private func updateMixedInputSuggestions() {
-    // 获取当前的 RIME 候选词
-    let rimeCandidates = rimeContext.suggestions.map { $0.text }
+    // 获取当前的 RIME 候选词（避免基于已合成候选再次合成导致重复）
+    var rimeCandidates: [String] = []
+    if let menu = rimeContext.rimeContext?.menu {
+      let highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
+      let baseCandidates = rimeContext.candidateListLimit(
+        index: rimeContext.candidateIndex,
+        highlightIndex: highlightIndex,
+        count: rimeContext.maximumNumberOfCandidateWords
+      )
+      rimeCandidates = baseCandidates.map { $0.text }
+    } else {
+      rimeCandidates = rimeContext.suggestions.map { $0.text }
+    }
 
     // 使用混合输入管理器组合候选词
     let composedCandidates = rimeContext.mixedInputManager.composeCandidates(rimeCandidates: rimeCandidates)
