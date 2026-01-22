@@ -288,12 +288,13 @@ class KeyboardToolbarView: NibLessView {
         candidateBarView.fillSuperview()
       }
 
-      // 检测是否启用内嵌编码
-      guard !keyboardContext.enableEmbeddedInputMode else { return }
+      let showsFocusLine = !keyboardContext.enableEmbeddedInputMode || rimeContext.prefersTwoTierCandidateBar
+      guard showsFocusLine else { return }
       if self.keyboardContext.keyboardType.isChineseNineGrid {
         // Debug
         // self.phoneticArea.text = inputKeys + " | " + self.rimeContext.t9UserInputKey
-        candidateBarView.phoneticLabel.text = self.rimeContext.t9UserInputKey
+        let prefix = self.rimeContext.compositionPrefix
+        candidateBarView.phoneticLabel.text = prefix + self.rimeContext.t9UserInputKey
       } else {
         // 如果是文本替换建议，且没有 RIME 输入，则不显示拼音标签
         // 或者显示文本替换的快捷短语？这里选择保持原逻辑，如果 userInputKey 为空则显示空

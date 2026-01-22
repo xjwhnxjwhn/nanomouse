@@ -45,6 +45,7 @@ public class CandidateBarView: NibLessView {
     label.numberOfLines = 1
     label.adjustsFontSizeToFitWidth = true
     label.minimumScaleFactor = 0.5
+    label.lineBreakMode = .byTruncatingTail
     label.translatesAutoresizingMaskIntoConstraints = false
     return label
   }()
@@ -134,6 +135,19 @@ public class CandidateBarView: NibLessView {
     .standard(for: keyboardContext)
   }
 
+  private var showsFocusLine: Bool {
+    !keyboardContext.enableEmbeddedInputMode || rimeContext.prefersTwoTierCandidateBar
+  }
+
+  private var focusLineHeight: CGFloat {
+    let base = keyboardContext.heightOfCodingArea
+    return rimeContext.prefersTwoTierCandidateBar ? base * 2 : base
+  }
+
+  private var effectiveToolbarHeight: CGFloat {
+    keyboardContext.heightOfToolbar + (rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0)
+  }
+
   init(style: CandidateBarStyle, actionHandler: KeyboardActionHandler, keyboardContext: KeyboardContext, rimeContext: RimeContext) {
     self.style = style
     self.actionHandler = actionHandler
@@ -155,8 +169,8 @@ public class CandidateBarView: NibLessView {
 
   /// 构建视图层次
   override public func constructViewHierarchy() {
-    // 非内嵌模式添加拼写区域
-    if !keyboardContext.enableEmbeddedInputMode {
+    // 非内嵌模式或双行候选栏时添加拼写区域
+    if showsFocusLine {
       addSubview(phoneticLabel)
     }
     if keyboardContext.swipePaging {
@@ -173,12 +187,12 @@ public class CandidateBarView: NibLessView {
   /// 激活视图约束
   override public func activateViewConstraints() {
     let buttonInsets = layoutConfig.buttonInsets
-    let codingAreaHeight: CGFloat = keyboardContext.heightOfCodingArea
-    let controlStateHeight: CGFloat = keyboardContext.heightOfToolbar - (keyboardContext.enableEmbeddedInputMode ? 0 : codingAreaHeight)
+    let focusLineHeight = showsFocusLine ? self.focusLineHeight : 0
+    let controlStateHeight: CGFloat = effectiveToolbarHeight - focusLineHeight
     let candidatesView = keyboardContext.swipePaging ? candidatesArea : candidatesPagingArea
 
-    /// 内嵌模式
-    if keyboardContext.enableEmbeddedInputMode {
+    /// 隐藏拼写区域
+    if !showsFocusLine {
       if keyboardContext.swipePaging {
         NSLayoutConstraint.activate([
           candidatesView.topAnchor.constraint(equalTo: topAnchor),
@@ -205,7 +219,7 @@ public class CandidateBarView: NibLessView {
           phoneticLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: buttonInsets.left),
           phoneticLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
           phoneticLabel.topAnchor.constraint(equalTo: topAnchor),
-          phoneticLabel.heightAnchor.constraint(equalToConstant: codingAreaHeight),
+          phoneticLabel.heightAnchor.constraint(equalToConstant: focusLineHeight),
 
           candidatesView.topAnchor.constraint(equalTo: phoneticLabel.bottomAnchor),
           candidatesView.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -222,7 +236,7 @@ public class CandidateBarView: NibLessView {
           phoneticLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: buttonInsets.left),
           phoneticLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
           phoneticLabel.topAnchor.constraint(equalTo: topAnchor),
-          phoneticLabel.heightAnchor.constraint(equalToConstant: codingAreaHeight),
+          phoneticLabel.heightAnchor.constraint(equalToConstant: focusLineHeight),
 
           candidatesView.topAnchor.constraint(equalTo: phoneticLabel.bottomAnchor),
           candidatesView.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -243,6 +257,13 @@ public class CandidateBarView: NibLessView {
   override public func setupAppearance() {
     phoneticLabel.font = style.phoneticTextFont
     phoneticLabel.textColor = style.phoneticTextColor
+    if rimeContext.prefersTwoTierCandidateBar {
+      phoneticLabel.numberOfLines = 2
+      phoneticLabel.lineBreakMode = .byCharWrapping
+    } else {
+      phoneticLabel.numberOfLines = 1
+      phoneticLabel.lineBreakMode = .byTruncatingTail
+    }
     stateImageView.tintColor = style.candidateTextColor
 
     // 用户引导标签样式
@@ -286,15 +307,18 @@ public class CandidateBarView: NibLessView {
     }
 
     // 订阅候选词变化，控制用户引导的显示/隐藏
-    Publishers.CombineLatest(
+    let userInputKeyPublisher = rimeContext.userInputKeyPublished.prepend(rimeContext.userInputKey)
+    Publishers.CombineLatest3(
       rimeContext.$suggestions,
-      rimeContext.$textReplacementSuggestions
+      rimeContext.$textReplacementSuggestions,
+      userInputKeyPublisher
     )
     .receive(on: DispatchQueue.main)
-    .sink { [weak self] suggestions, textReplacements in
+    .sink { [weak self] suggestions, textReplacements, userInputKey in
       guard let self = self else { return }
       let isEmpty = suggestions.isEmpty && textReplacements.isEmpty
-      if isEmpty {
+      let hasInput = !userInputKey.isEmpty
+      if isEmpty && !hasInput {
         self.showUserGuide()
       } else {
         self.hideUserGuide()
@@ -303,7 +327,7 @@ public class CandidateBarView: NibLessView {
     .store(in: &subscriptions)
 
     // 初始状态：如果当前没有候选词，立即显示用户引导
-    if rimeContext.suggestions.isEmpty && rimeContext.textReplacementSuggestions.isEmpty {
+    if rimeContext.suggestions.isEmpty && rimeContext.textReplacementSuggestions.isEmpty && rimeContext.userInputKey.isEmpty {
       showUserGuide()
     }
   }

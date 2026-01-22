@@ -151,6 +151,14 @@ class KeyboardRootView: NibLessView {
     return view
   }()
 
+  private var extraCandidateBarHeight: CGFloat {
+    rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0
+  }
+
+  private var effectiveToolbarHeight: CGFloat {
+    keyboardContext.heightOfToolbar + extraCandidateBarHeight
+  }
+
   /// 主键盘
   private lazy var primaryKeyboardView: UIView = {
     if let view = chooseKeyboard(keyboardType: keyboardContext.keyboardType) {
@@ -241,7 +249,7 @@ class KeyboardRootView: NibLessView {
   override func activateViewConstraints() {
     if keyboardContext.enableToolbar {
       // 工具栏高度约束，可随配置调整高度
-      toolbarHeightConstraint = toolbarView.heightAnchor.constraint(equalToConstant: keyboardContext.heightOfToolbar)
+      toolbarHeightConstraint = toolbarView.heightAnchor.constraint(equalToConstant: effectiveToolbarHeight)
 
       // 工具栏静态约束
       let toolbarStaticConstraint = createToolbarStaticConstraints()
@@ -370,13 +378,13 @@ class KeyboardRootView: NibLessView {
     // 候选栏收起
     if candidateViewState.isCollapse() {
       // 键盘显示
-      toolbarHeightConstraint?.constant = keyboardContext.heightOfToolbar
+      toolbarHeightConstraint?.constant = effectiveToolbarHeight
       addSubview(primaryKeyboardView)
       NSLayoutConstraint.deactivate(toolbarExpandDynamicConstraints)
       NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
     } else {
       // 键盘隐藏
-      let toolbarHeight = primaryKeyboardView.bounds.height + keyboardContext.heightOfToolbar
+      let toolbarHeight = primaryKeyboardView.bounds.height + effectiveToolbarHeight
       primaryKeyboardView.removeFromSuperview()
 
       toolbarHeightConstraint?.constant = toolbarHeight

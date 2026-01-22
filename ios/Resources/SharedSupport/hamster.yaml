@@ -51,6 +51,8 @@ keyboard:
   # japanese: 日语
   # english: 英文
   defaultLanguageMode: followLast
+  # 多语言快速混输
+  enableMultiLanguageQuickMix: false
   # 关闭划动文本显示
   disableSwipeLabel: false
   # 上下显示划动文本不规则布局

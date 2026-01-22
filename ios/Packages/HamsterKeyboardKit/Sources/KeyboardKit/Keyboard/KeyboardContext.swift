@@ -458,6 +458,11 @@ public class KeyboardContext: ObservableObject {
     hamsterConfiguration?.keyboard?.enableEmbeddedInputMode ?? false
   }
 
+  /// 多语言快速混输
+  var enableMultiLanguageQuickMix: Bool {
+    hamsterConfiguration?.keyboard?.enableMultiLanguageQuickMix ?? false
+  }
+
   /// 是否开启划动分页
   var swipePaging: Bool {
     hamsterConfiguration?.toolbar?.swipePaging ?? true

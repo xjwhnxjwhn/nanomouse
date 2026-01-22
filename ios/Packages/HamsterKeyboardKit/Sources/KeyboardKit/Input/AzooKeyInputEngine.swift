@@ -52,6 +52,20 @@ final class AzooKeyInputEngine {
     .joined()
   }
 
+  var currentRawInputText: String {
+    composingText.input.compactMap { element in
+      switch element.piece {
+      case .character(let value):
+        return String(value)
+      case .key(_, let input, _):
+        return String(input)
+      case .compositionSeparator:
+        return nil
+      }
+    }
+    .joined()
+  }
+
   var requiresLeftSideContext: Bool {
     let zenzaiEnabled = UserDefaults.hamster.azooKeyMode == .zenzai
     guard zenzaiEnabled, FileManager.azooKeyZenzaiWeightURL() != nil else { return false }

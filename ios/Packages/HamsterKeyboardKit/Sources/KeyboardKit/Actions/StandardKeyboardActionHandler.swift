@@ -186,6 +186,9 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
       }
       processByRIME = true
     }
+    if self.keyboardContext.enableMultiLanguageQuickMix, key.action == .space {
+      processByRIME = true
+    }
     if gesture == .release {
       Logger.statistics.info("DBG_RIMEINPUT keyRelease action: \(String(describing: key.action), privacy: .public), processByRIME: \(processByRIME), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
     }
@@ -215,7 +218,13 @@ open class StandardKeyboardActionHandler: NSObject, KeyboardActionHandler {
    您可以覆盖此函数，自定义操作的行为方式。默认情况下，使用标准动作。
    */
   open func action(for gesture: KeyboardGesture, on action: KeyboardAction) -> KeyboardAction.GestureAction? {
+    if keyboardContext.enableMultiLanguageQuickMix, action == .space {
+      return action.standardAction(for: gesture, processByRIME: true)
+    }
     if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+      if case .primary = action {
+        return action.standardAction(for: gesture, processByRIME: true)
+      }
       return action.standardAction(for: gesture, processByRIME: false)
     }
     return action.standardAction(for: gesture)

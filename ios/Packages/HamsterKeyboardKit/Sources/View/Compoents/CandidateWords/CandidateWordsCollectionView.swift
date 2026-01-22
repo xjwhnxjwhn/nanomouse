@@ -289,8 +289,11 @@ extension CandidateWordsCollectionView: UICollectionViewDelegateFlowLayout {
 
   public func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
     let isVerticalLayout: Bool = !self.candidatesViewState.isCollapse()
-    let heightOfCodingArea: CGFloat = keyboardContext.enableEmbeddedInputMode ? 0 : keyboardContext.heightOfCodingArea
-    let heightOfToolbar: CGFloat = keyboardContext.heightOfToolbar - heightOfCodingArea - 6
+    let baseCodingArea: CGFloat = keyboardContext.heightOfCodingArea
+    let focusLineHeight: CGFloat = rimeContext.prefersTwoTierCandidateBar ? baseCodingArea * 2 : baseCodingArea
+    let reservedHeight: CGFloat = (keyboardContext.enableEmbeddedInputMode && !rimeContext.prefersTwoTierCandidateBar) ? 0 : focusLineHeight
+    let effectiveToolbarHeight: CGFloat = keyboardContext.heightOfToolbar + (rimeContext.prefersTwoTierCandidateBar ? baseCodingArea : 0)
+    let heightOfToolbar: CGFloat = effectiveToolbarHeight - reservedHeight - 6
 
     let suggestions = combinedSuggestions
     guard indexPath.item < suggestions.count else { return .zero }

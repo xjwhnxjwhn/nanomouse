@@ -127,6 +127,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
 
   open func viewWillSetupKeyboard() {
+    rimeContext.prefersTwoTierCandidateBar = isUnifiedCompositionBufferEnabled
+    if !isUnifiedCompositionBufferEnabled {
+      rimeContext.compositionPrefix = ""
+    }
     if let keyboardRootView = keyboardRootView {
       if keyboardRootView.superview == nil {
         keyboardRootView.translatesAutoresizingMaskIntoConstraints = false
@@ -479,13 +483,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     isAzooKeyActive && rimeContext.asciiModeSnapshot == false
   }
 
-  /// 是否处于英语输入模式（ASCII模式 + 字母键盘）
+  /// 是否处于英语输入模式（ASCII模式 + 字母/中文主键盘）
   var isEnglishInputActive: Bool {
-    keyboardContext.keyboardType.isAlphabetic && rimeContext.asciiModeSnapshot
+    guard rimeContext.asciiModeSnapshot else { return false }
+    if keyboardContext.keyboardType.isAlphabetic { return true }
+    return isUnifiedCompositionBufferEnabled && keyboardContext.keyboardType.isChinesePrimaryKeyboard
   }
 
   func updateAzooKeySuggestions(_ suggestions: [CandidateSuggestion]) {
-    rimeContext.userInputKey = azooKeyEngine.currentDisplayText
+    if isUnifiedCompositionBufferEnabled {
+      rimeContext.userInputKey = rimeContext.compositionPrefix + azooKeyEngine.currentRawInputText
+    } else {
+      rimeContext.userInputKey = azooKeyEngine.currentDisplayText
+    }
     Task { @MainActor in
       self.rimeContext.suggestions = suggestions
       self.rimeContext.textReplacementSuggestions = []
@@ -493,7 +503,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   func updateEnglishSuggestions(_ suggestions: [CandidateSuggestion]) {
-    rimeContext.userInputKey = englishEngine.currentDisplayText
+    rimeContext.userInputKey = rimeContext.compositionPrefix + englishEngine.currentDisplayText
     Task { @MainActor in
       self.rimeContext.suggestions = suggestions
       self.rimeContext.textReplacementSuggestions = []
@@ -502,7 +512,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   func clearEnglishState() {
     englishEngine.reset()
-    rimeContext.userInputKey = ""
+    rimeContext.userInputKey = rimeContext.compositionPrefix
     Task { @MainActor in
       self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
@@ -510,7 +520,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   func clearAzooKeyState() {
-    rimeContext.userInputKey = ""
+    rimeContext.userInputKey = rimeContext.compositionPrefix
     Task { @MainActor in
       self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
@@ -541,6 +551,200 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       left.removeLast(composing.count)
     }
     return left.isEmpty ? nil : left
+  }
+
+  var isUnifiedCompositionBufferEnabled: Bool {
+    keyboardContext.enableMultiLanguageQuickMix
+  }
+
+  func shouldAppendPunctuationToCompositionPrefix(_ text: String) -> Bool {
+    guard isUnifiedCompositionBufferEnabled else { return false }
+    guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
+    if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+    if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) { return false }
+    return CharacterSet.punctuationCharacters.contains(scalar)
+  }
+
+  func hasActiveCompositionForBuffer() -> Bool {
+    if !rimeContext.compositionPrefix.isEmpty {
+      return true
+    }
+    if isAzooKeyInputActive {
+      return azooKeyEngine.isComposing
+    }
+    if isEnglishInputActive {
+      return englishEngine.isComposing
+    }
+    return !rimeContext.userInputKey.isEmpty
+  }
+
+  func hasPendingCompositionBeyondPrefix() -> Bool {
+    if isAzooKeyInputActive {
+      return azooKeyEngine.isComposing
+    }
+    if isEnglishInputActive {
+      return englishEngine.isComposing
+    }
+    if rimeContext.mixedInputManager.hasLiteral {
+      return true
+    }
+    if let preedit = rimeContext.rimeContext?.composition?.preedit, !preedit.isEmpty {
+      return true
+    }
+    let prefix = rimeContext.compositionPrefix
+    let display = rimeContext.userInputKey
+    if !display.isEmpty {
+      if !prefix.isEmpty, display.hasPrefix(prefix) {
+        return !display.dropFirst(prefix.count).isEmpty
+      }
+      return true
+    }
+    return false
+  }
+
+  func currentComposingTextForRawCommit() -> String {
+    if isAzooKeyInputActive {
+      return azooKeyEngine.currentRawInputText
+    }
+    if isEnglishInputActive {
+      return englishEngine.currentDisplayText
+    }
+    if rimeContext.mixedInputManager.hasLiteral {
+      return rimeContext.mixedInputManager.displayText
+    }
+    if let preedit = rimeContext.rimeContext?.composition?.preedit, !preedit.isEmpty {
+      return preedit
+    }
+    let display = rimeContext.userInputKey
+    let prefix = rimeContext.compositionPrefix
+    if !prefix.isEmpty, display.hasPrefix(prefix) {
+      return String(display.dropFirst(prefix.count))
+    }
+    return display
+  }
+
+  func appendToCompositionPrefix(_ text: String) {
+    guard isUnifiedCompositionBufferEnabled, !text.isEmpty else { return }
+    rimeContext.compositionPrefix += text
+    rimeContext.userInputKey = rimeContext.compositionPrefix
+    Task { @MainActor in
+      self.rimeContext.suggestions = []
+      self.rimeContext.textReplacementSuggestions = []
+    }
+    clearMarkedTextIfNeeded()
+  }
+
+  func markedTextForCurrentInput(_ inputText: String) -> String {
+    if !isUnifiedCompositionBufferEnabled {
+      return inputText
+    }
+    if isAzooKeyInputActive {
+      return azooKeyEngine.currentRawInputText
+    }
+    if isEnglishInputActive {
+      return englishEngine.currentDisplayText
+    }
+    let prefix = rimeContext.compositionPrefix
+    if !prefix.isEmpty, inputText.hasPrefix(prefix) {
+      return String(inputText.dropFirst(prefix.count))
+    }
+    return inputText
+  }
+
+  func applyMarkedText(_ inputText: String) {
+    guard keyboardContext.enableEmbeddedInputMode || isUnifiedCompositionBufferEnabled else { return }
+    let markedText = markedTextForCurrentInput(inputText)
+    if markedText.isEmpty {
+      clearMarkedTextIfNeeded()
+      return
+    }
+    textDocumentProxy.setMarkedText(markedText, selectedRange: NSMakeRange(markedText.utf8.count, 0))
+  }
+
+  func clearMarkedTextIfNeeded() {
+    guard keyboardContext.enableEmbeddedInputMode || isUnifiedCompositionBufferEnabled else { return }
+    textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+  }
+
+  func commitCurrentCompositionToPrefixAndReset() {
+    guard isUnifiedCompositionBufferEnabled else { return }
+    let raw = currentComposingTextForRawCommit()
+    if !raw.isEmpty {
+      appendToCompositionPrefix(raw)
+    }
+    if isAzooKeyInputActive {
+      azooKeyEngine.reset()
+      clearAzooKeyState()
+      return
+    }
+    if isEnglishInputActive {
+      englishEngine.reset()
+      clearEnglishState()
+      return
+    }
+    rimeContext.reset()
+  }
+
+  func commitFirstCandidateForLanguageSwitchIfNeeded() {
+    guard isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() else { return }
+    if isAzooKeyInputActive, azooKeyEngine.isComposing {
+      if let commit = azooKeyEngine.commitCandidate(at: 0) {
+        appendToCompositionPrefix(commit)
+      } else {
+        let fallback = azooKeyEngine.currentRawInputText
+        if !fallback.isEmpty {
+          appendToCompositionPrefix(fallback)
+        }
+      }
+      clearAzooKeyState()
+      return
+    }
+
+    if isEnglishInputActive, englishEngine.isComposing {
+      if let commit = englishEngine.commitCandidate(at: 0) {
+        appendToCompositionPrefix(commit)
+      } else if let raw = englishEngine.commitRawText() {
+        appendToCompositionPrefix(raw)
+      }
+      clearEnglishState()
+      return
+    }
+
+    if !rimeContext.userInputKey.isEmpty {
+      if let replacement = rimeContext.textReplacementSuggestions.first {
+        appendToCompositionPrefix(replacement.text)
+        Task { @MainActor in
+          self.rimeContext.textReplacementSuggestions = []
+        }
+        rimeContext.reset()
+        return
+      }
+      if !rimeContext.suggestions.isEmpty {
+        rimeContext.selectCandidate(index: 0)
+        let commit = rimeContext.commitText
+        rimeContext.resetCommitText()
+        if !commit.isEmpty {
+          appendToCompositionPrefix(commit)
+          return
+        }
+      }
+    }
+
+    commitCurrentCompositionToPrefixAndReset()
+  }
+
+  func flushCompositionPrefixIfNeeded() {
+    guard isUnifiedCompositionBufferEnabled else { return }
+    let prefix = rimeContext.compositionPrefix
+    guard !prefix.isEmpty else { return }
+    textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+    textDocumentProxy.insertText(prefix)
+    rimeContext.compositionPrefix = ""
+    rimeContext.userInputKey = ""
+    Task { @MainActor in
+      self.rimeContext.suggestions = []
+      self.rimeContext.textReplacementSuggestions = []
+    }
   }
 
   // MARK: - Text And Selection, Implementations UITextInputDelegate
@@ -721,6 +925,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         return
       }
     }
+
+    if isUnifiedCompositionBufferEnabled,
+       !rimeContext.compositionPrefix.isEmpty,
+       rimeContext.userInputKey == rimeContext.compositionPrefix
+    {
+      rimeContext.compositionPrefix.removeLast()
+      rimeContext.userInputKey = rimeContext.compositionPrefix
+      Task { @MainActor in
+        self.rimeContext.suggestions = []
+        self.rimeContext.textReplacementSuggestions = []
+      }
+      clearMarkedTextIfNeeded()
+      return
+    }
     guard !rimeContext.userInputKey.isEmpty else {
       // 获取光标前后上下文，用于删除需要光标居中的符号
       let beforeInput = self.textDocumentProxy.documentContextBeforeInput ?? ""
@@ -745,9 +963,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         // 更新显示
         let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? ""
         if rimeContext.mixedInputManager.hasLiteral {
-          rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
         } else {
-          rimeContext.userInputKey = rimePreedit
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimePreedit
         }
         Logger.statistics.info("DBG_MIXEDINPUT delete literal, display: \(self.rimeContext.userInputKey, privacy: .public)")
         // 更新候选词
@@ -788,9 +1006,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertSymbol(_ symbol: Symbol) {
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isUnifiedCompositionBufferEnabled, symbol.char == .space {
+      insertRimeKeyCode(XK_space)
+      return
+    }
+    if shouldAppendPunctuationToCompositionPrefix(symbol.char) {
+      if hasActiveCompositionForBuffer() {
+        commitFirstCandidateForLanguageSwitchIfNeeded()
+      }
+      appendToCompositionPrefix(symbol.char)
+      return
+    }
 
     // 英语输入模式：使用候选栏
-    if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+    if isEnglishInputActive {
       let text = symbol.char
       Logger.statistics.info("DBG_ENGLISH insertSymbol: \(text, privacy: .public)")
       let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
@@ -879,7 +1108,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
-      rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT insertSymbol digit intercepted: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
@@ -916,6 +1145,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   open func insertText(_ text: String) {
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isUnifiedCompositionBufferEnabled, text == .space {
+      insertRimeKeyCode(XK_space)
+      return
+    }
+    if shouldAppendPunctuationToCompositionPrefix(text) {
+      if hasActiveCompositionForBuffer() {
+        commitFirstCandidateForLanguageSwitchIfNeeded()
+      }
+      appendToCompositionPrefix(text)
+      return
+    }
     if isAzooKeyInputActive {
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       let isDigit = text.count == 1 && text.first?.isNumber == true
@@ -941,9 +1181,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
       return
     }
-    if self.keyboardContext.keyboardType.isAlphabetic && self.rimeContext.asciiModeSnapshot {
+    if isEnglishInputActive {
       // 英语输入模式：使用候选栏
-      Logger.statistics.info("DBG_ENGLISH insertText: \(text, privacy: .public), isAlphabetic: true, asciiMode: true")
+      Logger.statistics.info("DBG_ENGLISH insertText: \(text, privacy: .public), asciiMode: true")
       let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
       Logger.statistics.info("DBG_ENGLISH isLetter: \(isLetter), isComposing: \(self.englishEngine.isComposing)")
       if isLetter || englishEngine.isComposing {
@@ -969,7 +1209,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
-      rimeContext.userInputKey = rimeContext.mixedInputManager.displayText
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(text, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
@@ -1041,7 +1281,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   func selectAzooKeyCandidate(index: Int) {
     guard isAzooKeyInputActive else { return }
     if let commit = azooKeyEngine.commitCandidate(at: index) {
-      textDocumentProxy.insertText(commit)
+      if isUnifiedCompositionBufferEnabled {
+        appendToCompositionPrefix(commit)
+      } else {
+        textDocumentProxy.insertText(commit)
+      }
     }
     clearAzooKeyState()
   }
@@ -1049,7 +1293,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   func selectEnglishCandidate(index: Int) {
     guard isEnglishInputActive else { return }
     if let commit = englishEngine.commitCandidate(at: index) {
-      textDocumentProxy.insertText(commit)
+      if isUnifiedCompositionBufferEnabled {
+        appendToCompositionPrefix(commit)
+      } else {
+        textDocumentProxy.insertText(commit)
+      }
     }
     clearEnglishState()
   }
@@ -1058,12 +1306,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   func commitEnglishRawText() {
     guard isEnglishInputActive, englishEngine.isComposing else { return }
     if let text = englishEngine.commitRawText() {
-      textDocumentProxy.insertText(text)
+      if isUnifiedCompositionBufferEnabled {
+        appendToCompositionPrefix(text)
+      } else {
+        textDocumentProxy.insertText(text)
+      }
     }
     clearEnglishState()
   }
 
   open func selectNextKeyboard() {
+    if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
+      commitCurrentCompositionToPrefixAndReset()
+      flushCompositionPrefixIfNeeded()
+    }
     // advanceToNextInputMode()
   }
 
@@ -1151,30 +1407,53 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isEnglishInputActive && englishEngine.isComposing {
       englishEngine.reset()
       clearEnglishState()
+      rimeContext.compositionPrefix = ""
+      rimeContext.userInputKey = ""
       return
     }
     if isAzooKeyInputActive {
       azooKeyEngine.reset()
       clearAzooKeyState()
+      rimeContext.compositionPrefix = ""
+      rimeContext.userInputKey = ""
       return
     }
+    rimeContext.compositionPrefix = ""
     rimeContext.reset()
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
+    if isUnifiedCompositionBufferEnabled, keyCode == XK_Return, hasActiveCompositionForBuffer() {
+      commitCurrentCompositionToPrefixAndReset()
+      flushCompositionPrefixIfNeeded()
+      return
+    }
+    if isUnifiedCompositionBufferEnabled, keyCode == XK_space {
+      if hasActiveCompositionForBuffer() {
+        commitFirstCandidateForLanguageSwitchIfNeeded()
+      }
+      appendToCompositionPrefix(.space)
+      return
+    }
     // 英语输入模式的特殊键处理
     if isEnglishInputActive && englishEngine.isComposing {
       switch keyCode {
       case XK_Return:
         // 回车键：提交原始输入
         commitEnglishRawText()
-        textDocumentProxy.insertText(.newline)
+        if !isUnifiedCompositionBufferEnabled {
+          textDocumentProxy.insertText(.newline)
+        }
         return
       case XK_space:
         // 空格键：确认第一个候选词
         if let commit = englishEngine.commitCandidate(at: 0) {
-          textDocumentProxy.insertText(commit)
-          textDocumentProxy.insertText(.space)
+          if isUnifiedCompositionBufferEnabled {
+            appendToCompositionPrefix(commit + " ")
+          } else {
+            textDocumentProxy.insertText(commit)
+            textDocumentProxy.insertText(.space)
+          }
         }
         clearEnglishState()
         return
@@ -1190,9 +1469,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       switch keyCode {
       case XK_Return:
         if azooKeyEngine.isComposing {
-          let commit = azooKeyEngine.currentDisplayText
+          let commit = isUnifiedCompositionBufferEnabled ? azooKeyEngine.currentRawInputText : azooKeyEngine.currentDisplayText
           if !commit.isEmpty {
-            textDocumentProxy.insertText(commit)
+            if isUnifiedCompositionBufferEnabled {
+              appendToCompositionPrefix(commit)
+            } else {
+              textDocumentProxy.insertText(commit)
+            }
           }
           azooKeyEngine.reset()
           clearAzooKeyState()
@@ -1203,11 +1486,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       case XK_space:
         if azooKeyEngine.isComposing {
           if let commit = azooKeyEngine.commitCandidate(at: 0) {
-            textDocumentProxy.insertText(commit)
+            if isUnifiedCompositionBufferEnabled {
+              appendToCompositionPrefix(commit)
+            } else {
+              textDocumentProxy.insertText(commit)
+            }
           } else {
-            let fallback = azooKeyEngine.currentDisplayText
+            let fallback = isUnifiedCompositionBufferEnabled ? azooKeyEngine.currentRawInputText : azooKeyEngine.currentDisplayText
             if !fallback.isEmpty {
-              textDocumentProxy.insertText(fallback)
+              if isUnifiedCompositionBufferEnabled {
+                appendToCompositionPrefix(fallback)
+              } else {
+                textDocumentProxy.insertText(fallback)
+              }
             }
           }
           clearAzooKeyState()
@@ -1626,26 +1917,29 @@ private extension KeyboardInputViewController {
             // 重置混合输入管理器
             self.rimeContext.mixedInputManager.reset()
           }
+          if self.isUnifiedCompositionBufferEnabled {
+            self.appendToCompositionPrefix(commitText)
+          } else {
+            self.textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
 
-          self.textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
-
-          // 写入 userInputKey
-          DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) {
-            self.insertTextPatch(commitText)
+            // 写入 userInputKey
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) {
+              self.insertTextPatch(commitText)
+            }
           }
         }
 
         // 非嵌入模式在 CandidateWordsView.swift 中处理，直接输入 Label 中
-        guard self.keyboardContext.enableEmbeddedInputMode else { return }
+        guard self.keyboardContext.enableEmbeddedInputMode || self.isUnifiedCompositionBufferEnabled else { return }
 
         // 写入 userInputKey
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) {
           if self.keyboardContext.keyboardType.isChineseNineGrid {
             let t9UserInputKey = self.rimeContext.t9UserInputKey
-            self.textDocumentProxy.setMarkedText(t9UserInputKey, selectedRange: NSMakeRange(t9UserInputKey.utf8.count, 0))
+            self.applyMarkedText(t9UserInputKey)
             return
           }
-          self.textDocumentProxy.setMarkedText(inputText, selectedRange: NSMakeRange(inputText.utf8.count, 0))
+          self.applyMarkedText(inputText)
         }
       }
       .store(in: &cancellables)

@@ -106,6 +106,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableMultiLanguageQuickMix: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableMultiLanguageQuickMix ?? false
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableMultiLanguageQuickMix = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableMultiLanguageQuickMix = newValue
+    }
+  }
+
   public var lockShiftState: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? false
@@ -727,6 +737,14 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
                 defaultLanguageMode = option
               }
             }
+          }
+        ),
+        .init(
+          text: "多语言快速混输",
+          type: .toggle,
+          toggleValue: { [unowned self] in enableMultiLanguageQuickMix },
+          toggleHandled: { [unowned self] in
+            enableMultiLanguageQuickMix = $0
           }
         )
       ]

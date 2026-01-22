@@ -60,6 +60,11 @@ public class RimeContext {
     }
   }
 
+  /// 组合输入前缀（跨语言 buffer 的已确认文本）
+  public var compositionPrefix: String = ""
+  /// 是否启用双行候选栏（显示完整输入缓冲）
+  public var prefersTwoTierCandidateBar: Bool = false
+
   private let userInputKeySubject = PassthroughSubject<String, Never>()
   public var userInputKeyPublished: AnyPublisher<String, Never> {
     userInputKeySubject.eraseToAnyPublisher()
@@ -155,7 +160,7 @@ public extension RimeContext {
   @MainActor
   func reset() {
     self.pageIndex = 0
-    self.userInputKey = ""
+    self.userInputKey = compositionPrefix
     self.mixedInputManager.reset()  // 重置混合输入管理器
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
@@ -952,11 +957,8 @@ public extension RimeContext {
     }
 
     // 注意赋值顺序
-    if mixedInputManager.hasLiteral {
-      self.userInputKey = mixedInputManager.displayText
-    } else {
-      self.userInputKey = userInputText
-    }
+    let displayText = mixedInputManager.hasLiteral ? mixedInputManager.displayText : userInputText
+    self.userInputKey = compositionPrefix + displayText
     self.commitText = commitText
     self.suggestions = candidates
   }

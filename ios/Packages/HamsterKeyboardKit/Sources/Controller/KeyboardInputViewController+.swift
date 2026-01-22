@@ -192,6 +192,9 @@ public extension KeyboardInputViewController {
 
   func setLanguageMode(_ mode: LanguageMode) {
     Logger.statistics.info("DBG_LANGSWITCH setLanguageMode: \(String(describing: mode), privacy: .public), currentSchema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
+    if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
+      commitFirstCandidateForLanguageSwitchIfNeeded()
+    }
     switch mode {
     case .english:
       if isAzooKeyActive {
@@ -272,10 +275,14 @@ public extension KeyboardInputViewController {
     //    self.rimeEngine.reset()
 
     //    情况2. 候选栏字母上屏, 并开启英文输入
-    var userInputKey = self.rimeContext.userInputKey
-    if !userInputKey.isEmpty {
-      userInputKey.removeAll(where: { $0 == " " })
-      self.textDocumentProxy.insertText(userInputKey)
+    if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
+      commitFirstCandidateForLanguageSwitchIfNeeded()
+    } else {
+      var userInputKey = self.rimeContext.userInputKey
+      if !userInputKey.isEmpty {
+        userInputKey.removeAll(where: { $0 == " " })
+        self.textDocumentProxy.insertText(userInputKey)
+      }
     }
     //    情况3. 首选候选字上屏, 并开启英文输入
     //    _ = self.candidateTextOnScreen()
@@ -322,6 +329,9 @@ public extension KeyboardInputViewController {
 
   /// 切换最近的一次输入方案
   func switchLastInputSchema() {
+    if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
+      commitFirstCandidateForLanguageSwitchIfNeeded()
+    }
     rimeContext.switchLatestInputSchema()
   }
 
