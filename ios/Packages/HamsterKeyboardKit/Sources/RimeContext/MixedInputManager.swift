@@ -53,6 +53,11 @@ public class MixedInputManager {
         segments.contains { $0.isLiteral }
     }
 
+    /// 最后一个段是否为拼音
+    public var lastSegmentIsPinyin: Bool {
+        segments.last?.isPinyin == true
+    }
+
     /// 完整的显示文本
     public var displayText: String {
         segments.map { $0.text }.joined()
@@ -143,6 +148,27 @@ public class MixedInputManager {
         segments.removeAll()
     }
 
+    /// 将最后一个拼音段提交为直接文本
+    public func commitLastPinyinAsLiteral(_ text: String) {
+        guard !text.isEmpty else { return }
+        guard let lastIndex = segments.indices.last else {
+            segments.append(Segment(type: .literal(text)))
+            return
+        }
+        if segments[lastIndex].isPinyin {
+            if lastIndex > 0, case .literal(let existing) = segments[lastIndex - 1].type {
+                segments[lastIndex - 1] = Segment(type: .literal(existing + text))
+                segments.removeLast()
+            } else {
+                segments[lastIndex] = Segment(type: .literal(text))
+            }
+            return
+        }
+        if case .literal(let existing) = segments[lastIndex].type {
+            segments[lastIndex] = Segment(type: .literal(existing + text))
+        }
+    }
+
     /// 获取每个拼音段的字符范围信息
     /// - Returns: 数组，每个元素包含 (段索引, 开始位置, 长度)
     public func getPinyinSegmentRanges() -> [(segmentIndex: Int, start: Int, length: Int)] {
@@ -197,14 +223,30 @@ public class MixedInputManager {
 
         // 获取每个拼音段应该对应多少个汉字
         let pinyinSegments = segments.enumerated().filter { $0.element.isPinyin }
+        var resolvedCounts: [Int] = []
+        resolvedCounts.reserveCapacity(pinyinSegments.count)
+        for (index, segment) in pinyinSegments.enumerated() {
+            if let counts = syllableCounts, index < counts.count {
+                resolvedCounts.append(counts[index])
+            } else {
+                resolvedCounts.append(countSyllables(segment.element.text))
+            }
+        }
+        if let lastIndex = resolvedCounts.indices.last {
+            let totalCount = resolvedCounts.reduce(0, +)
+            let remainder = candidateChars.count - totalCount
+            if remainder > 0 {
+                resolvedCounts[lastIndex] += remainder
+            }
+        }
 
         for segment in segments {
             switch segment.type {
             case .pinyin(let pinyin):
                 // 确定这段拼音对应多少个汉字
                 let syllableCount: Int
-                if let counts = syllableCounts, pinyinSegmentIndex < counts.count {
-                    syllableCount = counts[pinyinSegmentIndex]
+                if pinyinSegmentIndex < resolvedCounts.count {
+                    syllableCount = resolvedCounts[pinyinSegmentIndex]
                 } else {
                     // 简单估算：按元音数量估算音节数
                     syllableCount = countSyllables(pinyin)

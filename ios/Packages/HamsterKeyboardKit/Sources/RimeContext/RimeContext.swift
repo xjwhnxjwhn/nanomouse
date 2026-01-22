@@ -167,6 +167,17 @@ public extension RimeContext {
     Rime.shared.cleanComposition()
   }
 
+  /// 清空 RIME 组字，但保留混合输入内容
+  @MainActor
+  func resetCompositionKeepingMixedInput() {
+    self.pageIndex = 0
+    self.commitText = ""
+    self.selectCandidatePinyin = nil
+    self.suggestions.removeAll(keepingCapacity: false)
+    Rime.shared.cleanComposition()
+    self.userInputKey = compositionPrefix + mixedInputManager.displayText
+  }
+
   func resetCommitText() {
     self.commitText = ""
   }
@@ -945,6 +956,14 @@ public extension RimeContext {
 
     // 如果输入状态不是待组字阶段, 则重置输入法
     if !status.isComposing {
+      if mixedInputManager.hasLiteral && commitText.isEmpty {
+        self.commitText = ""
+        self.pageIndex = 0
+        self.selectCandidatePinyin = nil
+        self.suggestions.removeAll(keepingCapacity: false)
+        self.userInputKey = compositionPrefix + mixedInputManager.displayText
+        return
+      }
       // 借鉴 AzooKey：如果有混合输入（数字），合并到上屏文字
       if mixedInputManager.hasLiteral && !commitText.isEmpty {
         self.commitText = mixedInputManager.getCommitText(rimeCommitText: commitText)

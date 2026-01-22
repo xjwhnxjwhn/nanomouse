@@ -1109,6 +1109,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let char = symbol.char
     let isDigit = char.count == 1 && char.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
+      commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
@@ -1219,6 +1220,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
     let isDigit = text.count == 1 && text.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
+      commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
@@ -1299,6 +1301,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if !newSuggestions.isEmpty {
         self.rimeContext.suggestions = newSuggestions
       }
+    }
+  }
+
+  private func commitCurrentRimeCandidateForLiteralSeparatorIfNeeded() {
+    guard rimeContext.mixedInputManager.lastSegmentIsPinyin else { return }
+    let commit = rimeContext.suggestions.first?.text
+      ?? rimeContext.rimeContext?.commitTextPreview
+      ?? rimeContext.userInputKey
+    if !commit.isEmpty {
+      rimeContext.mixedInputManager.commitLastPinyinAsLiteral(commit)
+      rimeContext.resetCompositionKeepingMixedInput()
     }
   }
 
