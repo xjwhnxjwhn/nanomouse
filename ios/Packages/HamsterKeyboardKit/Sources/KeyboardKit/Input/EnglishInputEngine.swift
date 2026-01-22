@@ -28,9 +28,9 @@ final class EnglishInputEngine {
   }
 
   func handleInput(_ text: String) -> [CandidateSuggestion] {
-    // 只处理字母输入
-    if text.rangeOfCharacter(from: CharacterSet.letters.inverted) != nil {
-      // 非字母输入，先提交当前词，再处理
+    // 处理字母与数字输入
+    guard text.count == 1, let scalar = text.unicodeScalars.first else { return [] }
+    if !CharacterSet.letters.contains(scalar) && !CharacterSet.decimalDigits.contains(scalar) {
       return []
     }
     composingText += text
@@ -79,6 +79,11 @@ final class EnglishInputEngine {
       title: word,
       isAutocomplete: true
     ))
+
+    if word.rangeOfCharacter(from: CharacterSet.letters.inverted) != nil {
+      lastSuggestions = suggestions
+      return suggestions
+    }
 
     // 使用 UITextChecker 获取补全建议
     let range = NSRange(location: 0, length: word.utf16.count)

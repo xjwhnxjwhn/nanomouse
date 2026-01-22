@@ -486,6 +486,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   /// 是否处于英语输入模式（ASCII模式 + 字母/中文主键盘）
   var isEnglishInputActive: Bool {
     guard rimeContext.asciiModeSnapshot else { return false }
+    if englishEngine.isComposing { return true }
     if keyboardContext.keyboardType.isAlphabetic { return true }
     return isUnifiedCompositionBufferEnabled && keyboardContext.keyboardType.isChinesePrimaryKeyboard
   }
@@ -1023,7 +1024,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let text = symbol.char
       Logger.statistics.info("DBG_ENGLISH insertSymbol: \(text, privacy: .public)")
       let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
-      if isLetter || englishEngine.isComposing {
+      let isDigit = text.count == 1 && text.first?.isNumber == true
+      if isLetter || (englishEngine.isComposing && isDigit) {
         let suggestions = englishEngine.handleInput(text)
         Logger.statistics.info("DBG_ENGLISH suggestions count: \(suggestions.count), isComposing: \(self.englishEngine.isComposing)")
         if englishEngine.isComposing {
@@ -1037,6 +1039,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if englishEngine.isComposing {
           if let commit = englishEngine.commitCandidate(at: 0) {
             textDocumentProxy.insertText(commit)
+          } else if let raw = englishEngine.commitRawText() {
+            textDocumentProxy.insertText(raw)
           }
           clearEnglishState()
         }
@@ -1185,8 +1189,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 英语输入模式：使用候选栏
       Logger.statistics.info("DBG_ENGLISH insertText: \(text, privacy: .public), asciiMode: true")
       let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
+      let isDigit = text.count == 1 && text.first?.isNumber == true
       Logger.statistics.info("DBG_ENGLISH isLetter: \(isLetter), isComposing: \(self.englishEngine.isComposing)")
-      if isLetter || englishEngine.isComposing {
+      if isLetter || (englishEngine.isComposing && isDigit) {
         let suggestions = englishEngine.handleInput(text)
         Logger.statistics.info("DBG_ENGLISH suggestions count: \(suggestions.count), isComposing: \(self.englishEngine.isComposing)")
         if englishEngine.isComposing {
@@ -1198,6 +1203,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       } else {
         // 非字母且没有正在输入的内容，直接上屏
+        if englishEngine.isComposing {
+          if let commit = englishEngine.commitCandidate(at: 0) {
+            textDocumentProxy.insertText(commit)
+          } else if let raw = englishEngine.commitRawText() {
+            textDocumentProxy.insertText(raw)
+          }
+          clearEnglishState()
+        }
         self.textDocumentProxy.insertText(text)
       }
       return
