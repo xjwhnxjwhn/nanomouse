@@ -217,17 +217,22 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
     
     // 检查是否是文本替换候选（index 为负数）
     if selectedItem.index < 0 {
-      // 执行文本替换
-      if let shortcut = selectedItem.subtitle {
-        // 删除原始短语（shortcut 的长度）
-        for _ in 0..<shortcut.count {
-          keyboardContext.textDocumentProxy.deleteBackward()
+      if let handler = actionHandler as? StandardKeyboardActionHandler,
+         let controller = handler.keyboardController as? KeyboardInputViewController
+      {
+        controller.applyTextReplacementCandidate(selectedItem)
+      } else {
+        if let shortcut = selectedItem.subtitle {
+          // 删除原始短语（shortcut 的长度）
+          for _ in 0..<shortcut.count {
+            keyboardContext.textDocumentProxy.deleteBackward()
+          }
         }
+        // 插入替换文本
+        keyboardContext.textDocumentProxy.insertText(selectedItem.text)
+        // 清除文本替换建议
+        rimeContext.textReplacementSuggestions = []
       }
-      // 插入替换文本
-      keyboardContext.textDocumentProxy.insertText(selectedItem.text)
-      // 清除文本替换建议
-      rimeContext.textReplacementSuggestions = []
     } else {
       // 正常的 RIME 候选选择
       let textReplacementCount = rimeContext.textReplacementSuggestions.count

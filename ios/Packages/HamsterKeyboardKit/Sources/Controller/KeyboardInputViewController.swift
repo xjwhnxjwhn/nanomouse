@@ -898,6 +898,55 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
   }
 
+  func applyTextReplacementCandidate(_ candidate: CandidateSuggestion) {
+    let replacement = candidate.text
+    let shortcut = candidate.subtitle ?? ""
+    let hasComposing = isUnifiedCompositionBufferEnabled
+      || keyboardContext.enableEmbeddedInputMode
+      || azooKeyEngine.isComposing
+      || englishEngine.isComposing
+      || !rimeContext.userInputKey.isEmpty
+
+    if isUnifiedCompositionBufferEnabled {
+      resetComposingStateForTextReplacement()
+      appendToCompositionPrefix(replacement)
+      Task { @MainActor in
+        self.rimeContext.textReplacementSuggestions = []
+      }
+      return
+    }
+
+    if hasComposing {
+      resetComposingStateForTextReplacement()
+      clearMarkedTextIfNeeded()
+      textDocumentProxy.insertText(replacement)
+      Task { @MainActor in
+        self.rimeContext.textReplacementSuggestions = []
+      }
+      return
+    }
+
+    if !shortcut.isEmpty {
+      textDocumentProxy.deleteBackward(times: shortcut.count)
+    }
+    textDocumentProxy.insertText(replacement)
+    rimeContext.textReplacementSuggestions = []
+  }
+
+  private func resetComposingStateForTextReplacement() {
+    if isAzooKeyInputActive {
+      azooKeyEngine.reset()
+      clearAzooKeyState()
+    }
+    if isEnglishInputActive {
+      englishEngine.reset()
+      clearEnglishState()
+    }
+    if !rimeContext.userInputKey.isEmpty {
+      rimeContext.reset()
+    }
+  }
+
   // MARK: - Implementations KeyboardController
 
   open func adjustTextPosition(byCharacterOffset offset: Int) {
