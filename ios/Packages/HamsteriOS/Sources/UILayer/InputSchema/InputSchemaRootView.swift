@@ -18,6 +18,9 @@ class InputSchemaRootView: NibLessView {
 
   private let inputSchemaViewModel: InputSchemaViewModel
 
+  /// 当前显示的分组（nil 表示显示所有分组，用于兼容旧逻辑）
+  private let schemaGroup: InputSchemaViewModel.SchemaGroup?
+
   private var subscriptions = Set<AnyCancellable>()
 
   let tableView: UITableView = {
@@ -28,8 +31,9 @@ class InputSchemaRootView: NibLessView {
 
   // MARK: methods
 
-  init(frame: CGRect = .zero, inputSchemaViewModel: InputSchemaViewModel) {
+  init(frame: CGRect = .zero, inputSchemaViewModel: InputSchemaViewModel, schemaGroup: InputSchemaViewModel.SchemaGroup? = nil) {
     self.inputSchemaViewModel = inputSchemaViewModel
+    self.schemaGroup = schemaGroup
 
     super.init(frame: frame)
 
@@ -54,38 +58,53 @@ class InputSchemaRootView: NibLessView {
     tableView.fillSuperview()
   }
 
-  private var hasTraditionalSection: Bool {
-    inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection
+  // MARK: - Section 类型定义
+
+  private enum SectionType {
+    case schemaList(InputSchemaViewModel.SchemaGroup)
+    case traditional
+    case azooKeyMode
+    case azooKeyAdvanced
   }
 
-  private var hasAzooKeyModeSection: Bool {
-    inputSchemaViewModel.shouldShowAzooKeyModeSection
+  /// 根据当前分组过滤条件，计算可见的 sections
+  private var visibleSections: [SectionType] {
+    var sections: [SectionType] = []
+
+    // 如果指定了分组，只显示该分组相关的 sections
+    if let group = schemaGroup {
+      switch group {
+      case .chineseEnglish:
+        sections.append(.schemaList(.chineseEnglish))
+        if inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection {
+          sections.append(.traditional)
+        }
+      case .japanese:
+        sections.append(.schemaList(.japanese))
+        if inputSchemaViewModel.shouldShowAzooKeyModeSection {
+          sections.append(.azooKeyMode)
+          sections.append(.azooKeyAdvanced)
+        }
+      }
+    } else {
+      // 兼容旧逻辑：显示所有 sections
+      sections.append(.schemaList(.chineseEnglish))
+      if inputSchemaViewModel.shouldShowRimeIceTraditionalizationSection {
+        sections.append(.traditional)
+      }
+      sections.append(.schemaList(.japanese))
+      if inputSchemaViewModel.shouldShowAzooKeyModeSection {
+        sections.append(.azooKeyMode)
+        sections.append(.azooKeyAdvanced)
+      }
+    }
+
+    return sections
   }
 
-  private var hasAzooKeyAdvancedSection: Bool {
-    inputSchemaViewModel.shouldShowAzooKeyModeSection
-  }
-
-  private var japaneseSectionIndex: Int {
-    1 + (hasTraditionalSection ? 1 : 0)
-  }
-
-  private var traditionalSectionIndex: Int? {
-    hasTraditionalSection ? 1 : nil
-  }
-
-  private var azooKeyModeSectionIndex: Int? {
-    hasAzooKeyModeSection ? japaneseSectionIndex + 1 : nil
-  }
-
-  private var azooKeyAdvancedSectionIndex: Int? {
-    hasAzooKeyAdvancedSection ? japaneseSectionIndex + 2 : nil
-  }
-
-  private func schemaGroup(for section: Int) -> InputSchemaViewModel.SchemaGroup? {
-    if section == 0 { return .chineseEnglish }
-    if section == japaneseSectionIndex { return .japanese }
-    return nil
+  private func sectionType(for section: Int) -> SectionType? {
+    guard section < visibleSections.count else { return nil }
+    return visibleSections[section]
   }
 
   private func downloadAccessoryView(for schema: RimeSchema) -> UIView {
@@ -177,37 +196,39 @@ class InputSchemaRootView: NibLessView {
 
 extension InputSchemaRootView: UITableViewDataSource {
   func numberOfSections(in tableView: UITableView) -> Int {
-    let baseSections = InputSchemaViewModel.SchemaGroup.allCases.count
-    return baseSections + (hasTraditionalSection ? 1 : 0) + (hasAzooKeyModeSection ? 1 : 0) + (hasAzooKeyAdvancedSection ? 1 : 0)
+    visibleSections.count
   }
 
   public func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    if let traditionalSectionIndex, section == traditionalSectionIndex {
+    guard let sectionType = sectionType(for: section) else { return 0 }
+    switch sectionType {
+    case .schemaList(let group):
+      return inputSchemaViewModel.schemas(in: group).count
+    case .traditional:
       return InputSchemaViewModel.TraditionalizationOption.allCases.count
-    }
-    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+    case .azooKeyMode:
       return InputSchemaViewModel.AzooKeyModeOption.allCases.count
-    }
-    if let azooKeyAdvancedSectionIndex, section == azooKeyAdvancedSectionIndex {
+    case .azooKeyAdvanced:
       return InputSchemaViewModel.AzooKeyAdvancedOption.allCases.count
     }
-    guard let group = schemaGroup(for: section) else { return 0 }
-    return inputSchemaViewModel.schemas(in: group).count
   }
 
   public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = self.tableView.dequeueReusableCell(withIdentifier: Self.cellIdentifier, for: indexPath)
     var config = UIListContentConfiguration.cell()
 
-    if let traditionalSectionIndex, indexPath.section == traditionalSectionIndex {
+    guard let sectionType = sectionType(for: indexPath.section) else { return cell }
+
+    switch sectionType {
+    case .traditional:
       let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
       config.text = option.displayName
       cell.contentConfiguration = config
       cell.accessoryView = nil
       cell.accessoryType = inputSchemaViewModel.isTraditionalizationOptionSelected(option) ? .checkmark : .none
       return cell
-    }
-    if let azooKeyModeSectionIndex, indexPath.section == azooKeyModeSectionIndex {
+
+    case .azooKeyMode:
       let option = InputSchemaViewModel.AzooKeyModeOption.allCases[indexPath.row]
       config.text = option.displayName
       cell.contentConfiguration = config
@@ -220,8 +241,8 @@ extension InputSchemaRootView: UITableViewDataSource {
         cell.accessoryType = inputSchemaViewModel.isAzooKeyModeOptionSelected(option) ? .checkmark : .none
       }
       return cell
-    }
-    if let azooKeyAdvancedSectionIndex, indexPath.section == azooKeyAdvancedSectionIndex {
+
+    case .azooKeyAdvanced:
       let option = InputSchemaViewModel.AzooKeyAdvancedOption.allCases[indexPath.row]
       config.text = option.displayName
       config.secondaryText = option.explanation
@@ -239,55 +260,52 @@ extension InputSchemaRootView: UITableViewDataSource {
       cell.accessoryView = toggle
       cell.accessoryType = .none
       return cell
-    }
 
-    guard let group = schemaGroup(for: indexPath.section) else { return cell }
-    let schemas = inputSchemaViewModel.schemas(in: group)
-    let schema = schemas[indexPath.row]
-    let isJapanese = group == .japanese
-    let isAvailable = inputSchemaViewModel.isSchemaAvailable(schema)
-    config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
-    cell.contentConfiguration = config
-    if isJapanese, !isAvailable {
-      cell.accessoryView = downloadAccessoryView(for: schema)
-      cell.accessoryType = .none
-    } else {
-      cell.accessoryView = nil
-      cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
+    case .schemaList(let group):
+      let schemas = inputSchemaViewModel.schemas(in: group)
+      let schema = schemas[indexPath.row]
+      let isJapanese = group == .japanese
+      let isAvailable = inputSchemaViewModel.isSchemaAvailable(schema)
+      config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
+      cell.contentConfiguration = config
+      if isJapanese, !isAvailable {
+        cell.accessoryView = downloadAccessoryView(for: schema)
+        cell.accessoryType = .none
+      } else {
+        cell.accessoryView = nil
+        cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
+      }
+      return cell
     }
-    return cell
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    if let traditionalSectionIndex, section == traditionalSectionIndex {
+    guard let sectionType = sectionType(for: section) else { return nil }
+    switch sectionType {
+    case .schemaList(let group):
+      // 如果是单独分组页面，不显示分组标题（因为页面标题已经说明了）
+      return schemaGroup != nil ? nil : group.title
+    case .traditional:
       return "雾凇拼音 · 繁体方案"
-    }
-    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+    case .azooKeyMode:
       return "AzooKey 模式"
-    }
-    if let azooKeyAdvancedSectionIndex, section == azooKeyAdvancedSectionIndex {
+    case .azooKeyAdvanced:
       return "AzooKey 高级设置"
     }
-    if let group = schemaGroup(for: section) {
-      return group.title
-    }
-    return "雾凇拼音 · 繁体方案"
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    if let group = schemaGroup(for: section), group == .japanese {
-      return "日语方案不随安装包内置，右侧可按需下载。"
-    }
-    if let azooKeyModeSectionIndex, section == azooKeyModeSectionIndex {
+    guard let sectionType = sectionType(for: section) else { return nil }
+    switch sectionType {
+    case .schemaList(let group):
+      return group == .japanese ? "日语方案不随安装包内置，右侧可按需下载。" : nil
+    case .traditional:
+      return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
+    case .azooKeyMode:
       return "Zenzai 为可选增强模式，需要单独下载后启用。"
-    }
-    if let azooKeyAdvancedSectionIndex, section == azooKeyAdvancedSectionIndex {
+    case .azooKeyAdvanced:
       return nil
     }
-    if let traditionalSectionIndex, section == traditionalSectionIndex {
-      return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
-    }
-    return nil
   }
 }
 
@@ -296,24 +314,23 @@ extension InputSchemaRootView: UITableViewDelegate {
     tableView.deselectRow(at: indexPath, animated: true)
     Task {
       do {
-        if let traditionalSectionIndex, indexPath.section == traditionalSectionIndex {
+        guard let sectionType = sectionType(for: indexPath.section) else { return }
+
+        switch sectionType {
+        case .traditional:
           let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
           inputSchemaViewModel.selectTraditionalizationOption(option)
-          return
-        }
-        if let azooKeyModeSectionIndex, indexPath.section == azooKeyModeSectionIndex {
+
+        case .azooKeyMode:
           let option = InputSchemaViewModel.AzooKeyModeOption.allCases[indexPath.row]
           guard inputSchemaViewModel.isAzooKeyModeOptionAvailable(option) else { return }
           inputSchemaViewModel.selectAzooKeyModeOption(option)
-          return
-        }
-        if let azooKeyAdvancedSectionIndex, indexPath.section == azooKeyAdvancedSectionIndex {
-          // 高级设置使用 UISwitch，点击行时切换开关状态
+
+        case .azooKeyAdvanced:
           let option = InputSchemaViewModel.AzooKeyAdvancedOption.allCases[indexPath.row]
           inputSchemaViewModel.toggleAzooKeyAdvancedOption(option)
-          return
-        }
-        if let group = schemaGroup(for: indexPath.section) {
+
+        case .schemaList(let group):
           let schemas = inputSchemaViewModel.schemas(in: group)
           let schema = schemas[indexPath.row]
           if group == .japanese, !inputSchemaViewModel.isSchemaAvailable(schema) { return }
@@ -326,8 +343,10 @@ extension InputSchemaRootView: UITableViewDelegate {
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    guard let group = schemaGroup(for: indexPath.section),
+    guard let sectionType = sectionType(for: indexPath.section),
+          case .schemaList(let group) = sectionType,
           group == .japanese else { return nil }
+
     let schemas = inputSchemaViewModel.schemas(in: group)
     let schema = schemas[indexPath.row]
     guard inputSchemaViewModel.isSchemaAvailable(schema) else { return nil }

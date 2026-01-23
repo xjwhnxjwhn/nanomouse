@@ -309,8 +309,8 @@ extension HamsterAppDependencyContainer: SubViewControllerFactory {
     return settingViewController
   }
 
-  func makeInputSchemaViewController() -> InputSchemaViewController {
-    let inputSchemaViewController = InputSchemaViewController(
+  func makeInputSchemaViewController() -> InputSchemaSelectViewController {
+    let inputSchemaViewController = InputSchemaSelectViewController(
       inputSchemaViewModel: inputSchemaViewModel,
       documentPickerViewController: makeZipDocumentPickerViewController()
     )

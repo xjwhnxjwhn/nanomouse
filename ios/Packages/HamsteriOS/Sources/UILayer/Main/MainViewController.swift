@@ -11,7 +11,7 @@ import UIKit
 
 protocol SubViewControllerFactory {
   func makeSettingsViewController() -> SettingsViewController
-  func makeInputSchemaViewController() -> InputSchemaViewController
+  func makeInputSchemaViewController() -> InputSchemaSelectViewController
   func makeFinderViewController() -> FinderViewController
   func makeKeyboardSettingsViewController() -> KeyboardSettingsViewController
   func makeKeyboardLayoutViewController() -> KeyboardLayoutViewController
@@ -31,7 +31,7 @@ open class MainViewController: UISplitViewController {
   private let subViewControllerFactory: SubViewControllerFactory
   private let settingsViewController: SettingsViewController
 
-  private lazy var inputSchemaViewController: InputSchemaViewController
+  private lazy var inputSchemaViewController: InputSchemaSelectViewController
     = subViewControllerFactory.makeInputSchemaViewController()
 
   private lazy var finderViewController: FinderViewController
