@@ -886,6 +886,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   func applyTextReplacementCandidate(_ candidate: CandidateSuggestion) {
     let replacement = candidate.text
     let shortcut = candidate.subtitle ?? ""
+    let preservedPrefix = preservedPrefixForTextReplacement(shortcut: shortcut)
     let hasComposing = isUnifiedCompositionBufferEnabled
       || keyboardContext.enableEmbeddedInputMode
       || azooKeyEngine.isComposing
@@ -894,7 +895,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     if isUnifiedCompositionBufferEnabled {
       resetComposingStateForTextReplacement()
-      appendToCompositionPrefix(replacement)
+      appendToCompositionPrefix(preservedPrefix + replacement)
       Task { @MainActor in
         self.rimeContext.textReplacementSuggestions = []
       }
@@ -904,7 +905,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if hasComposing {
       resetComposingStateForTextReplacement()
       clearMarkedTextIfNeeded()
-      textDocumentProxy.insertText(replacement)
+      textDocumentProxy.insertText(preservedPrefix + replacement)
       Task { @MainActor in
         self.rimeContext.textReplacementSuggestions = []
       }
@@ -916,6 +917,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     textDocumentProxy.insertText(replacement)
     rimeContext.textReplacementSuggestions = []
+  }
+
+  private func preservedPrefixForTextReplacement(shortcut: String) -> String {
+    guard !shortcut.isEmpty else { return "" }
+    let composing = currentComposingTextForRawCommit()
+    guard composing.hasSuffix(shortcut) else { return "" }
+    return String(composing.dropLast(shortcut.count))
   }
 
   private func resetComposingStateForTextReplacement() {
