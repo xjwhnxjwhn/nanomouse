@@ -34,6 +34,7 @@ class KeyboardToolbarView: NibLessView {
   /// 用户引导相关属性
   private var currentTipIndex = 0
   private var tipTimer: Timer?
+  private var userGuideSuppressedByTraditionalize = false
 
   private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
@@ -372,6 +373,12 @@ class KeyboardToolbarView: NibLessView {
 
   private func showTraditionalizeHintIfNeeded() {
     guard canToggleTraditionalizationFromToolbar else { return }
+    if tipTimer != nil {
+      userGuideSuppressedByTraditionalize = true
+      stopUserGuide()
+    } else {
+      userGuideSuppressedByTraditionalize = true
+    }
     traditionalizeHintWorkItem?.cancel()
     traditionalizeHintLabel.text = traditionalizeHintText()
     traditionalizeHintLabel.isHidden = false
@@ -394,12 +401,20 @@ class KeyboardToolbarView: NibLessView {
     }
     let completion: (Bool) -> Void = { _ in
       self.traditionalizeHintLabel.isHidden = true
+      if self.userGuideSuppressedByTraditionalize {
+        self.userGuideSuppressedByTraditionalize = false
+        self.startUserGuide()
+      }
     }
     if animated {
       UIView.animate(withDuration: 0.12, animations: hide, completion: completion)
     } else {
       hide()
       traditionalizeHintLabel.isHidden = true
+      if userGuideSuppressedByTraditionalize {
+        userGuideSuppressedByTraditionalize = false
+        startUserGuide()
+      }
     }
   }
 
@@ -431,6 +446,7 @@ class KeyboardToolbarView: NibLessView {
   /// 启动用户引导
   private func startUserGuide() {
     guard tipTimer == nil else { return }
+    guard traditionalizeHintLabel.isHidden else { return }
     showCurrentTip()
     tipTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
       self?.fadeToNextTip()

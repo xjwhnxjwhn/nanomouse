@@ -321,7 +321,7 @@ public class CandidateBarView: NibLessView {
       if isEmpty && !hasInput {
         self.showUserGuide()
       } else {
-        self.hideUserGuide()
+        self.hideUserGuide(animated: !hasInput)
       }
     }
     .store(in: &subscriptions)
@@ -343,11 +343,15 @@ public class CandidateBarView: NibLessView {
   }
 
   /// 隐藏用户引导
-  private func hideUserGuide() {
+  private func hideUserGuide(animated: Bool = true) {
     Logger.statistics.debug("[UserGuide] hideUserGuide called")
     tipTimer?.invalidate()
     tipTimer = nil
-    UIView.animate(withDuration: 0.2) {
+    if animated {
+      UIView.animate(withDuration: 0.2) {
+        self.userGuideLabel.alpha = 0
+      }
+    } else {
       self.userGuideLabel.alpha = 0
     }
   }
