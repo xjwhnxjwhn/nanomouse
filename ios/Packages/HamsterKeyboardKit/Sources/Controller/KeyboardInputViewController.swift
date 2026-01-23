@@ -823,27 +823,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     func tryMatch(with content: String) {
       var beforeInput = baseBeforeInput
       beforeInput.append(content)
-      
+
       guard !beforeInput.isEmpty else { return }
-      
-      let trimmed = beforeInput.trimmingCharacters(in: .whitespaces)
-      guard !trimmed.isEmpty else { return }
-      
-      var wordStartIndex = trimmed.endIndex
-      for index in trimmed.indices.reversed() {
-        let char = trimmed[index]
-        if char.isWhitespace || char.isNewline {
-          wordStartIndex = trimmed.index(after: index)
-          break
-        }
-        if index == trimmed.startIndex {
-          wordStartIndex = index
-        }
-      }
-      
-      let lastWord = String(trimmed[wordStartIndex...])
+
+      let lastWord = systemTextReplacementManager.extractLastShortcut(from: beforeInput)
       guard !lastWord.isEmpty else { return }
-      
+
       let matches = systemTextReplacementManager.getAllSuggestions(for: lastWord)
       for match in matches {
         if !seenReplacements.contains(match.replacement) {

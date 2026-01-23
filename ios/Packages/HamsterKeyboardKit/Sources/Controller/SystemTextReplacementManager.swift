@@ -81,8 +81,8 @@ public class SystemTextReplacementManager {
     Logger.statistics.info("SystemTextReplacement: beforeInput='\(beforeInput, privacy: .public)'")
     
     // 提取最后一个单词
-    let lastWord = extractLastWord(from: beforeInput)
-    Logger.statistics.info("SystemTextReplacement: lastWord='\(lastWord, privacy: .public)'")
+    let lastWord = extractLastShortcut(from: beforeInput)
+    Logger.statistics.info("SystemTextReplacement: lastShortcut='\(lastWord, privacy: .public)'")
     
     guard !lastWord.isEmpty else { return false }
     
@@ -104,26 +104,48 @@ public class SystemTextReplacementManager {
     return true
   }
   
-  /// 从文本中提取最后一个单词
+  /// 从文本中提取最后一个文本替换 key（仅匹配 ASCII 字母/数字/_）
   /// - Parameter text: 输入文本
-  /// - Returns: 最后一个单词
-  private func extractLastWord(from text: String) -> String {
-    let trimmed = text.trimmingCharacters(in: .whitespaces)
+  /// - Returns: 最后一个 key
+  func extractLastShortcut(from text: String) -> String {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return "" }
-    
-    var wordStartIndex = trimmed.endIndex
-    for index in trimmed.indices.reversed() {
-      let char = trimmed[index]
-      if char.isWhitespace || char.isNewline {
-        wordStartIndex = trimmed.index(after: index)
+
+    var endIndex = trimmed.endIndex
+    var index = trimmed.index(before: endIndex)
+
+    // 跳过末尾非 shortcut 字符（标点/CJK/空白等）
+    while true {
+      if let scalar = trimmed[index].unicodeScalars.first, isShortcutScalar(scalar) {
+        endIndex = trimmed.index(after: index)
         break
       }
       if index == trimmed.startIndex {
-        wordStartIndex = index
+        return ""
+      }
+      index = trimmed.index(before: index)
+    }
+
+    var startIndex = index
+    while startIndex != trimmed.startIndex {
+      let prev = trimmed.index(before: startIndex)
+      if let scalar = trimmed[prev].unicodeScalars.first, isShortcutScalar(scalar) {
+        startIndex = prev
+      } else {
+        break
       }
     }
-    
-    return String(trimmed[wordStartIndex...])
+
+    return String(trimmed[startIndex..<endIndex])
+  }
+
+  private func isShortcutScalar(_ scalar: UnicodeScalar) -> Bool {
+    switch scalar.value {
+    case 48...57, 65...90, 97...122, 95: // 0-9 A-Z a-z _
+      return true
+    default:
+      return false
+    }
   }
   
   /// 清空缓存
