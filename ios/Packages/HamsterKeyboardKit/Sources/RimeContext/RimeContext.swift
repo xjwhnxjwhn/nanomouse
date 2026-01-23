@@ -253,6 +253,11 @@ public extension RimeContext {
     await setAsciiMode(Rime.shared.isAsciiMode())
   }
 
+  /// 同步当前中英状态（从引擎读取）
+  func syncAsciiModeFromEngine() async {
+    await setAsciiMode(Rime.shared.isAsciiMode())
+  }
+
   /// RIME 关闭
   /// 注意：仅用于键盘扩展调用
   func shutdown() {

@@ -58,6 +58,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
     syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
+    alignAsciiModeWithKeyboardTypeIfNeeded(reason: "willAppear")
     if shouldPrewarmAzooKeyOnAppear {
       azooKeyEngine.prewarmIfNeeded()
     }
@@ -1371,6 +1372,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 //      rimeContext.reset()
 //    }
     keyboardContext.setKeyboardType(type)
+    if type.isAlphabetic {
+      keyboardContext.isAutoCapitalizationEnabled = false
+      keyboardContext.autocapitalizationTypeOverride = .none
+    }
   }
 
   open func setKeyboardCase(_ casing: KeyboardCase) {
@@ -1478,9 +1483,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       case XK_Return:
         // 回车键：提交原始输入
         commitEnglishRawText()
-        if !isUnifiedCompositionBufferEnabled {
-          textDocumentProxy.insertText(.newline)
-        }
         return
       case XK_space:
         // 空格键：确认第一个候选词
@@ -1795,7 +1797,9 @@ private extension KeyboardInputViewController {
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
     let japaneseActive = (rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true)
       || isAzooKeyInputActive
-    keyboardContext.isAutoCapitalizationEnabled = !japaneseActive
+    let englishActive = rimeContext.asciiModeSnapshot
+    keyboardContext.isAutoCapitalizationEnabled = !(japaneseActive || englishActive)
+    keyboardContext.autocapitalizationTypeOverride = englishActive ? .none : nil
 
     if japaneseActive {
       wasJapaneseActive = true
@@ -1815,6 +1819,18 @@ private extension KeyboardInputViewController {
         Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (leave japanese, reason: \(reason, privacy: .public))")
         keyboardRootView?.reloadKeyboardView()
       }
+    }
+  }
+
+  func alignAsciiModeWithKeyboardTypeIfNeeded(reason: String) {
+    let japaneseActive = (rimeContext.currentSchema?.isJapaneseSchema == true) || isAzooKeyInputActive
+    if keyboardContext.keyboardType.isAlphabetic && !japaneseActive && rimeContext.asciiModeSnapshot == false {
+      Logger.statistics.info("DBG_LANGSWITCH align ascii -> true (reason: \(reason, privacy: .public))")
+      rimeContext.applyAsciiMode(true, overrideWindow: 0.5)
+    }
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard && rimeContext.asciiModeSnapshot && !japaneseActive {
+      Logger.statistics.info("DBG_LANGSWITCH align ascii -> false (reason: \(reason, privacy: .public))")
+      rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
     }
   }
 
@@ -1896,6 +1912,7 @@ private extension KeyboardInputViewController {
 //      }
 
       if await self.rimeContext.isRunning {
+        await self.rimeContext.syncAsciiModeFromEngine()
         await MainActor.run { [weak self] in
           self?.applyDefaultLanguageIfNeeded(reason: "alreadyRunning")
         }

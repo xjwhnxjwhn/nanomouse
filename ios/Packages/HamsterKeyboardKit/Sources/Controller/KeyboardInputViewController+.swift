@@ -204,6 +204,8 @@ public extension KeyboardInputViewController {
       rimeContext.reset()
       rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(true)
+      keyboardContext.isAutoCapitalizationEnabled = false
+      keyboardContext.autocapitalizationTypeOverride = .none
       setKeyboardType(.alphabetic(.lowercased))
     case .japanese:
       guard self.isJapaneseEnabled, let japaneseSchemaId else {
@@ -218,6 +220,8 @@ public extension KeyboardInputViewController {
         let azooKeySchema = RimeSchema(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey")
         rimeContext.setCurrentSchema(azooKeySchema)
         rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
+        keyboardContext.isAutoCapitalizationEnabled = false
+        keyboardContext.autocapitalizationTypeOverride = .none
         setKeyboardType(.alphabetic(.lowercased))
         azooKeyEngine.prewarmIfNeeded()
       } else {
@@ -229,6 +233,8 @@ public extension KeyboardInputViewController {
         }
         // 切换 schema 后再关闭 ascii_mode，并在短时间内覆盖异步回调
         rimeContext.applyAsciiMode(false, overrideWindow: 0.5)
+        keyboardContext.isAutoCapitalizationEnabled = false
+        keyboardContext.autocapitalizationTypeOverride = .none
         setKeyboardType(keyboardContext.selectKeyboard)
 
         // 日语方案统一使用 26 键
@@ -243,6 +249,8 @@ public extension KeyboardInputViewController {
       }
       rimeContext.clearAsciiModeOverride()
       rimeContext.applyAsciiMode(false)
+      keyboardContext.isAutoCapitalizationEnabled = true
+      keyboardContext.autocapitalizationTypeOverride = nil
       // 先切换 schema，再切换键盘类型
       if let chineseSchemaId {
         let switched = rimeContext.switchSchema(schemaId: chineseSchemaId)
