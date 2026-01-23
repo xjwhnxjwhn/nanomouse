@@ -403,7 +403,9 @@ class KeyboardToolbarView: NibLessView {
       self.traditionalizeHintLabel.isHidden = true
       if self.userGuideSuppressedByTraditionalize {
         self.userGuideSuppressedByTraditionalize = false
-        self.startUserGuide()
+        if self.keyboardContext.hamsterConfiguration?.toolbar?.enableUserGuideScrolling ?? true {
+          self.startUserGuide()
+        }
       }
     }
     if animated {
@@ -413,7 +415,9 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHintLabel.isHidden = true
       if userGuideSuppressedByTraditionalize {
         userGuideSuppressedByTraditionalize = false
-        startUserGuide()
+        if keyboardContext.hamsterConfiguration?.toolbar?.enableUserGuideScrolling ?? true {
+          startUserGuide()
+        }
       }
     }
   }
@@ -445,6 +449,7 @@ class KeyboardToolbarView: NibLessView {
 
   /// 启动用户引导
   private func startUserGuide() {
+    guard keyboardContext.hamsterConfiguration?.toolbar?.enableUserGuideScrolling ?? true else { return }
     guard tipTimer == nil else { return }
     guard traditionalizeHintLabel.isHidden else { return }
     showCurrentTip()
