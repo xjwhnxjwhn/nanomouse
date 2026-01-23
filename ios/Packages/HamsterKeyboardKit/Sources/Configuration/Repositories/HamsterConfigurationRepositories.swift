@@ -78,7 +78,17 @@ public class HamsterConfigurationRepositories {
 
   /// 在 UserDefaults 中保存 UI 界面中操作的配置
   public func saveAppConfigurationToUserDefaults(_ config: HamsterConfiguration) throws {
-    try saveToUserDefaults(config, key: Self.hamsterAppConfigurationKey)
+    var configToSave = config
+    if let defaultConfig = try? loadFromUserDefaultsOnDefault() {
+      configToSave = try Self.stripDefaults(configToSave, defaultConfig: defaultConfig)
+    } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnAppGroupSharedSupport.path) {
+      let defaultConfig = try loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
+      configToSave = try Self.stripDefaults(configToSave, defaultConfig: defaultConfig)
+    } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnSandboxSharedSupport.path) {
+      let defaultConfig = try loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
+      configToSave = try Self.stripDefaults(configToSave, defaultConfig: defaultConfig)
+    }
+    try saveToUserDefaults(configToSave, key: Self.hamsterAppConfigurationKey)
   }
 
   private func saveToUserDefaults(_ config: HamsterConfiguration, key: String) throws {
@@ -175,6 +185,44 @@ public extension HamsterConfigurationRepositories {
   static let hamsterConfigurationKey = "com.XiangqingZHANG.nanomouse.configuration.keys.nanomouseConfig"
   /// 默认应用配置key
   static let defaultHamsterConfigurationKey = "com.XiangqingZHANG.nanomouse.configuration.keys.defaultNanomouseConfig"
+
+  static func stripDefaults(_ appConfig: HamsterConfiguration, defaultConfig: HamsterConfiguration) throws -> HamsterConfiguration {
+    let encoder = JSONEncoder()
+    let appData = try encoder.encode(appConfig)
+    let defaultData = try encoder.encode(defaultConfig)
+    let appJson = try JSONSerialization.jsonObject(with: appData) as? [String: Any] ?? [:]
+    let defaultJson = try JSONSerialization.jsonObject(with: defaultData) as? [String: Any] ?? [:]
+    let stripped = stripDefaults(appJson, defaultJson)
+    let finalData = try JSONSerialization.data(withJSONObject: stripped)
+    return try JSONDecoder().decode(HamsterConfiguration.self, from: finalData)
+  }
+
+  private static func stripDefaults(_ appJson: [String: Any], _ defaultJson: [String: Any]) -> [String: Any] {
+    var result: [String: Any] = [:]
+    for (key, appValue) in appJson {
+      if let defaultValue = defaultJson[key] {
+        if let appDict = appValue as? [String: Any], let defaultDict = defaultValue as? [String: Any] {
+          let nested = stripDefaults(appDict, defaultDict)
+          if !nested.isEmpty {
+            result[key] = nested
+          }
+          continue
+        }
+        if jsonEqual(appValue, defaultValue) {
+          continue
+        }
+      }
+      result[key] = appValue
+    }
+    return result
+  }
+
+  private static func jsonEqual(_ lhs: Any, _ rhs: Any) -> Bool {
+    if let l = lhs as? NSObject {
+      return l.isEqual(rhs)
+    }
+    return false
+  }
 
   /// 将 str 中的中文 unicode 编码 \uXXXX 转化为人类可读的
   static func transform(_ str: String) throws -> String {

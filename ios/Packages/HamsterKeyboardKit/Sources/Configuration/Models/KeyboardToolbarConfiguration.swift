@@ -54,13 +54,13 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
 
   public init(
     enableToolbar: Bool? = true,
-    heightOfToolbar: Int? = 50,
+    heightOfToolbar: Int? = 60,
     displayAppIconButton: Bool? = true,
     displayKeyboardDismissButton: Bool? = true,
-    heightOfCodingArea: Int? = 18,
+    heightOfCodingArea: Int? = 20,
     codingAreaFontSize: Int? = 20,
     candidateLabelFontSize: Int? = 12,
-    candidateWordFontSize: Int? = 18,
+    candidateWordFontSize: Int? = 25,
     candidateCommentFontSize: Int? = 12,
     displayIndexOfCandidateWord: Bool? = false,
     displayCommentOfCandidateWord: Bool? = false,

@@ -31,7 +31,7 @@ public struct KeyboardSwipeConfiguration: Codable, Hashable {
   /// 内置键盘滑动配置
   public private(set) var keyboardSwipeMapping: [KeyboardType: KeySwipeMapping] = [:]
 
-  public init(spaceDragSensitivity: Int? = nil, distanceThreshold: Int? = nil, tangentThreshold: CGFloat? = nil, longPressDelay: Double? = nil, keyboardSwipe: [KeyboardSwipe]? = nil) {
+  public init(spaceDragSensitivity: Int? = 10, distanceThreshold: Int? = 20, tangentThreshold: CGFloat? = 0.577, longPressDelay: Double? = 0.3, keyboardSwipe: [KeyboardSwipe]? = nil) {
     self.spaceDragSensitivity = spaceDragSensitivity
     self.distanceThreshold = distanceThreshold
     self.tangentThreshold = tangentThreshold

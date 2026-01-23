@@ -54,7 +54,7 @@ keyboard:
   # 多语言快速混输
   enableMultiLanguageQuickMix: false
   # 关闭划动文本显示
-  disableSwipeLabel: false
+  disableSwipeLabel: true
   # 上下显示划动文本不规则布局
   swipeLabelUpAndDownIrregularLayout: false
   # 上下显示划动文本规则布局
@@ -101,7 +101,7 @@ keyboard:
     - /
   lockShiftState: false
   enableSystemTextReplacement: true
-  enableEmbeddedInputMode: false
+  enableEmbeddedInputMode: true
   widthOfOneHandedKeyboard: 80
   symbolsOfCursorBack:
     - '""'

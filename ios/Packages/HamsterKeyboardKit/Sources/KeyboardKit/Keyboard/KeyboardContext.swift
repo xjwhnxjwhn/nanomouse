@@ -393,7 +393,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 工具栏高度
   var heightOfToolbar: CGFloat {
-    CGFloat(hamsterConfiguration?.toolbar?.heightOfToolbar ?? 55)
+    CGFloat(hamsterConfiguration?.toolbar?.heightOfToolbar ?? 60)
   }
 
   /// 工具栏编码区高度

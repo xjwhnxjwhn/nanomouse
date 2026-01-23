@@ -42,7 +42,7 @@ public class KeyboardFeedbackViewModel {
 
   public var hapticFeedbackIntensity: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.hapticFeedbackIntensity ?? 2
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.hapticFeedbackIntensity ?? 3
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.hapticFeedbackIntensity = newValue

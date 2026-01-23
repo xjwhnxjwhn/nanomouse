@@ -318,7 +318,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var candidateWordFontSize: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize ?? 23
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize ?? 25
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.candidateWordFontSize = newValue
@@ -328,7 +328,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var heightOfToolbar: Int {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar ?? 55
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar ?? 60
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.heightOfToolbar = newValue

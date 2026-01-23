@@ -289,12 +289,31 @@ public extension RimeViewModel {
         try? FileManager.default.removeItem(at: buildDir)
       }
       try FileManager.initAppGroupUserDataDirectory(override: false, unzip: true)
+      let customSrc = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("rime_ice.custom.yaml")
+      let customDst = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("rime_ice.custom.yaml")
+      if FileManager.default.fileExists(atPath: customSrc.path) {
+        try? FileManager.default.removeItem(at: customDst)
+        try? FileManager.default.copyItem(at: customSrc, to: customDst)
+      }
+      HamsterConfigurationRepositories.shared.resetAppConfiguration()
+      HamsterAppDependencyContainer.shared.applicationConfiguration = HamsterConfiguration(
+        general: GeneralConfiguration(),
+        toolbar: KeyboardToolbarConfiguration(),
+        keyboard: KeyboardConfiguration(),
+        rime: RimeConfiguration(),
+        swipe: KeyboardSwipeConfiguration(),
+        keyboards: nil
+      )
     } catch {
       Logger.statistics.error("debug redeploy initAppGroupUserDataDirectory error: \(error.localizedDescription)")
       deployError = error
     }
 
     var hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
+    if let defaultConfig = try? HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport) {
+      hamsterConfiguration = defaultConfig
+      HamsterAppDependencyContainer.shared.configuration = defaultConfig
+    }
     hamsterConfiguration.rime?.overrideDictFiles = false
     do {
       try rimeContext.deployment(configuration: &hamsterConfiguration)

@@ -22,7 +22,7 @@ public struct GeneralConfiguration: Codable, Hashable {
   /// 编辑器：是否换行
   public var textEditorLineWrappingEnabled: Bool?
 
-  public init(enableAppleCloud: Bool? = nil, regexOnCopyFile: [String]? = nil, textEditorLineWrappingEnabled: Bool? = nil) {
+  public init(enableAppleCloud: Bool? = false, regexOnCopyFile: [String]? = nil, textEditorLineWrappingEnabled: Bool? = true) {
     self.enableAppleCloud = enableAppleCloud
     self.regexOnCopyFile = regexOnCopyFile
     self.textEditorLineWrappingEnabled = textEditorLineWrappingEnabled

@@ -225,6 +225,22 @@ patch:
     - derive/^ze$/xe/
     - derive/^za$/xa/
 
+    # 纠错：相邻键误触补充
+    - derive/^song$/aong/
+    - derive/^dong$/fong/
+    - derive/^long$/jong/
+    - derive/^dian$/sian/
+    - derive/^co$/xo/
+    - derive/^cong$/xong/
+
+    # 纠错：辅音后误触 w/r → e（通用）
+    - derive/^(zh|ch|sh)e$/$1w/
+    - derive/^(zh|ch|sh)e$/$1r/
+    - derive/^([bpmfdtnlgkhjqxzcs])e$/$1w/
+    - derive/^([bpmfdtnlgkhjqxzcs])e$/$1r/
+    - derive/^(zh|ch|sh)ei$/$1wi/
+    - derive/^([bpmfdtnlgkhjqxzcs])ei$/$1wi/
+
     # 纠错：A/S 邻键误触 (ah* → sh*) - 18 条
     - derive/^shi$/ahi/
     - derive/^sha$/aha/

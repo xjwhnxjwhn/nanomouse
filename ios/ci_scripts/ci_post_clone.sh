@@ -20,8 +20,8 @@ rm -rf $OUTPUT/*.xcframwork && (
 )
 
 # 生成 SharedSupport.zip 与 rime-ice.zip
-OUTPUT="${CI_PRIMARY_REPOSITORY_PATH}/Resources/SharedSupport"
-mkdir -p $OUTPUT
+OUTPUT="${CI_PRIMARY_REPOSITORY_PATH}/ios/Resources/SharedSupport"
+mkdir -p "$OUTPUT"
 bash ${CI_PRIMARY_REPOSITORY_PATH}/ios/InputSchemaBuild.sh
-cp ${CI_PRIMARY_REPOSITORY_PATH}/.tmp/SharedSupport/SharedSupport.zip $OUTPUT
-cp ${CI_PRIMARY_REPOSITORY_PATH}/.tmp/.rime-ice/rime-ice.zip $OUTPUT
+cp ${CI_PRIMARY_REPOSITORY_PATH}/.tmp/SharedSupport/SharedSupport.zip "$OUTPUT"
+cp ${CI_PRIMARY_REPOSITORY_PATH}/.tmp/.rime-ice/rime-ice.zip "$OUTPUT"

@@ -35,11 +35,11 @@ public struct RimeConfiguration: Codable, Hashable {
 
   public init(
     maximumNumberOfCandidateWords: Int? = 100,
-    keyValueOfSwitchSimplifiedAndTraditional: String? = nil,
-    overrideDictFiles: Bool? = nil,
+    keyValueOfSwitchSimplifiedAndTraditional: String? = "traditionalization",
+    overrideDictFiles: Bool? = false,
     traditionalizationOpenccConfig: String? = "s2twp.json",
-    regexOnOverrideDictFiles: [String]? = nil,
-    regexOnCopyAppGroupDictFile: [String]? = nil) {
+    regexOnOverrideDictFiles: [String]? = ["^.*[.]userdb.*$", "^.*[.]txt$"],
+    regexOnCopyAppGroupDictFile: [String]? = ["^.*[.]userdb.*$", "^.*[.]txt$"]) {
     self.maximumNumberOfCandidateWords = maximumNumberOfCandidateWords
     self.keyValueOfSwitchSimplifiedAndTraditional = keyValueOfSwitchSimplifiedAndTraditional
     self.overrideDictFiles = overrideDictFiles

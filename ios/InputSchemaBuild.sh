@@ -98,12 +98,13 @@ mv default.yaml.min default.yaml
 popd > /dev/null
 
 # SharedSupport
-mkdir -p $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport
+SHARED_SUPPORT_DIR="$CI_PRIMARY_REPOSITORY_PATH/ios/Resources/SharedSupport"
+mkdir -p "$SHARED_SUPPORT_DIR"
 (
-  cp $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/hamster.yaml $DST_PATH
+  cp "$SHARED_SUPPORT_DIR/hamster.yaml" "$DST_PATH"
   cd $DST_PATH/
   zip -r SharedSupport.zip *
-) && cp $DST_PATH/SharedSupport.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+) && cp "$DST_PATH/SharedSupport.zip" "$SHARED_SUPPORT_DIR/"
 
 # 内置方案雾凇
 input_scheme_name=rime-ice
@@ -341,6 +342,22 @@ patch:
     - derive/^ze$/xe/
     - derive/^za$/xa/
 
+    # 纠错：相邻键误触补充
+    - derive/^song$/aong/
+    - derive/^dong$/fong/
+    - derive/^long$/jong/
+    - derive/^dian$/sian/
+    - derive/^co$/xo/
+    - derive/^cong$/xong/
+
+    # 纠错：辅音后误触 w/r → e（通用）
+    - derive/^(zh|ch|sh)e$/$1w/
+    - derive/^(zh|ch|sh)e$/$1r/
+    - derive/^([bpmfdtnlgkhjqxzcs])e$/$1w/
+    - derive/^([bpmfdtnlgkhjqxzcs])e$/$1r/
+    - derive/^(zh|ch|sh)ei$/$1wi/
+    - derive/^([bpmfdtnlgkhjqxzcs])ei$/$1wi/
+
     # 纠错：A/S 邻键误触 (ah* → sh*) - 18 条
     - derive/^shi$/ahi/
     - derive/^sha$/aha/
@@ -379,7 +396,7 @@ NANOMOUSE_CONFIG
     # $WORK/.deps/dist/bin/rime_deployer --build .
     zip -r $input_scheme_name.zip ./*
   ) && \
-  cp -R $OUTPUT/.$input_scheme_name/*.zip $CI_PRIMARY_REPOSITORY_PATH/Resources/SharedSupport/
+  cp -R $OUTPUT/.$input_scheme_name/*.zip "$SHARED_SUPPORT_DIR/"
 
 # === 内置方案：日语 (rime-japanese) ===
 japanese_scheme_name=rime-japanese
