@@ -5,6 +5,10 @@
 # Build outputs
 build/
 dist/
+.deps/
+.tmp/
+package/
+Resources/
 
 # IDE
 .idea/
