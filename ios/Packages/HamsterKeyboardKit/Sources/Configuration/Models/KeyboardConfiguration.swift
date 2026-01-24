@@ -167,7 +167,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     swipeLabelUpAndDownLayout: Bool? = true,
     swipeLabelUpAndDownIrregularLayout: Bool? = false,
     displayButtonBubbles: Bool? = true,
-    enableKeySounds: Bool? = true,
+    enableKeySounds: Bool? = false,
     enableHapticFeedback: Bool? = false,
     hapticFeedbackIntensity: Int? = 3,
     displaySemicolonButton: Bool? = false,
