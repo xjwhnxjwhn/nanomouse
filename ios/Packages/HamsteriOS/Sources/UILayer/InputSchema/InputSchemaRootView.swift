@@ -141,7 +141,46 @@ class InputSchemaRootView: NibLessView {
   }
 
   private func isRecommendedSchema(_ schema: RimeSchema) -> Bool {
-    schema.schemaId == "jaroomaji-easy"
+    schema.schemaId == HamsterConstants.azooKeySchemaId
+  }
+
+  /// 已下载的推荐方案显示的标签视图（推荐 + 可选的 checkmark）
+  private func recommendedBadgeView(isSelected: Bool) -> UIView {
+    let badge = UILabel()
+    badge.text = "推荐"
+    badge.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+    badge.textColor = .systemOrange
+    badge.sizeToFit()
+
+    if isSelected {
+      let checkmark = UIImageView(image: UIImage(systemName: "checkmark"))
+      checkmark.tintColor = .systemBlue
+      checkmark.sizeToFit()
+
+      let spacing: CGFloat = 8
+      let height = max(badge.bounds.height, checkmark.bounds.height)
+      let width = badge.bounds.width + spacing + checkmark.bounds.width
+      let container = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
+
+      badge.frame = CGRect(
+        x: 0,
+        y: (height - badge.bounds.height) / 2,
+        width: badge.bounds.width,
+        height: badge.bounds.height
+      )
+      checkmark.frame = CGRect(
+        x: badge.frame.maxX + spacing,
+        y: (height - checkmark.bounds.height) / 2,
+        width: checkmark.bounds.width,
+        height: checkmark.bounds.height
+      )
+
+      container.addSubview(badge)
+      container.addSubview(checkmark)
+      return container
+    } else {
+      return badge
+    }
   }
 
   private func downloadButton(for schema: RimeSchema) -> UIButton {
@@ -270,6 +309,10 @@ extension InputSchemaRootView: UITableViewDataSource {
       cell.contentConfiguration = config
       if isJapanese, !isAvailable {
         cell.accessoryView = downloadAccessoryView(for: schema)
+        cell.accessoryType = .none
+      } else if isRecommendedSchema(schema) {
+        // 已下载的推荐方案：显示推荐标签
+        cell.accessoryView = recommendedBadgeView(isSelected: inputSchemaViewModel.isSchemaSelected(schema))
         cell.accessoryType = .none
       } else {
         cell.accessoryView = nil
