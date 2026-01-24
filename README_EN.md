@@ -46,6 +46,14 @@ config — it's **a complete iOS keyboard app**.
 | 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement |
 | 🎌 **Multiple Schemas**          | Rime Ice, Double Pinyin, Japanese Romaji, Stroke input...            |
 
+**Typing Enhancements:**
+
+- 🎯 **Mistouch Correction**: Common slips are auto-corrected (e.g. `xo→co`, `aong→song`)
+- 🔀 **Multi‑language Quick Mix**: Keep CN/JP/EN in one candidate bar without losing context
+- 🇬🇧 **English Candidate Bar**: Suggestions + spell correction for English input
+- 🔢 **Number Mixing**: Seamlessly mix numbers while typing Pinyin/Japanese
+- 🧠 **AzooKey + Zenzai AI (Optional)**: AI‑enhanced Japanese input (model download required; can be disabled on low-end devices)
+
 **Screenshots:**
 
 <p align="center">

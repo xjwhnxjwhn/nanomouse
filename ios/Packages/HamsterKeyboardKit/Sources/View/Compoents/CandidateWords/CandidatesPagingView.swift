@@ -217,6 +217,16 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
       let textReplacementCount = rimeContext.textReplacementSuggestions.count
       let adjustedIndex = indexPath.item - textReplacementCount
       if adjustedIndex >= 0 {
+        if let handler = actionHandler as? StandardKeyboardActionHandler,
+           let controller = handler.keyboardController as? KeyboardInputViewController
+        {
+          if rimeContext.mixedInputManager.hasLiteral,
+             rimeContext.mixedInputManager.pinyinOnly.isEmpty
+          {
+            controller.commitMixedInputCandidateDirectly(selectedItem.text)
+            return
+          }
+        }
         self.rimeContext.selectCandidate(index: adjustedIndex)
       }
     }

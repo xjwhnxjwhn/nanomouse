@@ -1404,6 +1404,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     clearEnglishState()
   }
 
+  func commitMixedInputCandidateDirectly(_ text: String) {
+    guard !text.isEmpty else { return }
+    if isUnifiedCompositionBufferEnabled {
+      appendToCompositionPrefix(text)
+    } else {
+      textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+      insertTextPatch(text)
+    }
+    rimeContext.reset()
+    Task { @MainActor in
+      self.rimeContext.textReplacementSuggestions = []
+    }
+  }
+
   open func selectNextKeyboard() {
     if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
       commitCurrentCompositionToPrefixAndReset()
@@ -1519,6 +1533,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isUnifiedCompositionBufferEnabled, keyCode == XK_Return, hasActiveCompositionForBuffer() {
       commitCurrentCompositionToPrefixAndReset()
       flushCompositionPrefixIfNeeded()
+      return
+    }
+    if keyCode == XK_Return,
+       rimeContext.mixedInputManager.hasLiteral,
+       rimeContext.mixedInputManager.pinyinOnly.isEmpty,
+       !rimeContext.userInputKey.isEmpty
+    {
+      let commit = rimeContext.mixedInputManager.displayText
+      if !commit.isEmpty {
+        textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        insertTextPatch(commit)
+      }
+      rimeContext.reset()
       return
     }
     if isUnifiedCompositionBufferEnabled, keyCode == XK_space {

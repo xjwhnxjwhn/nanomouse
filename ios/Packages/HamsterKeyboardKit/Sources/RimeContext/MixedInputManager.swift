@@ -15,7 +15,7 @@ public class MixedInputManager {
     /// 输入段类型
     public enum SegmentType: Equatable {
         case pinyin(String)   // 拼音段，需要 RIME 转换
-        case literal(String)  // 直接文本（数字、符号等），原样保留
+        case literal(display: String, commit: String)  // 直接文本（数字、符号等）
     }
 
     /// 输入段
@@ -25,7 +25,14 @@ public class MixedInputManager {
         public var text: String {
             switch type {
             case .pinyin(let s): return s
-            case .literal(let s): return s
+            case .literal(let display, _): return display
+            }
+        }
+
+        public var commitText: String {
+            switch type {
+            case .pinyin: return ""
+            case .literal(_, let commit): return commit
             }
         }
 
@@ -74,7 +81,7 @@ public class MixedInputManager {
     /// 仅直接文本部分
     public var literalOnly: String {
         segments.compactMap {
-            if case .literal(let s) = $0.type { return s }
+            if case .literal(_, let commit) = $0.type { return commit }
             return nil
         }.joined()
     }
@@ -90,10 +97,10 @@ public class MixedInputManager {
             // 数字等直接文本
             // 检查最后一个段是否也是 literal，如果是则合并
             if let lastIndex = segments.indices.last,
-               case .literal(let existing) = segments[lastIndex].type {
-                segments[lastIndex] = Segment(type: .literal(existing + text))
+               case .literal(let existingDisplay, let existingCommit) = segments[lastIndex].type {
+                segments[lastIndex] = Segment(type: .literal(display: existingDisplay + text, commit: existingCommit + text))
             } else {
-                segments.append(Segment(type: .literal(text)))
+                segments.append(Segment(type: .literal(display: text, commit: text)))
             }
         } else {
             // 拼音字符，合并到最后一个拼音段或创建新段
@@ -127,15 +134,18 @@ public class MixedInputManager {
                     segments[lastIndex] = Segment(type: .pinyin(s))
                 }
             }
-        case .literal(var s):
-            if s.isEmpty {
+        case .literal(var display, var commit):
+            if display.isEmpty {
                 segments.removeLast()
             } else {
-                s.removeLast()
-                if s.isEmpty {
+                display.removeLast()
+                if !commit.isEmpty {
+                    commit.removeLast()
+                }
+                if display.isEmpty {
                     segments.removeLast()
                 } else {
-                    segments[lastIndex] = Segment(type: .literal(s))
+                    segments[lastIndex] = Segment(type: .literal(display: display, commit: commit))
                 }
             }
         }
@@ -149,23 +159,38 @@ public class MixedInputManager {
     }
 
     /// 将最后一个拼音段提交为直接文本
-    public func commitLastPinyinAsLiteral(_ text: String) {
-        guard !text.isEmpty else { return }
-        guard let lastIndex = segments.indices.last else {
-            segments.append(Segment(type: .literal(text)))
+    public func commitLastPinyinAsLiteral(_ commitText: String) {
+        guard !commitText.isEmpty else { return }
+        guard let pinyinIndex = segments.lastIndex(where: { $0.isPinyin }) else {
+            segments.append(Segment(type: .literal(display: commitText, commit: commitText)))
             return
         }
-        if segments[lastIndex].isPinyin {
-            if lastIndex > 0, case .literal(let existing) = segments[lastIndex - 1].type {
-                segments[lastIndex - 1] = Segment(type: .literal(existing + text))
-                segments.removeLast()
-            } else {
-                segments[lastIndex] = Segment(type: .literal(text))
-            }
-            return
+
+        let displayText: String
+        if case .pinyin(let raw) = segments[pinyinIndex].type {
+            displayText = raw
+        } else {
+            displayText = commitText
         }
-        if case .literal(let existing) = segments[lastIndex].type {
-            segments[lastIndex] = Segment(type: .literal(existing + text))
+
+        segments[pinyinIndex] = Segment(type: .literal(display: displayText, commit: commitText))
+
+        if pinyinIndex > 0,
+           case .literal(let prevDisplay, let prevCommit) = segments[pinyinIndex - 1].type {
+            let mergedDisplay = prevDisplay + displayText
+            let mergedCommit = prevCommit + commitText
+            segments[pinyinIndex - 1] = Segment(type: .literal(display: mergedDisplay, commit: mergedCommit))
+            segments.remove(at: pinyinIndex)
+        }
+
+        let currentIndex = max(0, min(pinyinIndex, segments.count - 1))
+        if currentIndex + 1 < segments.count,
+           case .literal(let nextDisplay, let nextCommit) = segments[currentIndex + 1].type,
+           case .literal(let currentDisplay, let currentCommit) = segments[currentIndex].type {
+            segments[currentIndex] = Segment(
+                type: .literal(display: currentDisplay + nextDisplay, commit: currentCommit + nextCommit)
+            )
+            segments.remove(at: currentIndex + 1)
         }
     }
 
@@ -259,8 +284,8 @@ public class MixedInputManager {
                 }
                 pinyinSegmentIndex += 1
 
-            case .literal(let text):
-                composed += text
+            case .literal(_, let commit):
+                composed += commit
             }
         }
 

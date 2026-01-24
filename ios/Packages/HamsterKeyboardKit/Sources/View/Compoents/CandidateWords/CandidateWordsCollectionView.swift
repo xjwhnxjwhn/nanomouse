@@ -241,6 +241,12 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
         if let handler = actionHandler as? StandardKeyboardActionHandler,
            let controller = handler.keyboardController as? KeyboardInputViewController
         {
+          if rimeContext.mixedInputManager.hasLiteral,
+             rimeContext.mixedInputManager.pinyinOnly.isEmpty
+          {
+            controller.commitMixedInputCandidateDirectly(selectedItem.text)
+            return
+          }
           // 英语输入模式
           if controller.isEnglishInputActive && controller.englishEngine.isComposing {
             controller.selectEnglishCandidate(index: adjustedIndex)
