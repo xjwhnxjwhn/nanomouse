@@ -345,7 +345,7 @@ extension InputSchemaRootView: UITableViewDataSource {
     case .traditional:
       return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
     case .azooKeyMode:
-      return "Zenzai 为可选增强模式，需要单独下载后启用。"
+      return "Zenzai 为可选增强模式，首次启用时需加载大模型，可能需要约一分钟。若长时间卡住或闪退，请稍后重试或切换回「标准模式」。如不再需要，可左划「Zenzai 增强」删除已下载的模型文件。"
     case .azooKeyAdvanced:
       return nil
     }
