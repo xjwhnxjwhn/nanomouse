@@ -87,6 +87,27 @@ final class AzooKeyInputEngine {
     conversionLock.unlock()
   }
 
+  func releaseResources() {
+    invalidatePendingConversions()
+    conversionLock.lock()
+    converter?.stopComposition()
+    conversionLock.unlock()
+    converterLock.lock()
+    converter = nil
+    cachedDictionaryURL = nil
+    cachedZenzaiWeightURL = nil
+    cachedZenzaiEnabled = false
+    hasPrewarmed = false
+    prewarmInProgress = false
+    converterLock.unlock()
+    zenzaiLock.lock()
+    zenzaiReady = false
+    zenzaiPrewarmInProgress = false
+    zenzaiLock.unlock()
+    composingText = ComposingText()
+    lastCandidates = []
+  }
+
   func prewarmIfNeeded() {
     converterLock.lock()
     if hasPrewarmed || prewarmInProgress {
@@ -114,6 +135,7 @@ final class AzooKeyInputEngine {
         self.converterLock.lock()
         self.hasPrewarmed = true
         self.converterLock.unlock()
+        self.prewarmZenzaiIfNeeded()
         return
       }
       var warmupText = ComposingText()
@@ -279,6 +301,9 @@ final class AzooKeyInputEngine {
     if converter == nil || cachedDictionaryURL != dictionaryURL {
       converter = newConverter
       cachedDictionaryURL = dictionaryURL
+      zenzaiLock.lock()
+      zenzaiReady = false
+      zenzaiLock.unlock()
     }
     let result = converter
     converterLock.unlock()
@@ -423,8 +448,14 @@ final class AzooKeyInputEngine {
       zenzaiLock.unlock()
       return
     }
+    if !composingText.convertTarget.isEmpty || !composingText.input.isEmpty {
+      zenzaiPrewarmQueue.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+        self?.runZenzaiPrewarm()
+      }
+      return
+    }
     if !conversionLock.try() {
-      zenzaiPrewarmQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      zenzaiPrewarmQueue.asyncAfter(deadline: .now() + 0.6) { [weak self] in
         self?.runZenzaiPrewarm()
       }
       return
@@ -432,12 +463,13 @@ final class AzooKeyInputEngine {
     var warmupText = ComposingText()
     warmupText.insertAtCursorPosition("a", inputStyle: .roman2kana)
     let (options, _) = makeOptions(inputStyle: .roman2kana, leftSideContext: nil, forceZenzai: true)
-    converter.setKeyboardLanguage(.ja_JP)
     _ = converter.requestCandidates(warmupText, options: options)
     converter.stopComposition()
     conversionLock.unlock()
     zenzaiLock.lock()
     zenzaiReady = true
+    zenzaiLock.unlock()
+    zenzaiLock.lock()
     zenzaiPrewarmInProgress = false
     zenzaiLock.unlock()
   }

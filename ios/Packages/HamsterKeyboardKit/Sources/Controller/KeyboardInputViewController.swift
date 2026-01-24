@@ -662,6 +662,28 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return inputText
   }
 
+  func currentRimePreeditText() -> String {
+    if let preedit = rimeContext.rimeContext?.composition?.preedit, !preedit.isEmpty {
+      return preedit
+    }
+    let display = rimeContext.userInputKey
+    let prefix = rimeContext.compositionPrefix
+    if !prefix.isEmpty, display.hasPrefix(prefix) {
+      return String(display.dropFirst(prefix.count))
+    }
+    return display
+  }
+
+  func prepareMixedInputForDigitInsertion() {
+    if !rimeContext.mixedInputManager.hasLiteral {
+      rimeContext.mixedInputManager.reset()
+      let preedit = currentRimePreeditText()
+      if !preedit.isEmpty {
+        rimeContext.mixedInputManager.insertAtCursorPosition(preedit, isLiteral: false)
+      }
+    }
+  }
+
   func applyMarkedText(_ inputText: String) {
     guard keyboardContext.enableEmbeddedInputMode || isUnifiedCompositionBufferEnabled else { return }
     let markedText = markedTextForCurrentInput(inputText)
@@ -1161,6 +1183,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let char = symbol.char
     let isDigit = char.count == 1 && char.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
+      prepareMixedInputForDigitInsertion()
       commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
@@ -1272,6 +1295,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
     let isDigit = text.count == 1 && text.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
+      prepareMixedInputForDigitInsertion()
       commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
@@ -1284,11 +1308,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     // 非数字字符，同时添加到混合输入管理器
-    if !isDigit && !rimeContext.userInputKey.isEmpty {
-      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: false)
-    } else if !isDigit && rimeContext.userInputKey.isEmpty {
-      // 首次输入，初始化混合输入管理器
-      rimeContext.mixedInputManager.reset()
+    if !isDigit && rimeContext.mixedInputManager.hasLiteral {
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: false)
     }
 

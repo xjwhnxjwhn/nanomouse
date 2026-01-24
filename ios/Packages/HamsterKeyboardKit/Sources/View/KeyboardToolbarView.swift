@@ -265,16 +265,17 @@ class KeyboardToolbarView: NibLessView {
   }
 
   func combine() {
-    Publishers.CombineLatest(
+    Publishers.CombineLatest3(
       rimeContext.userInputKeyPublished,
-      rimeContext.$textReplacementSuggestions
+      rimeContext.$textReplacementSuggestions,
+      rimeContext.$suggestions
     )
     .receive(on: DispatchQueue.main)
-    .sink { [weak self] userInputKey, textReplacementSuggestions in
+    .sink { [weak self] userInputKey, textReplacementSuggestions, suggestions in
       guard let self = self else { return }
       
       // 有 RIME 输入或有文本替换建议时，显示候选栏
-      let hasContent = !userInputKey.isEmpty || !textReplacementSuggestions.isEmpty
+      let hasContent = !userInputKey.isEmpty || !textReplacementSuggestions.isEmpty || !suggestions.isEmpty
       let isEmpty = !hasContent
       
       self.commonFunctionBar.isHidden = !isEmpty

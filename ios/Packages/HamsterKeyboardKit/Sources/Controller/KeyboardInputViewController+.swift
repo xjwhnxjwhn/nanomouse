@@ -198,7 +198,11 @@ public extension KeyboardInputViewController {
     switch mode {
     case .english:
       if isAzooKeyActive {
-        azooKeyEngine.reset()
+        if UserDefaults.hamster.azooKeyMode == .zenzai {
+          azooKeyEngine.releaseResources()
+        } else {
+          azooKeyEngine.reset()
+        }
         clearAzooKeyState()
       }
       rimeContext.reset()
@@ -244,7 +248,11 @@ public extension KeyboardInputViewController {
       }
     case .chinese:
       if isAzooKeyActive {
-        azooKeyEngine.reset()
+        if UserDefaults.hamster.azooKeyMode == .zenzai {
+          azooKeyEngine.releaseResources()
+        } else {
+          azooKeyEngine.reset()
+        }
         clearAzooKeyState()
       }
       rimeContext.clearAsciiModeOverride()
