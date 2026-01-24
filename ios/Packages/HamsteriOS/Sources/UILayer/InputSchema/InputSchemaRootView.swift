@@ -386,24 +386,46 @@ extension InputSchemaRootView: UITableViewDelegate {
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    guard let sectionType = sectionType(for: indexPath.section),
-          case .schemaList(let group) = sectionType,
-          group == .japanese else { return nil }
+    guard let sectionType = sectionType(for: indexPath.section) else { return nil }
 
-    let schemas = inputSchemaViewModel.schemas(in: group)
-    let schema = schemas[indexPath.row]
-    guard inputSchemaViewModel.isSchemaAvailable(schema) else { return nil }
+    switch sectionType {
+    case .schemaList(let group):
+      guard group == .japanese else { return nil }
+      let schemas = inputSchemaViewModel.schemas(in: group)
+      let schema = schemas[indexPath.row]
+      guard inputSchemaViewModel.isSchemaAvailable(schema) else { return nil }
 
-    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
-      guard let self else {
-        completion(false)
-        return
+      let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+        guard let self else {
+          completion(false)
+          return
+        }
+        Task {
+          await self.inputSchemaViewModel.deleteDownloadedSchema(schema)
+          completion(true)
+        }
       }
-      Task {
-        await self.inputSchemaViewModel.deleteDownloadedSchema(schema)
-        completion(true)
+      return UISwipeActionsConfiguration(actions: [deleteAction])
+
+    case .azooKeyMode:
+      let option = InputSchemaViewModel.AzooKeyModeOption.allCases[indexPath.row]
+      // 只有 Zenzai 且已下载时才显示删除
+      guard option == .zenzai, inputSchemaViewModel.isAzooKeyModeOptionAvailable(.zenzai) else { return nil }
+
+      let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+        guard let self else {
+          completion(false)
+          return
+        }
+        Task {
+          await self.inputSchemaViewModel.deleteZenzaiModel()
+          completion(true)
+        }
       }
+      return UISwipeActionsConfiguration(actions: [deleteAction])
+
+    default:
+      return nil
     }
-    return UISwipeActionsConfiguration(actions: [deleteAction])
   }
 }

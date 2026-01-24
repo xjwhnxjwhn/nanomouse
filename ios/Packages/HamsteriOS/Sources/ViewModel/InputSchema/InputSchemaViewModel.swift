@@ -643,6 +643,29 @@ public class InputSchemaViewModel {
     }
   }
 
+  /// 删除 Zenzai 模型文件
+  func deleteZenzaiModel() async {
+    ProgressHUD.animate("删除中……", interaction: false)
+    do {
+      let fm = FileManager.default
+      let zenzaiDir = FileManager.appGroupAzooKeyZenzaiDirectoryURL
+      if fm.fileExists(atPath: zenzaiDir.path) {
+        try fm.removeItem(at: zenzaiDir)
+      }
+      // 重置为标准模式
+      UserDefaults.hamster.azooKeyMode = .standard
+      await MainActor.run {
+        reloadTableStateSubject.send(true)
+        ProgressHUD.success("删除完成", interaction: false, delay: 1.0)
+      }
+    } catch {
+      Logger.statistics.error("delete Zenzai model failed: \(error.localizedDescription)")
+      await MainActor.run {
+        ProgressHUD.failed("删除失败：\(error.localizedDescription)", interaction: false, delay: 2)
+      }
+    }
+  }
+
 }
 
 // MARK: - CloudKit 方案管理
