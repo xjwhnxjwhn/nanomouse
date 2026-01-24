@@ -481,6 +481,10 @@ public final class DicdataStore {
                 $0.metadata = .isLearned
             }
         }
+        // Special dictionaries should not fall back to default dictionary shards.
+        if identifier == "user" || identifier == "user_shortcuts" || identifier == "memory" {
+            return data
+        }
         for (key, value) in dict {
             // Default dictionary shards are stored under escaped identifiers with concatenated shard suffix
             let escaped = DictionaryBuilder.escapedIdentifier(identifier)

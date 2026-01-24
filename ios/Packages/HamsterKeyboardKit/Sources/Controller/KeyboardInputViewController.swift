@@ -50,6 +50,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // KeyboardUrlOpener.shared.controller = self
     setupCombineRIMEInput()
     setupRIMELanguageObservation()
+    azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
+      guard let self else { return }
+      guard self.isAzooKeyInputActive else { return }
+      if self.azooKeyEngine.isComposing {
+        self.updateAzooKeySuggestions(suggestions)
+      } else {
+        self.clearAzooKeyState()
+      }
+    }
   }
 
   override open func viewWillAppear(_ animated: Bool) {

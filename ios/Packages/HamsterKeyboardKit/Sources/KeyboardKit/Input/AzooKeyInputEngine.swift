@@ -22,6 +22,9 @@ final class AzooKeyInputEngine {
   private var prewarmInProgress = false
   private let converterLock = NSLock()
   private let conversionLock = NSLock()
+  private let conversionStateLock = NSLock()
+  private var conversionGeneration: Int = 0
+  private let conversionQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.convert", qos: .userInitiated)
   private let prewarmQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.prewarm", qos: .userInitiated)
   private let zenzaiPrewarmQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.azookey.zenzai.prewarm", qos: .utility)
   private let zenzaiLock = NSLock()
@@ -78,6 +81,7 @@ final class AzooKeyInputEngine {
   func reset() {
     composingText = ComposingText()
     lastCandidates = []
+    invalidatePendingConversions()
     conversionLock.lock()
     converter?.stopComposition()
     conversionLock.unlock()
@@ -136,10 +140,34 @@ final class AzooKeyInputEngine {
     guard let converter = ensureConverter() else { return [] }
     lastInputStyle = inputStyle
     let inputData = composingText.prefixToCursorPosition()
-    conversionLock.lock()
+    let generation = nextConversionGeneration()
+    if shouldConvertAsync() {
+      let snapshot = inputData
+      conversionQueue.async { [weak self] in
+        guard let self else { return }
+        guard let converter = self.ensureConverter() else { return }
+        guard self.conversionLock.try() else { return }
+        defer { self.conversionLock.unlock() }
+        let (options, usedZenzai) = self.makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext)
+        let result = converter.requestCandidates(snapshot, options: options)
+        let candidates = result.mainResults
+        if candidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
+          return
+        }
+        self.lastCandidates = candidates
+        guard self.isLatestConversion(generation) else { return }
+        DispatchQueue.main.async {
+          self.onCandidatesUpdated?(self.suggestions(from: candidates))
+        }
+      }
+      return suggestions(from: lastCandidates)
+    }
+    guard conversionLock.try() else {
+      return suggestions(from: lastCandidates)
+    }
+    defer { conversionLock.unlock() }
     let (options, usedZenzai) = makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext)
     let result = converter.requestCandidates(inputData, options: options)
-    conversionLock.unlock()
     let candidates = result.mainResults
     if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
       return suggestions(from: lastCandidates)
@@ -152,17 +180,42 @@ final class AzooKeyInputEngine {
     composingText.deleteBackwardFromCursorPosition(count: 1)
     if composingText.convertTarget.isEmpty {
       lastCandidates = []
-      conversionLock.lock()
+      invalidatePendingConversions()
+      guard conversionLock.try() else { return [] }
+      defer { conversionLock.unlock() }
       converter?.stopComposition()
-      conversionLock.unlock()
       return []
     }
     guard let converter = ensureConverter() else { return [] }
     let inputData = composingText.prefixToCursorPosition()
-    conversionLock.lock()
+    let generation = nextConversionGeneration()
+    if shouldConvertAsync() {
+      let snapshot = inputData
+      conversionQueue.async { [weak self] in
+        guard let self else { return }
+        guard let converter = self.ensureConverter() else { return }
+        guard self.conversionLock.try() else { return }
+        defer { self.conversionLock.unlock() }
+        let (options, usedZenzai) = self.makeOptions(inputStyle: self.lastInputStyle, leftSideContext: leftSideContext)
+        let result = converter.requestCandidates(snapshot, options: options)
+        let candidates = result.mainResults
+        if candidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
+          return
+        }
+        self.lastCandidates = candidates
+        guard self.isLatestConversion(generation) else { return }
+        DispatchQueue.main.async {
+          self.onCandidatesUpdated?(self.suggestions(from: candidates))
+        }
+      }
+      return suggestions(from: lastCandidates)
+    }
+    guard conversionLock.try() else {
+      return suggestions(from: lastCandidates)
+    }
+    defer { conversionLock.unlock() }
     let (options, usedZenzai) = makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext)
     let result = converter.requestCandidates(inputData, options: options)
-    conversionLock.unlock()
     let candidates = result.mainResults
     if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
       return suggestions(from: lastCandidates)
@@ -179,6 +232,8 @@ final class AzooKeyInputEngine {
   func currentSuggestions() -> [CandidateSuggestion] {
     suggestions(from: lastCandidates)
   }
+
+  var onCandidatesUpdated: (([CandidateSuggestion]) -> Void)?
 
   func commitCandidate(at index: Int) -> String? {
     guard var candidate = candidate(at: index), let converter = ensureConverter() else { return nil }
@@ -385,6 +440,31 @@ final class AzooKeyInputEngine {
     zenzaiReady = true
     zenzaiPrewarmInProgress = false
     zenzaiLock.unlock()
+  }
+
+  private func shouldConvertAsync() -> Bool {
+    UserDefaults.hamster.azooKeyMode == .zenzai && FileManager.azooKeyZenzaiWeightURL() != nil
+  }
+
+  private func nextConversionGeneration() -> Int {
+    conversionStateLock.lock()
+    conversionGeneration += 1
+    let value = conversionGeneration
+    conversionStateLock.unlock()
+    return value
+  }
+
+  private func isLatestConversion(_ generation: Int) -> Bool {
+    conversionStateLock.lock()
+    let latest = conversionGeneration == generation
+    conversionStateLock.unlock()
+    return latest
+  }
+
+  private func invalidatePendingConversions() {
+    conversionStateLock.lock()
+    conversionGeneration += 1
+    conversionStateLock.unlock()
   }
 
   private func suggestions(from candidates: [Candidate]) -> [CandidateSuggestion] {
