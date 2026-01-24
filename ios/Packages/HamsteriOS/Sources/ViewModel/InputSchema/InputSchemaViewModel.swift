@@ -645,7 +645,9 @@ public class InputSchemaViewModel {
 
   /// 删除 Zenzai 模型文件
   func deleteZenzaiModel() async {
-    ProgressHUD.animate("删除中……", interaction: false)
+    await MainActor.run {
+      ProgressHUD.animate("删除中……", interaction: false)
+    }
     do {
       let fm = FileManager.default
       let zenzaiDir = FileManager.appGroupAzooKeyZenzaiDirectoryURL
