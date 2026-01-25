@@ -159,6 +159,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
   /// 多语言快速混输
   public var enableMultiLanguageQuickMix: Bool?
 
+  /// 中文键盘数字候选模式
+  public var enableNumericCandidateModeOnChineseKeyboard: Bool?
+
   public init(
     useKeyboardType: String? = "chinese",
     defaultLanguageMode: KeyboardDefaultLanguage? = .followLast,
@@ -249,7 +252,8 @@ public struct KeyboardConfiguration: Codable, Hashable {
     showUppercasedCharacterOnChineseKeyboard: Bool? = false,
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = true,
-    enableMultiLanguageQuickMix: Bool? = false) {
+    enableMultiLanguageQuickMix: Bool? = false,
+    enableNumericCandidateModeOnChineseKeyboard: Bool? = false) {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode
     self.disableSwipeLabel = disableSwipeLabel
@@ -297,6 +301,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.enableButtonUnderBorder = enableButtonUnderBorder
     self.enableSystemTextReplacement = enableSystemTextReplacement
     self.enableMultiLanguageQuickMix = enableMultiLanguageQuickMix
+    self.enableNumericCandidateModeOnChineseKeyboard = enableNumericCandidateModeOnChineseKeyboard
   }
 
   public init(from decoder: Decoder) throws {
@@ -348,6 +353,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.enableButtonUnderBorder = try container.decodeIfPresent(Bool.self, forKey: .enableButtonUnderBorder)
     self.enableSystemTextReplacement = try container.decodeIfPresent(Bool.self, forKey: .enableSystemTextReplacement)
     self.enableMultiLanguageQuickMix = try container.decodeIfPresent(Bool.self, forKey: .enableMultiLanguageQuickMix)
+    self.enableNumericCandidateModeOnChineseKeyboard = try container.decodeIfPresent(
+      Bool.self, forKey: .enableNumericCandidateModeOnChineseKeyboard
+    )
   }
 
   enum CodingKeys: CodingKey {
@@ -398,6 +406,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     case enableButtonUnderBorder
     case enableSystemTextReplacement
     case enableMultiLanguageQuickMix
+    case enableNumericCandidateModeOnChineseKeyboard
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -449,6 +458,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.enableButtonUnderBorder, forKey: .enableButtonUnderBorder)
     try container.encodeIfPresent(self.enableSystemTextReplacement, forKey: .enableSystemTextReplacement)
     try container.encodeIfPresent(self.enableMultiLanguageQuickMix, forKey: .enableMultiLanguageQuickMix)
+    try container.encodeIfPresent(
+      self.enableNumericCandidateModeOnChineseKeyboard, forKey: .enableNumericCandidateModeOnChineseKeyboard
+    )
   }
 }
 

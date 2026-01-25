@@ -463,6 +463,11 @@ public class KeyboardContext: ObservableObject {
     hamsterConfiguration?.keyboard?.enableMultiLanguageQuickMix ?? false
   }
 
+  /// 中文键盘数字候选模式
+  var enableNumericCandidateModeOnChineseKeyboard: Bool {
+    hamsterConfiguration?.keyboard?.enableNumericCandidateModeOnChineseKeyboard ?? false
+  }
+
   /// 是否开启划动分页
   var swipePaging: Bool {
     hamsterConfiguration?.toolbar?.swipePaging ?? true

@@ -116,6 +116,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableNumericCandidateModeOnChineseKeyboard: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNumericCandidateModeOnChineseKeyboard ?? false
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNumericCandidateModeOnChineseKeyboard = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableNumericCandidateModeOnChineseKeyboard = newValue
+    }
+  }
+
   public var lockShiftState: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? false
@@ -745,6 +755,18 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           toggleValue: { [unowned self] in enableMultiLanguageQuickMix },
           toggleHandled: { [unowned self] in
             enableMultiLanguageQuickMix = $0
+          }
+        )
+      ]
+    ),
+    .init(
+      items: [
+        .init(
+          text: "启用数字的候选模式在中文键盘",
+          type: .toggle,
+          toggleValue: { [unowned self] in enableNumericCandidateModeOnChineseKeyboard },
+          toggleHandled: { [unowned self] in
+            enableNumericCandidateModeOnChineseKeyboard = $0
           }
         )
       ]

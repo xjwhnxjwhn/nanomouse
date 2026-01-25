@@ -323,11 +323,11 @@ public class MixedInputManager {
     public func getCommitText(rimeCommitText: String) -> String {
         guard hasLiteral else { return rimeCommitText }
 
-        let normalizedCommit = rimeCommitText.replacingOccurrences(of: " ", with: "")
-        let normalizedPinyin = pinyinOnly.replacingOccurrences(of: " ", with: "")
-        if !normalizedCommit.isEmpty, normalizedCommit == normalizedPinyin {
-            return displayText
-        }
+    let normalizedCommit = rimeCommitText.replacingOccurrences(of: " ", with: "")
+    let normalizedPinyin = pinyinOnly.replacingOccurrences(of: " ", with: "")
+    if !normalizedCommit.isEmpty, normalizedCommit == normalizedPinyin {
+        return displayText.replacingOccurrences(of: " ", with: "")
+    }
 
         return composeCandidate(candidate: rimeCommitText, syllableCounts: nil)
     }

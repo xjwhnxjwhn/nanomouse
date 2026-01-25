@@ -570,6 +570,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     keyboardContext.enableMultiLanguageQuickMix
   }
 
+  var isNumericCandidateModeEnabledOnChineseKeyboard: Bool {
+    guard keyboardContext.enableNumericCandidateModeOnChineseKeyboard else { return false }
+    if rimeContext.currentSchema?.isJapaneseSchema == true { return false }
+    if rimeContext.asciiModeSnapshot { return false }
+    return true
+  }
+
   func shouldAppendPunctuationToCompositionPrefix(_ text: String) -> Bool {
     guard isUnifiedCompositionBufferEnabled else { return false }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
@@ -1213,6 +1220,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入（在 insertSymbol 中也需要拦截）
     let char = symbol.char
     let isDigit = char.count == 1 && char.first?.isNumber == true
+    if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
+      rimeContext.mixedInputManager.reset()
+      rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      updateMixedInputSuggestions()
+      return
+    }
     if isDigit && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
       // 数字添加到混合输入管理器，不触发顶码上屏
@@ -1324,6 +1338,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
     let isDigit = text.count == 1 && text.first?.isNumber == true
+    if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
+      rimeContext.mixedInputManager.reset()
+      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      updateMixedInputSuggestions()
+      return
+    }
     if isDigit && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
       // 数字添加到混合输入管理器，不发送给 RIME
