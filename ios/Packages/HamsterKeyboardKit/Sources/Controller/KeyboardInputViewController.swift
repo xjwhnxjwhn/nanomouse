@@ -674,6 +674,20 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return display
   }
 
+  private func rawPinyinFromMixedInputIfPossible() -> String? {
+    let display = rimeContext.mixedInputManager.displayText
+    guard !display.isEmpty else { return nil }
+    if display.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil { return nil }
+    for scalar in display.unicodeScalars {
+      if scalar == " " || scalar == "'" { continue }
+      if scalar.value <= 0x7F, CharacterSet.letters.contains(scalar) { continue }
+      if scalar == "ü" || scalar == "Ü" { continue }
+      return nil
+    }
+    let raw = display.replacingOccurrences(of: " ", with: "")
+    return raw.isEmpty ? nil : raw
+  }
+
   func prepareMixedInputForDigitInsertion() {
     if !rimeContext.mixedInputManager.hasLiteral {
       rimeContext.mixedInputManager.reset()
@@ -1035,6 +1049,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if let lastSegment = rimeContext.mixedInputManager.segments.last, lastSegment.isLiteral {
         // 删除数字
         rimeContext.mixedInputManager.deleteBackward()
+        if let raw = rawPinyinFromMixedInputIfPossible() {
+          Task { @MainActor in
+            self.rimeContext.reset()
+            for char in raw {
+              _ = self.rimeContext.tryHandleInputText(String(char))
+            }
+          }
+          return
+        }
         // 更新显示
         let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? ""
         if rimeContext.mixedInputManager.hasLiteral {
@@ -1560,7 +1583,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
        rimeContext.mixedInputManager.pinyinOnly.isEmpty,
        !rimeContext.userInputKey.isEmpty
     {
-      let commit = rimeContext.mixedInputManager.displayText
+      let commit = rimeContext.mixedInputManager.displayText.replacingOccurrences(of: " ", with: "")
       if !commit.isEmpty {
         textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
         insertTextPatch(commit)
