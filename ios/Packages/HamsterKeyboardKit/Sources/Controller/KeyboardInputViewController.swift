@@ -50,6 +50,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // KeyboardUrlOpener.shared.controller = self
     setupCombineRIMEInput()
     setupRIMELanguageObservation()
+    setupBackgroundCommitObservation()
     azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
       guard let self else { return }
       guard self.isAzooKeyInputActive else { return }
@@ -1896,6 +1897,29 @@ private extension KeyboardInputViewController {
         self?.normalizeJapaneseAlphabeticCaseIfNeeded(reason: "keyboardType")
       }
       .store(in: &cancellables)
+  }
+
+  func setupBackgroundCommitObservation() {
+    let names: [Notification.Name] = [
+      Notification.Name.NSExtensionHostWillResignActive,
+      Notification.Name.NSExtensionHostDidEnterBackground,
+      UIApplication.willResignActiveNotification,
+      UIApplication.didEnterBackgroundNotification
+    ]
+
+    for name in names {
+      NotificationCenter.default.publisher(for: name)
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+          self?.commitPendingCompositionForBackground()
+        }
+        .store(in: &cancellables)
+    }
+  }
+
+  func commitPendingCompositionForBackground() {
+    guard hasActiveCompositionForBuffer() || rimeContext.mixedInputManager.hasLiteral else { return }
+    insertRimeKeyCode(XK_Return)
   }
 
   func applyDefaultLanguageIfNeeded(reason: String) {
