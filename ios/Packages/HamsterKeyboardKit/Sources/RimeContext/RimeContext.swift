@@ -188,15 +188,20 @@ public extension RimeContext {
     self.mixedInputManager.reset()
     if !literal.isEmpty {
       self.mixedInputManager.insertAtCursorPosition(literal, isLiteral: true)
-      let suggestion = CandidateSuggestion(
-        index: 0,
-        label: "1",
-        text: literal,
-        title: literal,
-        isAutocomplete: true,
-        subtitle: nil
-      )
-      self.suggestions = [suggestion]
+      let texts = NumericCandidateGenerator.candidateTexts(for: literal)
+      var newSuggestions: [CandidateSuggestion] = []
+      for (index, text) in texts.enumerated() {
+        let suggestion = CandidateSuggestion(
+          index: index,
+          label: "\(index + 1)",
+          text: text,
+          title: text,
+          isAutocomplete: index == 0,
+          subtitle: nil
+        )
+        newSuggestions.append(suggestion)
+      }
+      self.suggestions = newSuggestions
       self.userInputKey = compositionPrefix + mixedInputManager.displayText
     } else {
       self.userInputKey = compositionPrefix

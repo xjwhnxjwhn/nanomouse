@@ -1066,6 +1066,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
         } else {
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimePreedit
+          Task { @MainActor in
+            self.rimeContext.suggestions = []
+            self.rimeContext.textReplacementSuggestions = []
+          }
+          clearMarkedTextIfNeeded()
+          return
         }
         Logger.statistics.info("DBG_MIXEDINPUT delete literal, display: \(self.rimeContext.userInputKey, privacy: .public)")
         // 更新候选词
@@ -1362,6 +1368,31 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   /// 更新混合输入候选词（将数字与 RIME 候选词合并）
   private func updateMixedInputSuggestions() {
+    if rimeContext.mixedInputManager.hasLiteral,
+       rimeContext.mixedInputManager.pinyinOnly.isEmpty
+    {
+      let literal = rimeContext.mixedInputManager.literalOnly
+      let texts = NumericCandidateGenerator.candidateTexts(for: literal)
+      Task { @MainActor in
+        var newSuggestions: [CandidateSuggestion] = []
+        for (index, text) in texts.enumerated() {
+          let suggestion = CandidateSuggestion(
+            index: index,
+            label: "\(index + 1)",
+            text: text,
+            title: text,
+            isAutocomplete: index == 0,
+            subtitle: nil
+          )
+          newSuggestions.append(suggestion)
+        }
+        if !newSuggestions.isEmpty {
+          self.rimeContext.suggestions = newSuggestions
+        }
+      }
+      return
+    }
+
     // 获取当前的 RIME 候选词（避免基于已合成候选再次合成导致重复）
     var rimeCandidates: [String] = []
     if let menu = rimeContext.rimeContext?.menu {
