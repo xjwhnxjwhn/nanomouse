@@ -162,6 +162,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
   /// 中文键盘数字候选模式
   public var enableNumericCandidateModeOnChineseKeyboard: Bool?
 
+  /// 日语 AzooKey 键盘数字候选模式
+  public var enableNumericCandidateModeOnJapaneseAzooKey: Bool?
+
   public init(
     useKeyboardType: String? = "chinese",
     defaultLanguageMode: KeyboardDefaultLanguage? = .followLast,
@@ -253,7 +256,8 @@ public struct KeyboardConfiguration: Codable, Hashable {
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = true,
     enableMultiLanguageQuickMix: Bool? = false,
-    enableNumericCandidateModeOnChineseKeyboard: Bool? = false) {
+    enableNumericCandidateModeOnChineseKeyboard: Bool? = false,
+    enableNumericCandidateModeOnJapaneseAzooKey: Bool? = true) {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode
     self.disableSwipeLabel = disableSwipeLabel
@@ -302,6 +306,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.enableSystemTextReplacement = enableSystemTextReplacement
     self.enableMultiLanguageQuickMix = enableMultiLanguageQuickMix
     self.enableNumericCandidateModeOnChineseKeyboard = enableNumericCandidateModeOnChineseKeyboard
+    self.enableNumericCandidateModeOnJapaneseAzooKey = enableNumericCandidateModeOnJapaneseAzooKey
   }
 
   public init(from decoder: Decoder) throws {
@@ -356,6 +361,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.enableNumericCandidateModeOnChineseKeyboard = try container.decodeIfPresent(
       Bool.self, forKey: .enableNumericCandidateModeOnChineseKeyboard
     )
+    self.enableNumericCandidateModeOnJapaneseAzooKey = try container.decodeIfPresent(
+      Bool.self, forKey: .enableNumericCandidateModeOnJapaneseAzooKey
+    )
   }
 
   enum CodingKeys: CodingKey {
@@ -407,6 +415,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     case enableSystemTextReplacement
     case enableMultiLanguageQuickMix
     case enableNumericCandidateModeOnChineseKeyboard
+    case enableNumericCandidateModeOnJapaneseAzooKey
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -460,6 +469,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.enableMultiLanguageQuickMix, forKey: .enableMultiLanguageQuickMix)
     try container.encodeIfPresent(
       self.enableNumericCandidateModeOnChineseKeyboard, forKey: .enableNumericCandidateModeOnChineseKeyboard
+    )
+    try container.encodeIfPresent(
+      self.enableNumericCandidateModeOnJapaneseAzooKey, forKey: .enableNumericCandidateModeOnJapaneseAzooKey
     )
   }
 }

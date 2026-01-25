@@ -126,6 +126,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableNumericCandidateModeOnJapaneseAzooKey: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey ?? true
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey = newValue
+    }
+  }
+
   public var lockShiftState: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.lockShiftState ?? false
@@ -730,6 +740,12 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     chineseStanderSystemKeyboardSwipeListReloadSubject.eraseToAnyPublisher()
   }
 
+  private var isAzooKeySchemaSelected: Bool {
+    HamsterAppDependencyContainer.shared.rimeContext.selectSchemas.contains(
+      where: { $0.schemaId == HamsterConstants.azooKeySchemaId }
+    )
+  }
+
   // MARK: - init data
 
   /// 键盘设置选项
@@ -760,16 +776,31 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]
     ),
     .init(
-      items: [
-        .init(
-          text: "启用数字的候选模式在中文键盘",
-          type: .toggle,
-          toggleValue: { [unowned self] in enableNumericCandidateModeOnChineseKeyboard },
-          toggleHandled: { [unowned self] in
-            enableNumericCandidateModeOnChineseKeyboard = $0
-          }
-        )
-      ]
+      items: {
+        var items: [SettingItemModel] = [
+          .init(
+            text: "启用数字的候选模式在中文键盘",
+            type: .toggle,
+            toggleValue: { [unowned self] in enableNumericCandidateModeOnChineseKeyboard },
+            toggleHandled: { [unowned self] in
+              enableNumericCandidateModeOnChineseKeyboard = $0
+            }
+          )
+        ]
+        if isAzooKeySchemaSelected {
+          items.append(
+            .init(
+              text: "启用数字的候选模式在日语键盘（AzooKey）",
+              type: .toggle,
+              toggleValue: { [unowned self] in enableNumericCandidateModeOnJapaneseAzooKey },
+              toggleHandled: { [unowned self] in
+                enableNumericCandidateModeOnJapaneseAzooKey = $0
+              }
+            )
+          )
+        }
+        return items
+      }()
     ),
     .init(
       footer: Self.enableKeyboardAutomaticallyLowercaseRemark,

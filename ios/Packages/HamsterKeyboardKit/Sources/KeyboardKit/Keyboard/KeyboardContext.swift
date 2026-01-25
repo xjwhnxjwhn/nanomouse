@@ -468,6 +468,11 @@ public class KeyboardContext: ObservableObject {
     hamsterConfiguration?.keyboard?.enableNumericCandidateModeOnChineseKeyboard ?? false
   }
 
+  /// 日语 AzooKey 键盘数字候选模式
+  var enableNumericCandidateModeOnJapaneseAzooKey: Bool {
+    hamsterConfiguration?.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey ?? true
+  }
+
   /// 是否开启划动分页
   var swipePaging: Bool {
     hamsterConfiguration?.toolbar?.swipePaging ?? true

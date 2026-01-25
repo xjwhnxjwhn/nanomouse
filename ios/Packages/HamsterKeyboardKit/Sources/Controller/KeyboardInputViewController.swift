@@ -577,6 +577,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return true
   }
 
+  var isNumericCandidateModeEnabledOnJapaneseAzooKey: Bool {
+    guard keyboardContext.enableNumericCandidateModeOnJapaneseAzooKey else { return false }
+    return isAzooKeyInputActive
+  }
+
   func shouldAppendPunctuationToCompositionPrefix(_ text: String) -> Bool {
     guard isUnifiedCompositionBufferEnabled else { return false }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
@@ -1166,7 +1171,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       // AzooKey 的 composingText 会统一管理所有输入（包括数字）
       let isDigit = char.count == 1 && char.first?.isNumber == true
-      if isDigit && azooKeyEngine.isComposing {
+      if isDigit && (azooKeyEngine.isComposing || isNumericCandidateModeEnabledOnJapaneseAzooKey) {
         // 数字使用 .direct 样式传给 AzooKey 引擎
         let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
@@ -1283,7 +1288,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isAzooKeyInputActive {
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       let isDigit = text.count == 1 && text.first?.isNumber == true
-      if isDigit && azooKeyEngine.isComposing {
+      if isDigit && (azooKeyEngine.isComposing || isNumericCandidateModeEnabledOnJapaneseAzooKey) {
         // 数字使用 .direct 样式传给 AzooKey 引擎
         let suggestions = azooKeyEngine.handleInput(text, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
