@@ -247,6 +247,12 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
             controller.commitMixedInputCandidateDirectly(selectedItem.text)
             return
           }
+          if rimeContext.mixedInputManager.hasLiteral,
+             !rimeContext.mixedInputManager.pinyinOnly.isEmpty
+          {
+            controller.commitMixedInputCandidateWithLiteralOption(index: adjustedIndex)
+            return
+          }
           // 英语输入模式
           if controller.isEnglishInputActive && controller.englishEngine.isComposing {
             controller.selectEnglishCandidate(index: adjustedIndex)

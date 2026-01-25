@@ -40,6 +40,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var keyboardRootView: KeyboardRootView?
   private var didApplyDefaultLanguage = false
   private var wasJapaneseActive = false
+  private let mixedInputAppendDigitCandidateCount = 2
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -1208,7 +1209,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let isDigit = char.count == 1 && char.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
-      commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
@@ -1320,7 +1320,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let isDigit = text.count == 1 && text.first?.isNumber == true
     if isDigit && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
-      commitCurrentRimeCandidateForLiteralSeparatorIfNeeded()
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
@@ -1377,8 +1376,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       rimeCandidates = rimeContext.suggestions.map { $0.text }
     }
 
-    // 使用混合输入管理器组合候选词
-    let composedCandidates = rimeContext.mixedInputManager.composeCandidates(rimeCandidates: rimeCandidates)
+    let composedCandidates: [String]
+    if rimeContext.mixedInputManager.hasLiteral, !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+      composedCandidates = rimeCandidates.prefix(20).enumerated().map { index, candidate in
+        if index < mixedInputAppendDigitCandidateCount {
+          return rimeContext.mixedInputManager.getCommitText(rimeCommitText: candidate)
+        }
+        return candidate
+      }
+    } else {
+      // 使用混合输入管理器组合候选词
+      composedCandidates = rimeContext.mixedInputManager.composeCandidates(rimeCandidates: rimeCandidates)
+    }
 
     // 更新 suggestions
     Task { @MainActor in
@@ -1460,6 +1469,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.textReplacementSuggestions = []
     }
+  }
+
+  func commitMixedInputCandidateWithLiteralOption(index: Int) {
+    if index < mixedInputAppendDigitCandidateCount {
+      rimeContext.mixedInputCommitBehavior = .appendLiteral
+      rimeContext.selectCandidate(index: index)
+      return
+    }
+    rimeContext.mixedInputCommitBehavior = .suppressLiteralAndKeep
+    rimeContext.selectCandidate(index: index)
   }
 
   open func selectNextKeyboard() {
@@ -2111,10 +2130,14 @@ private extension KeyboardInputViewController {
 
           // 借鉴 AzooKey：如果有混合输入（数字），合并到上屏文字
           if self.rimeContext.mixedInputManager.hasLiteral {
-            commitText = self.rimeContext.mixedInputManager.getCommitText(rimeCommitText: commitText)
-            Logger.statistics.info("DBG_MIXEDINPUT commit with literal: \(commitText, privacy: .public)")
-            // 重置混合输入管理器
-            self.rimeContext.mixedInputManager.reset()
+            if self.rimeContext.mixedInputKeepLiteralAfterCommit {
+              self.rimeContext.mixedInputKeepLiteralAfterCommit = false
+            } else {
+              commitText = self.rimeContext.mixedInputManager.getCommitText(rimeCommitText: commitText)
+              Logger.statistics.info("DBG_MIXEDINPUT commit with literal: \(commitText, privacy: .public)")
+              // 重置混合输入管理器
+              self.rimeContext.mixedInputManager.reset()
+            }
           }
           if self.isUnifiedCompositionBufferEnabled {
             self.appendToCompositionPrefix(commitText)

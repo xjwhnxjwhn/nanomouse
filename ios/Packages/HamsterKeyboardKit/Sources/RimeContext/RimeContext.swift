@@ -137,6 +137,12 @@ public class RimeContext {
   /// 混合输入管理器 - 借鉴 AzooKey 的 ComposingText 设计
   /// 用于管理拼音和数字的混合输入，使 "qian10ming" 能够显示候选词 "前10名"
   public private(set) lazy var mixedInputManager = MixedInputManager()
+  public enum MixedInputCommitBehavior {
+    case appendLiteral
+    case suppressLiteralAndKeep
+  }
+  public var mixedInputCommitBehavior: MixedInputCommitBehavior = .appendLiteral
+  public var mixedInputKeepLiteralAfterCommit: Bool = false
 
   deinit {
     Rime.shared.clearNotificationDelegate(self)
@@ -162,11 +168,41 @@ public extension RimeContext {
     self.pageIndex = 0
     self.userInputKey = compositionPrefix
     self.mixedInputManager.reset()  // 重置混合输入管理器
+    self.mixedInputKeepLiteralAfterCommit = false
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
   }
 
+  /// 清空 RIME 组字，但保留数字等 literal 段
+  @MainActor
+  func resetKeepingLiteralOnly(keepCommitText: Bool = false) {
+    let literal = mixedInputManager.literalOnly
+    self.pageIndex = 0
+    if !keepCommitText {
+      self.commitText = ""
+    }
+    self.selectCandidatePinyin = nil
+    self.suggestions.removeAll(keepingCapacity: false)
+    Rime.shared.cleanComposition()
+    self.mixedInputManager.reset()
+    if !literal.isEmpty {
+      self.mixedInputManager.insertAtCursorPosition(literal, isLiteral: true)
+      let suggestion = CandidateSuggestion(
+        index: 0,
+        label: "1",
+        text: literal,
+        title: literal,
+        isAutocomplete: true,
+        subtitle: nil
+      )
+      self.suggestions = [suggestion]
+      self.userInputKey = compositionPrefix + mixedInputManager.displayText
+    } else {
+      self.userInputKey = compositionPrefix
+    }
+    self.mixedInputKeepLiteralAfterCommit = true
+  }
   /// 清空 RIME 组字，但保留混合输入内容
   @MainActor
   func resetCompositionKeepingMixedInput() {
@@ -969,14 +1005,25 @@ public extension RimeContext {
         self.userInputKey = compositionPrefix + mixedInputManager.displayText
         return
       }
+      let behavior = mixedInputCommitBehavior
+      mixedInputCommitBehavior = .appendLiteral
       // 借鉴 AzooKey：如果有混合输入（数字），合并到上屏文字
       if mixedInputManager.hasLiteral && !commitText.isEmpty {
-        self.commitText = mixedInputManager.getCommitText(rimeCommitText: commitText)
+        if behavior == .suppressLiteralAndKeep {
+          self.commitText = commitText
+        } else {
+          self.commitText = mixedInputManager.getCommitText(rimeCommitText: commitText)
+        }
         Logger.statistics.info("DBG_MIXEDINPUT syncContext commit with literal: \(self.commitText, privacy: .public)")
       } else {
         self.commitText = commitText
       }
-      self.reset()
+      if behavior == .suppressLiteralAndKeep {
+        self.resetKeepingLiteralOnly(keepCommitText: true)
+      } else {
+        self.mixedInputKeepLiteralAfterCommit = false
+        self.reset()
+      }
       return
     }
 

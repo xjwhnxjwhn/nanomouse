@@ -226,6 +226,12 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
             controller.commitMixedInputCandidateDirectly(selectedItem.text)
             return
           }
+          if rimeContext.mixedInputManager.hasLiteral,
+             !rimeContext.mixedInputManager.pinyinOnly.isEmpty
+          {
+            controller.commitMixedInputCandidateWithLiteralOption(index: adjustedIndex)
+            return
+          }
         }
         self.rimeContext.selectCandidate(index: adjustedIndex)
       }
