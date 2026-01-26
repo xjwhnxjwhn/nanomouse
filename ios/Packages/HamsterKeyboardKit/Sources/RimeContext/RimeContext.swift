@@ -143,6 +143,10 @@ public class RimeContext {
   }
   public var mixedInputCommitBehavior: MixedInputCommitBehavior = .appendLiteral
   public var mixedInputKeepLiteralAfterCommit: Bool = false
+  private var mixedInputPendingRevertSelection: Bool = false
+  private var mixedInputRevertRawInputKeys: String?
+  private var mixedInputRevertPrefixLiteral: String?
+  private var mixedInputRevertLiteralSuffix: String?
 
   deinit {
     Rime.shared.clearNotificationDelegate(self)
@@ -169,6 +173,10 @@ public extension RimeContext {
     self.userInputKey = compositionPrefix
     self.mixedInputManager.reset()  // 重置混合输入管理器
     self.mixedInputKeepLiteralAfterCommit = false
+    self.mixedInputPendingRevertSelection = false
+    self.mixedInputRevertRawInputKeys = nil
+    self.mixedInputRevertPrefixLiteral = nil
+    self.mixedInputRevertLiteralSuffix = nil
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
@@ -183,6 +191,10 @@ public extension RimeContext {
       self.commitText = ""
     }
     self.selectCandidatePinyin = nil
+    self.mixedInputPendingRevertSelection = false
+    self.mixedInputRevertRawInputKeys = nil
+    self.mixedInputRevertPrefixLiteral = nil
+    self.mixedInputRevertLiteralSuffix = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
     self.mixedInputManager.reset()
@@ -207,6 +219,31 @@ public extension RimeContext {
       self.userInputKey = compositionPrefix
     }
     self.mixedInputKeepLiteralAfterCommit = true
+  }
+
+  var hasMixedInputRevertSelection: Bool {
+    mixedInputRevertRawInputKeys != nil
+  }
+
+  @MainActor
+  func prepareMixedInputRevertSelection(rawInputKeys: String, prefixLiteral: String, literalSuffix: String) {
+    guard !rawInputKeys.isEmpty else { return }
+    mixedInputPendingRevertSelection = true
+    mixedInputRevertRawInputKeys = rawInputKeys
+    mixedInputRevertPrefixLiteral = prefixLiteral
+    mixedInputRevertLiteralSuffix = literalSuffix
+  }
+
+  @MainActor
+  func consumeMixedInputRevertSelection() -> (rawInputKeys: String, prefixLiteral: String, literalSuffix: String)? {
+    guard let rawInputKeys = mixedInputRevertRawInputKeys else { return nil }
+    let prefixLiteral = mixedInputRevertPrefixLiteral ?? ""
+    let literalSuffix = mixedInputRevertLiteralSuffix ?? ""
+    mixedInputRevertRawInputKeys = nil
+    mixedInputRevertPrefixLiteral = nil
+    mixedInputRevertLiteralSuffix = nil
+    mixedInputPendingRevertSelection = false
+    return (rawInputKeys, prefixLiteral, literalSuffix)
   }
 
   /// 清空 RIME 组字，但保留混合输入内容

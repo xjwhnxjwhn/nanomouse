@@ -50,6 +50,9 @@ public class MixedInputManager {
     /// 当前输入段列表
     public private(set) var segments: [Segment] = []
 
+    /// 作为前缀显示但不参与候选组合的 literal 段数量
+    public var literalPrefixSegmentCount: Int = 0
+
     /// 是否为空
     public var isEmpty: Bool {
         segments.isEmpty || segments.allSatisfy { $0.text.isEmpty }
@@ -84,6 +87,47 @@ public class MixedInputManager {
             if case .literal(_, let commit) = $0.type { return commit }
             return nil
         }.joined()
+    }
+
+    private var effectiveLiteralPrefixCount: Int {
+        if literalPrefixSegmentCount > 0 { return literalPrefixSegmentCount }
+        if segments.count < 2 { return 0 }
+        return segments.first?.isLiteral == true ? 1 : 0
+    }
+
+    /// 仅直接文本部分（排除前缀 literal 段）
+    public var literalOnlyExcludingPrefix: String {
+        let prefixCount = effectiveLiteralPrefixCount
+        var result = ""
+        var skipped = 0
+        for segment in segments {
+            if case .literal(_, let commit) = segment.type {
+                if skipped < prefixCount {
+                    skipped += 1
+                    continue
+                }
+                result += commit
+            }
+        }
+        return result
+    }
+
+    /// 前缀 literal 的显示文本
+    public var literalPrefixText: String {
+        let prefixCount = effectiveLiteralPrefixCount
+        guard prefixCount > 0 else { return "" }
+        var result = ""
+        var taken = 0
+        for segment in segments {
+            if case .literal(let display, _) = segment.type {
+                result += display
+                taken += 1
+                if taken >= prefixCount { break }
+            } else if taken > 0 {
+                break
+            }
+        }
+        return result
     }
 
     public init() {}
@@ -156,6 +200,7 @@ public class MixedInputManager {
     /// 重置所有输入
     public func reset() {
         segments.removeAll()
+        literalPrefixSegmentCount = 0
     }
 
     /// 将最后一个拼音段提交为直接文本
@@ -191,6 +236,83 @@ public class MixedInputManager {
                 type: .literal(display: currentDisplay + nextDisplay, commit: currentCommit + nextCommit)
             )
             segments.remove(at: currentIndex + 1)
+        }
+    }
+
+    private func isPinyinLetter(_ scalar: UnicodeScalar) -> Bool {
+        if scalar == "ü" || scalar == "Ü" { return true }
+        return scalar.isASCII && CharacterSet.letters.contains(scalar)
+    }
+
+    private func isDigitLiteral(_ segment: Segment) -> Bool {
+        if case .literal(_, let commit) = segment.type {
+            return !commit.isEmpty && commit.allSatisfy { $0.isNumber }
+        }
+        return false
+    }
+
+    /// 从拼音段起始处删除指定数量的拼音字母（用于分段选择后同步）
+    public func trimLeadingPinyinLetters(_ count: Int) {
+        guard count > 0 else { return }
+        var remaining = count
+        var newSegments: [Segment] = []
+
+        for segment in segments {
+            switch segment.type {
+            case .literal:
+                newSegments.append(segment)
+            case .pinyin(let text):
+                if remaining <= 0 {
+                    newSegments.append(segment)
+                    continue
+                }
+                var keptScalars = String.UnicodeScalarView()
+                for scalar in text.unicodeScalars {
+                    if remaining > 0, isPinyinLetter(scalar) {
+                        remaining -= 1
+                        continue
+                    }
+                    keptScalars.append(scalar)
+                }
+                let suffix = String(keptScalars)
+                if !suffix.trimmingCharacters(in: .whitespaces).isEmpty {
+                    newSegments.append(Segment(type: .pinyin(suffix)))
+                }
+            }
+        }
+        segments = newSegments
+    }
+
+    /// 将前缀拼音提交为直接文本，并保留后续段
+    public func commitLeadingPinyinAsLiteral(committedCount: Int, commitText: String) {
+        guard committedCount > 0, !commitText.isEmpty else { return }
+        trimLeadingPinyinLetters(committedCount)
+
+        let insertIndex: Int
+        if let firstPinyinIndex = segments.firstIndex(where: { $0.isPinyin }) {
+            insertIndex = firstPinyinIndex
+        } else if let lastIndex = segments.indices.last, isDigitLiteral(segments[lastIndex]) {
+            insertIndex = lastIndex
+        } else {
+            insertIndex = segments.count
+        }
+
+        if insertIndex > 0,
+           case .literal(let display, let commit) = segments[insertIndex - 1].type,
+           !isDigitLiteral(segments[insertIndex - 1])
+        {
+            segments[insertIndex - 1] = Segment(type: .literal(display: display + commitText, commit: commit + commitText))
+            return
+        }
+
+        segments.insert(Segment(type: .literal(display: commitText, commit: commitText)), at: insertIndex)
+
+        if insertIndex + 1 < segments.count,
+           case .literal(let nextDisplay, let nextCommit) = segments[insertIndex + 1].type,
+           !isDigitLiteral(segments[insertIndex + 1])
+        {
+            segments[insertIndex] = Segment(type: .literal(display: commitText + nextDisplay, commit: commitText + nextCommit))
+            segments.remove(at: insertIndex + 1)
         }
     }
 
@@ -260,7 +382,7 @@ public class MixedInputManager {
         var results: [String] = []
 
         for candidate in rimeCandidates.prefix(20) {
-            let composed = composeCandidate(candidate: candidate, syllableCounts: syllableCounts)
+            let composed = composeCandidate(candidate: candidate, syllableCounts: syllableCounts, includePrefixLiteral: false)
             if !composed.isEmpty {
                 results.append(composed)
             }
@@ -269,12 +391,19 @@ public class MixedInputManager {
         return results
     }
 
+    /// 组合单个候选词（可选是否包含前缀 literal）
+    public func composeCandidateForDisplay(_ candidate: String, includePrefixLiteral: Bool) -> String {
+        return composeCandidate(candidate: candidate, syllableCounts: nil, includePrefixLiteral: includePrefixLiteral)
+    }
+
     /// 组合单个候选词
-    private func composeCandidate(candidate: String, syllableCounts: [Int]?) -> String {
+    private func composeCandidate(candidate: String, syllableCounts: [Int]?, includePrefixLiteral: Bool) -> String {
         var composed = ""
         var candidateChars = Array(candidate)
         var charIndex = 0
         var pinyinSegmentIndex = 0
+        let prefixLimit = includePrefixLiteral ? 0 : effectiveLiteralPrefixCount
+        var skippedPrefixLiterals = 0
 
         // 获取每个拼音段应该对应多少个汉字
         let pinyinSegments = segments.enumerated().filter { $0.element.isPinyin }
@@ -315,6 +444,11 @@ public class MixedInputManager {
                 pinyinSegmentIndex += 1
 
             case .literal(_, let commit):
+                if !includePrefixLiteral,
+                   skippedPrefixLiterals < prefixLimit {
+                    skippedPrefixLiterals += 1
+                    continue
+                }
                 composed += commit
             }
         }
@@ -359,6 +493,6 @@ public class MixedInputManager {
         return displayText.replacingOccurrences(of: " ", with: "")
     }
 
-        return composeCandidate(candidate: rimeCommitText, syllableCounts: nil)
+        return composeCandidate(candidate: rimeCommitText, syllableCounts: nil, includePrefixLiteral: true)
     }
 }

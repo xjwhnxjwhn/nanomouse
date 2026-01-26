@@ -231,7 +231,9 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
           {
             controller.commitMixedInputCandidateWithLiteralOption(
               rimeIndex: selectedItem.index,
-              displayIndex: adjustedIndex
+              displayIndex: adjustedIndex,
+              candidateText: selectedItem.text,
+              candidateSubtitle: selectedItem.subtitle
             )
             return
           }
