@@ -229,7 +229,10 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
           if rimeContext.mixedInputManager.hasLiteral,
              !rimeContext.mixedInputManager.pinyinOnly.isEmpty
           {
-            controller.commitMixedInputCandidateWithLiteralOption(index: adjustedIndex)
+            controller.commitMixedInputCandidateWithLiteralOption(
+              rimeIndex: selectedItem.index,
+              displayIndex: adjustedIndex
+            )
             return
           }
         }

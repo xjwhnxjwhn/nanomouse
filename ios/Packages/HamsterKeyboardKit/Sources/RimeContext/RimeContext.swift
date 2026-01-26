@@ -208,6 +208,7 @@ public extension RimeContext {
     }
     self.mixedInputKeepLiteralAfterCommit = true
   }
+
   /// 清空 RIME 组字，但保留混合输入内容
   @MainActor
   func resetCompositionKeepingMixedInput() {
@@ -1033,6 +1034,16 @@ public extension RimeContext {
     }
 
     // 注意赋值顺序
+    if mixedInputManager.hasLiteral, !commitText.isEmpty, status.isComposing {
+      let normalizedPreedit = userInputText.replacingOccurrences(of: " ", with: "")
+      let normalizedPinyin = mixedInputManager.pinyinOnly.replacingOccurrences(of: " ", with: "")
+      if normalizedPinyin.count > normalizedPreedit.count {
+        let committedCount = normalizedPinyin.count - normalizedPreedit.count
+        mixedInputManager.trimLeadingPinyinCharacters(committedCount)
+        mixedInputCommitBehavior = .suppressLiteralAndKeep
+        mixedInputKeepLiteralAfterCommit = true
+      }
+    }
     let displayText = mixedInputManager.hasLiteral ? mixedInputManager.displayText : userInputText
     self.userInputKey = compositionPrefix + displayText
     self.commitText = commitText

@@ -1420,48 +1420,58 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     // 获取当前的 RIME 候选词（避免基于已合成候选再次合成导致重复）
-    var rimeCandidates: [String] = []
+    var baseCandidates: [CandidateSuggestion] = []
     if let menu = rimeContext.rimeContext?.menu {
       let highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
-      let baseCandidates = rimeContext.candidateListLimit(
+      baseCandidates = rimeContext.candidateListLimit(
         index: rimeContext.candidateIndex,
         highlightIndex: highlightIndex,
         count: rimeContext.maximumNumberOfCandidateWords
       )
-      rimeCandidates = baseCandidates.map { $0.text }
     } else {
-      rimeCandidates = rimeContext.suggestions.map { $0.text }
+      baseCandidates = rimeContext.suggestions
     }
 
-    let composedCandidates: [String]
+    let composedCandidates: [CandidateSuggestion]
     if rimeContext.mixedInputManager.hasLiteral, !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
-      composedCandidates = rimeCandidates.prefix(20).enumerated().map { index, candidate in
+      composedCandidates = baseCandidates.prefix(20).enumerated().map { index, candidate in
+        let text: String
         if index < mixedInputAppendDigitCandidateCount {
-          return rimeContext.mixedInputManager.getCommitText(rimeCommitText: candidate)
+          text = rimeContext.mixedInputManager.getCommitText(rimeCommitText: candidate.text)
+        } else {
+          text = candidate.text
         }
-        return candidate
-      }
-    } else {
-      // 使用混合输入管理器组合候选词
-      composedCandidates = rimeContext.mixedInputManager.composeCandidates(rimeCandidates: rimeCandidates)
-    }
-
-    // 更新 suggestions
-    Task { @MainActor in
-      var newSuggestions: [CandidateSuggestion] = []
-      for (index, text) in composedCandidates.enumerated() {
-        let suggestion = CandidateSuggestion(
-          index: index,
+        return CandidateSuggestion(
+          index: candidate.index,
           label: "\(index + 1)",
           text: text,
           title: text,
           isAutocomplete: index == 0,
           subtitle: nil
         )
-        newSuggestions.append(suggestion)
       }
-      if !newSuggestions.isEmpty {
-        self.rimeContext.suggestions = newSuggestions
+    } else {
+      // 使用混合输入管理器组合候选词
+      let composed = rimeContext.mixedInputManager.composeCandidates(
+        rimeCandidates: baseCandidates.map { $0.text }
+      )
+      composedCandidates = composed.enumerated().map { index, text in
+        let baseIndex = index < baseCandidates.count ? baseCandidates[index].index : index
+        return CandidateSuggestion(
+          index: baseIndex,
+          label: "\(index + 1)",
+          text: text,
+          title: text,
+          isAutocomplete: index == 0,
+          subtitle: nil
+        )
+      }
+    }
+
+    // 更新 suggestions
+    Task { @MainActor in
+      if !composedCandidates.isEmpty {
+        self.rimeContext.suggestions = composedCandidates
       }
     }
   }
@@ -1528,14 +1538,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
   }
 
-  func commitMixedInputCandidateWithLiteralOption(index: Int) {
-    if index < mixedInputAppendDigitCandidateCount {
+  func commitMixedInputCandidateWithLiteralOption(rimeIndex: Int, displayIndex: Int) {
+    if rimeContext.mixedInputCommitBehavior == .suppressLiteralAndKeep {
+      rimeContext.selectCandidate(index: rimeIndex)
+      return
+    }
+    if displayIndex < mixedInputAppendDigitCandidateCount {
       rimeContext.mixedInputCommitBehavior = .appendLiteral
-      rimeContext.selectCandidate(index: index)
+      rimeContext.selectCandidate(index: rimeIndex)
       return
     }
     rimeContext.mixedInputCommitBehavior = .suppressLiteralAndKeep
-    rimeContext.selectCandidate(index: index)
+    rimeContext.selectCandidate(index: rimeIndex)
   }
 
   open func selectNextKeyboard() {

@@ -194,6 +194,36 @@ public class MixedInputManager {
         }
     }
 
+    /// 从拼音段起始处删除指定数量的拼音字符（用于分段选择后同步）
+    public func trimLeadingPinyinCharacters(_ count: Int) {
+        guard count > 0 else { return }
+        var remaining = count
+        var newSegments: [Segment] = []
+
+        for segment in segments {
+            switch segment.type {
+            case .literal:
+                newSegments.append(segment)
+            case .pinyin(let text):
+                if remaining <= 0 {
+                    newSegments.append(segment)
+                    continue
+                }
+                if remaining >= text.count {
+                    remaining -= text.count
+                    // 整段拼音被消费掉
+                } else {
+                    let suffix = String(text.dropFirst(remaining))
+                    remaining = 0
+                    if !suffix.isEmpty {
+                        newSegments.append(Segment(type: .pinyin(suffix)))
+                    }
+                }
+            }
+        }
+        segments = newSegments
+    }
+
     /// 获取每个拼音段的字符范围信息
     /// - Returns: 数组，每个元素包含 (段索引, 开始位置, 长度)
     public func getPinyinSegmentRanges() -> [(segmentIndex: Int, start: Int, length: Int)] {
