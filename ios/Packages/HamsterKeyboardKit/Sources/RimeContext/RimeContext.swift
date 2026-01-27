@@ -143,10 +143,12 @@ public class RimeContext {
   }
   public var mixedInputCommitBehavior: MixedInputCommitBehavior = .appendLiteral
   public var mixedInputKeepLiteralAfterCommit: Bool = false
+  public var mixedInputLastDisplayText: String = ""
   private var mixedInputPendingRevertSelection: Bool = false
   private var mixedInputRevertRawInputKeys: String?
   private var mixedInputRevertPrefixLiteral: String?
   private var mixedInputRevertLiteralSuffix: String?
+  private var mixedInputRevertDisplayText: String?
 
   deinit {
     Rime.shared.clearNotificationDelegate(self)
@@ -177,6 +179,8 @@ public extension RimeContext {
     self.mixedInputRevertRawInputKeys = nil
     self.mixedInputRevertPrefixLiteral = nil
     self.mixedInputRevertLiteralSuffix = nil
+    self.mixedInputRevertDisplayText = nil
+    self.mixedInputLastDisplayText = ""
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
@@ -195,11 +199,13 @@ public extension RimeContext {
     self.mixedInputRevertRawInputKeys = nil
     self.mixedInputRevertPrefixLiteral = nil
     self.mixedInputRevertLiteralSuffix = nil
+    self.mixedInputRevertDisplayText = nil
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
     self.mixedInputManager.reset()
     if !literal.isEmpty {
       self.mixedInputManager.insertAtCursorPosition(literal, isLiteral: true)
+      self.mixedInputLastDisplayText = mixedInputManager.displayText
       let texts = NumericCandidateGenerator.candidateTexts(for: literal)
       var newSuggestions: [CandidateSuggestion] = []
       for (index, text) in texts.enumerated() {
@@ -226,24 +232,34 @@ public extension RimeContext {
   }
 
   @MainActor
-  func prepareMixedInputRevertSelection(rawInputKeys: String, prefixLiteral: String, literalSuffix: String) {
+  func prepareMixedInputRevertSelection(
+    rawInputKeys: String,
+    prefixLiteral: String,
+    literalSuffix: String,
+    displayText: String
+  ) {
     guard !rawInputKeys.isEmpty else { return }
     mixedInputPendingRevertSelection = true
     mixedInputRevertRawInputKeys = rawInputKeys
     mixedInputRevertPrefixLiteral = prefixLiteral
     mixedInputRevertLiteralSuffix = literalSuffix
+    mixedInputRevertDisplayText = displayText
   }
 
   @MainActor
-  func consumeMixedInputRevertSelection() -> (rawInputKeys: String, prefixLiteral: String, literalSuffix: String)? {
+  func consumeMixedInputRevertSelection()
+    -> (rawInputKeys: String, prefixLiteral: String, literalSuffix: String, displayText: String)?
+  {
     guard let rawInputKeys = mixedInputRevertRawInputKeys else { return nil }
     let prefixLiteral = mixedInputRevertPrefixLiteral ?? ""
     let literalSuffix = mixedInputRevertLiteralSuffix ?? ""
+    let displayText = mixedInputRevertDisplayText ?? ""
     mixedInputRevertRawInputKeys = nil
     mixedInputRevertPrefixLiteral = nil
     mixedInputRevertLiteralSuffix = nil
+    mixedInputRevertDisplayText = nil
     mixedInputPendingRevertSelection = false
-    return (rawInputKeys, prefixLiteral, literalSuffix)
+    return (rawInputKeys, prefixLiteral, literalSuffix, displayText)
   }
 
   /// 清空 RIME 组字，但保留混合输入内容
@@ -255,6 +271,9 @@ public extension RimeContext {
     self.suggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
     self.userInputKey = compositionPrefix + mixedInputManager.displayText
+    if mixedInputManager.hasLiteral {
+      self.mixedInputLastDisplayText = mixedInputManager.displayText
+    }
   }
 
   func resetCommitText() {
@@ -1046,6 +1065,7 @@ public extension RimeContext {
         self.selectCandidatePinyin = nil
         self.suggestions.removeAll(keepingCapacity: false)
         self.userInputKey = compositionPrefix + mixedInputManager.displayText
+        self.mixedInputLastDisplayText = mixedInputManager.displayText
         return
       }
       let behavior = mixedInputCommitBehavior
@@ -1083,6 +1103,9 @@ public extension RimeContext {
     }
     let displayText = mixedInputManager.hasLiteral ? mixedInputManager.displayText : userInputText
     self.userInputKey = compositionPrefix + displayText
+    if mixedInputManager.hasLiteral {
+      self.mixedInputLastDisplayText = displayText
+    }
     self.commitText = commitText
     self.suggestions = candidates
   }

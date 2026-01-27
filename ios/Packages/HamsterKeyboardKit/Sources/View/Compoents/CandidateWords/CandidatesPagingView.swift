@@ -192,8 +192,9 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
     guard indexPath.item < items.count else { return }
     let selectedItem = items[indexPath.item]
     
-    // 检查是否是文本替换候选（index 为负数）
-    if selectedItem.index < 0 {
+    // 检查是否是文本替换候选（位于前置列表）
+    let textReplacementCount = rimeContext.textReplacementSuggestions.count
+    if indexPath.item < textReplacementCount {
       if let handler = actionHandler as? StandardKeyboardActionHandler,
          let controller = handler.keyboardController as? KeyboardInputViewController
       {
@@ -213,22 +214,28 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
       }
     } else {
       // 正常的 RIME 候选选择
-      // 如果有文本替换候选，需要调整索引
-      let textReplacementCount = rimeContext.textReplacementSuggestions.count
       let adjustedIndex = indexPath.item - textReplacementCount
       if adjustedIndex >= 0 {
         if let handler = actionHandler as? StandardKeyboardActionHandler,
            let controller = handler.keyboardController as? KeyboardInputViewController
         {
-          if rimeContext.mixedInputManager.hasLiteral,
-             rimeContext.mixedInputManager.pinyinOnly.isEmpty
-          {
-            controller.commitMixedInputCandidateDirectly(selectedItem.text)
+          if controller.handleMixedInputDigitCandidateIfNeeded(selectedItem.text) {
             return
           }
-          if rimeContext.mixedInputManager.hasLiteral,
-             !rimeContext.mixedInputManager.pinyinOnly.isEmpty
-          {
+          if rimeContext.mixedInputManager.hasLiteral {
+            if selectedItem.index < 0 {
+              controller.commitMixedInputCandidateWithLiteralOption(
+                rimeIndex: selectedItem.index,
+                displayIndex: adjustedIndex,
+                candidateText: selectedItem.text,
+                candidateSubtitle: selectedItem.subtitle
+              )
+              return
+            }
+            if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+              controller.commitMixedInputCandidateDirectly(selectedItem.text)
+              return
+            }
             controller.commitMixedInputCandidateWithLiteralOption(
               rimeIndex: selectedItem.index,
               displayIndex: adjustedIndex,

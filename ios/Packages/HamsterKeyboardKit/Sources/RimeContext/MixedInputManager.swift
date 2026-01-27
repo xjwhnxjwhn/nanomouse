@@ -70,7 +70,42 @@ public class MixedInputManager {
 
     /// 完整的显示文本
     public var displayText: String {
-        segments.map { $0.text }.joined()
+        guard !segments.isEmpty else { return "" }
+        var result = ""
+        let hasLiteralPrefix = effectiveLiteralPrefixCount > 0
+        for index in segments.indices {
+            let segment = segments[index]
+            let nextSegment = index + 1 < segments.count ? segments[index + 1] : nil
+            let prevSegment = index > 0 ? segments[index - 1] : nil
+
+            switch segment.type {
+            case .pinyin:
+                if hasLiteralPrefix,
+                   let prev = prevSegment,
+                   prev.isLiteral,
+                   !result.hasSuffix(" ")
+                {
+                    result += " "
+                }
+                result += segment.text
+
+            case .literal(let display, _):
+                let isDigit = isDigitLiteral(segment)
+                let nextIsPinyin = nextSegment?.isPinyin == true
+                if hasLiteralPrefix, isDigit, nextIsPinyin {
+                    if prevSegment != nil, !result.hasSuffix(" ") {
+                        result += " "
+                    }
+                    result += display
+                    if !result.hasSuffix(" ") {
+                        result += " "
+                    }
+                } else {
+                    result += display
+                }
+            }
+        }
+        return result
     }
 
     /// 仅拼音部分（用于 RIME 查询）
@@ -130,6 +165,19 @@ public class MixedInputManager {
         return result
     }
 
+    /// 连续前缀 literal 段数量
+    public var leadingLiteralSegmentCount: Int {
+        var count = 0
+        for segment in segments {
+            if segment.isLiteral {
+                count += 1
+            } else {
+                break
+            }
+        }
+        return count
+    }
+
     public init() {}
 
     /// 在末尾插入文本
@@ -155,6 +203,68 @@ public class MixedInputManager {
                 segments.append(Segment(type: .pinyin(text)))
             }
         }
+    }
+
+    /// 根据显示文本重建分段（将数字与非数字 literal 拆分）
+    public func rebuildSegments(from display: String) {
+        reset()
+        guard !display.isEmpty else { return }
+        var currentType: SegmentType?
+        var currentText = ""
+        var currentCommit = ""
+
+        func flush() {
+            guard !currentText.isEmpty else { return }
+            if let type = currentType {
+                switch type {
+                case .pinyin:
+                    segments.append(Segment(type: .pinyin(currentText)))
+                case .literal:
+                    segments.append(Segment(type: .literal(display: currentText, commit: currentCommit)))
+                }
+            }
+            currentType = nil
+            currentText = ""
+            currentCommit = ""
+        }
+
+        for ch in display {
+            if ch == " " || ch == "'" { continue }
+            let scalar = ch.unicodeScalars.first
+            let isLetter = scalar.map { $0.isASCII && CharacterSet.letters.contains($0) } ?? false
+            let isUmlaut = ch == "ü" || ch == "Ü"
+            let isPinyin = isLetter || isUmlaut
+            let isDigit = ch.isNumber
+
+            if isPinyin {
+                if currentType == nil {
+                    currentType = .pinyin("")
+                } else if case .literal = currentType {
+                    flush()
+                    currentType = .pinyin("")
+                }
+                currentText.append(ch)
+                continue
+            }
+
+            // literal
+            if currentType == nil {
+                currentType = .literal(display: "", commit: "")
+            } else if case .pinyin = currentType {
+                flush()
+                currentType = .literal(display: "", commit: "")
+            } else if case .literal = currentType {
+                let currentIsDigit = !currentCommit.isEmpty && currentCommit.allSatisfy { $0.isNumber }
+                if currentIsDigit != isDigit {
+                    flush()
+                    currentType = .literal(display: "", commit: "")
+                }
+            }
+            currentText.append(ch)
+            currentCommit.append(ch)
+        }
+
+        flush()
     }
 
     /// 从末尾删除一个字符
@@ -251,6 +361,85 @@ public class MixedInputManager {
         return false
     }
 
+    /// 前缀 literal 之后、拼音之前的数字 literal（用于数字插入到拼音中间的场景）
+    public var digitLiteralBeforeFirstPinyin: String {
+        let prefixCount = effectiveLiteralPrefixCount
+        var skipped = 0
+        var digits = ""
+        var hasDigit = false
+
+        for segment in segments {
+            if segment.isPinyin {
+                return hasDigit ? digits : ""
+            }
+            if case .literal(_, let commit) = segment.type {
+                if skipped < prefixCount {
+                    skipped += 1
+                    continue
+                }
+                if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+                    digits += commit
+                    hasDigit = true
+                } else if !commit.isEmpty {
+                    // 遇到非数字 literal，认为不属于数字插入场景
+                    return ""
+                }
+            }
+        }
+        return ""
+    }
+
+    /// 替换或插入前缀 literal 之后、首个拼音之前的数字 literal
+    /// - Returns: 是否成功（找到/插入）
+    public func upsertDigitLiteralBeforeFirstPinyin(with text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        let prefixCount = effectiveLiteralPrefixCount
+        var skipped = 0
+        var firstPinyinIndex: Int?
+
+        for index in segments.indices {
+            let segment = segments[index]
+            if segment.isPinyin {
+                firstPinyinIndex = index
+                break
+            }
+            if case .literal = segment.type {
+                if skipped < prefixCount {
+                    skipped += 1
+                    continue
+                }
+                if isDigitLiteral(segment) {
+                    segments[index] = Segment(type: .literal(display: text, commit: text))
+                    return true
+                }
+            }
+        }
+
+        guard let insertIndex = firstPinyinIndex else { return false }
+        let safeIndex = min(max(insertIndex, prefixCount), segments.count)
+        segments.insert(Segment(type: .literal(display: text, commit: text)), at: safeIndex)
+        return true
+    }
+
+    /// 拼音段在中间数字之前的音节数量（用于过滤候选）
+    public var syllableCountBeforeMiddleDigit: Int {
+        var count = 0
+        var seenPinyin = false
+        for index in segments.indices {
+            let segment = segments[index]
+            if segment.isPinyin {
+                seenPinyin = true
+                count += countSyllables(segment.text)
+                continue
+            }
+            if isDigitLiteral(segment), seenPinyin {
+                let hasPinyinAfter = segments[(index + 1)...].contains { $0.isPinyin }
+                return hasPinyinAfter ? count : 0
+            }
+        }
+        return 0
+    }
+
     /// 从拼音段起始处删除指定数量的拼音字母（用于分段选择后同步）
     public func trimLeadingPinyinLetters(_ count: Int) {
         guard count > 0 else { return }
@@ -286,33 +475,19 @@ public class MixedInputManager {
     /// 将前缀拼音提交为直接文本，并保留后续段
     public func commitLeadingPinyinAsLiteral(committedCount: Int, commitText: String) {
         guard committedCount > 0, !commitText.isEmpty else { return }
+        let insertIndex = segments.firstIndex(where: { $0.isPinyin }) ?? segments.count
         trimLeadingPinyinLetters(committedCount)
 
-        let insertIndex: Int
-        if let firstPinyinIndex = segments.firstIndex(where: { $0.isPinyin }) {
-            insertIndex = firstPinyinIndex
-        } else if let lastIndex = segments.indices.last, isDigitLiteral(segments[lastIndex]) {
-            insertIndex = lastIndex
-        } else {
-            insertIndex = segments.count
-        }
+        let safeIndex = min(insertIndex, segments.count)
+        segments.insert(Segment(type: .literal(display: commitText, commit: commitText)), at: safeIndex)
 
-        if insertIndex > 0,
-           case .literal(let display, let commit) = segments[insertIndex - 1].type,
-           !isDigitLiteral(segments[insertIndex - 1])
+        let prevIndex = safeIndex - 1
+        if prevIndex >= 0,
+           case .literal(let display, let commit) = segments[prevIndex].type,
+           !isDigitLiteral(segments[prevIndex])
         {
-            segments[insertIndex - 1] = Segment(type: .literal(display: display + commitText, commit: commit + commitText))
-            return
-        }
-
-        segments.insert(Segment(type: .literal(display: commitText, commit: commitText)), at: insertIndex)
-
-        if insertIndex + 1 < segments.count,
-           case .literal(let nextDisplay, let nextCommit) = segments[insertIndex + 1].type,
-           !isDigitLiteral(segments[insertIndex + 1])
-        {
-            segments[insertIndex] = Segment(type: .literal(display: commitText + nextDisplay, commit: commitText + nextCommit))
-            segments.remove(at: insertIndex + 1)
+            segments[prevIndex] = Segment(type: .literal(display: display + commitText, commit: commit + commitText))
+            segments.remove(at: safeIndex)
         }
     }
 
