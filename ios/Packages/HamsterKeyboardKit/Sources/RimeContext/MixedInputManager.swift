@@ -267,6 +267,22 @@ public class MixedInputManager {
         flush()
     }
 
+    /// 在指定位置插入 literal 段，并在需要时与前一个非数字 literal 合并
+    public func insertLiteralSegment(_ text: String, at index: Int, mergeWithPreviousNonDigit: Bool = true) {
+        guard !text.isEmpty else { return }
+        let safeIndex = min(max(index, 0), segments.count)
+        segments.insert(Segment(type: .literal(display: text, commit: text)), at: safeIndex)
+        guard mergeWithPreviousNonDigit else { return }
+        let prevIndex = safeIndex - 1
+        if prevIndex >= 0,
+           case .literal(let prevDisplay, let prevCommit) = segments[prevIndex].type,
+           !isDigitLiteral(segments[prevIndex])
+        {
+            segments[prevIndex] = Segment(type: .literal(display: prevDisplay + text, commit: prevCommit + text))
+            segments.remove(at: safeIndex)
+        }
+    }
+
     /// 从末尾删除一个字符
     /// - Returns: 是否成功删除
     @discardableResult
