@@ -1445,16 +1445,32 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if rimeContext.mixedInputManager.hasLiteral,
        rimeContext.mixedInputManager.pinyinOnly.isEmpty
     {
-      let literalExcludingPrefix = rimeContext.mixedInputManager.literalOnlyExcludingPrefix
       let literalOnly = rimeContext.mixedInputManager.literalOnly
+      let configuredPrefixCount = rimeContext.mixedInputManager.literalPrefixSegmentCount
+      let literalExcludingPrefix: String
+      if configuredPrefixCount > 0 {
+        var skipped = 0
+        var result = ""
+        for segment in rimeContext.mixedInputManager.segments {
+          guard segment.isLiteral else { continue }
+          if skipped < configuredPrefixCount {
+            skipped += 1
+            continue
+          }
+          result += segment.commitText
+        }
+        literalExcludingPrefix = result
+      } else {
+        literalExcludingPrefix = literalOnly
+      }
       let useFullLiteral: Bool
-      if rimeContext.mixedInputManager.literalPrefixSegmentCount > 0,
+      if configuredPrefixCount > 0,
          !literalExcludingPrefix.isEmpty,
          !literalExcludingPrefix.allSatisfy({ $0.isNumber })
       {
         useFullLiteral = true
       } else {
-        useFullLiteral = rimeContext.mixedInputManager.literalPrefixSegmentCount == 0
+        useFullLiteral = configuredPrefixCount == 0
       }
       let literal = useFullLiteral ? literalOnly : literalExcludingPrefix
       let texts = NumericCandidateGenerator.candidateTexts(for: literal)
@@ -1657,6 +1673,50 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return Set(NumericCandidateGenerator.candidateTexts(for: seed))
   }
 
+  private func mixedInputTrailingDigitLiteralAfterLastPinyin() -> String {
+    let segments = rimeContext.mixedInputManager.segments
+    guard let lastPinyinIndex = segments.lastIndex(where: { $0.isPinyin }) else { return "" }
+    guard lastPinyinIndex < segments.count - 1 else { return "" }
+    var digits = ""
+    for index in (lastPinyinIndex + 1)..<segments.count {
+      let segment = segments[index]
+      guard segment.isLiteral else { return "" }
+      let commit = segment.commitText
+      guard !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) else { return "" }
+      digits += commit
+    }
+    return digits
+  }
+
+  private func mixedInputTrailingDigitSegmentCount() -> Int {
+    let segments = rimeContext.mixedInputManager.segments
+    var count = 0
+    for segment in segments.reversed() {
+      guard segment.isLiteral else { break }
+      let commit = segment.commitText
+      if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+        count += 1
+      } else {
+        break
+      }
+    }
+    return count
+  }
+
+  private func mixedInputConfiguredPrefixText() -> String {
+    let prefixCount = rimeContext.mixedInputManager.literalPrefixSegmentCount
+    guard prefixCount > 0 else { return "" }
+    var result = ""
+    var taken = 0
+    for segment in rimeContext.mixedInputManager.segments {
+      guard segment.isLiteral else { break }
+      result += segment.commitText
+      taken += 1
+      if taken >= prefixCount { break }
+    }
+    return result
+  }
+
   private func syncRimeInputWithMixedPinyinIfNeeded() {
     let mixedPinyin = rimeContext.mixedInputManager.pinyinOnly.replacingOccurrences(of: " ", with: "")
     guard !mixedPinyin.isEmpty else { return }
@@ -1816,7 +1876,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if handleMixedInputDigitCandidateIfNeeded(text) {
       return
     }
-    let prefix = rimeContext.mixedInputManager.literalPrefixText
+    var prefix = rimeContext.mixedInputManager.literalPrefixText
+    if prefix.isEmpty,
+       rimeContext.mixedInputManager.pinyinOnly.isEmpty,
+       rimeContext.mixedInputManager.literalPrefixSegmentCount > 0
+    {
+      prefix = mixedInputConfiguredPrefixText()
+    }
     let normalizedText = text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text
     let commit: String
     if !prefix.isEmpty, normalizedText.hasPrefix(prefix) {
@@ -1975,12 +2041,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
 
-    let appendCount = mixedInputEffectiveAppendDigitCandidateCount()
-    if displayIndex < appendCount {
-      rimeContext.mixedInputCommitBehavior = .appendLiteral
-      rimeContext.selectCandidate(index: rimeIndex)
-      return
-    }
     var committedCount = mixedInputCommittedPinyinCount(from: subtitle)
     if committedCount == 0, !preedit.isEmpty {
       let syllables = preedit.split(separator: " ")
@@ -1988,6 +2048,34 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         let consumeSyllables = min(candidateText.count, syllables.count)
         committedCount = syllables.prefix(consumeSyllables).reduce(0) { $0 + $1.count }
       }
+    }
+
+    let trailingDigits = mixedInputTrailingDigitLiteralAfterLastPinyin()
+    if rimeIndex >= 0, !trailingDigits.isEmpty, committedCount > 0 {
+      rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
+        committedCount: committedCount,
+        commitText: candidateText
+      )
+      let trailingDigitSegments = mixedInputTrailingDigitSegmentCount()
+      if trailingDigitSegments > 0 {
+        let prefixCount = max(0, rimeContext.mixedInputManager.segments.count - trailingDigitSegments)
+        rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount
+      } else {
+        rimeContext.mixedInputManager.literalPrefixSegmentCount =
+          rimeContext.mixedInputManager.leadingLiteralSegmentCount
+      }
+
+      rimeContext.resetCompositionKeepingMixedInput()
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      updateMixedInputSuggestions()
+      return
+    }
+
+    let appendCount = mixedInputEffectiveAppendDigitCandidateCount()
+    if displayIndex < appendCount {
+      rimeContext.mixedInputCommitBehavior = .appendLiteral
+      rimeContext.selectCandidate(index: rimeIndex)
+      return
     }
     if committedCount > 0, !preedit.isEmpty {
       let tokens = preedit.split(separator: " ")
