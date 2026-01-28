@@ -274,6 +274,49 @@ final class AzooKeyInputEngine {
     return committedText
   }
 
+  func commitCandidatePartially(
+    at index: Int,
+    leftSideContext: String? = nil,
+    composingCountOverride: ComposingCount? = nil
+  ) -> (commitText: String, suggestions: [CandidateSuggestion], isComposing: Bool)? {
+    guard var candidate = candidate(at: index), let converter = ensureConverter() else { return nil }
+    candidate.parseTemplate()
+    let commitText = candidate.text
+    invalidatePendingConversions()
+
+    conversionLock.lock()
+    defer { conversionLock.unlock() }
+
+    converter.setCompletedData(candidate)
+    if candidate.isLearningTarget {
+      converter.updateLearningData(candidate)
+      converter.commitUpdateLearningData()
+    }
+
+    let composingCount = composingCountOverride ?? candidate.composingCount
+    composingText.prefixComplete(composingCount: composingCount)
+    if composingText.isEmpty {
+      converter.stopComposition()
+      composingText = ComposingText()
+      lastCandidates = []
+      return (commitText, [], false)
+    }
+
+    let updatedLeftContext: String?
+    if let base = leftSideContext {
+      updatedLeftContext = base + commitText
+    } else {
+      updatedLeftContext = commitText.isEmpty ? nil : commitText
+    }
+
+    let inputData = composingText.prefixToCursorPosition()
+    let (options, _) = makeOptions(inputStyle: lastInputStyle, leftSideContext: updatedLeftContext)
+    let result = converter.requestCandidates(inputData, options: options)
+    lastCandidates = result.mainResults
+
+    return (commitText, suggestions(from: lastCandidates), true)
+  }
+
   private func ensureConverter() -> KanaKanjiConverter? {
     let dictionaryURL = FileManager.appGroupAzooKeyDictionaryDirectoryURL
     guard FileManager.isAzooKeyDictionaryAvailable() else {
