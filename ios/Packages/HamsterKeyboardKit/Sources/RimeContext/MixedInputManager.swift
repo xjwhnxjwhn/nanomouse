@@ -125,6 +125,7 @@ public class MixedInputManager {
     }
 
     private var effectiveLiteralPrefixCount: Int {
+        if !segments.contains(where: { $0.isPinyin }) { return 0 }
         if literalPrefixSegmentCount > 0 { return literalPrefixSegmentCount }
         if segments.count < 2 { return 0 }
         return segments.first?.isLiteral == true ? 1 : 0
@@ -176,6 +177,14 @@ public class MixedInputManager {
             }
         }
         return count
+    }
+
+    /// 替换首段 literal
+    public func replaceLeadingLiteral(with text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        guard let first = segments.first, first.isLiteral else { return false }
+        segments[0] = Segment(type: .literal(display: text, commit: text))
+        return true
     }
 
     public init() {}
@@ -408,7 +417,7 @@ public class MixedInputManager {
     /// 替换或插入前缀 literal 之后、首个拼音之前的数字 literal
     /// - Returns: 是否成功（找到/插入）
     public func upsertDigitLiteralBeforeFirstPinyin(with text: String) -> Bool {
-        guard !text.isEmpty else { return false }
+        guard !text.isEmpty, text.allSatisfy({ $0.isNumber }) else { return false }
         let prefixCount = effectiveLiteralPrefixCount
         var skipped = 0
         var firstPinyinIndex: Int?
@@ -491,18 +500,28 @@ public class MixedInputManager {
     /// 将前缀拼音提交为直接文本，并保留后续段
     public func commitLeadingPinyinAsLiteral(committedCount: Int, commitText: String) {
         guard committedCount > 0, !commitText.isEmpty else { return }
+        var adjustedCommitText = commitText
+        let prefixLiteral = literalPrefixText
+        if !prefixLiteral.isEmpty,
+           prefixLiteral.allSatisfy({ $0.isNumber }),
+           adjustedCommitText.hasPrefix(prefixLiteral)
+        {
+            adjustedCommitText = String(adjustedCommitText.dropFirst(prefixLiteral.count))
+            adjustedCommitText = adjustedCommitText.trimmingCharacters(in: .whitespaces)
+            if adjustedCommitText.isEmpty { return }
+        }
         let insertIndex = segments.firstIndex(where: { $0.isPinyin }) ?? segments.count
         trimLeadingPinyinLetters(committedCount)
 
         let safeIndex = min(insertIndex, segments.count)
-        segments.insert(Segment(type: .literal(display: commitText, commit: commitText)), at: safeIndex)
+        segments.insert(Segment(type: .literal(display: adjustedCommitText, commit: adjustedCommitText)), at: safeIndex)
 
         let prevIndex = safeIndex - 1
         if prevIndex >= 0,
            case .literal(let display, let commit) = segments[prevIndex].type,
            !isDigitLiteral(segments[prevIndex])
         {
-            segments[prevIndex] = Segment(type: .literal(display: display + commitText, commit: commit + commitText))
+            segments[prevIndex] = Segment(type: .literal(display: display + adjustedCommitText, commit: commit + adjustedCommitText))
             segments.remove(at: safeIndex)
         }
     }

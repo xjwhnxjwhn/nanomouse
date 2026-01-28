@@ -219,7 +219,10 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
         if let handler = actionHandler as? StandardKeyboardActionHandler,
            let controller = handler.keyboardController as? KeyboardInputViewController
         {
-          if controller.handleMixedInputDigitCandidateIfNeeded(selectedItem.text) {
+          if controller.handleMixedInputDigitCandidateIfNeeded(
+            selectedItem.text,
+            candidateIndex: selectedItem.index
+          ) {
             return
           }
           if rimeContext.mixedInputManager.hasLiteral {
