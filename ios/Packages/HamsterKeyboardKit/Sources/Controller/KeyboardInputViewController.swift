@@ -593,6 +593,85 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return CharacterSet.punctuationCharacters.contains(scalar)
   }
 
+  private func shouldTreatSymbolAsMixedInputLiteral(_ text: String) -> Bool {
+    guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
+    if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+    if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) { return false }
+    return CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar)
+  }
+
+  private func adjustedSymbolForContext(_ text: String) -> String {
+    guard text.count == 1, let scalar = text.unicodeScalars.first else { return text }
+    guard CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar) else { return text }
+    if isAzooKeyInputActive || isEnglishInputActive { return text }
+    if rimeContext.currentSchema?.isJapaneseSchema == true { return text }
+
+    var preferHalfwidth = rimeContext.asciiModeSnapshot
+    func lastMeaningfulChar(in text: String) -> Character? {
+      for ch in text.reversed() {
+        if ch.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) }) {
+          continue
+        }
+        return ch
+      }
+      return nil
+    }
+
+    func containsASCIILetters(_ text: String) -> Bool {
+      text.unicodeScalars.contains { $0.isASCII && CharacterSet.letters.contains($0) }
+    }
+
+    let composingTextForLetterCheck: String? = {
+      if let preedit = rimeContext.rimeContext?.composition?.preedit, !preedit.isEmpty {
+        return preedit
+      }
+      if rimeContext.mixedInputManager.hasLiteral {
+        return rimeContext.mixedInputManager.displayText
+      }
+      return nil
+    }()
+
+    if let composing = composingTextForLetterCheck, containsASCIILetters(composing) {
+      // Pinyin composing: treat punctuation as fullwidth (e.g., "shuo:" -> "说：").
+      preferHalfwidth = false
+      return text.applyingTransform(.fullwidthToHalfwidth, reverse: true) ?? text
+    }
+
+    let contextTail: Character? = {
+      if rimeContext.mixedInputManager.hasLiteral,
+         let tail = lastMeaningfulChar(in: rimeContext.mixedInputManager.displayText)
+      {
+        return tail
+      }
+      if let preedit = rimeContext.rimeContext?.composition?.preedit,
+         let tail = lastMeaningfulChar(in: preedit)
+      {
+        return tail
+      }
+      if let before = textDocumentProxy.documentContextBeforeInput,
+         let tail = lastMeaningfulChar(in: before)
+      {
+        return tail
+      }
+      return nil
+    }()
+
+    if let tail = contextTail {
+      if tail.unicodeScalars.contains(where: { $0.isASCII && (CharacterSet.letters.contains($0) || CharacterSet.decimalDigits.contains($0)) }) {
+        preferHalfwidth = true
+      } else {
+        // Non-ASCII context forces fullwidth to keep behavior stable after Hanzi.
+        preferHalfwidth = false
+      }
+    }
+
+    if preferHalfwidth {
+      return text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text
+    }
+    return text.applyingTransform(.fullwidthToHalfwidth, reverse: true) ?? text
+  }
+
+
   func hasActiveCompositionForBuffer() -> Bool {
     if !rimeContext.compositionPrefix.isEmpty {
       return true
@@ -1169,16 +1248,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertSymbol(_ symbol: Symbol) {
-    Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(symbol.char, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
-    if isUnifiedCompositionBufferEnabled, symbol.char == .space {
+    let adjustedChar = adjustedSymbolForContext(symbol.char)
+    Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(adjustedChar, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isUnifiedCompositionBufferEnabled, adjustedChar == .space {
       insertRimeKeyCode(XK_space)
       return
     }
-    if shouldAppendPunctuationToCompositionPrefix(symbol.char) {
+    if shouldAppendPunctuationToCompositionPrefix(adjustedChar) {
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
       }
-      appendToCompositionPrefix(symbol.char)
+      appendToCompositionPrefix(adjustedChar)
       return
     }
 
@@ -1213,7 +1293,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     if isAzooKeyActive {
-      let char = symbol.char
+      let char = adjustedChar
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       // AzooKey 的 composingText 会统一管理所有输入（包括数字）
       let isDigit = char.count == 1 && char.first?.isNumber == true
@@ -1265,7 +1345,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入（在 insertSymbol 中也需要拦截）
-    let char = symbol.char
+    let char = adjustedChar
     let isDigit = char.count == 1 && char.first?.isNumber == true
     if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
       rimeContext.mixedInputManager.reset()
@@ -1283,6 +1363,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT insertSymbol digit intercepted: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
+      updateMixedInputSuggestions()
+      return
+    }
+
+    if shouldTreatSymbolAsMixedInputLiteral(char),
+       rimeContext.mixedInputManager.hasLiteral,
+       rimeContext.currentSchema?.isJapaneseSchema != true
+    {
+      rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      Logger.statistics.info("DBG_MIXEDINPUT insertSymbol literal: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       updateMixedInputSuggestions()
       return
     }
@@ -1307,67 +1398,67 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           }
         }
         self.rimeContext.reset()
-        self.insertTextPatch(symbol.char)
+        self.insertTextPatch(adjustedChar)
       }
       return
     }
-
-    self.insertTextPatch(symbol.char)
+    self.insertTextPatch(adjustedChar)
   }
 
   open func insertText(_ text: String) {
-    Logger.statistics.info("DBG_RIMEINPUT insertText: \(text, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
-    if isUnifiedCompositionBufferEnabled, text == .space {
+    let adjustedText = adjustedSymbolForContext(text)
+    Logger.statistics.info("DBG_RIMEINPUT insertText: \(adjustedText, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if isUnifiedCompositionBufferEnabled, adjustedText == .space {
       insertRimeKeyCode(XK_space)
       return
     }
-    if shouldAppendPunctuationToCompositionPrefix(text) {
+    if shouldAppendPunctuationToCompositionPrefix(adjustedText) {
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
       }
-      appendToCompositionPrefix(text)
+      appendToCompositionPrefix(adjustedText)
       return
     }
     if isAzooKeyInputActive {
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
-      let isDigit = text.count == 1 && text.first?.isNumber == true
+      let isDigit = adjustedText.count == 1 && adjustedText.first?.isNumber == true
       if isDigit && (azooKeyEngine.isComposing || isNumericCandidateModeEnabledOnJapaneseAzooKey) {
         // 数字使用 .direct 样式传给 AzooKey 引擎
-        let suggestions = azooKeyEngine.handleInput(text, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
+        let suggestions = azooKeyEngine.handleInput(adjustedText, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
         } else {
           clearAzooKeyState()
-          self.insertTextPatch(text)
+          self.insertTextPatch(adjustedText)
         }
         return
       }
 
-      let style = azooKeyInputStyle(for: text)
-      let suggestions = azooKeyEngine.handleInput(text, inputStyle: style, leftSideContext: azooKeyLeftSideContext())
+      let style = azooKeyInputStyle(for: adjustedText)
+      let suggestions = azooKeyEngine.handleInput(adjustedText, inputStyle: style, leftSideContext: azooKeyLeftSideContext())
       if azooKeyEngine.isComposing {
         updateAzooKeySuggestions(suggestions)
       } else {
         clearAzooKeyState()
-        self.insertTextPatch(text)
+        self.insertTextPatch(adjustedText)
       }
       return
     }
     if isEnglishInputActive {
       // 英语输入模式：使用候选栏
-      Logger.statistics.info("DBG_ENGLISH insertText: \(text, privacy: .public), asciiMode: true")
-      let isLetter = text.count == 1 && text.rangeOfCharacter(from: CharacterSet.letters) != nil
-      let isDigit = text.count == 1 && text.first?.isNumber == true
+      Logger.statistics.info("DBG_ENGLISH insertText: \(adjustedText, privacy: .public), asciiMode: true")
+      let isLetter = adjustedText.count == 1 && adjustedText.rangeOfCharacter(from: CharacterSet.letters) != nil
+      let isDigit = adjustedText.count == 1 && adjustedText.first?.isNumber == true
       Logger.statistics.info("DBG_ENGLISH isLetter: \(isLetter), isComposing: \(self.englishEngine.isComposing)")
       if isLetter || (englishEngine.isComposing && isDigit) {
-        let suggestions = englishEngine.handleInput(text)
+        let suggestions = englishEngine.handleInput(adjustedText)
         Logger.statistics.info("DBG_ENGLISH suggestions count: \(suggestions.count), isComposing: \(self.englishEngine.isComposing)")
         if englishEngine.isComposing {
           updateEnglishSuggestions(suggestions)
         } else {
           // 非字母输入且没有正在输入的内容，直接上屏
           clearEnglishState()
-          self.textDocumentProxy.insertText(text)
+          self.textDocumentProxy.insertText(adjustedText)
         }
       } else {
         // 非字母且没有正在输入的内容，直接上屏
@@ -1379,17 +1470,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           }
           clearEnglishState()
         }
-        self.textDocumentProxy.insertText(text)
+        self.textDocumentProxy.insertText(adjustedText)
       }
       return
     }
 
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
-    let isDigit = text.count == 1 && text.first?.isNumber == true
+    let isDigit = adjustedText.count == 1 && adjustedText.first?.isNumber == true
     if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
       rimeContext.mixedInputManager.reset()
       mixedInputSelectedNumericPrefix = nil
-      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
+      rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       updateMixedInputSuggestions()
       return
@@ -1397,18 +1488,28 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isDigit && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
       // 数字添加到混合输入管理器，不发送给 RIME
-      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: true)
+      rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
-      Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(text, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
+      Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(adjustedText, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
+      updateMixedInputSuggestions()
+      return
+    }
+
+    if shouldTreatSymbolAsMixedInputLiteral(adjustedText),
+       rimeContext.mixedInputManager.hasLiteral,
+       rimeContext.currentSchema?.isJapaneseSchema != true
+    {
+      rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       updateMixedInputSuggestions()
       return
     }
 
     // 非数字字符，同时添加到混合输入管理器
     if !isDigit && rimeContext.mixedInputManager.hasLiteral {
-      rimeContext.mixedInputManager.insertAtCursorPosition(text, isLiteral: false)
+      rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: false)
     }
 
     // 字母输入模式，不经过 rime 引擎
@@ -1417,12 +1518,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     //  return
     // }
     // rime 引擎处理
-    let handled = self.rimeContext.tryHandleInputText(text)
-    Logger.statistics.info("DBG_RIMEINPUT tryHandleInputText: \(text, privacy: .public), handled: \(handled)")
+    let handled = self.rimeContext.tryHandleInputText(adjustedText)
+    Logger.statistics.info("DBG_RIMEINPUT tryHandleInputText: \(adjustedText, privacy: .public), handled: \(handled)")
     if !handled {
-      Logger.statistics.error("try handle input text: \(text), handle false")
-      Logger.statistics.error("DBG_RIMEINPUT fallback insertTextPatch for: \(text, privacy: .public)")
-      self.insertTextPatch(text)
+      Logger.statistics.error("try handle input text: \(adjustedText), handle false")
+      Logger.statistics.error("DBG_RIMEINPUT fallback insertTextPatch for: \(adjustedText, privacy: .public)")
+      self.insertTextPatch(adjustedText)
       return
     }
 
