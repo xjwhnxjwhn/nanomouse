@@ -1240,7 +1240,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
         return
       }
-      if char == "ー", azooKeyEngine.isComposing {
+      if azooKeyEngine.isComposing {
         let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
@@ -1249,10 +1249,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           self.insertTextPatch(char)
         }
         return
-      }
-      if azooKeyEngine.isComposing, let commit = azooKeyEngine.commitCandidate(at: 0) {
-        textDocumentProxy.insertText(commit)
-        clearAzooKeyState()
       }
       self.insertTextPatch(char)
       return
