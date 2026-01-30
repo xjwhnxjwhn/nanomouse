@@ -2126,6 +2126,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     let trailingDigits = mixedInputTrailingDigitLiteralAfterLastPinyin()
     if rimeIndex >= 0, !trailingDigits.isEmpty, committedCount > 0 {
+      let normalizedCandidate = candidateText.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? candidateText
+      let normalizedTrailing = normalizedAsciiDigits(from: trailingDigits) ?? trailingDigits
+      if normalizedCandidate.hasSuffix(normalizedTrailing) {
+        commitMixedInputCandidateDirectly(candidateText)
+        return
+      }
       rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
         committedCount: committedCount,
         commitText: candidateText
@@ -2158,6 +2164,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       )
       rimeContext.mixedInputManager.literalPrefixSegmentCount =
         rimeContext.mixedInputManager.segments.first?.isLiteral == true ? 1 : 0
+
+      if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+        let commitText = rimeContext.mixedInputManager.displayText.replacingOccurrences(of: " ", with: "")
+        commitMixedInputText(commitText)
+        return
+      }
 
       syncRimeInputWithMixedPinyinIfNeeded()
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
