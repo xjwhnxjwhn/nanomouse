@@ -2105,6 +2105,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if middleCandidates.contains(trimmed),
          rimeContext.mixedInputManager.replaceDigitLiteralAfterFirstPinyin(with: trimmed)
       {
+        syncRimeInputWithMixedPinyinIfNeeded()
         rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
         rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
         updateMixedInputSuggestions()
@@ -2135,6 +2136,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if digitCandidates.contains(trimmed),
          rimeContext.mixedInputManager.upsertDigitLiteralBeforeFirstPinyin(with: trimmed)
       {
+        syncRimeInputWithMixedPinyinIfNeeded()
         if !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
           rimeContext.mixedInputManager.literalPrefixSegmentCount =
             rimeContext.mixedInputManager.leadingLiteralSegmentCount
