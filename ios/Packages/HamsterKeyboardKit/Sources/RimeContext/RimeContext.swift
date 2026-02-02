@@ -65,6 +65,11 @@ public class RimeContext {
   /// 是否启用双行候选栏（显示完整输入缓冲）
   public var prefersTwoTierCandidateBar: Bool = false
 
+  /// RIME 是否处于组字状态
+  public var isComposing: Bool {
+    Rime.shared.status().isComposing
+  }
+
   private let userInputKeySubject = PassthroughSubject<String, Never>()
   public var userInputKeyPublished: AnyPublisher<String, Never> {
     userInputKeySubject.eraseToAnyPublisher()
@@ -1038,10 +1043,11 @@ public extension RimeContext {
   func syncContext() {
     self.pageIndex = 0
     self.rimeContext = Rime.shared.context()
+    let status = Rime.shared.status()
     let userInputText = rimeContext?.composition?.preedit ?? ""
     let commitText = Rime.shared.getCommitText()
     var candidates = [CandidateSuggestion]()
-    if !useContextPaging {
+    if !useContextPaging, status.isComposing {
       var highlightIndex = 0
       if let menu = rimeContext?.menu {
         highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
@@ -1052,8 +1058,6 @@ public extension RimeContext {
     // Logger.statistics.debug("syncContext: userInputText = \(userInputText), commitText = \(commitText)")
 
     // 查看输入法状态
-    let status = Rime.shared.status()
-
     // 注意：commitText 值的修改需要在修改 userInputKey 之前，
     // 因为 userInputKey 是 @Published，观测其值时会用到 commitText，所以如果 commitText 值修改滞后，会造成读取 commitText 不正确
 
@@ -1131,6 +1135,7 @@ public extension RimeContext {
 
   /// 获取候选列表
   func candidateListLimit(index: Int, highlightIndex: Int, count: Int) -> [CandidateSuggestion] {
+    guard Rime.shared.status().isComposing else { return [] }
     // TODO: 最大候选文字数量
     let candidates = Rime.shared.candidateListWithIndex(index: index, andCount: count)
     var result: [CandidateSuggestion] = []

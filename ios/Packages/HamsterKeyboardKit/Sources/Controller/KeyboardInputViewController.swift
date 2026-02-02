@@ -43,7 +43,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private let mixedInputAppendDigitCandidateCount = 2
   private let mixedInputInjectedCandidateIndexBase = -1000
   private let mixedInputPrefixCandidateIndexBase = -2000
+  private let mixedInputPinyinPrefixCandidateIndexBase = -3000
+  private let mixedInputCombinedCandidateIndexBase = -4000
   private var mixedInputSelectedNumericPrefix: String?
+  private var mixedInputSelectedPinyinPrefix: String?
+  private var mixedInputPrefixCandidates: [(text: String, subtitle: String?)] = []
+  private var mixedInputPrefixPinyinLetterCount: Int = 0
+  private var mixedInputSuffixMode = false
+  private var mixedInputResyncing = false
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -123,6 +130,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     systemTextReplacementManager.clear()
     Task { @MainActor in
       rimeContext.reset()
+      resetMixedInputFreezeState()
       rimeContext.textReplacementSuggestions = []
     }
   }
@@ -788,9 +796,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if !rimeContext.mixedInputManager.hasLiteral {
       rimeContext.mixedInputManager.reset()
       mixedInputSelectedNumericPrefix = nil
+      resetMixedInputPrefixCache()
       let preedit = currentRimePreeditText()
       if !preedit.isEmpty {
+        mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates()
+        mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(preedit)
         rimeContext.mixedInputManager.insertAtCursorPosition(preedit, isLiteral: false)
+        rimeContext.resetCompositionKeepingMixedInput()
+        mixedInputSuffixMode = true
       }
     }
   }
@@ -827,6 +840,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
     rimeContext.reset()
+    resetMixedInputFreezeState()
   }
 
   func commitFirstCandidateForLanguageSwitchIfNeeded() {
@@ -861,6 +875,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           self.rimeContext.textReplacementSuggestions = []
         }
         rimeContext.reset()
+        resetMixedInputFreezeState()
         return
       }
       if !rimeContext.suggestions.isEmpty {
@@ -932,6 +947,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // fix: 输出栏点击右侧x形按钮后, 输入法候选栏内容没有跟随输入栏一同清空
     if !self.textDocumentProxy.hasText {
       self.rimeContext.reset()
+      resetMixedInputFreezeState()
       if self.isAzooKeyActive {
         self.azooKeyEngine.reset()
         self.clearAzooKeyState()
@@ -1079,6 +1095,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     if !rimeContext.userInputKey.isEmpty {
       rimeContext.reset()
+      resetMixedInputFreezeState()
     }
   }
 
@@ -1154,6 +1171,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         let lettersOnly = display.unicodeScalars.filter { isPinyinLetter($0) }.map(String.init).joined()
 
         self.rimeContext.reset()
+        self.resetMixedInputFreezeState()
         for char in lettersOnly {
           _ = self.rimeContext.tryHandleInputText(String(char))
         }
@@ -1191,6 +1209,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if let raw = rawPinyinFromMixedInputIfPossible() {
           Task { @MainActor in
             self.rimeContext.reset()
+            self.resetMixedInputFreezeState()
             for char in raw {
               _ = self.rimeContext.tryHandleInputText(String(char))
             }
@@ -1202,6 +1221,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if rimeContext.mixedInputManager.hasLiteral {
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
         } else {
+          resetMixedInputFreezeState()
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimePreedit
           Task { @MainActor in
             self.rimeContext.suggestions = []
@@ -1361,7 +1381,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
-      Logger.statistics.info("DBG_MIXEDINPUT insertSymbol digit intercepted: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
       return
@@ -1398,6 +1417,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           }
         }
         self.rimeContext.reset()
+        self.resetMixedInputFreezeState()
         self.insertTextPatch(adjustedChar)
       }
       return
@@ -1491,7 +1511,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
       // 更新显示：将数字追加到 userInputKey
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
-      Logger.statistics.info("DBG_MIXEDINPUT digit intercepted: \(adjustedText, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
       // 更新候选词（将数字与候选词合并）
       updateMixedInputSuggestions()
       return
@@ -1592,31 +1611,68 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     // 获取当前的 RIME 候选词（避免基于已合成候选再次合成导致重复）
-    var baseCandidates: [CandidateSuggestion] = []
-    if let menu = rimeContext.rimeContext?.menu {
-      let highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
-      baseCandidates = rimeContext.candidateListLimit(
-        index: rimeContext.candidateIndex,
-        highlightIndex: highlightIndex,
-        count: rimeContext.maximumNumberOfCandidateWords
-      )
-    } else {
-      baseCandidates = rimeContext.candidateListLimit(
-        index: rimeContext.candidateIndex,
-        highlightIndex: 0,
-        count: rimeContext.maximumNumberOfCandidateWords
-      )
-      if baseCandidates.isEmpty {
-        baseCandidates = rimeContext.suggestions
+    func fetchBaseCandidates() -> [CandidateSuggestion] {
+      var candidates: [CandidateSuggestion] = []
+      let hasRimePreedit = !(rimeContext.rimeContext?.composition?.preedit?.isEmpty ?? true)
+      let rimeComposing = rimeContext.isComposing && hasRimePreedit
+      if rimeComposing, let menu = rimeContext.rimeContext?.menu {
+        let highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
+        candidates = rimeContext.candidateListLimit(
+          index: rimeContext.candidateIndex,
+          highlightIndex: highlightIndex,
+          count: rimeContext.maximumNumberOfCandidateWords
+        )
+      } else if rimeComposing, !rimeContext.getInputKeys().isEmpty {
+        candidates = rimeContext.candidateListLimit(
+          index: rimeContext.candidateIndex,
+          highlightIndex: 0,
+          count: rimeContext.maximumNumberOfCandidateWords
+        )
+        if candidates.isEmpty {
+          candidates = rimeContext.suggestions
+        }
       }
+      return candidates
     }
 
+    var baseCandidates = fetchBaseCandidates()
+    let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+    if rimeContext.mixedInputManager.hasLiteral,
+       mixedInputSelectedPinyinPrefix != nil,
+       !prefixPending.isEmpty,
+       !mixedInputResyncing
+    {
+      mixedInputResyncing = true
+      syncRimeInputWithMixedPinyinIfNeeded()
+      baseCandidates = fetchBaseCandidates()
+      mixedInputResyncing = false
+    } else if baseCandidates.isEmpty,
+              rimeContext.mixedInputManager.hasLiteral,
+              !prefixPending.isEmpty,
+              mixedInputSelectedPinyinPrefix != nil,
+              !mixedInputResyncing
+    {
+      mixedInputResyncing = true
+      syncRimeInputWithMixedPinyinIfNeeded()
+      baseCandidates = fetchBaseCandidates()
+      mixedInputResyncing = false
+    }
+    if rimeContext.mixedInputManager.hasLiteral,
+       mixedInputSelectedPinyinPrefix != nil,
+       !prefixPending.isEmpty,
+       mixedInputPrefixCandidates.isEmpty
+    {
+      mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates()
+      mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(currentRimePreeditText())
+    }
     let composedCandidates: [CandidateSuggestion]
     if rimeContext.mixedInputManager.hasLiteral, !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
       let digitPrefix = rimeContext.mixedInputManager.digitLiteralBeforeFirstPinyin
       let syllablesBeforeMiddleDigit = rimeContext.mixedInputManager.syllableCountBeforeMiddleDigit
+      let hasPinyinPrefixCandidates = !mixedInputPrefixCandidates.isEmpty
       let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
       let hasNumericPrefix = !prefixLiteral.isEmpty && prefixLiteral.allSatisfy { $0.isNumber }
+      let hasNonDigitPrefixLiteral = !prefixLiteral.isEmpty && !prefixLiteral.allSatisfy { $0.isNumber }
       if !hasNumericPrefix {
         mixedInputSelectedNumericPrefix = nil
       } else if let selected = mixedInputSelectedNumericPrefix, selected != prefixLiteral {
@@ -1627,12 +1683,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let shouldInjectPrefixCandidates = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
       let limited = Array(baseCandidates.prefix(20))
       let hasDigitPrefix = !digitPrefix.isEmpty
+      let prioritizeDigitPrefix = hasDigitPrefix && hasNonDigitPrefixLiteral
       let appendCount = min(hasDigitPrefix ? 1 : mixedInputAppendDigitCandidateCount, limited.count)
 
       var mergedTexts: [(text: String, index: Int, subtitle: String?)] = []
       var seen = Set<String>()
       var injectedIndex = mixedInputInjectedCandidateIndexBase
       var prefixInjectedIndex = mixedInputPrefixCandidateIndexBase
+      var pinyinPrefixInjectedIndex = mixedInputPinyinPrefixCandidateIndexBase
 
       func appendCandidate(text: String, index: Int, subtitle: String?) {
         guard !text.isEmpty else { return }
@@ -1641,18 +1699,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       }
 
-      if appendCount > 0 {
-        for index in 0..<appendCount {
-          let candidate = limited[index]
-          let text = rimeContext.mixedInputManager.composeCandidateForDisplay(
-            candidate.text,
-            includePrefixLiteral: includePrefixLiteral
-          )
-          appendCandidate(text: text, index: candidate.index, subtitle: candidate.subtitle)
-        }
-      }
-
-      if hasDigitPrefix {
+      func appendDigitPrefixCandidates(includeCombo: Bool) {
         let digitCandidateSeed = normalizedAsciiDigits(from: digitPrefix) ?? digitPrefix
         let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitCandidateSeed)
         for text in numericTexts {
@@ -1660,6 +1707,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           injectedIndex -= 1
         }
 
+        guard includeCombo else { return }
         let preedit = currentRimePreeditText()
         let rawTail = preedit.replacingOccurrences(of: " ", with: "")
         if !rawTail.isEmpty {
@@ -1676,13 +1724,98 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       }
 
+      let middleDigitLiteral = rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin
+      let hasMiddleDigit = !middleDigitLiteral.isEmpty
+      let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+      let hasSuffixPinyin = !rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral.isEmpty
+      let prefixChosen = mixedInputSelectedPinyinPrefix != nil
+      let effectiveSuffixMode = (mixedInputSuffixMode || hasMiddleDigit) && (prefixPending.isEmpty || !prefixChosen)
+      let shouldUseSuffixCandidates = hasSuffixPinyin && !prefixChosen
+      let deferPrefixCandidates = hasMiddleDigit && prefixChosen && !prefixPending.isEmpty
+
+      if hasMiddleDigit,
+         let prefixCandidate = mixedInputPrefixCandidates.first?.text,
+         !prefixCandidate.isEmpty
+      {
+        let suffixCandidate = shouldUseSuffixCandidates ? (baseCandidates.first?.text ?? "") : ""
+        let combinedText = prefixCandidate + middleDigitLiteral + suffixCandidate
+        appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+      }
+
+      if prioritizeDigitPrefix {
+        let suffixCandidate = shouldUseSuffixCandidates ? (baseCandidates.first?.text ?? "") : ""
+        let combinedText = digitPrefix + suffixCandidate
+        appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+      }
+
+      if hasPinyinPrefixCandidates, !deferPrefixCandidates {
+        if hasMiddleDigit {
+          let headCount = min(4, mixedInputPrefixCandidates.count)
+          for candidate in mixedInputPrefixCandidates.prefix(headCount) {
+            appendCandidate(text: candidate.text, index: pinyinPrefixInjectedIndex, subtitle: candidate.subtitle)
+            pinyinPrefixInjectedIndex -= 1
+          }
+        } else {
+          for candidate in mixedInputPrefixCandidates {
+            appendCandidate(text: candidate.text, index: pinyinPrefixInjectedIndex, subtitle: candidate.subtitle)
+            pinyinPrefixInjectedIndex -= 1
+          }
+        }
+      }
+
+      if hasMiddleDigit {
+        let digitSeed = normalizedAsciiDigits(from: middleDigitLiteral) ?? middleDigitLiteral
+        let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitSeed)
+        for text in numericTexts {
+          appendCandidate(text: text, index: injectedIndex, subtitle: nil)
+          injectedIndex -= 1
+        }
+      }
+
+      if hasPinyinPrefixCandidates, hasMiddleDigit, !deferPrefixCandidates, mixedInputPrefixCandidates.count > 4 {
+        for candidate in mixedInputPrefixCandidates.dropFirst(4) {
+          appendCandidate(text: candidate.text, index: pinyinPrefixInjectedIndex, subtitle: candidate.subtitle)
+          pinyinPrefixInjectedIndex -= 1
+        }
+      }
+      if hasPinyinPrefixCandidates, deferPrefixCandidates {
+        for candidate in mixedInputPrefixCandidates {
+          appendCandidate(text: candidate.text, index: pinyinPrefixInjectedIndex, subtitle: candidate.subtitle)
+          pinyinPrefixInjectedIndex -= 1
+        }
+      }
+
+      if prioritizeDigitPrefix {
+        appendDigitPrefixCandidates(includeCombo: false)
+      }
+
+      if appendCount > 0 {
+        for index in 0..<appendCount {
+          let candidate = limited[index]
+          let text = effectiveSuffixMode
+            ? candidate.text
+            : rimeContext.mixedInputManager.composeCandidateForDisplay(
+              candidate.text,
+              includePrefixLiteral: includePrefixLiteral
+            )
+          appendCandidate(text: text, index: candidate.index, subtitle: candidate.subtitle)
+        }
+      }
+
+      if hasDigitPrefix && !prioritizeDigitPrefix {
+        appendDigitPrefixCandidates(includeCombo: true)
+      }
+
+      let shouldFilterBySyllables = syllablesBeforeMiddleDigit > 0 && !effectiveSuffixMode
       for candidate in limited {
-        if syllablesBeforeMiddleDigit > 0, candidate.text.count > syllablesBeforeMiddleDigit {
+        if shouldFilterBySyllables, candidate.text.count > syllablesBeforeMiddleDigit {
           continue
         }
-        let text = includePrefixLiteral
-          ? rimeContext.mixedInputManager.composeCandidateForDisplay(candidate.text, includePrefixLiteral: true)
-          : candidate.text
+        let text = effectiveSuffixMode
+          ? candidate.text
+          : (includePrefixLiteral
+            ? rimeContext.mixedInputManager.composeCandidateForDisplay(candidate.text, includePrefixLiteral: true)
+            : candidate.text)
         appendCandidate(text: text, index: candidate.index, subtitle: candidate.subtitle)
       }
 
@@ -1734,6 +1867,62 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private func mixedInputEffectiveAppendDigitCandidateCount() -> Int {
     let digitPrefix = rimeContext.mixedInputManager.digitLiteralBeforeFirstPinyin
     return digitPrefix.isEmpty ? mixedInputAppendDigitCandidateCount : 1
+  }
+
+  private func resetMixedInputPrefixCache() {
+    mixedInputSelectedPinyinPrefix = nil
+    mixedInputPrefixCandidates.removeAll()
+    mixedInputPrefixPinyinLetterCount = 0
+    mixedInputSuffixMode = false
+  }
+
+  private func resetMixedInputFreezeState() {
+    resetMixedInputPrefixCache()
+  }
+
+  private func mixedInputPinyinLetterCount(_ text: String) -> Int {
+    var count = 0
+    for scalar in text.unicodeScalars {
+      if scalar == "ü" || scalar == "Ü" {
+        count += 1
+        continue
+      }
+      if scalar.isASCII, CharacterSet.letters.contains(scalar) {
+        count += 1
+      }
+    }
+    return count
+  }
+
+  private func snapshotMixedInputPrefixCandidates(limit: Int = 10) -> [(text: String, subtitle: String?)] {
+    var results: [(text: String, subtitle: String?)] = []
+    var candidates: [CandidateSuggestion] = []
+    let hasRimePreedit = !(rimeContext.rimeContext?.composition?.preedit?.isEmpty ?? true)
+    let rimeComposing = rimeContext.isComposing && hasRimePreedit
+    if rimeComposing, let menu = rimeContext.rimeContext?.menu {
+      let highlightIndex = Int(menu.pageSize * menu.pageNo + menu.highlightedCandidateIndex)
+      candidates = rimeContext.candidateListLimit(
+        index: rimeContext.candidateIndex,
+        highlightIndex: highlightIndex,
+        count: rimeContext.maximumNumberOfCandidateWords
+      )
+    } else if rimeComposing {
+      candidates = rimeContext.candidateListLimit(
+        index: rimeContext.candidateIndex,
+        highlightIndex: 0,
+        count: rimeContext.maximumNumberOfCandidateWords
+      )
+      if candidates.isEmpty {
+        candidates = rimeContext.suggestions
+      }
+    } else {
+      candidates = rimeContext.suggestions
+    }
+    for candidate in candidates {
+      results.append((text: candidate.text, subtitle: candidate.subtitle))
+      if results.count >= limit { break }
+    }
+    return results
   }
 
   private func mixedInputCandidateContainsLetters(_ text: String) -> Bool {
@@ -1814,10 +2003,38 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return result
   }
 
+  private func mixedInputLeadingNonDigitLiteralSegmentCount() -> Int {
+    var count = 0
+    for segment in rimeContext.mixedInputManager.segments {
+      guard segment.isLiteral else { break }
+      let commit = segment.commitText
+      if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+        break
+      }
+      count += 1
+    }
+    return count
+  }
+
   private func syncRimeInputWithMixedPinyinIfNeeded() {
     rimeContext.resetCompositionKeepingMixedInput()
     rimeContext.selectCandidatePinyin = nil
-    let mixedPinyin = rimeContext.mixedInputManager.pinyinOnly.replacingOccurrences(of: " ", with: "")
+    let hasMiddleDigit = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+    let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+    let hasSuffixPinyin = !rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral.isEmpty
+    let prefixChosen = mixedInputSelectedPinyinPrefix != nil
+    let effectiveSuffixMode = (mixedInputSuffixMode || hasMiddleDigit) && (prefixPending.isEmpty || !prefixChosen)
+    let pinyinSource: String
+    if hasMiddleDigit, hasSuffixPinyin, !prefixChosen {
+      pinyinSource = rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral
+    } else if !prefixPending.isEmpty {
+      pinyinSource = prefixPending
+    } else if effectiveSuffixMode {
+      pinyinSource = rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral
+    } else {
+      pinyinSource = rimeContext.mixedInputManager.pinyinOnly
+    }
+    let mixedPinyin = pinyinSource.replacingOccurrences(of: " ", with: "")
     guard !mixedPinyin.isEmpty else { return }
     for char in mixedPinyin {
       _ = rimeContext.tryHandleInputText(String(char))
@@ -1850,6 +2067,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           updateMixedInputSuggestions()
           return true
         }
+      }
+    }
+
+    let middleDigit = rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin
+    if !middleDigit.isEmpty {
+      let middleCandidates = numericCandidates(for: middleDigit)
+      if middleCandidates.contains(trimmed),
+         rimeContext.mixedInputManager.replaceDigitLiteralAfterFirstPinyin(with: trimmed)
+      {
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return true
       }
     }
 
@@ -2020,6 +2250,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     rimeContext.reset()
     mixedInputSelectedNumericPrefix = nil
+    resetMixedInputFreezeState()
     Task { @MainActor in
       self.rimeContext.textReplacementSuggestions = []
     }
@@ -2027,8 +2258,23 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   private func mixedInputCommittedPinyinCount(from comment: String?) -> Int {
     guard let comment, !comment.isEmpty else { return 0 }
+    let normalized = comment.applyingTransform(.stripDiacritics, reverse: false) ?? comment
     var count = 0
-    for scalar in comment.unicodeScalars {
+    for scalar in normalized.unicodeScalars {
+      if scalar == "ü" || scalar == "Ü" {
+        count += 1
+        continue
+      }
+      if scalar.isASCII && CharacterSet.letters.contains(scalar) {
+        count += 1
+      }
+    }
+    return count
+  }
+
+  private func mixedInputLetterCount(_ text: String) -> Int {
+    var count = 0
+    for scalar in text.unicodeScalars {
       if scalar == "ü" || scalar == "Ü" {
         count += 1
         continue
@@ -2046,13 +2292,22 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     var consumed = 0
     var syllables = 0
     var prevWasVowel = false
+    var reachedTarget = false
     for char in text {
-      consumed += 1
       let isVowel = vowels.contains(char)
+      if reachedTarget {
+        if isVowel && !prevWasVowel {
+          break
+        }
+        consumed += 1
+        prevWasVowel = isVowel
+        continue
+      }
+      consumed += 1
       if isVowel && !prevWasVowel {
         syllables += 1
         if syllables >= syllableCount {
-          break
+          reachedTarget = true
         }
       }
       prevWasVowel = isVowel
@@ -2064,10 +2319,33 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard targetSyllables > 0 else { return 0 }
     var remaining = targetSyllables
     var total = 0
+    func countLetters(_ text: Substring) -> Int {
+      var count = 0
+      for scalar in text.unicodeScalars {
+        if scalar == "ü" || scalar == "Ü" {
+          count += 1
+          continue
+        }
+        if scalar.isASCII && CharacterSet.letters.contains(scalar) {
+          count += 1
+        }
+      }
+      return count
+    }
     for segment in rimeContext.mixedInputManager.segments {
       guard segment.isPinyin else { continue }
       let text = segment.text
       guard !text.isEmpty else { continue }
+      if text.contains(" ") || text.contains("'") {
+        let tokens = text.split { $0 == " " || $0 == "'" }
+        for token in tokens {
+          if remaining <= 0 { break }
+          total += countLetters(token)
+          remaining -= 1
+        }
+        if remaining == 0 { break }
+        continue
+      }
       let syllables = rimeContext.mixedInputManager.countSyllables(text)
       if remaining >= syllables {
         total += text.count
@@ -2138,7 +2416,52 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         )
       }
     }
-    if rimeIndex < 0 {
+
+    let hasMiddleDigitLiteral = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+    let hasSuffixPinyin = !rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral.isEmpty
+    let syllablesBeforeMiddleDigit = rimeContext.mixedInputManager.syllableCountBeforeMiddleDigit
+    let digitsInCandidate = candidateText.filter { isDecimalDigit($0) }
+    let nonDigitsInCandidate = candidateText.filter { !isDecimalDigit($0) }
+    let isCombinedCandidate = rimeIndex <= mixedInputCombinedCandidateIndexBase
+    let shouldSegmentCombinedCandidate = hasMiddleDigitLiteral
+      && hasSuffixPinyin
+      && !digitsInCandidate.isEmpty
+      && !nonDigitsInCandidate.isEmpty
+      && nonDigitsInCandidate.count <= syllablesBeforeMiddleDigit
+    if isCombinedCandidate, !shouldSegmentCombinedCandidate {
+      commitMixedInputCandidateDirectly(candidateText)
+      return
+    }
+
+    if !mixedInputPrefixCandidates.isEmpty,
+       !isCombinedCandidate,
+       rimeIndex <= mixedInputPinyinPrefixCandidateIndexBase
+    {
+      let commentCount = mixedInputCommittedPinyinCount(from: candidateSubtitle)
+      let syllableCount = mixedInputCommittedPinyinCountBySyllables(targetSyllables: candidateText.count)
+      var committedCount = syllableCount
+      if committedCount == 0 {
+        committedCount = min(commentCount, mixedInputPrefixPinyinLetterCount)
+      }
+      if committedCount == 0 { committedCount = mixedInputPrefixPinyinLetterCount }
+      if committedCount > 0 {
+        rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
+          committedCount: committedCount,
+          commitText: candidateText
+        )
+        rimeContext.mixedInputManager.literalPrefixSegmentCount =
+          mixedInputLeadingNonDigitLiteralSegmentCount()
+        mixedInputSelectedPinyinPrefix = candidateText
+        mixedInputPrefixCandidates.removeAll()
+        mixedInputPrefixPinyinLetterCount = 0
+        syncRimeInputWithMixedPinyinIfNeeded()
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return
+      }
+    }
+
+    if rimeIndex < 0, !isCombinedCandidate {
       if mixedInputCandidateContainsLetters(candidateText) {
         commitMixedInputCandidateDirectly(candidateText)
         return
@@ -2154,7 +2477,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
 
-    if mixedInputCandidateIsDigitsOnly(candidateText) {
+    if mixedInputCandidateIsDigitsOnly(candidateText), !isCombinedCandidate {
       if rimeContext.mixedInputManager.upsertDigitLiteralBeforeFirstPinyin(with: candidateText) {
         if !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
           rimeContext.mixedInputManager.literalPrefixSegmentCount =
@@ -2175,9 +2498,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       subtitle = menu.candidates[displayIndex].comment
     }
 
-    let syllablesBeforeMiddleDigit = rimeContext.mixedInputManager.syllableCountBeforeMiddleDigit
-    let digitsInCandidate = candidateText.filter { isDecimalDigit($0) }
-    let nonDigitsInCandidate = candidateText.filter { !isDecimalDigit($0) }
+    let prefixPendingBeforeDigit = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
     if syllablesBeforeMiddleDigit > 0,
        !digitsInCandidate.isEmpty,
        !nonDigitsInCandidate.isEmpty,
@@ -2193,11 +2514,25 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         )
         rimeContext.mixedInputManager.insertLiteralSegment(String(nonDigitsInCandidate), at: insertIndex)
 
-        _ = rimeContext.mixedInputManager.upsertDigitLiteralBeforeFirstPinyin(with: String(digitsInCandidate))
+        if !rimeContext.mixedInputManager.replaceDigitLiteralAfterFirstPinyin(with: String(digitsInCandidate)) {
+          _ = rimeContext.mixedInputManager.upsertDigitLiteralBeforeFirstPinyin(with: String(digitsInCandidate))
+        }
+
+        let residualPrefix = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+        if !residualPrefix.isEmpty {
+          let residualCount = mixedInputLetterCount(residualPrefix)
+          if residualCount > 0 {
+            rimeContext.mixedInputManager.trimLeadingPinyinLetters(residualCount)
+          }
+        }
+
         if !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
           rimeContext.mixedInputManager.literalPrefixSegmentCount =
             rimeContext.mixedInputManager.leadingLiteralSegmentCount
         }
+
+        mixedInputPrefixCandidates.removeAll()
+        mixedInputPrefixPinyinLetterCount = 0
 
         syncRimeInputWithMixedPinyinIfNeeded()
         rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
@@ -2219,6 +2554,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         let consumeSyllables = min(candidateText.count, syllables.count)
         committedCount = syllables.prefix(consumeSyllables).reduce(0) { $0 + $1.count }
       }
+    }
+
+    if syllablesBeforeMiddleDigit > 0,
+       mixedInputSelectedPinyinPrefix == nil,
+       committedCount > 0,
+       prefixPendingBeforeDigit.isEmpty,
+       rimeContext.mixedInputManager.commitTrailingPinyinAsLiteralAfterMiddleDigit(
+         committedCount: committedCount,
+         commitText: candidateText
+       )
+    {
+      rimeContext.resetCompositionKeepingMixedInput()
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      updateMixedInputSuggestions()
+      return
     }
 
     let trailingDigits = mixedInputTrailingDigitLiteralAfterLastPinyin()
@@ -2249,18 +2599,39 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     let appendCount = mixedInputEffectiveAppendDigitCandidateCount()
-    if displayIndex < appendCount {
+    let hasMiddleDigit = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+    let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+    let allowAppendLiteral = !(hasMiddleDigit && !prefixPending.isEmpty)
+    if displayIndex < appendCount, allowAppendLiteral {
       rimeContext.mixedInputCommitBehavior = .appendLiteral
       rimeContext.selectCandidate(index: rimeIndex)
       return
+    }
+    if hasMiddleDigit, !prefixPending.isEmpty {
+      let syllableCommit = mixedInputCommittedPinyinCountBySyllables(targetSyllables: candidateText.count)
+      if syllableCommit > 0 {
+        committedCount = syllableCommit
+      }
     }
     if committedCount > 0 {
       rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
         committedCount: committedCount,
         commitText: candidateText
       )
-      rimeContext.mixedInputManager.literalPrefixSegmentCount =
-        rimeContext.mixedInputManager.segments.first?.isLiteral == true ? 1 : 0
+      let hasMiddleDigit = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+      let pendingPrefix = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
+      if hasMiddleDigit {
+        rimeContext.mixedInputManager.literalPrefixSegmentCount =
+          mixedInputLeadingNonDigitLiteralSegmentCount()
+        if !pendingPrefix.isEmpty {
+          mixedInputSelectedPinyinPrefix = candidateText
+          mixedInputPrefixCandidates.removeAll()
+          mixedInputPrefixPinyinLetterCount = 0
+        }
+      } else {
+        rimeContext.mixedInputManager.literalPrefixSegmentCount =
+          rimeContext.mixedInputManager.segments.first?.isLiteral == true ? 1 : 0
+      }
 
       if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
         let commitText = rimeContext.mixedInputManager.displayText.replacingOccurrences(of: " ", with: "")
@@ -2376,6 +2747,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       clearEnglishState()
       rimeContext.compositionPrefix = ""
       rimeContext.userInputKey = ""
+      resetMixedInputFreezeState()
       return
     }
     if isAzooKeyInputActive {
@@ -2383,10 +2755,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       clearAzooKeyState()
       rimeContext.compositionPrefix = ""
       rimeContext.userInputKey = ""
+      resetMixedInputFreezeState()
       return
     }
     rimeContext.compositionPrefix = ""
     rimeContext.reset()
+    resetMixedInputFreezeState()
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
@@ -2397,15 +2771,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     if keyCode == XK_Return,
        rimeContext.mixedInputManager.hasLiteral,
-       rimeContext.mixedInputManager.pinyinOnly.isEmpty,
        !rimeContext.userInputKey.isEmpty
     {
       let commit = rimeContext.mixedInputManager.displayText.replacingOccurrences(of: " ", with: "")
       if !commit.isEmpty {
-        textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
-        insertTextPatch(commit)
+        commitMixedInputText(commit)
+      } else {
+        rimeContext.reset()
+        resetMixedInputFreezeState()
       }
-      rimeContext.reset()
       return
     }
     if isUnifiedCompositionBufferEnabled, keyCode == XK_space {

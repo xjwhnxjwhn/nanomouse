@@ -116,6 +116,75 @@ public class MixedInputManager {
         }.joined()
     }
 
+    /// 第一个 literal 之后的拼音（用于数字夹杂后的后缀输入）
+    public var pinyinOnlyAfterFirstLiteral: String {
+        var result = ""
+        var seenLiteral = false
+        for segment in segments {
+            if segment.isLiteral {
+                seenLiteral = true
+                continue
+            }
+            if seenLiteral, case .pinyin(let s) = segment.type {
+                result += s
+            }
+        }
+        return result
+    }
+
+    /// 第一个数字 literal 之前的拼音（忽略非数字 literal 前缀）
+    public var pinyinOnlyBeforeFirstDigitLiteral: String {
+        var result = ""
+        for segment in segments {
+            if segment.isLiteral {
+                let commit = segment.commitText
+                if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+                    break
+                }
+                continue
+            }
+            if case .pinyin(let s) = segment.type {
+                result += s
+            }
+        }
+        return result
+    }
+
+    /// 第一个拼音之后的数字 literal（用于数字夹杂后的数字候选）
+    public var digitLiteralAfterFirstPinyin: String {
+        var seenPinyin = false
+        for segment in segments {
+            if segment.isPinyin {
+                seenPinyin = true
+                continue
+            }
+            if seenPinyin, case .literal(_, let commit) = segment.type {
+                guard !commit.isEmpty else { return "" }
+                return commit.allSatisfy({ $0.isNumber }) ? commit : ""
+            }
+        }
+        return ""
+    }
+
+    /// 替换第一个拼音之后的数字 literal
+    public func replaceDigitLiteralAfterFirstPinyin(with text: String) -> Bool {
+        guard !text.isEmpty, text.allSatisfy({ $0.isNumber }) else { return false }
+        var seenPinyin = false
+        for index in segments.indices {
+            let segment = segments[index]
+            if segment.isPinyin {
+                seenPinyin = true
+                continue
+            }
+            if seenPinyin, segment.isLiteral {
+                guard isDigitLiteral(segment) else { return false }
+                segments[index] = Segment(type: .literal(display: text, commit: text))
+                return true
+            }
+        }
+        return false
+    }
+
     /// 仅直接文本部分
     public var literalOnly: String {
         segments.compactMap {
@@ -488,7 +557,10 @@ public class MixedInputManager {
                     }
                     keptScalars.append(scalar)
                 }
-                let suffix = String(keptScalars)
+                var suffix = String(keptScalars)
+                while let first = suffix.first, first == " " || first == "'" {
+                    suffix.removeFirst()
+                }
                 if !suffix.trimmingCharacters(in: .whitespaces).isEmpty {
                     newSegments.append(Segment(type: .pinyin(suffix)))
                 }
@@ -524,6 +596,72 @@ public class MixedInputManager {
             segments[prevIndex] = Segment(type: .literal(display: display + adjustedCommitText, commit: commit + adjustedCommitText))
             segments.remove(at: safeIndex)
         }
+    }
+
+    /// 将中间数字后的拼音提交为直接文本（保留数字前的拼音段）
+    /// - Returns: 是否成功
+    public func commitTrailingPinyinAsLiteralAfterMiddleDigit(committedCount: Int, commitText: String) -> Bool {
+        guard committedCount > 0, !commitText.isEmpty else { return false }
+        var seenPinyin = false
+        var middleDigitIndex: Int?
+        for index in segments.indices {
+            let segment = segments[index]
+            if segment.isPinyin {
+                seenPinyin = true
+                continue
+            }
+            if isDigitLiteral(segment), seenPinyin {
+                let hasPinyinAfter = segments[(index + 1)...].contains { $0.isPinyin }
+                if hasPinyinAfter {
+                    middleDigitIndex = index
+                    break
+                }
+            }
+        }
+        guard let digitIndex = middleDigitIndex else { return false }
+
+        var newSegments: [Segment] = Array(segments[...digitIndex])
+        var remaining = committedCount
+        var inserted = false
+
+        for segment in segments[(digitIndex + 1)...] {
+            switch segment.type {
+            case .literal:
+                if !inserted {
+                    newSegments.append(Segment(type: .literal(display: commitText, commit: commitText)))
+                    inserted = true
+                }
+                newSegments.append(segment)
+            case .pinyin(let text):
+                if !inserted {
+                    newSegments.append(Segment(type: .literal(display: commitText, commit: commitText)))
+                    inserted = true
+                }
+                if remaining > 0 {
+                    var keptScalars = String.UnicodeScalarView()
+                    for scalar in text.unicodeScalars {
+                        if remaining > 0, isPinyinLetter(scalar) {
+                            remaining -= 1
+                            continue
+                        }
+                        keptScalars.append(scalar)
+                    }
+                    let suffix = String(keptScalars)
+                    if !suffix.isEmpty {
+                        newSegments.append(Segment(type: .pinyin(suffix)))
+                    }
+                } else {
+                    newSegments.append(segment)
+                }
+            }
+        }
+
+        if !inserted {
+            newSegments.append(Segment(type: .literal(display: commitText, commit: commitText)))
+        }
+
+        segments = newSegments
+        return true
     }
 
     /// 从拼音段起始处删除指定数量的拼音字符（用于分段选择后同步）
