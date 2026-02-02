@@ -1158,47 +1158,49 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     // 借鉴 AzooKey：如果混合输入管理器中有直接文本（数字），先删除数字
-    if rimeContext.hasMixedInputRevertSelection,
-       let restore = rimeContext.consumeMixedInputRevertSelection()
-    {
-      Task { @MainActor in
-        func isPinyinLetter(_ scalar: UnicodeScalar) -> Bool {
-          if scalar == "ü" || scalar == "Ü" { return true }
-          return scalar.isASCII && CharacterSet.letters.contains(scalar)
-        }
-
-        let display = restore.displayText.isEmpty ? restore.rawInputKeys : restore.displayText
-        let lettersOnly = display.unicodeScalars.filter { isPinyinLetter($0) }.map(String.init).joined()
-
-        self.rimeContext.reset()
-        self.resetMixedInputFreezeState()
-        for char in lettersOnly {
-          _ = self.rimeContext.tryHandleInputText(String(char))
-        }
-
-        self.rimeContext.mixedInputManager.reset()
-        self.mixedInputSelectedNumericPrefix = nil
-        self.rimeContext.mixedInputManager.rebuildSegments(from: display)
-        if !restore.prefixLiteral.isEmpty {
-          var remaining = restore.prefixLiteral
-          var count = 0
-          for segment in self.rimeContext.mixedInputManager.segments {
-            guard segment.isLiteral else { break }
-            let text = segment.text
-            if remaining.hasPrefix(text) {
-              remaining.removeFirst(text.count)
-              count += 1
-              if remaining.isEmpty { break }
-            } else {
-              break
-            }
+    if rimeContext.hasMixedInputRevertSelection {
+      if rimeContext.mixedInputManager.hasLiteral {
+        _ = rimeContext.consumeMixedInputRevertSelection()
+      } else if let restore = rimeContext.consumeMixedInputRevertSelection() {
+        Task { @MainActor in
+          func isPinyinLetter(_ scalar: UnicodeScalar) -> Bool {
+            if scalar == "ü" || scalar == "Ü" { return true }
+            return scalar.isASCII && CharacterSet.letters.contains(scalar)
           }
-          self.rimeContext.mixedInputManager.literalPrefixSegmentCount = max(count, 1)
+
+          let display = restore.displayText.isEmpty ? restore.rawInputKeys : restore.displayText
+          let lettersOnly = display.unicodeScalars.filter { isPinyinLetter($0) }.map(String.init).joined()
+
+          self.rimeContext.reset()
+          self.resetMixedInputFreezeState()
+          for char in lettersOnly {
+            _ = self.rimeContext.tryHandleInputText(String(char))
+          }
+
+          self.rimeContext.mixedInputManager.reset()
+          self.mixedInputSelectedNumericPrefix = nil
+          self.rimeContext.mixedInputManager.rebuildSegments(from: display)
+          if !restore.prefixLiteral.isEmpty {
+            var remaining = restore.prefixLiteral
+            var count = 0
+            for segment in self.rimeContext.mixedInputManager.segments {
+              guard segment.isLiteral else { break }
+              let text = segment.text
+              if remaining.hasPrefix(text) {
+                remaining.removeFirst(text.count)
+                count += 1
+                if remaining.isEmpty { break }
+              } else {
+                break
+              }
+            }
+            self.rimeContext.mixedInputManager.literalPrefixSegmentCount = max(count, 1)
+          }
+          self.rimeContext.userInputKey = self.rimeContext.compositionPrefix + self.rimeContext.mixedInputManager.displayText
+          self.updateMixedInputSuggestions()
         }
-        self.rimeContext.userInputKey = self.rimeContext.compositionPrefix + self.rimeContext.mixedInputManager.displayText
-        self.updateMixedInputSuggestions()
+        return
       }
-      return
     }
 
     if rimeContext.mixedInputManager.hasLiteral {
@@ -1580,16 +1582,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         literalExcludingPrefix = literalOnly
       }
       let useFullLiteral: Bool
-      if configuredPrefixCount > 0,
-         !literalExcludingPrefix.isEmpty,
-         !isNumericLiteralText(literalExcludingPrefix)
-      {
-        useFullLiteral = true
+      if configuredPrefixCount > 0 {
+        if literalExcludingPrefix.isEmpty {
+          useFullLiteral = true
+        } else if !isNumericLiteralText(literalExcludingPrefix) {
+          useFullLiteral = true
+        } else {
+          useFullLiteral = false
+        }
       } else {
-        useFullLiteral = configuredPrefixCount == 0
+        useFullLiteral = true
       }
       let literal = useFullLiteral ? literalOnly : literalExcludingPrefix
-      let texts = NumericCandidateGenerator.candidateTexts(for: literal)
+      let texts = literal.isEmpty ? [] : NumericCandidateGenerator.candidateTexts(for: literal)
       Task { @MainActor in
         var newSuggestions: [CandidateSuggestion] = []
         for (index, text) in texts.enumerated() {
@@ -1605,6 +1610,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
         if !newSuggestions.isEmpty {
           self.rimeContext.suggestions = newSuggestions
+        } else {
+          self.rimeContext.suggestions = []
         }
       }
       return
