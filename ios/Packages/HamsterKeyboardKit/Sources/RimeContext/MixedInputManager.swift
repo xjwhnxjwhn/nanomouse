@@ -138,7 +138,7 @@ public class MixedInputManager {
         for segment in segments {
             if segment.isLiteral {
                 let commit = segment.commitText
-                if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+                if !commit.isEmpty, isNumericLiteralText(commit) {
                     break
                 }
                 continue
@@ -160,7 +160,7 @@ public class MixedInputManager {
             }
             if seenPinyin, case .literal(_, let commit) = segment.type {
                 guard !commit.isEmpty else { return "" }
-                return commit.allSatisfy({ $0.isNumber }) ? commit : ""
+                return isNumericLiteralText(commit) ? commit : ""
             }
         }
         return ""
@@ -168,7 +168,7 @@ public class MixedInputManager {
 
     /// 替换第一个拼音之后的数字 literal
     public func replaceDigitLiteralAfterFirstPinyin(with text: String) -> Bool {
-        guard !text.isEmpty, text.allSatisfy({ $0.isNumber }) else { return false }
+        guard !text.isEmpty, isNumericLiteralText(text) else { return false }
         var seenPinyin = false
         for index in segments.indices {
             let segment = segments[index]
@@ -312,7 +312,7 @@ public class MixedInputManager {
             let isLetter = scalar.map { $0.isASCII && CharacterSet.letters.contains($0) } ?? false
             let isUmlaut = ch == "ü" || ch == "Ü"
             let isPinyin = isLetter || isUmlaut
-            let isDigit = ch.isNumber
+            let isDigit = ch.isNumber || (isNumericSeparator(ch) && isNumericLiteralText(currentCommit))
 
             if isPinyin {
                 if currentType == nil {
@@ -332,7 +332,7 @@ public class MixedInputManager {
                 flush()
                 currentType = .literal(display: "", commit: "")
             } else if case .literal = currentType {
-                let currentIsDigit = !currentCommit.isEmpty && currentCommit.allSatisfy { $0.isNumber }
+                let currentIsDigit = !currentCommit.isEmpty && isNumericLiteralText(currentCommit)
                 if currentIsDigit != isDigit {
                     flush()
                     currentType = .literal(display: "", commit: "")
@@ -450,9 +450,32 @@ public class MixedInputManager {
 
     private func isDigitLiteral(_ segment: Segment) -> Bool {
         if case .literal(_, let commit) = segment.type {
-            return !commit.isEmpty && commit.allSatisfy { $0.isNumber }
+            return !commit.isEmpty && isNumericLiteralText(commit)
         }
         return false
+    }
+
+    private func isNumericSeparator(_ ch: Character) -> Bool {
+        return ch == "," || ch == "." || ch == "，" || ch == "．"
+    }
+
+    private func isNumericLiteralText(_ text: String) -> Bool {
+        var sawDigit = false
+        for ch in text {
+            if ch.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+                sawDigit = true
+                continue
+            }
+            if ch.isNumber {
+                sawDigit = true
+                continue
+            }
+            if isNumericSeparator(ch) {
+                continue
+            }
+            return false
+        }
+        return sawDigit
     }
 
     /// 前缀 literal 之后、拼音之前的数字 literal（用于数字插入到拼音中间的场景）
@@ -471,7 +494,7 @@ public class MixedInputManager {
                     skipped += 1
                     continue
                 }
-                if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+                if !commit.isEmpty, isNumericLiteralText(commit) {
                     digits += commit
                     hasDigit = true
                 } else if !commit.isEmpty {
@@ -486,7 +509,7 @@ public class MixedInputManager {
     /// 替换或插入前缀 literal 之后、首个拼音之前的数字 literal
     /// - Returns: 是否成功（找到/插入）
     public func upsertDigitLiteralBeforeFirstPinyin(with text: String) -> Bool {
-        guard !text.isEmpty, text.allSatisfy({ $0.isNumber }) else { return false }
+        guard !text.isEmpty, isNumericLiteralText(text) else { return false }
         let prefixCount = effectiveLiteralPrefixCount
         var skipped = 0
         var firstPinyinIndex: Int?
@@ -575,7 +598,7 @@ public class MixedInputManager {
         var adjustedCommitText = commitText
         let prefixLiteral = literalPrefixText
         if !prefixLiteral.isEmpty,
-           prefixLiteral.allSatisfy({ $0.isNumber }),
+           isNumericLiteralText(prefixLiteral),
            adjustedCommitText.hasPrefix(prefixLiteral)
         {
             adjustedCommitText = String(adjustedCommitText.dropFirst(prefixLiteral.count))

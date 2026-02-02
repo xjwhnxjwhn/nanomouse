@@ -1582,7 +1582,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let useFullLiteral: Bool
       if configuredPrefixCount > 0,
          !literalExcludingPrefix.isEmpty,
-         !literalExcludingPrefix.allSatisfy({ $0.isNumber })
+         !isNumericLiteralText(literalExcludingPrefix)
       {
         useFullLiteral = true
       } else {
@@ -1671,8 +1671,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let syllablesBeforeMiddleDigit = rimeContext.mixedInputManager.syllableCountBeforeMiddleDigit
       let hasPinyinPrefixCandidates = !mixedInputPrefixCandidates.isEmpty
       let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
-      let hasNumericPrefix = !prefixLiteral.isEmpty && prefixLiteral.allSatisfy { $0.isNumber }
-      let hasNonDigitPrefixLiteral = !prefixLiteral.isEmpty && !prefixLiteral.allSatisfy { $0.isNumber }
+      let hasNumericPrefix = !prefixLiteral.isEmpty && isNumericLiteralText(prefixLiteral)
+      let hasNonDigitPrefixLiteral = !prefixLiteral.isEmpty && !isNumericLiteralText(prefixLiteral)
       if !hasNumericPrefix {
         mixedInputSelectedNumericPrefix = nil
       } else if let selected = mixedInputSelectedNumericPrefix, selected != prefixLiteral {
@@ -1940,17 +1940,46 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     character.unicodeScalars.allSatisfy { CharacterSet.decimalDigits.contains($0) }
   }
 
+  private func isNumericSeparator(_ character: Character) -> Bool {
+    character == "," || character == "." || character == "，" || character == "．"
+  }
+
+  private func isNumericLiteralText(_ text: String) -> Bool {
+    var sawDigit = false
+    for char in text {
+      if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+        sawDigit = true
+        continue
+      }
+      if char.isNumber {
+        sawDigit = true
+        continue
+      }
+      if isNumericSeparator(char) {
+        continue
+      }
+      return false
+    }
+    return sawDigit
+  }
+
   private func normalizedAsciiDigits(from text: String) -> String? {
     guard !text.isEmpty else { return nil }
     var result = ""
     for char in text {
-      guard char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }),
-            let value = char.wholeNumberValue,
-            (0...9).contains(value)
-      else { return nil }
-      result.append(String(value))
+      if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }),
+         let value = char.wholeNumberValue,
+         (0...9).contains(value)
+      {
+        result.append(String(value))
+        continue
+      }
+      if isNumericSeparator(char) {
+        continue
+      }
+      return nil
     }
-    return result
+    return result.isEmpty ? nil : result
   }
 
   private func numericCandidates(for literal: String) -> Set<String> {
@@ -1968,7 +1997,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let segment = segments[index]
       guard segment.isLiteral else { return "" }
       let commit = segment.commitText
-      guard !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) else { return "" }
+      guard !commit.isEmpty, isNumericLiteralText(commit) else { return "" }
       digits += commit
     }
     return digits
@@ -1980,7 +2009,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     for segment in segments.reversed() {
       guard segment.isLiteral else { break }
       let commit = segment.commitText
-      if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+      if !commit.isEmpty, isNumericLiteralText(commit) {
         count += 1
       } else {
         break
@@ -2008,7 +2037,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     for segment in rimeContext.mixedInputManager.segments {
       guard segment.isLiteral else { break }
       let commit = segment.commitText
-      if !commit.isEmpty, commit.allSatisfy({ $0.isNumber }) {
+      if !commit.isEmpty, isNumericLiteralText(commit) {
         break
       }
       count += 1
@@ -2052,7 +2081,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard !trimmed.isEmpty else { return false }
 
     let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
-    if !prefixLiteral.isEmpty, prefixLiteral.allSatisfy({ $0.isNumber }) {
+    if !prefixLiteral.isEmpty, isNumericLiteralText(prefixLiteral) {
       let prefixCandidates = numericCandidates(for: prefixLiteral)
       if prefixCandidates.contains(trimmed) {
         if rimeContext.mixedInputManager.replaceLeadingLiteral(with: trimmed) {
@@ -2384,8 +2413,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     candidateSubtitle: String?
   ) {
     let preedit = currentRimePreeditText()
+    if handleMixedInputDigitCandidateIfNeeded(candidateText, candidateIndex: rimeIndex) {
+      return
+    }
     let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
-    if !prefixLiteral.isEmpty, prefixLiteral.allSatisfy({ $0.isNumber }) {
+    if !prefixLiteral.isEmpty, isNumericLiteralText(prefixLiteral) {
       let prefixCandidates = numericCandidates(for: prefixLiteral)
       if prefixCandidates.contains(candidateText),
          rimeContext.mixedInputManager.replaceLeadingLiteral(with: candidateText)
