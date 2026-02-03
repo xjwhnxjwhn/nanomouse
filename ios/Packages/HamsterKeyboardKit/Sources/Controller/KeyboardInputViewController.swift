@@ -1219,16 +1219,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           return
         }
         // 更新显示
-        let rimePreedit = rimeContext.rimeContext?.composition?.preedit ?? ""
         if rimeContext.mixedInputManager.hasLiteral {
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
         } else {
+          // 已无混输内容时，清空 RIME 组字，避免残留原始拼音
           resetMixedInputFreezeState()
-          rimeContext.userInputKey = rimeContext.compositionPrefix + rimePreedit
-          Task { @MainActor in
-            self.rimeContext.suggestions = []
-            self.rimeContext.textReplacementSuggestions = []
-          }
+          rimeContext.reset()
           clearMarkedTextIfNeeded()
           return
         }
