@@ -1770,7 +1770,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       }
 
-      if hasMiddleDigit {
+      if hasMiddleDigit, prefixPending.isEmpty {
         let digitSeed = normalizedAsciiDigits(from: middleDigitLiteral) ?? middleDigitLiteral
         let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitSeed)
         for text in numericTexts {
