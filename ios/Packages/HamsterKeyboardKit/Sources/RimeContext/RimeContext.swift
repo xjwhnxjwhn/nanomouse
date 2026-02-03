@@ -1099,10 +1099,14 @@ public extension RimeContext {
       let normalizedPreedit = userInputText.replacingOccurrences(of: " ", with: "")
       let normalizedPinyin = mixedInputManager.pinyinOnly.replacingOccurrences(of: " ", with: "")
       if normalizedPinyin.count > normalizedPreedit.count {
-        let committedCount = normalizedPinyin.count - normalizedPreedit.count
-        mixedInputManager.trimLeadingPinyinCharacters(committedCount)
-        mixedInputCommitBehavior = .suppressLiteralAndKeep
-        mixedInputKeepLiteralAfterCommit = true
+        let hasMiddleDigit = !mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+        let prefixPending = !mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral.isEmpty
+        if !(hasMiddleDigit || prefixPending) {
+          let committedCount = normalizedPinyin.count - normalizedPreedit.count
+          mixedInputManager.trimLeadingPinyinCharacters(committedCount)
+          mixedInputCommitBehavior = .suppressLiteralAndKeep
+          mixedInputKeepLiteralAfterCommit = true
+        }
       }
     }
     let displayText = mixedInputManager.hasLiteral ? mixedInputManager.displayText : userInputText

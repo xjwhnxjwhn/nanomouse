@@ -799,7 +799,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       resetMixedInputPrefixCache()
       let preedit = currentRimePreeditText()
       if !preedit.isEmpty {
-        mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates()
+        mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: 50)
         mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(preedit)
         rimeContext.mixedInputManager.insertAtCursorPosition(preedit, isLiteral: false)
         rimeContext.resetCompositionKeepingMixedInput()
@@ -1669,7 +1669,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
        !prefixPending.isEmpty,
        mixedInputPrefixCandidates.isEmpty
     {
-      mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates()
+      mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: 50)
       mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(currentRimePreeditText())
     }
     let composedCandidates: [CandidateSuggestion]
@@ -1738,6 +1738,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let prefixChosen = mixedInputSelectedPinyinPrefix != nil
       let effectiveSuffixMode = (mixedInputSuffixMode || hasMiddleDigit) && (prefixPending.isEmpty || !prefixChosen)
       let shouldUseSuffixCandidates = hasSuffixPinyin && !prefixChosen
+      let suppressSuffixCandidates = hasMiddleDigit && !prefixChosen
       let deferPrefixCandidates = hasMiddleDigit && prefixChosen && !prefixPending.isEmpty
 
       if hasMiddleDigit,
@@ -1796,7 +1797,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         appendDigitPrefixCandidates(includeCombo: false)
       }
 
-      if appendCount > 0 {
+      if appendCount > 0, !suppressSuffixCandidates {
         for index in 0..<appendCount {
           let candidate = limited[index]
           let text = effectiveSuffixMode
@@ -1814,16 +1815,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       let shouldFilterBySyllables = syllablesBeforeMiddleDigit > 0 && !effectiveSuffixMode
-      for candidate in limited {
-        if shouldFilterBySyllables, candidate.text.count > syllablesBeforeMiddleDigit {
-          continue
+      if !suppressSuffixCandidates {
+        for candidate in limited {
+          if shouldFilterBySyllables, candidate.text.count > syllablesBeforeMiddleDigit {
+            continue
+          }
+          let text = effectiveSuffixMode
+            ? candidate.text
+            : (includePrefixLiteral
+              ? rimeContext.mixedInputManager.composeCandidateForDisplay(candidate.text, includePrefixLiteral: true)
+              : candidate.text)
+          appendCandidate(text: text, index: candidate.index, subtitle: candidate.subtitle)
         }
-        let text = effectiveSuffixMode
-          ? candidate.text
-          : (includePrefixLiteral
-            ? rimeContext.mixedInputManager.composeCandidateForDisplay(candidate.text, includePrefixLiteral: true)
-            : candidate.text)
-        appendCandidate(text: text, index: candidate.index, subtitle: candidate.subtitle)
       }
 
       if shouldInjectPrefixCandidates {
@@ -1834,7 +1837,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       }
 
-      composedCandidates = mergedTexts.enumerated().map { index, item in
+      let filteredMergedTexts: [(text: String, index: Int, subtitle: String?)]
+      if suppressSuffixCandidates {
+        filteredMergedTexts = mergedTexts.filter { $0.index < 0 }
+      } else {
+        filteredMergedTexts = mergedTexts
+      }
+
+      composedCandidates = filteredMergedTexts.enumerated().map { index, item in
         CandidateSuggestion(
           index: item.index,
           label: "\(index + 1)",

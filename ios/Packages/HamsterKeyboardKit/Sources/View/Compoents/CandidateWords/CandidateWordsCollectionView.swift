@@ -144,7 +144,17 @@ public class CandidateWordsCollectionView: UICollectionView {
   
   /// 获取合并后的候选项列表
   var combinedSuggestions: [CandidateSuggestion] {
+    let hasMiddleDigit = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
+    let prefixPending = !rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral.isEmpty
+    let suppressSuffixCandidates = rimeContext.mixedInputManager.hasLiteral && hasMiddleDigit && prefixPending
+
     var result = [CandidateSuggestion]()
+    if suppressSuffixCandidates {
+      // 仅保留混输注入的候选（负索引），避免显示后缀英文/拼音候选
+      result.append(contentsOf: rimeContext.suggestions.filter { $0.index < 0 })
+      return result
+    }
+
     result.append(contentsOf: rimeContext.textReplacementSuggestions)
     result.append(contentsOf: rimeContext.suggestions)
     return result
