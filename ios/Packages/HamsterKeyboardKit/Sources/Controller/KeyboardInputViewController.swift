@@ -1684,7 +1684,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let prefixCandidateSeed = hasNumericPrefix ? (normalizedAsciiDigits(from: prefixLiteral) ?? prefixLiteral) : ""
       let includePrefixLiteral = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
       let shouldInjectPrefixCandidates = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
-      let limited = Array(baseCandidates.prefix(20))
+      let maxCandidates = max(1, rimeContext.maximumNumberOfCandidateWords)
+      let limited = Array(baseCandidates.prefix(maxCandidates))
       let hasDigitPrefix = !digitPrefix.isEmpty
       let prioritizeDigitPrefix = hasDigitPrefix && hasNonDigitPrefixLiteral
       let appendCount = min(hasDigitPrefix ? 1 : mixedInputAppendDigitCandidateCount, limited.count)
