@@ -799,7 +799,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       resetMixedInputPrefixCache()
       let preedit = currentRimePreeditText()
       if !preedit.isEmpty {
-        mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: 50)
+        mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: rimeContext.maximumNumberOfCandidateWords)
         mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(preedit)
         rimeContext.mixedInputManager.insertAtCursorPosition(preedit, isLiteral: false)
         rimeContext.resetCompositionKeepingMixedInput()
@@ -1669,7 +1669,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
        !prefixPending.isEmpty,
        mixedInputPrefixCandidates.isEmpty
     {
-      mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: 50)
+      mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: rimeContext.maximumNumberOfCandidateWords)
       mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(currentRimePreeditText())
     }
     let composedCandidates: [CandidateSuggestion]
