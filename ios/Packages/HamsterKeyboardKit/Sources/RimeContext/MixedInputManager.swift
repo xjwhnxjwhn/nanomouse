@@ -306,13 +306,27 @@ public class MixedInputManager {
             currentCommit = ""
         }
 
-        for ch in display {
+        let characters = Array(display)
+        var hasDigitAhead: [Bool] = Array(repeating: false, count: characters.count)
+        var seenDigit = false
+        if !characters.isEmpty {
+            for index in stride(from: characters.count - 1, through: 0, by: -1) {
+                hasDigitAhead[index] = seenDigit
+                if characters[index].isNumber {
+                    seenDigit = true
+                }
+            }
+        }
+
+        for (index, ch) in characters.enumerated() {
             if ch == " " || ch == "'" { continue }
             let scalar = ch.unicodeScalars.first
             let isLetter = scalar.map { $0.isASCII && CharacterSet.letters.contains($0) } ?? false
             let isUmlaut = ch == "ü" || ch == "Ü"
             let isPinyin = isLetter || isUmlaut
-            let isDigit = ch.isNumber || (isNumericSeparator(ch) && isNumericLiteralText(currentCommit))
+            let isDigit = ch.isNumber
+                || (isNumericSeparator(ch) && isNumericLiteralText(currentCommit))
+                || (isPunctuationOrSymbol(ch) && isNumericLiteralText(currentCommit) && !hasDigitAhead[index])
 
             if isPinyin {
                 if currentType == nil {
@@ -455,25 +469,48 @@ public class MixedInputManager {
         return false
     }
 
+    private func isPunctuationOrSymbol(_ ch: Character) -> Bool {
+        guard let scalar = ch.unicodeScalars.first else { return false }
+        if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+        if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
+            return false
+        }
+        return CharacterSet.punctuationCharacters.contains(scalar)
+            || CharacterSet.symbols.contains(scalar)
+    }
+
     private func isNumericSeparator(_ ch: Character) -> Bool {
         return ch == "," || ch == "." || ch == "，" || ch == "．"
     }
 
     private func isNumericLiteralText(_ text: String) -> Bool {
         var sawDigit = false
+        var inSuffix = false
         for ch in text {
-            if ch.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
-                sawDigit = true
-                continue
+            if !inSuffix {
+                if ch.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+                    sawDigit = true
+                    continue
+                }
+                if ch.isNumber {
+                    sawDigit = true
+                    continue
+                }
+                if isNumericSeparator(ch) {
+                    continue
+                }
+                if isPunctuationOrSymbol(ch) {
+                    if !sawDigit { return false }
+                    inSuffix = true
+                    continue
+                }
+                return false
+            } else {
+                if isPunctuationOrSymbol(ch) {
+                    continue
+                }
+                return false
             }
-            if ch.isNumber {
-                sawDigit = true
-                continue
-            }
-            if isNumericSeparator(ch) {
-                continue
-            }
-            return false
         }
         return sawDigit
     }

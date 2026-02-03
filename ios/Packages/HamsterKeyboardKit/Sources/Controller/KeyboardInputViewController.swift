@@ -602,6 +602,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func shouldTreatSymbolAsMixedInputLiteral(_ text: String) -> Bool {
+    guard isNumericCandidateModeEnabledOnChineseKeyboard else { return false }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
     if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
     if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) { return false }
@@ -1385,9 +1386,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     if shouldTreatSymbolAsMixedInputLiteral(char),
-       rimeContext.mixedInputManager.hasLiteral,
        rimeContext.currentSchema?.isJapaneseSchema != true
     {
+      if rimeContext.userInputKey.isEmpty && !rimeContext.mixedInputManager.hasLiteral {
+        rimeContext.mixedInputManager.reset()
+        mixedInputSelectedNumericPrefix = nil
+        rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return
+      }
+      prepareMixedInputForDigitInsertion()
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       Logger.statistics.info("DBG_MIXEDINPUT insertSymbol literal: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
@@ -1515,9 +1524,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     if shouldTreatSymbolAsMixedInputLiteral(adjustedText),
-       rimeContext.mixedInputManager.hasLiteral,
        rimeContext.currentSchema?.isJapaneseSchema != true
     {
+      if rimeContext.userInputKey.isEmpty && !rimeContext.mixedInputManager.hasLiteral {
+        rimeContext.mixedInputManager.reset()
+        mixedInputSelectedNumericPrefix = nil
+        rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return
+      }
+      prepareMixedInputForDigitInsertion()
       rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
       updateMixedInputSuggestions()
@@ -1681,7 +1698,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       } else if let selected = mixedInputSelectedNumericPrefix, selected != prefixLiteral {
         mixedInputSelectedNumericPrefix = nil
       }
-      let prefixCandidateSeed = hasNumericPrefix ? (normalizedAsciiDigits(from: prefixLiteral) ?? prefixLiteral) : ""
+      let prefixCandidateSeed = hasNumericPrefix ? prefixLiteral : ""
       let includePrefixLiteral = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
       let shouldInjectPrefixCandidates = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
       let maxCandidates = max(1, rimeContext.maximumNumberOfCandidateWords)
@@ -1704,8 +1721,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       func appendDigitPrefixCandidates(includeCombo: Bool) {
-        let digitCandidateSeed = normalizedAsciiDigits(from: digitPrefix) ?? digitPrefix
-        let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitCandidateSeed)
+        let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitPrefix)
         for text in numericTexts {
           appendCandidate(text: text, index: injectedIndex, subtitle: nil)
           injectedIndex -= 1
@@ -1769,8 +1785,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       if hasMiddleDigit, prefixPending.isEmpty {
-        let digitSeed = normalizedAsciiDigits(from: middleDigitLiteral) ?? middleDigitLiteral
-        let numericTexts = NumericCandidateGenerator.candidateTexts(for: digitSeed)
+        let numericTexts = NumericCandidateGenerator.candidateTexts(for: middleDigitLiteral)
         for text in numericTexts {
           appendCandidate(text: text, index: injectedIndex, subtitle: nil)
           injectedIndex -= 1
@@ -1958,21 +1973,42 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     character == "," || character == "." || character == "，" || character == "．"
   }
 
+  private func isPunctuationOrSymbol(_ character: Character) -> Bool {
+    guard let scalar = character.unicodeScalars.first else { return false }
+    if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+    if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
+      return false
+    }
+    return CharacterSet.punctuationCharacters.contains(scalar)
+      || CharacterSet.symbols.contains(scalar)
+  }
+
   private func isNumericLiteralText(_ text: String) -> Bool {
     var sawDigit = false
+    var inSuffix = false
     for char in text {
-      if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
-        sawDigit = true
-        continue
+      if !inSuffix {
+        if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+          sawDigit = true
+          continue
+        }
+        if char.isNumber {
+          sawDigit = true
+          continue
+        }
+        if isNumericSeparator(char) {
+          continue
+        }
+        if isPunctuationOrSymbol(char) {
+          if !sawDigit { return false }
+          inSuffix = true
+          continue
+        }
+        return false
+      } else {
+        if isPunctuationOrSymbol(char) { continue }
+        return false
       }
-      if char.isNumber {
-        sawDigit = true
-        continue
-      }
-      if isNumericSeparator(char) {
-        continue
-      }
-      return false
     }
     return sawDigit
   }
@@ -2086,7 +2122,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   private func mixedInputCandidateIsDigitsOnly(_ text: String) -> Bool {
     guard !text.isEmpty else { return false }
-    return text.allSatisfy(isDecimalDigit)
+    return isNumericLiteralText(text)
   }
 
   func handleMixedInputDigitCandidateIfNeeded(_ text: String, candidateIndex _: Int? = nil) -> Bool {

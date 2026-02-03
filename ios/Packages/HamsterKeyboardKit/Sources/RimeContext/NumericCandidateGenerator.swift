@@ -17,10 +17,22 @@ enum NumericCandidateGenerator {
 
   static func candidateTexts(for literal: String) -> [String] {
     guard !literal.isEmpty else { return [] }
-    if !literal.allSatisfy({ $0.isNumber && $0.isASCII }) {
-      return [literal]
+    if literal.allSatisfy({ $0.isNumber && $0.isASCII }) {
+      return candidateTextsForDigits(literal)
     }
 
+    if let split = splitNumericSuffix(literal),
+       let normalized = normalizedAsciiDigits(split.digits)
+    {
+      let base = candidateTextsForDigits(normalized)
+      if split.suffix.isEmpty { return base }
+      return base.map { $0 + split.suffix }
+    }
+
+    return [literal]
+  }
+
+  private static func candidateTextsForDigits(_ literal: String) -> [String] {
     var results: [String] = []
     var seen = Set<String>()
 
@@ -50,6 +62,71 @@ enum NumericCandidateGenerator {
     }
 
     return results
+  }
+
+  private static func splitNumericSuffix(_ literal: String) -> (digits: String, suffix: String)? {
+    var digits = ""
+    var suffix = ""
+    var sawDigit = false
+    var inSuffix = false
+
+    for ch in literal {
+      if !inSuffix {
+        if let value = ch.wholeNumberValue, (0...9).contains(value) {
+          digits.append(String(value))
+          sawDigit = true
+          continue
+        }
+        if isNumericSeparator(ch) {
+          digits.append(ch)
+          continue
+        }
+        if isPunctuationOrSymbol(ch) {
+          if !sawDigit { return nil }
+          inSuffix = true
+          suffix.append(ch)
+          continue
+        }
+        return nil
+      } else {
+        if isPunctuationOrSymbol(ch) {
+          suffix.append(ch)
+          continue
+        }
+        return nil
+      }
+    }
+
+    return sawDigit ? (digits: digits, suffix: suffix) : nil
+  }
+
+  private static func normalizedAsciiDigits(_ text: String) -> String? {
+    var result = ""
+    var sawDigit = false
+    for ch in text {
+      if let value = ch.wholeNumberValue, (0...9).contains(value) {
+        result.append(String(value))
+        sawDigit = true
+        continue
+      }
+      if isNumericSeparator(ch) { continue }
+      return nil
+    }
+    return sawDigit ? result : nil
+  }
+
+  private static func isPunctuationOrSymbol(_ ch: Character) -> Bool {
+    guard let scalar = ch.unicodeScalars.first else { return false }
+    if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+    if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
+      return false
+    }
+    return CharacterSet.punctuationCharacters.contains(scalar)
+      || CharacterSet.symbols.contains(scalar)
+  }
+
+  private static func isNumericSeparator(_ ch: Character) -> Bool {
+    return ch == "," || ch == "." || ch == "，" || ch == "．"
   }
 
   private static func commaSeparatedNumber(_ literal: String) -> String? {
@@ -116,4 +193,3 @@ enum NumericCandidateGenerator {
     return [bold, doubleStruck, sansSerif, sansSerifBold, monospace]
   }
 }
-
