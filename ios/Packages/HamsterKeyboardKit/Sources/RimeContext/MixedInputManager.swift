@@ -194,8 +194,8 @@ public class MixedInputManager {
     }
 
     private var effectiveLiteralPrefixCount: Int {
-        if !segments.contains(where: { $0.isPinyin }) { return 0 }
         if literalPrefixSegmentCount > 0 { return literalPrefixSegmentCount }
+        if !segments.contains(where: { $0.isPinyin }) { return 0 }
         if segments.count < 2 { return 0 }
         return segments.first?.isLiteral == true ? 1 : 0
     }
@@ -253,6 +253,35 @@ public class MixedInputManager {
         guard !text.isEmpty else { return false }
         guard let first = segments.first, first.isLiteral else { return false }
         segments[0] = Segment(type: .literal(display: text, commit: text))
+        return true
+    }
+
+    public func replaceLiteralSegment(at index: Int, with text: String) -> Bool {
+        guard !text.isEmpty else { return false }
+        guard segments.indices.contains(index), segments[index].isLiteral else { return false }
+        segments[index] = Segment(type: .literal(display: text, commit: text))
+        return true
+    }
+
+    public func splitLiteralSegment(
+        at index: Int,
+        prefixLength: Int,
+        replacementPrefix: String? = nil
+    ) -> Bool {
+        guard segments.indices.contains(index), segments[index].isLiteral else { return false }
+        guard prefixLength > 0 else { return false }
+        let current = segments[index]
+        guard case .literal(let display, let commit) = current.type else { return false }
+        guard display.count > prefixLength, commit.count > prefixLength else { return false }
+
+        let displayPrefix = replacementPrefix ?? String(display.prefix(prefixLength))
+        let displaySuffix = String(display.dropFirst(prefixLength))
+        let commitPrefix = replacementPrefix ?? String(commit.prefix(prefixLength))
+        let commitSuffix = String(commit.dropFirst(prefixLength))
+        guard !displayPrefix.isEmpty, !displaySuffix.isEmpty else { return false }
+
+        segments[index] = Segment(type: .literal(display: displayPrefix, commit: commitPrefix))
+        segments.insert(Segment(type: .literal(display: displaySuffix, commit: commitSuffix)), at: index + 1)
         return true
     }
 

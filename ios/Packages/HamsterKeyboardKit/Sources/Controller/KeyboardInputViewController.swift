@@ -1273,7 +1273,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       insertRimeKeyCode(XK_space)
       return
     }
-    if shouldAppendPunctuationToCompositionPrefix(adjustedChar) {
+    if shouldAppendPunctuationToCompositionPrefix(adjustedChar)
+        && !shouldTreatSymbolAsMixedInputLiteral(adjustedChar)
+    {
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
       }
@@ -1439,7 +1441,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       insertRimeKeyCode(XK_space)
       return
     }
-    if shouldAppendPunctuationToCompositionPrefix(adjustedText) {
+    if shouldAppendPunctuationToCompositionPrefix(adjustedText)
+        && !shouldTreatSymbolAsMixedInputLiteral(adjustedText)
+    {
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
       }
@@ -1598,7 +1602,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if configuredPrefixCount > 0 {
         if literalExcludingPrefix.isEmpty {
           useFullLiteral = true
-        } else if !isNumericLiteralText(literalExcludingPrefix) {
+        } else if !isNumericLiteralText(literalExcludingPrefix),
+                  !isSymbolLiteralText(literalExcludingPrefix)
+        {
           useFullLiteral = true
         } else {
           useFullLiteral = false
@@ -1607,7 +1613,44 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         useFullLiteral = true
       }
       let literal = useFullLiteral ? literalOnly : literalExcludingPrefix
-      let texts = literal.isEmpty ? [] : NumericCandidateGenerator.candidateTexts(for: literal)
+      var texts: [String] = []
+      if !literal.isEmpty {
+        if isSymbolLiteralText(literal) {
+          texts = symbolCandidates(for: literal)
+        } else if isNumericLiteralText(literal) {
+          var seen = Set<String>()
+          func appendUnique(_ text: String) {
+            guard !text.isEmpty else { return }
+            if seen.insert(text).inserted {
+              texts.append(text)
+            }
+          }
+
+          for text in NumericCandidateGenerator.candidateTexts(for: literal) {
+            appendUnique(text)
+          }
+
+          if let split = splitNumericSuffix(literal) {
+            let digits = split.digits
+            let suffix = split.suffix
+            if !digits.isEmpty {
+              if !suffix.isEmpty {
+                for text in NumericCandidateGenerator.candidateTexts(for: digits) {
+                  appendUnique(text)
+                }
+              }
+              if digits.count > 1 {
+                let leading = String(digits.prefix(1))
+                for text in NumericCandidateGenerator.candidateTexts(for: leading) {
+                  appendUnique(text)
+                }
+              }
+            }
+          }
+        } else {
+          texts = [literal]
+        }
+      }
       Task { @MainActor in
         var newSuggestions: [CandidateSuggestion] = []
         for (index, text) in texts.enumerated() {
@@ -2013,6 +2056,187 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return sawDigit
   }
 
+  private func isNumericCoreLiteralText(_ text: String) -> Bool {
+    var sawDigit = false
+    for char in text {
+      if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) || char.isNumber {
+        sawDigit = true
+        continue
+      }
+      if isNumericSeparator(char) {
+        continue
+      }
+      return false
+    }
+    return sawDigit
+  }
+
+  private func isSymbolLiteralText(_ text: String) -> Bool {
+    guard !text.isEmpty else { return false }
+    for scalar in text.unicodeScalars {
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+      if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) {
+        return false
+      }
+    }
+    return true
+  }
+
+  private func splitNumericSuffix(_ literal: String) -> (digits: String, suffix: String)? {
+    var digits = ""
+    var suffix = ""
+    var sawDigit = false
+    var inSuffix = false
+    for char in literal {
+      if !inSuffix {
+        if let value = char.wholeNumberValue, (0...9).contains(value) {
+          digits.append(String(value))
+          sawDigit = true
+          continue
+        }
+        if isNumericSeparator(char) {
+          digits.append(char)
+          continue
+        }
+        if isPunctuationOrSymbol(char) {
+          if !sawDigit { return nil }
+          inSuffix = true
+          suffix.append(char)
+          continue
+        }
+        return nil
+      } else {
+        if isPunctuationOrSymbol(char) {
+          suffix.append(char)
+          continue
+        }
+        return nil
+      }
+    }
+    return sawDigit ? (digits: digits, suffix: suffix) : nil
+  }
+
+  private func prefixLengthForDigits(in text: String, digitCount: Int) -> Int? {
+    guard digitCount > 0 else { return nil }
+    var remaining = digitCount
+    var length = 0
+    for char in text {
+      if char.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) || char.isNumber {
+        remaining -= 1
+      } else if isNumericSeparator(char) {
+        // do not decrement
+      } else {
+        break
+      }
+      length += 1
+      if remaining <= 0 { return length }
+    }
+    return nil
+  }
+
+  private func symbolCandidates(for literal: String) -> [String] {
+    guard !literal.isEmpty else { return [] }
+    var results: [String] = []
+    var seen = Set<String>()
+    func appendUnique(_ text: String) {
+      guard !text.isEmpty else { return }
+      if seen.insert(text).inserted {
+        results.append(text)
+      }
+    }
+
+    appendUnique(literal)
+    if let fullwidth = literal.applyingTransform(.fullwidthToHalfwidth, reverse: true),
+       fullwidth != literal
+    {
+      appendUnique(fullwidth)
+    }
+
+    if let group = Self.mixedInputSymbolLookup[literal] {
+      for symbol in group {
+        appendUnique(symbol)
+        if symbol.count == 1 {
+          if let transformed = symbol.applyingTransform(.fullwidthToHalfwidth, reverse: true),
+             transformed != symbol
+          {
+            appendUnique(transformed)
+          }
+          if let transformed = symbol.applyingTransform(.fullwidthToHalfwidth, reverse: false),
+             transformed != symbol
+          {
+            appendUnique(transformed)
+          }
+        }
+      }
+    }
+
+    if literal.count == 1, let ch = literal.first {
+      switch ch {
+      case "!":
+        ["!!", "‼", "❗", "❣", "❕", "‼︎", "⁉︎", "‼️", "⁉️", "¡", "！"].forEach { appendUnique($0) }
+      case "?":
+        ["??", "⁇", "❓", "❔", "⁉︎", "⁉️", "¿", "？"].forEach { appendUnique($0) }
+      default:
+        break
+      }
+    }
+    return results
+  }
+
+  private static let mixedInputSymbolGroups: [[String]] = [
+    ["☆", "★", "♡", "☾", "☽"],
+    ["^", "＾"],
+    ["¥", "$", "¢", "€", "£", "₿"],
+    ["%", "‰"],
+    ["°", "℃", "℉"],
+    ["◯"],
+    ["*", "※", "✳︎", "✴︎"],
+    ["、", "。", "，", "．", "・", "…", "‥", "•"],
+    ["+", "±", "⊕"],
+    ["×", "❌", "✖️"],
+    ["÷", "➗"],
+    ["<", "≦", "≪", "〈", "《", "‹", "«"],
+    [">", "≧", "≫", "〉", "》", "›", "»"],
+    ["「", "『", "（", "［", "《", "【"],
+    ["」", "』", "）", "］", "》", "】"],
+    ["「」", "『』", "（）", "［］", "《》", "【】"],
+    ["(", "{", "<", "["],
+    [")", "}", ">", "]"],
+    ["()", "{}", "<>", "[]"],
+    ["’", "“", "”", "„", "\"", "`", "'"],
+    ["\"\"\"", "'''", "```"],
+    ["=", "≒", "≠", "≡"],
+    [":", ";"],
+    ["!", "❗️", "❣️", "‼︎", "⁉︎", "❕", "‼️", "⁉️", "¡"],
+    ["?", "❓", "⁉︎", "⁇", "❔", "⁉️", "¿"],
+    ["〒", "〠", "℡", "☎︎"],
+    ["々", "ヾ", "ヽ", "ゝ", "ゞ", "〃", "仝", "〻"],
+    ["〆", "〼", "ゟ", "ヿ"],
+    ["♂", "♀", "⚢", "⚣", "⚤", "⚥", "⚦", "⚧", "⚨", "⚩", "⚪︎", "⚲"],
+    ["→", "↑", "←", "↓", "↙︎", "↖︎", "↘︎", "↗︎", "↔︎", "↕︎", "↪︎", "↩︎", "⇆"],
+    ["♯", "♭", "♪", "♮", "♫", "♬", "♩", "𝄞", "𝄞"],
+    ["√", "∛", "∜"]
+  ]
+
+  private static let mixedInputSymbolLookup: [String: [String]] = {
+    var map: [String: [String]] = [:]
+    for group in mixedInputSymbolGroups {
+      for symbol in group {
+        map[symbol, default: []].append(contentsOf: group)
+      }
+    }
+    return map.mapValues { list in
+      var seen = Set<String>()
+      var result: [String] = []
+      for item in list {
+        if seen.insert(item).inserted {
+          result.append(item)
+        }
+      }
+      return result
+    }
+  }()
+
   private func normalizedAsciiDigits(from text: String) -> String? {
     guard !text.isEmpty else { return nil }
     var result = ""
@@ -2122,7 +2346,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   private func mixedInputCandidateIsDigitsOnly(_ text: String) -> Bool {
     guard !text.isEmpty else { return false }
-    return isNumericLiteralText(text)
+    return isNumericCoreLiteralText(text)
   }
 
   func handleMixedInputDigitCandidateIfNeeded(_ text: String, candidateIndex _: Int? = nil) -> Bool {
@@ -2198,6 +2422,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
 
+    if handleMixedInputLiteralOnlyCandidate(trimmed) {
+      return true
+    }
+
     guard mixedInputCandidateIsDigitsOnly(trimmed) else { return false }
 
     let display = rimeContext.mixedInputManager.hasLiteral
@@ -2230,6 +2458,82 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return true
     }
     return display.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil
+  }
+
+  private func handleMixedInputLiteralOnlyCandidate(_ candidate: String) -> Bool {
+    guard rimeContext.mixedInputManager.hasLiteral,
+          rimeContext.mixedInputManager.pinyinOnly.isEmpty
+    else { return false }
+    guard !candidate.isEmpty else { return false }
+
+    let prefixCount = rimeContext.mixedInputManager.literalPrefixSegmentCount
+    let segments = rimeContext.mixedInputManager.segments
+    guard prefixCount < segments.count else { return false }
+    guard segments[prefixCount].isLiteral else { return false }
+
+    let suffixLiteral = rimeContext.mixedInputManager.literalOnlyExcludingPrefix
+    guard !suffixLiteral.isEmpty else { return false }
+
+    if let split = splitNumericSuffix(suffixLiteral) {
+      let digits = split.digits
+      if !digits.isEmpty {
+        if candidate.allSatisfy({ $0.isNumber }),
+           let candidateDigits = normalizedAsciiDigits(from: candidate),
+           !candidateDigits.isEmpty,
+           digits.hasPrefix(candidateDigits)
+        {
+          let shouldSplit = candidateDigits.count < digits.count || !split.suffix.isEmpty
+          if shouldSplit,
+             let prefixLength = prefixLengthForDigits(in: segments[prefixCount].commitText, digitCount: candidateDigits.count),
+             rimeContext.mixedInputManager.splitLiteralSegment(
+               at: prefixCount,
+               prefixLength: prefixLength,
+               replacementPrefix: candidate
+             )
+          {
+            rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount + 1
+            rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+            rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+            updateMixedInputSuggestions()
+            return true
+          }
+        }
+
+        let digitVariants = numericCandidates(for: digits)
+        if digitVariants.contains(candidate),
+           let prefixLength = prefixLengthForDigits(in: segments[prefixCount].commitText, digitCount: digits.count),
+           rimeContext.mixedInputManager.splitLiteralSegment(
+             at: prefixCount,
+             prefixLength: prefixLength,
+             replacementPrefix: candidate
+           )
+        {
+          rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount + 1
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+          rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+          updateMixedInputSuggestions()
+          return true
+        }
+      }
+    }
+
+    if prefixCount + 1 < segments.count {
+      let targetLiteral = segments[prefixCount].commitText
+      let isNumericMatch = isNumericLiteralText(targetLiteral)
+        && numericCandidates(for: targetLiteral).contains(candidate)
+      let isSymbolMatch = isSymbolLiteralText(targetLiteral)
+        && symbolCandidates(for: targetLiteral).contains(candidate)
+      if isNumericMatch || isSymbolMatch {
+        _ = rimeContext.mixedInputManager.replaceLiteralSegment(at: prefixCount, with: candidate)
+        rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount + 1
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return true
+      }
+    }
+
+    return false
   }
 
   private func commitCurrentRimeCandidateForLiteralSeparatorIfNeeded() {
