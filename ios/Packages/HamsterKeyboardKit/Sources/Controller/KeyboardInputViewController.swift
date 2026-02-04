@@ -1866,6 +1866,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       let deferPrefixCandidates = hasMiddleDigit && prefixChosen && !prefixPending.isEmpty
 
       if hasMiddleDigit,
+         hasTrailingSymbolLiteral,
+         let prefixCandidate = mixedInputPrefixCandidates.first?.text,
+         !prefixCandidate.isEmpty
+      {
+        let suffixCandidate = shouldUseSuffixCandidates ? (baseCandidates.first?.text ?? "") : ""
+        if !suffixCandidate.isEmpty || !hasSuffixPinyin {
+          let combinedText = prefixCandidate + middleDigitLiteral + suffixCandidate + trailingSymbolLiteral
+          appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+        }
+      }
+
+      if hasMiddleDigit,
          let prefixCandidate = mixedInputPrefixCandidates.first?.text,
          !prefixCandidate.isEmpty
       {
@@ -1880,7 +1892,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
       }
 
-      if hasTrailingSymbolLiteral {
+      if hasTrailingSymbolLiteral, !hasMiddleDigit, !hasSuffixPinyin {
         if let prefixCandidate = mixedInputPrefixCandidates.first?.text, !prefixCandidate.isEmpty {
           let combinedText = prefixCandidate + trailingSymbolLiteral
           appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
@@ -2856,11 +2868,48 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let digitsInCandidate = candidateText.filter { isDecimalDigit($0) }
     let nonDigitsInCandidate = candidateText.filter { !isDecimalDigit($0) }
     let isCombinedCandidate = rimeIndex <= mixedInputCombinedCandidateIndexBase
+    let combinedTrailingSymbols = mixedInputTrailingSymbolLiteralAfterLastPinyin()
     let shouldSegmentCombinedCandidate = hasMiddleDigitLiteral
       && hasSuffixPinyin
       && !digitsInCandidate.isEmpty
       && !nonDigitsInCandidate.isEmpty
       && nonDigitsInCandidate.count <= syllablesBeforeMiddleDigit
+    if isCombinedCandidate,
+       !combinedTrailingSymbols.isEmpty
+    {
+      let normalizedCandidate = candidateText.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? candidateText
+      let normalizedTrailing = combinedTrailingSymbols.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? combinedTrailingSymbols
+      if !normalizedCandidate.hasSuffix(normalizedTrailing) {
+        var prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
+        var commitText = candidateText
+        if !prefixLiteral.isEmpty, commitText.hasPrefix(prefixLiteral) {
+          commitText = String(commitText.dropFirst(prefixLiteral.count))
+          commitText = commitText.trimmingCharacters(in: .whitespaces)
+        }
+
+        rimeContext.mixedInputManager.reset()
+        var insertIndex = 0
+        var prefixCount = 0
+        if !prefixLiteral.isEmpty {
+          rimeContext.mixedInputManager.insertLiteralSegment(prefixLiteral, at: insertIndex, mergeWithPreviousNonDigit: false)
+          insertIndex += 1
+          prefixCount += 1
+        }
+        if !commitText.isEmpty {
+          rimeContext.mixedInputManager.insertLiteralSegment(commitText, at: insertIndex, mergeWithPreviousNonDigit: false)
+          insertIndex += 1
+          prefixCount += 1
+        }
+        rimeContext.mixedInputManager.insertLiteralSegment(combinedTrailingSymbols, at: insertIndex, mergeWithPreviousNonDigit: false)
+        rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount
+
+        rimeContext.resetCompositionKeepingMixedInput()
+        rimeContext.resetCommitText()
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return
+      }
+    }
     if isCombinedCandidate, !shouldSegmentCombinedCandidate {
       commitMixedInputCandidateDirectly(candidateText)
       return
