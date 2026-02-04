@@ -2331,10 +2331,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return count
   }
 
-  private func mixedInputLeadingLiteralSegmentCountExcludingTrailingLiterals() -> Int {
-    let leading = rimeContext.mixedInputManager.leadingLiteralSegmentCount
-    let trailing = mixedInputTrailingDigitSegmentCount() + mixedInputTrailingSymbolSegmentCount()
-    return max(0, leading - trailing)
+  private func mixedInputLeadingLiteralSegmentCountBeforeSelectableLiteral() -> Int {
+    var count = 0
+    for segment in rimeContext.mixedInputManager.segments {
+      guard segment.isLiteral else { break }
+      let commit = segment.commitText
+      if commit.isEmpty { break }
+      if isNumericLiteralText(commit) || isSymbolLiteralText(commit) {
+        break
+      }
+      count += 1
+    }
+    return count
   }
 
   private func syncRimeInputWithMixedPinyinIfNeeded() {
@@ -2875,7 +2883,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           commitText: candidateText
         )
         rimeContext.mixedInputManager.literalPrefixSegmentCount =
-          mixedInputLeadingLiteralSegmentCountExcludingTrailingLiterals()
+          mixedInputLeadingLiteralSegmentCountBeforeSelectableLiteral()
         mixedInputSelectedPinyinPrefix = candidateText
         mixedInputPrefixCandidates.removeAll()
         mixedInputPrefixPinyinLetterCount = 0
