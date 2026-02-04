@@ -593,6 +593,32 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return isAzooKeyInputActive
   }
 
+  private var mixedInputDebugAlwaysOn: Bool {
+    true
+  }
+
+  private var mixedInputDebugEnabled: Bool {
+    mixedInputDebugAlwaysOn || keyboardContext.enableNumericCandidateModeOnChineseKeyboard
+  }
+
+  private func mixedInputDebugLog(_ message: String) {
+    guard mixedInputDebugEnabled else { return }
+    Logger.statistics.info("\(message, privacy: .public)")
+    NSLog("%@", message)
+  }
+
+  private func mixedInputDebugSegmentsString() -> String {
+    let segments = rimeContext.mixedInputManager.segments.map { segment -> String in
+      switch segment.type {
+      case .pinyin(let text):
+        return "P:\(text)"
+      case .literal(let display, let commit):
+        return "L:\(display)|\(commit)"
+      }
+    }
+    return segments.joined(separator: "|")
+  }
+
   func shouldAppendPunctuationToCompositionPrefix(_ text: String) -> Bool {
     guard isUnifiedCompositionBufferEnabled else { return false }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
@@ -606,7 +632,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return false }
     if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
     if CharacterSet.letters.contains(scalar) || CharacterSet.decimalDigits.contains(scalar) { return false }
-    return CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar)
+    let shouldTreat = CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar)
+    if shouldTreat {
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT symbolDecision char=\(text) numericMode=\(self.isNumericCandidateModeEnabledOnChineseKeyboard) userInputKey=\(self.rimeContext.userInputKey)"
+      )
+    }
+    return shouldTreat
   }
 
   private func adjustedSymbolForContext(_ text: String) -> String {
@@ -799,9 +831,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       mixedInputSelectedNumericPrefix = nil
       resetMixedInputPrefixCache()
       let preedit = currentRimePreeditText()
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT prepareDigit preedit=\(preedit) display=\(self.rimeContext.userInputKey)"
+      )
       if !preedit.isEmpty {
         mixedInputPrefixCandidates = snapshotMixedInputPrefixCandidates(limit: rimeContext.maximumNumberOfCandidateWords)
         mixedInputPrefixPinyinLetterCount = mixedInputPinyinLetterCount(preedit)
+        mixedInputDebugLog(
+          "DBG_MIXEDINPUT prepareDigit prefixCandidates=\(self.mixedInputPrefixCandidates.count) prefixLetters=\(self.mixedInputPrefixPinyinLetterCount)"
+        )
         rimeContext.mixedInputManager.insertAtCursorPosition(preedit, isLiteral: false)
         rimeContext.resetCompositionKeepingMixedInput()
         mixedInputSuffixMode = true
@@ -1229,7 +1267,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           clearMarkedTextIfNeeded()
           return
         }
-        Logger.statistics.info("DBG_MIXEDINPUT delete literal, display: \(self.rimeContext.userInputKey, privacy: .public)")
+        mixedInputDebugLog("DBG_MIXEDINPUT delete literal, display: \(self.rimeContext.userInputKey)")
         // 更新候选词
         updateMixedInputSuggestions()
         return
@@ -1269,6 +1307,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   open func insertSymbol(_ symbol: Symbol) {
     let adjustedChar = adjustedSymbolForContext(symbol.char)
     Logger.statistics.info("DBG_RIMEINPUT insertSymbol: \(adjustedChar, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if adjustedChar.count == 1, let scalar = adjustedChar.unicodeScalars.first,
+       (CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar))
+    {
+      let treatAsLiteral = shouldTreatSymbolAsMixedInputLiteral(adjustedChar)
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT symbolCheck insertSymbol char=\(adjustedChar) treatAsLiteral=\(treatAsLiteral) hasLiteral=\(self.rimeContext.mixedInputManager.hasLiteral) display=\(self.rimeContext.userInputKey)"
+      )
+    }
     if isUnifiedCompositionBufferEnabled, adjustedChar == .space {
       insertRimeKeyCode(XK_space)
       return
@@ -1395,13 +1441,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         mixedInputSelectedNumericPrefix = nil
         rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
         rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        mixedInputDebugLog(
+          "DBG_MIXEDINPUT insertSymbol literal start=\(char) display=\(self.rimeContext.userInputKey) segments=\(self.mixedInputDebugSegmentsString())"
+        )
         updateMixedInputSuggestions()
         return
       }
       prepareMixedInputForDigitInsertion()
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
-      Logger.statistics.info("DBG_MIXEDINPUT insertSymbol literal: \(char, privacy: .public), display: \(self.rimeContext.userInputKey, privacy: .public)")
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT insertSymbol literal=\(char) display=\(self.rimeContext.userInputKey) segments=\(self.mixedInputDebugSegmentsString())"
+      )
       updateMixedInputSuggestions()
       return
     }
@@ -1437,6 +1488,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   open func insertText(_ text: String) {
     let adjustedText = adjustedSymbolForContext(text)
     Logger.statistics.info("DBG_RIMEINPUT insertText: \(adjustedText, privacy: .public), keyboardType: \(String(describing: self.keyboardContext.keyboardType), privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot), schema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public)")
+    if adjustedText.count == 1, let scalar = adjustedText.unicodeScalars.first,
+       (CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar))
+    {
+      let treatAsLiteral = shouldTreatSymbolAsMixedInputLiteral(adjustedText)
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT symbolCheck insertText char=\(adjustedText) treatAsLiteral=\(treatAsLiteral) hasLiteral=\(self.rimeContext.mixedInputManager.hasLiteral) display=\(self.rimeContext.userInputKey)"
+      )
+    }
     if isUnifiedCompositionBufferEnabled, adjustedText == .space {
       insertRimeKeyCode(XK_space)
       return
@@ -1535,12 +1594,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         mixedInputSelectedNumericPrefix = nil
         rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
         rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        mixedInputDebugLog(
+          "DBG_MIXEDINPUT insertText literal start=\(adjustedText) display=\(self.rimeContext.userInputKey) segments=\(self.mixedInputDebugSegmentsString())"
+        )
         updateMixedInputSuggestions()
         return
       }
       prepareMixedInputForDigitInsertion()
       rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
       rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT insertText literal=\(adjustedText) display=\(self.rimeContext.userInputKey) segments=\(self.mixedInputDebugSegmentsString())"
+      )
       updateMixedInputSuggestions()
       return
     }
@@ -1598,21 +1663,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       } else {
         literalExcludingPrefix = literalOnly
       }
-      let useFullLiteral: Bool
-      if configuredPrefixCount > 0 {
-        if literalExcludingPrefix.isEmpty {
-          useFullLiteral = true
-        } else if !isNumericLiteralText(literalExcludingPrefix),
-                  !isSymbolLiteralText(literalExcludingPrefix)
-        {
-          useFullLiteral = true
-        } else {
-          useFullLiteral = false
-        }
+
+      let literalSuffix = rimeContext.mixedInputManager.literalOnlyExcludingPrefix
+      let canUseSuffixOnly = !literalSuffix.isEmpty
+        && (isNumericLiteralText(literalSuffix) || isSymbolLiteralText(literalSuffix))
+      let literal: String
+      if configuredPrefixCount > 0, canUseSuffixOnly {
+        literal = literalSuffix
+      } else if configuredPrefixCount > 0, !literalExcludingPrefix.isEmpty,
+                (isNumericLiteralText(literalExcludingPrefix) || isSymbolLiteralText(literalExcludingPrefix)) {
+        literal = literalExcludingPrefix
       } else {
-        useFullLiteral = true
+        literal = literalOnly
       }
-      let literal = useFullLiteral ? literalOnly : literalExcludingPrefix
       var texts: [String] = []
       if !literal.isEmpty {
         if isSymbolLiteralText(literal) {
@@ -1651,6 +1714,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           texts = [literal]
         }
       }
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT updateSuggestions literalOnly=\(literalOnly) literalExcludingPrefix=\(literalExcludingPrefix) literalSuffix=\(literalSuffix) literal=\(literal) texts=\(texts.prefix(8).joined(separator: "|"))"
+      )
       Task { @MainActor in
         var newSuggestions: [CandidateSuggestion] = []
         for (index, text) in texts.enumerated() {
@@ -1788,6 +1854,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       let middleDigitLiteral = rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin
+      let trailingSymbolLiteral = mixedInputTrailingSymbolLiteralAfterLastPinyin()
+      let hasTrailingSymbolLiteral = !trailingSymbolLiteral.isEmpty
       let hasMiddleDigit = !middleDigitLiteral.isEmpty
       let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
       let hasSuffixPinyin = !rimeContext.mixedInputManager.pinyinOnlyAfterFirstLiteral.isEmpty
@@ -1810,6 +1878,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         let suffixCandidate = shouldUseSuffixCandidates ? (baseCandidates.first?.text ?? "") : ""
         let combinedText = digitPrefix + suffixCandidate
         appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+      }
+
+      if hasTrailingSymbolLiteral {
+        if let prefixCandidate = mixedInputPrefixCandidates.first?.text, !prefixCandidate.isEmpty {
+          let combinedText = prefixCandidate + trailingSymbolLiteral
+          appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+        } else if let firstBase = baseCandidates.first?.text, !firstBase.isEmpty {
+          let baseText = includePrefixLiteral
+            ? rimeContext.mixedInputManager.composeCandidateForDisplay(firstBase, includePrefixLiteral: true)
+            : firstBase
+          let combinedText = baseText + trailingSymbolLiteral
+          appendCandidate(text: combinedText, index: mixedInputCombinedCandidateIndexBase, subtitle: nil)
+        }
       }
 
       if hasPinyinPrefixCandidates, !deferPrefixCandidates {
@@ -2135,107 +2216,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func symbolCandidates(for literal: String) -> [String] {
-    guard !literal.isEmpty else { return [] }
-    var results: [String] = []
-    var seen = Set<String>()
-    func appendUnique(_ text: String) {
-      guard !text.isEmpty else { return }
-      if seen.insert(text).inserted {
-        results.append(text)
-      }
-    }
-
-    appendUnique(literal)
-    if let fullwidth = literal.applyingTransform(.fullwidthToHalfwidth, reverse: true),
-       fullwidth != literal
-    {
-      appendUnique(fullwidth)
-    }
-
-    if let group = Self.mixedInputSymbolLookup[literal] {
-      for symbol in group {
-        appendUnique(symbol)
-        if symbol.count == 1 {
-          if let transformed = symbol.applyingTransform(.fullwidthToHalfwidth, reverse: true),
-             transformed != symbol
-          {
-            appendUnique(transformed)
-          }
-          if let transformed = symbol.applyingTransform(.fullwidthToHalfwidth, reverse: false),
-             transformed != symbol
-          {
-            appendUnique(transformed)
-          }
-        }
-      }
-    }
-
-    if literal.count == 1, let ch = literal.first {
-      switch ch {
-      case "!":
-        ["!!", "‼", "❗", "❣", "❕", "‼︎", "⁉︎", "‼️", "⁉️", "¡", "！"].forEach { appendUnique($0) }
-      case "?":
-        ["??", "⁇", "❓", "❔", "⁉︎", "⁉️", "¿", "？"].forEach { appendUnique($0) }
-      default:
-        break
-      }
-    }
-    return results
+    return SymbolCandidateGenerator.candidateTexts(for: literal)
   }
-
-  private static let mixedInputSymbolGroups: [[String]] = [
-    ["☆", "★", "♡", "☾", "☽"],
-    ["^", "＾"],
-    ["¥", "$", "¢", "€", "£", "₿"],
-    ["%", "‰"],
-    ["°", "℃", "℉"],
-    ["◯"],
-    ["*", "※", "✳︎", "✴︎"],
-    ["、", "。", "，", "．", "・", "…", "‥", "•"],
-    ["+", "±", "⊕"],
-    ["×", "❌", "✖️"],
-    ["÷", "➗"],
-    ["<", "≦", "≪", "〈", "《", "‹", "«"],
-    [">", "≧", "≫", "〉", "》", "›", "»"],
-    ["「", "『", "（", "［", "《", "【"],
-    ["」", "』", "）", "］", "》", "】"],
-    ["「」", "『』", "（）", "［］", "《》", "【】"],
-    ["(", "{", "<", "["],
-    [")", "}", ">", "]"],
-    ["()", "{}", "<>", "[]"],
-    ["’", "“", "”", "„", "\"", "`", "'"],
-    ["\"\"\"", "'''", "```"],
-    ["=", "≒", "≠", "≡"],
-    [":", ";"],
-    ["!", "❗️", "❣️", "‼︎", "⁉︎", "❕", "‼️", "⁉️", "¡"],
-    ["?", "❓", "⁉︎", "⁇", "❔", "⁉️", "¿"],
-    ["〒", "〠", "℡", "☎︎"],
-    ["々", "ヾ", "ヽ", "ゝ", "ゞ", "〃", "仝", "〻"],
-    ["〆", "〼", "ゟ", "ヿ"],
-    ["♂", "♀", "⚢", "⚣", "⚤", "⚥", "⚦", "⚧", "⚨", "⚩", "⚪︎", "⚲"],
-    ["→", "↑", "←", "↓", "↙︎", "↖︎", "↘︎", "↗︎", "↔︎", "↕︎", "↪︎", "↩︎", "⇆"],
-    ["♯", "♭", "♪", "♮", "♫", "♬", "♩", "𝄞", "𝄞"],
-    ["√", "∛", "∜"]
-  ]
-
-  private static let mixedInputSymbolLookup: [String: [String]] = {
-    var map: [String: [String]] = [:]
-    for group in mixedInputSymbolGroups {
-      for symbol in group {
-        map[symbol, default: []].append(contentsOf: group)
-      }
-    }
-    return map.mapValues { list in
-      var seen = Set<String>()
-      var result: [String] = []
-      for item in list {
-        if seen.insert(item).inserted {
-          result.append(item)
-        }
-      }
-      return result
-    }
-  }()
 
   private func normalizedAsciiDigits(from text: String) -> String? {
     guard !text.isEmpty else { return nil }
@@ -2277,6 +2259,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return digits
   }
 
+  private func mixedInputTrailingSymbolLiteralAfterLastPinyin() -> String {
+    let segments = rimeContext.mixedInputManager.segments
+    guard let lastPinyinIndex = segments.lastIndex(where: { $0.isPinyin }) else { return "" }
+    guard lastPinyinIndex < segments.count - 1 else { return "" }
+    var symbols = ""
+    for index in (lastPinyinIndex + 1)..<segments.count {
+      let segment = segments[index]
+      guard segment.isLiteral else { return "" }
+      let commit = segment.commitText
+      guard !commit.isEmpty, isSymbolLiteralText(commit) else { return "" }
+      symbols += commit
+    }
+    return symbols
+  }
+
   private func mixedInputTrailingDigitSegmentCount() -> Int {
     let segments = rimeContext.mixedInputManager.segments
     var count = 0
@@ -2284,6 +2281,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       guard segment.isLiteral else { break }
       let commit = segment.commitText
       if !commit.isEmpty, isNumericLiteralText(commit) {
+        count += 1
+      } else {
+        break
+      }
+    }
+    return count
+  }
+
+  private func mixedInputTrailingSymbolSegmentCount() -> Int {
+    let segments = rimeContext.mixedInputManager.segments
+    var count = 0
+    for segment in segments.reversed() {
+      guard segment.isLiteral else { break }
+      let commit = segment.commitText
+      if !commit.isEmpty, isSymbolLiteralText(commit) {
         count += 1
       } else {
         break
@@ -2317,6 +2329,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       count += 1
     }
     return count
+  }
+
+  private func mixedInputLeadingLiteralSegmentCountExcludingTrailingLiterals() -> Int {
+    let leading = rimeContext.mixedInputManager.leadingLiteralSegmentCount
+    let trailing = mixedInputTrailingDigitSegmentCount() + mixedInputTrailingSymbolSegmentCount()
+    return max(0, leading - trailing)
   }
 
   private func syncRimeInputWithMixedPinyinIfNeeded() {
@@ -2434,13 +2452,28 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let displayHasLetters = display.unicodeScalars.contains {
       ($0.isASCII && CharacterSet.letters.contains($0)) || $0 == "ü" || $0 == "Ü"
     }
+    let displayHasSymbols = display.unicodeScalars.contains {
+      if CharacterSet.whitespacesAndNewlines.contains($0) { return false }
+      if CharacterSet.letters.contains($0) || CharacterSet.decimalDigits.contains($0) { return false }
+      return CharacterSet.punctuationCharacters.contains($0) || CharacterSet.symbols.contains($0)
+    }
 
-    if !rimeContext.mixedInputManager.hasLiteral || (displayHasLetters && !rimeContext.mixedInputManager.segments.contains(where: { $0.isPinyin })) {
-      if display.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil {
+    if !rimeContext.mixedInputManager.hasLiteral
+        || (displayHasLetters && !rimeContext.mixedInputManager.segments.contains(where: { $0.isPinyin }))
+    {
+      if display.rangeOfCharacter(from: CharacterSet.decimalDigits) != nil
+          || (displayHasSymbols && isNumericCandidateModeEnabledOnChineseKeyboard)
+      {
+        mixedInputDebugLog(
+          "DBG_MIXEDINPUT rebuildSegments display=\(display) hasSymbols=\(displayHasSymbols)"
+        )
         rimeContext.mixedInputManager.rebuildSegments(from: display)
         rimeContext.mixedInputManager.literalPrefixSegmentCount =
           rimeContext.mixedInputManager.segments.first?.isLiteral == true ? 1 : 0
         rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+        mixedInputDebugLog(
+          "DBG_MIXEDINPUT rebuildSegments done segments=\(self.mixedInputDebugSegmentsString())"
+        )
       }
     }
 
@@ -2769,7 +2802,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     candidateSubtitle: String?
   ) {
     let preedit = currentRimePreeditText()
+    mixedInputDebugLog(
+      "DBG_MIXEDINPUT commitCandidate start text=\(candidateText) rimeIndex=\(rimeIndex) displayIndex=\(displayIndex) preedit=\(preedit) segments=\(self.mixedInputDebugSegmentsString())"
+    )
     if handleMixedInputDigitCandidateIfNeeded(candidateText, candidateIndex: rimeIndex) {
+      mixedInputDebugLog("DBG_MIXEDINPUT commitCandidate handledByDigitCandidate")
       return
     }
     let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
@@ -2838,7 +2875,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           commitText: candidateText
         )
         rimeContext.mixedInputManager.literalPrefixSegmentCount =
-          mixedInputLeadingNonDigitLiteralSegmentCount()
+          mixedInputLeadingLiteralSegmentCountExcludingTrailingLiterals()
         mixedInputSelectedPinyinPrefix = candidateText
         mixedInputPrefixCandidates.removeAll()
         mixedInputPrefixPinyinLetterCount = 0
@@ -2943,6 +2980,26 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         committedCount = syllables.prefix(consumeSyllables).reduce(0) { $0 + $1.count }
       }
     }
+    if committedCount == 0, !preedit.isEmpty {
+      let fallback = mixedInputPinyinLetterCount(preedit)
+      if fallback > 0 {
+        committedCount = fallback
+      }
+    }
+    let literalSuffix = rimeContext.mixedInputManager.literalOnlyExcludingPrefix
+    if committedCount == 0,
+       !literalSuffix.isEmpty,
+       (isNumericLiteralText(literalSuffix) || isSymbolLiteralText(literalSuffix))
+    {
+      let fallback = mixedInputLetterCount(rimeContext.mixedInputManager.pinyinOnly)
+      if fallback > 0 {
+        committedCount = fallback
+      }
+    }
+
+    mixedInputDebugLog(
+      "DBG_MIXEDINPUT commitCandidate resolved committedCount=\(committedCount) literalSuffix=\(literalSuffix)"
+    )
 
     if syllablesBeforeMiddleDigit > 0,
        mixedInputSelectedPinyinPrefix == nil,
@@ -2986,10 +3043,55 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return
     }
 
+    let trailingSymbols = mixedInputTrailingSymbolLiteralAfterLastPinyin()
+    if committedCount == 0, !trailingSymbols.isEmpty {
+      let fallback = mixedInputLetterCount(rimeContext.mixedInputManager.pinyinOnly)
+      if fallback > 0 {
+        committedCount = fallback
+      }
+    }
+    if !trailingSymbols.isEmpty {
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT commitCandidate trailingSymbols=\(trailingSymbols) committedCount=\(committedCount)"
+      )
+    }
+    if rimeIndex >= 0, !trailingSymbols.isEmpty, committedCount > 0 {
+      let normalizedCandidate = candidateText.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? candidateText
+      let normalizedTrailing = trailingSymbols.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? trailingSymbols
+      if normalizedCandidate.hasSuffix(normalizedTrailing) {
+        commitMixedInputCandidateDirectly(candidateText)
+        return
+      }
+      rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
+        committedCount: committedCount,
+        commitText: candidateText
+      )
+      let trailingSymbolSegments = mixedInputTrailingSymbolSegmentCount()
+      if trailingSymbolSegments > 0 {
+        let prefixCount = max(0, rimeContext.mixedInputManager.segments.count - trailingSymbolSegments)
+        rimeContext.mixedInputManager.literalPrefixSegmentCount = prefixCount
+      } else {
+        rimeContext.mixedInputManager.literalPrefixSegmentCount =
+          rimeContext.mixedInputManager.leadingLiteralSegmentCount
+      }
+
+      rimeContext.resetCompositionKeepingMixedInput()
+      rimeContext.resetCommitText()
+      mixedInputDebugLog(
+        "DBG_MIXEDINPUT commitCandidate keepTrailingSymbols display=\(self.rimeContext.mixedInputManager.displayText) segments=\(self.mixedInputDebugSegmentsString())"
+      )
+      rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+      updateMixedInputSuggestions()
+      return
+    }
+
     let appendCount = mixedInputEffectiveAppendDigitCandidateCount()
     let hasMiddleDigit = !rimeContext.mixedInputManager.digitLiteralAfterFirstPinyin.isEmpty
     let prefixPending = rimeContext.mixedInputManager.pinyinOnlyBeforeFirstDigitLiteral
-    let allowAppendLiteral = !(hasMiddleDigit && !prefixPending.isEmpty)
+    let hasTrailingLiteral = (!literalSuffix.isEmpty && (isNumericLiteralText(literalSuffix) || isSymbolLiteralText(literalSuffix)))
+      || !trailingDigits.isEmpty
+      || !trailingSymbols.isEmpty
+    let allowAppendLiteral = !(hasMiddleDigit && !prefixPending.isEmpty) && !hasTrailingLiteral
     if displayIndex < appendCount, allowAppendLiteral {
       rimeContext.mixedInputCommitBehavior = .appendLiteral
       rimeContext.selectCandidate(index: rimeIndex)
@@ -3022,6 +3124,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
 
       if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+        let literalSuffix = rimeContext.mixedInputManager.literalOnlyExcludingPrefix
+      if !literalSuffix.isEmpty,
+         (isNumericLiteralText(literalSuffix) || isSymbolLiteralText(literalSuffix))
+      {
+        rimeContext.resetCompositionKeepingMixedInput()
+        rimeContext.resetCommitText()
+        rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+        updateMixedInputSuggestions()
+        return
+      }
         let commitText = rimeContext.mixedInputManager.displayText.replacingOccurrences(of: " ", with: "")
         commitMixedInputText(commitText)
         return
@@ -3693,7 +3805,7 @@ private extension KeyboardInputViewController {
               self.rimeContext.mixedInputKeepLiteralAfterCommit = false
             } else {
               commitText = self.rimeContext.mixedInputManager.getCommitText(rimeCommitText: commitText)
-              Logger.statistics.info("DBG_MIXEDINPUT commit with literal: \(commitText, privacy: .public)")
+              self.mixedInputDebugLog("DBG_MIXEDINPUT commit with literal: \(commitText)")
               // 重置混合输入管理器
               self.rimeContext.mixedInputManager.reset()
               self.mixedInputSelectedNumericPrefix = nil

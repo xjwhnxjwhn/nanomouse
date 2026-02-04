@@ -211,7 +211,16 @@ public extension RimeContext {
     if !literal.isEmpty {
       self.mixedInputManager.insertAtCursorPosition(literal, isLiteral: true)
       self.mixedInputLastDisplayText = mixedInputManager.displayText
-      let texts = NumericCandidateGenerator.candidateTexts(for: literal)
+      let texts: [String]
+      if literal.unicodeScalars.allSatisfy({
+        !CharacterSet.whitespacesAndNewlines.contains($0)
+        && !CharacterSet.letters.contains($0)
+        && !CharacterSet.decimalDigits.contains($0)
+      }) {
+        texts = SymbolCandidateGenerator.candidateTexts(for: literal)
+      } else {
+        texts = NumericCandidateGenerator.candidateTexts(for: literal)
+      }
       var newSuggestions: [CandidateSuggestion] = []
       for (index, text) in texts.enumerated() {
         let suggestion = CandidateSuggestion(
