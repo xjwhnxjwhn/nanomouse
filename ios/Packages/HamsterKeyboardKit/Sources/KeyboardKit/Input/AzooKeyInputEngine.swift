@@ -409,7 +409,14 @@ final class AzooKeyInputEngine {
       zenzaiMode = .off
     }
 
-    var providers = KanaKanjiConverter.defaultSpecialCandidateProviders
+    var providers: [any SpecialCandidateProvider] = [
+      CalendarSpecialCandidateProvider(),
+      CommaSeparatedNumberSpecialCandidateProvider(),
+      EmailAddressSpecialCandidateProvider(),
+      TimeExpressionSpecialCandidateProvider(),
+      UnicodeSpecialCandidateProvider(),
+      VersionSpecialCandidateProvider()
+    ]
     if UserDefaults.hamster.azooKeyTypographyLetter {
       providers.append(.typography)
     }
