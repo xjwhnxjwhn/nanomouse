@@ -1364,8 +1364,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       // AzooKey 的 composingText 会统一管理所有输入（包括数字）
       let isDigit = char.count == 1 && char.first?.isNumber == true
+      let isSymbol = char.count == 1 && char.unicodeScalars.contains {
+        CharacterSet.punctuationCharacters.contains($0) || CharacterSet.symbols.contains($0)
+      }
       if isDigit && (azooKeyEngine.isComposing || isNumericCandidateModeEnabledOnJapaneseAzooKey) {
         // 数字使用 .direct 样式传给 AzooKey 引擎
+        let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(char)
+        }
+        return
+      }
+      if isSymbol && isNumericCandidateModeEnabledOnJapaneseAzooKey {
         let suggestions = azooKeyEngine.handleInput(char, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
@@ -1512,8 +1525,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isAzooKeyInputActive {
       // 借鉴 AzooKey 独立应用：数字也传给引擎，使用 .direct 样式
       let isDigit = adjustedText.count == 1 && adjustedText.first?.isNumber == true
+      let isSymbol = adjustedText.count == 1 && adjustedText.unicodeScalars.contains {
+        CharacterSet.punctuationCharacters.contains($0) || CharacterSet.symbols.contains($0)
+      }
       if isDigit && (azooKeyEngine.isComposing || isNumericCandidateModeEnabledOnJapaneseAzooKey) {
         // 数字使用 .direct 样式传给 AzooKey 引擎
+        let suggestions = azooKeyEngine.handleInput(adjustedText, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
+        if azooKeyEngine.isComposing {
+          updateAzooKeySuggestions(suggestions)
+        } else {
+          clearAzooKeyState()
+          self.insertTextPatch(adjustedText)
+        }
+        return
+      }
+      if isSymbol && isNumericCandidateModeEnabledOnJapaneseAzooKey {
         let suggestions = azooKeyEngine.handleInput(adjustedText, inputStyle: .direct, leftSideContext: azooKeyLeftSideContext())
         if azooKeyEngine.isComposing {
           updateAzooKeySuggestions(suggestions)
