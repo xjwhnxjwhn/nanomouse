@@ -113,6 +113,43 @@ class KeyboardToolbarView: NibLessView {
     return button
   }()
 
+  private lazy var rightButtonsStack: UIStackView = {
+    let stack = UIStackView()
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 2
+    return stack
+  }()
+
+  private lazy var voiceModeIconView: VoiceModeIconView = {
+    let view = VoiceModeIconView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.isUserInteractionEnabled = false
+    return view
+  }()
+
+  /// 口述模式按钮（铜钱样式）
+  private lazy var voiceModeButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.addTarget(self, action: #selector(voiceModeTouchDownAction), for: .touchDown)
+    button.addTarget(self, action: #selector(voiceModeTouchUpAction), for: .touchUpInside)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
+    button.addSubview(voiceModeIconView)
+
+    NSLayoutConstraint.activate([
+      voiceModeIconView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
+      voiceModeIconView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+      voiceModeIconView.widthAnchor.constraint(equalTo: button.widthAnchor, multiplier: 0.58),
+      voiceModeIconView.heightAnchor.constraint(equalTo: voiceModeIconView.widthAnchor)
+    ])
+
+    return button
+  }()
+
   // TODO: 常用功能栏
   lazy var commonFunctionBar: UIView = {
     let view = UIView(frame: .zero)
@@ -180,8 +217,10 @@ class KeyboardToolbarView: NibLessView {
       logoContainer.addSubview(logoImageView)
       logoContainer.addSubview(iconButton)
     }
+    commonFunctionBar.addSubview(rightButtonsStack)
+    rightButtonsStack.addArrangedSubview(voiceModeButton)
     if keyboardContext.displayKeyboardDismissButton {
-      commonFunctionBar.addSubview(dismissKeyboardButton)
+      rightButtonsStack.addArrangedSubview(dismissKeyboardButton)
     }
     commonFunctionBar.addSubview(traditionalizeHintLabel)
     commonFunctionBar.addSubview(userGuideLabel)
@@ -217,13 +256,23 @@ class KeyboardToolbarView: NibLessView {
       ])
     }
 
+    constraints.append(contentsOf: [
+      rightButtonsStack.trailingAnchor.constraint(equalTo: commonFunctionBar.trailingAnchor),
+      rightButtonsStack.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+      rightButtonsStack.topAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.topAnchor),
+      commonFunctionBar.bottomAnchor.constraint(greaterThanOrEqualTo: rightButtonsStack.bottomAnchor),
+    ])
+
     if keyboardContext.displayKeyboardDismissButton {
       constraints.append(contentsOf: [
         dismissKeyboardButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
-        dismissKeyboardButton.trailingAnchor.constraint(equalTo: commonFunctionBar.trailingAnchor),
-        dismissKeyboardButton.topAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.topAnchor),
-        commonFunctionBar.bottomAnchor.constraint(greaterThanOrEqualTo: dismissKeyboardButton.bottomAnchor),
-        dismissKeyboardButton.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+        voiceModeButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
+        voiceModeButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
+      ])
+    } else {
+      constraints.append(contentsOf: [
+        voiceModeButton.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
+        voiceModeButton.widthAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
       ])
     }
 
@@ -231,15 +280,17 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHintLabel.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
       traditionalizeHintLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
       traditionalizeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
-      traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.trailingAnchor, constant: -8),
+      traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -2),
     ])
 
     // 用户引导标签约束
+    let userGuideLeadingAnchor = keyboardContext.displayAppIconButton
+      ? logoContainer.trailingAnchor
+      : commonFunctionBar.leadingAnchor
     constraints.append(contentsOf: [
-      userGuideLabel.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
       userGuideLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
-      userGuideLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
-      userGuideLabel.trailingAnchor.constraint(lessThanOrEqualTo: commonFunctionBar.trailingAnchor, constant: -8),
+      userGuideLabel.leadingAnchor.constraint(equalTo: userGuideLeadingAnchor, constant: 8),
+      userGuideLabel.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -2),
     ])
 
     NSLayoutConstraint.activate(constraints)
@@ -254,6 +305,8 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
     }
+    voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
+    voiceModeIconView.applyColor(style.toolbarButtonFrontColor)
     let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
     traditionalizeHintLabel.font = style.phoneticTextFont.withSize(hintFontSize)
     traditionalizeHintLabel.textColor = style.candidateTextColor
@@ -342,6 +395,15 @@ class KeyboardToolbarView: NibLessView {
     actionHandler.handle(.release, on: .dismissKeyboard)
   }
 
+  @objc func voiceModeTouchDownAction() {
+    voiceModeButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+  }
+
+  @objc func voiceModeTouchUpAction() {
+    voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
+    NotificationCenter.default.post(name: .hamsterVoiceModeToggle, object: nil)
+  }
+
   @objc func openHamsterAppTouchDownAction() {
     logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
   }
@@ -354,6 +416,7 @@ class KeyboardToolbarView: NibLessView {
   @objc func touchCancel() {
     dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
+    voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
   }
 
   private var canToggleTraditionalizationFromToolbar: Bool {
@@ -498,9 +561,55 @@ extension KeyboardToolbarView: UIGestureRecognizerDelegate {
     if keyboardContext.displayAppIconButton, logoContainer.frame.contains(point) {
       return false
     }
+    if voiceModeButton.frame.contains(point) {
+      return false
+    }
     if keyboardContext.displayKeyboardDismissButton, dismissKeyboardButton.frame.contains(point) {
       return false
     }
     return true
+  }
+}
+
+final class VoiceModeIconView: UIView {
+  private let ringLayer = CAShapeLayer()
+  private let coreLayer = CAShapeLayer()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    isUserInteractionEnabled = false
+    layer.addSublayer(ringLayer)
+    layer.addSublayer(coreLayer)
+    ringLayer.fillColor = UIColor.clear.cgColor
+    coreLayer.fillColor = UIColor.clear.cgColor
+    ringLayer.lineWidth = 1.6
+    coreLayer.lineWidth = 1.4
+  }
+
+  required init?(coder: NSCoder) {
+    return nil
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let size = min(bounds.width, bounds.height)
+    let ringInset = size * 0.12
+    let ringRect = bounds.insetBy(dx: ringInset, dy: ringInset)
+    ringLayer.path = UIBezierPath(ovalIn: ringRect).cgPath
+
+    let coreSize = size * 0.34
+    let coreRect = CGRect(
+      x: (bounds.width - coreSize) / 2,
+      y: (bounds.height - coreSize) / 2,
+      width: coreSize,
+      height: coreSize
+    )
+    let coreRadius = coreSize * 0.22
+    coreLayer.path = UIBezierPath(roundedRect: coreRect, cornerRadius: coreRadius).cgPath
+  }
+
+  func applyColor(_ color: UIColor) {
+    ringLayer.strokeColor = color.cgColor
+    coreLayer.strokeColor = color.cgColor
   }
 }

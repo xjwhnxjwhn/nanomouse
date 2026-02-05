@@ -44,6 +44,9 @@ class KeyboardRootView: NibLessView {
   /// 键盘是否浮动
   private var isKeyboardFloating: Bool
 
+  /// 口述模式状态
+  private var isVoiceModeActive: Bool = false
+
   /// 工具栏收起时约束
   private var toolbarCollapseDynamicConstraints = [NSLayoutConstraint]()
 
@@ -151,6 +154,17 @@ class KeyboardRootView: NibLessView {
     return view
   }()
 
+  /// 口述模式视图
+  private lazy var voiceModeView: VoiceModeView = {
+    let view = VoiceModeView(actionHandler: actionHandler, keyboardContext: keyboardContext)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.isHidden = true
+    view.onClose = { [weak self] in
+      self?.setVoiceMode(false)
+    }
+    return view
+  }()
+
   private var extraCandidateBarHeight: CGFloat {
     rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0
   }
@@ -243,6 +257,7 @@ class KeyboardRootView: NibLessView {
     } else {
       addSubview(primaryKeyboardView)
     }
+    addSubview(voiceModeView)
   }
 
   /// 激活约束
@@ -264,6 +279,13 @@ class KeyboardRootView: NibLessView {
     } else {
       NSLayoutConstraint.activate(createNoToolbarConstraints())
     }
+
+    NSLayoutConstraint.activate([
+      voiceModeView.topAnchor.constraint(equalTo: topAnchor),
+      voiceModeView.bottomAnchor.constraint(equalTo: bottomAnchor),
+      voiceModeView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      voiceModeView.trailingAnchor.constraint(equalTo: trailingAnchor)
+    ])
   }
 
   /// 工具栏静态约束（不会发生变动）
@@ -326,6 +348,7 @@ class KeyboardRootView: NibLessView {
         if keyboardContext.enableToolbar {
           toolbarView.setNeedsLayout()
         }
+        voiceModeView.updateStyle()
         primaryKeyboardView.setNeedsLayout()
       }
       .store(in: &subscriptions)
@@ -363,6 +386,14 @@ class KeyboardRootView: NibLessView {
         Logger.statistics.debug("KeyboardRootView keyboardType combine: \($0.yamlString)")
 
         updatePrimaryKeyboardView(for: $0)
+      }
+      .store(in: &subscriptions)
+
+    NotificationCenter.default.publisher(for: .hamsterVoiceModeToggle)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        guard let self = self else { return }
+        setVoiceMode(!isVoiceModeActive)
       }
       .store(in: &subscriptions)
   }
@@ -457,4 +488,219 @@ class KeyboardRootView: NibLessView {
       NSLayoutConstraint.activate(createNoToolbarConstraints())
     }
   }
+
+  /// 切换口述模式时隐藏键盘区域，避免误触
+  private func setVoiceMode(_ isActive: Bool) {
+    guard isVoiceModeActive != isActive else { return }
+    isVoiceModeActive = isActive
+    voiceModeView.isHidden = !isActive
+    toolbarView.isHidden = isActive
+    primaryKeyboardView.isHidden = isActive
+    if isActive {
+      bringSubviewToFront(voiceModeView)
+    }
+    setNeedsLayout()
+  }
+}
+
+final class VoiceModeView: NibLessView {
+  var onClose: (() -> Void)?
+
+  private let actionHandler: KeyboardActionHandler
+  private let keyboardContext: KeyboardContext
+
+  private lazy var titleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.text = "Nanomouse"
+    label.font = .systemFont(ofSize: 17, weight: .semibold)
+    return label
+  }()
+
+  private lazy var logoImageView: UIImageView = {
+    let image = UIImage(named: "NanomouseLogo", in: .module, compatibleWith: nil)
+    let view = UIImageView(image: image)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFit
+    return view
+  }()
+
+  private lazy var titleStack: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [logoImageView, titleLabel])
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 6
+    return stack
+  }()
+
+  private lazy var promptLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.text = "点击说话"
+    label.font = .systemFont(ofSize: 16, weight: .regular)
+    return label
+  }()
+
+  private lazy var micButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(systemName: "mic.fill"), for: .normal)
+    button.addTarget(self, action: #selector(handleMicTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var lineBreakButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("换行", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 15, weight: .medium)
+    button.addTarget(self, action: #selector(handleLineBreakTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var atButton: UIButton = {
+    makeTopButton(title: "@", action: #selector(handleAtTap))
+  }()
+
+  private lazy var smallReturnButton: UIButton = {
+    makeTopButton(title: "⏎", action: #selector(handleLineBreakTap))
+  }()
+
+  private lazy var closeButton: UIButton = {
+    makeTopButton(title: "x", action: #selector(handleCloseTap))
+  }()
+
+  private lazy var topRightStack: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [atButton, smallReturnButton, closeButton])
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 10
+    return stack
+  }()
+
+  private lazy var centerStack: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [promptLabel, micButton, lineBreakButton])
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .vertical
+    stack.alignment = .center
+    stack.spacing = 18
+    return stack
+  }()
+
+  init(actionHandler: KeyboardActionHandler, keyboardContext: KeyboardContext) {
+    self.actionHandler = actionHandler
+    self.keyboardContext = keyboardContext
+    super.init(frame: .zero)
+    setupSubview()
+  }
+
+  private func setupSubview() {
+    constructViewHierarchy()
+    activateViewConstraints()
+    setupAppearance()
+  }
+
+  override func constructViewHierarchy() {
+    addSubview(titleStack)
+    addSubview(topRightStack)
+    addSubview(centerStack)
+  }
+
+  override func activateViewConstraints() {
+    layoutMargins = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+    NSLayoutConstraint.activate([
+      titleStack.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
+      titleStack.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
+
+      logoImageView.widthAnchor.constraint(equalToConstant: 20),
+      logoImageView.heightAnchor.constraint(equalTo: logoImageView.widthAnchor),
+
+      topRightStack.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
+      topRightStack.centerYAnchor.constraint(equalTo: titleStack.centerYAnchor),
+
+      atButton.widthAnchor.constraint(equalToConstant: 36),
+      atButton.heightAnchor.constraint(equalTo: atButton.widthAnchor),
+      smallReturnButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
+      smallReturnButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
+      closeButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
+      closeButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
+
+      centerStack.centerXAnchor.constraint(equalTo: centerXAnchor),
+      centerStack.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 8),
+
+      micButton.widthAnchor.constraint(equalTo: widthAnchor, multiplier: 0.62),
+      micButton.heightAnchor.constraint(equalToConstant: 72),
+      lineBreakButton.widthAnchor.constraint(equalTo: micButton.widthAnchor, multiplier: 0.52),
+      lineBreakButton.heightAnchor.constraint(equalToConstant: 42)
+    ])
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    micButton.layer.cornerRadius = micButton.bounds.height / 2
+    lineBreakButton.layer.cornerRadius = lineBreakButton.bounds.height / 2
+    atButton.layer.cornerRadius = atButton.bounds.height / 2
+    smallReturnButton.layer.cornerRadius = smallReturnButton.bounds.height / 2
+    closeButton.layer.cornerRadius = closeButton.bounds.height / 2
+  }
+
+  override func setupAppearance() {
+    updateStyle()
+  }
+
+  func updateStyle() {
+    let isDark = keyboardContext.colorScheme == .dark
+    let background = isDark ? UIColor(white: 0.16, alpha: 1.0) : UIColor(white: 0.96, alpha: 1.0)
+    let primaryText = isDark ? UIColor(white: 0.97, alpha: 1.0) : UIColor(white: 0.1, alpha: 1.0)
+    let secondaryText = isDark ? UIColor(white: 0.72, alpha: 1.0) : UIColor(white: 0.4, alpha: 1.0)
+    let pillBackground = isDark ? UIColor(white: 0.92, alpha: 1.0) : UIColor(white: 0.18, alpha: 1.0)
+    let pillText = isDark ? UIColor(white: 0.12, alpha: 1.0) : UIColor(white: 0.95, alpha: 1.0)
+    let topButtonBackground = isDark ? UIColor(white: 0.26, alpha: 1.0) : UIColor(white: 0.85, alpha: 1.0)
+    let topButtonText = isDark ? UIColor(white: 0.95, alpha: 1.0) : UIColor(white: 0.1, alpha: 1.0)
+
+    backgroundColor = background
+    titleLabel.textColor = primaryText
+    promptLabel.textColor = secondaryText
+
+    micButton.backgroundColor = pillBackground
+    micButton.tintColor = pillText
+    lineBreakButton.backgroundColor = pillBackground
+    lineBreakButton.setTitleColor(pillText, for: .normal)
+
+    [atButton, smallReturnButton, closeButton].forEach { button in
+      button.backgroundColor = topButtonBackground
+      button.setTitleColor(topButtonText, for: .normal)
+    }
+  }
+
+  private func makeTopButton(title: String, action: Selector) -> UIButton {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle(title, for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+    button.addTarget(self, action: action, for: .touchUpInside)
+    return button
+  }
+
+  @objc private func handleAtTap() {
+    actionHandler.handle(.release, on: .character("@"))
+  }
+
+  @objc private func handleLineBreakTap() {
+    actionHandler.handle(.release, on: .primary(.return))
+  }
+
+  @objc private func handleCloseTap() {
+    onClose?()
+  }
+
+  @objc private func handleMicTap() {
+    // 这里只放 UI 占位，后续在此接入口述录音与转写流程
+  }
+}
+
+extension Notification.Name {
+  static let hamsterVoiceModeToggle = Notification.Name("hamsterVoiceModeToggle")
 }
