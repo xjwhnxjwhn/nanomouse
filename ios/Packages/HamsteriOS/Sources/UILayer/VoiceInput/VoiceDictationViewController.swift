@@ -18,6 +18,7 @@ final class VoiceDictationViewController: NibLessViewController {
 
   private var requestId: String
   private let speechEngine = VoiceSpeechRecognizerEngine()
+  private let llmService: VoiceLLMService = .shared
   private let voiceInputBridge: AppVoiceInputBridge
   private var latestTranscript = ""
   private var latestCommittedText = ""
@@ -27,6 +28,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var activeRoute: VoiceSpeechRecognizerEngine.Route = .appleOnDevice
   private var lastStartError: VoiceSpeechRecognizerEngine.EngineError?
   private var voiceMode: VoiceMode = .dictation
+  private var llmTransformTask: Task<Void, Never>?
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -126,10 +128,14 @@ final class VoiceDictationViewController: NibLessViewController {
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    llmTransformTask?.cancel()
+    llmTransformTask = nil
     speechEngine.stop(cancel: true)
   }
 
   func updateRequestId(_ requestId: String) {
+    llmTransformTask?.cancel()
+    llmTransformTask = nil
     self.requestId = requestId
     latestTranscript = ""
     latestCommittedText = ""
@@ -327,6 +333,8 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   @objc private func handleCancelTap() {
+    llmTransformTask?.cancel()
+    llmTransformTask = nil
     speechEngine.stop(cancel: true)
     isRecording = false
     isFinishing = false
@@ -491,16 +499,105 @@ final class VoiceDictationViewController: NibLessViewController {
     return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: template)
   }
 
-  private func resolveOutputText(rawText: String, localeIdentifier: String?) -> String {
-    // 阶段3：同一条 ASR 文本按模式走不同后处理链路，统一在回填前收敛为最终文本。
+  private struct OutputResolution {
+    let text: String
+    let usesLLM: Bool
+    let fallbackReason: String?
+  }
+
+  private func resolveOutputTextLocally(
+    mode: VoiceMode,
+    rawText: String,
+    localeIdentifier: String?
+  ) -> String {
+    // 阶段3：保留本地规则链路，作为 LLM 不可用时的稳定兜底。
     let normalizedInput = postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
-    switch voiceMode {
+    switch mode {
     case .dictation:
       return normalizedInput
     case .speakToEdit:
       return applySpeakToEdit(commandText: normalizedInput)
     case .translation:
       return translateTranscript(normalizedInput)
+    }
+  }
+
+  private func resolveOutputTextWithLLM(
+    mode: VoiceMode,
+    rawText: String,
+    baseText: String,
+    localeIdentifier: String?
+  ) async -> OutputResolution {
+    let normalizedInput = postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
+    switch mode {
+    case .dictation:
+      return OutputResolution(
+        text: normalizedInput,
+        usesLLM: false,
+        fallbackReason: nil
+      )
+    case .speakToEdit:
+      let normalizedBase = baseText.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !normalizedBase.isEmpty else {
+        return OutputResolution(
+          text: "",
+          usesLLM: false,
+          fallbackReason: "编辑模式需要先生成一段文本"
+        )
+      }
+      do {
+        let editedText = try await llmService.transform(
+          task: .speakToEdit,
+          sourceText: normalizedBase,
+          instruction: normalizedInput,
+          localeIdentifier: localeIdentifier
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !editedText.isEmpty {
+          return OutputResolution(
+            text: editedText,
+            usesLLM: true,
+            fallbackReason: nil
+          )
+        }
+        return OutputResolution(
+          text: applySpeakToEdit(commandText: normalizedInput),
+          usesLLM: false,
+          fallbackReason: "AI 返回为空，已回退本地编辑规则"
+        )
+      } catch {
+        return OutputResolution(
+          text: applySpeakToEdit(commandText: normalizedInput),
+          usesLLM: false,
+          fallbackReason: "AI 编辑失败：\(error.localizedDescription)"
+        )
+      }
+    case .translation:
+      do {
+        let translated = try await llmService.transform(
+          task: .translation,
+          sourceText: normalizedInput,
+          instruction: nil,
+          localeIdentifier: localeIdentifier
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !translated.isEmpty {
+          return OutputResolution(
+            text: translated,
+            usesLLM: true,
+            fallbackReason: nil
+          )
+        }
+        return OutputResolution(
+          text: translateTranscript(normalizedInput),
+          usesLLM: false,
+          fallbackReason: "AI 返回为空，已回退本地翻译规则"
+        )
+      } catch {
+        return OutputResolution(
+          text: translateTranscript(normalizedInput),
+          usesLLM: false,
+          fallbackReason: "AI 翻译失败：\(error.localizedDescription)"
+        )
+      }
     }
   }
 
@@ -626,10 +723,57 @@ final class VoiceDictationViewController: NibLessViewController {
   private func completeFinishingFlow(rawText: String) {
     guard isFinishing else { return }
     let localeIdentifier = Locale.preferredLanguages.first
-    let finalText = resolveOutputText(rawText: rawText, localeIdentifier: localeIdentifier)
-    if finalText.isEmpty {
+    let mode = voiceMode
+    let baseText = latestCommittedText
+    let requestIdSnapshot = requestId
+
+    if mode == .dictation {
+      let finalText = resolveOutputTextLocally(
+        mode: mode,
+        rawText: rawText,
+        localeIdentifier: localeIdentifier
+      )
+      finalizeOutputText(finalText, localeIdentifier: localeIdentifier, mode: mode, fallbackReason: nil)
+      return
+    }
+
+    statusLabel.text = "AI 处理中..."
+    tipLabel.text = "正在调用 AI 优化结果..."
+    llmTransformTask?.cancel()
+    llmTransformTask = Task { [weak self] in
+      guard let self else { return }
+      let resolution = await self.resolveOutputTextWithLLM(
+        mode: mode,
+        rawText: rawText,
+        baseText: baseText,
+        localeIdentifier: localeIdentifier
+      )
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard self.requestId == requestIdSnapshot else { return }
+        self.finalizeOutputText(
+          resolution.text,
+          localeIdentifier: localeIdentifier,
+          mode: mode,
+          fallbackReason: resolution.fallbackReason
+        )
+        if resolution.usesLLM {
+          self.statusLabel.text = "AI 处理完成，请返回上一应用"
+        }
+      }
+    }
+  }
+
+  private func finalizeOutputText(
+    _ finalText: String,
+    localeIdentifier: String?,
+    mode: VoiceMode,
+    fallbackReason: String?
+  ) {
+    let normalizedFinalText = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if normalizedFinalText.isEmpty {
       statusLabel.text = "未识别到语音，请重试"
-      if voiceMode == .speakToEdit {
+      if mode == .speakToEdit {
         tipLabel.text = "编辑模式需要先有一段文本，请先切回“听写”模式生成文本。"
       } else {
         tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
@@ -643,14 +787,18 @@ final class VoiceDictationViewController: NibLessViewController {
 
     voiceInputBridge.writeResult(
       requestId: requestId,
-      text: finalText,
+      text: normalizedFinalText,
       localeIdentifier: localeIdentifier
     )
-    latestCommittedText = finalText
-    _ = VoicePersonalDictionaryStore.shared.learnWords(from: finalText, localeIdentifier: localeIdentifier)
-    transcriptView.text = finalText
+    latestCommittedText = normalizedFinalText
+    _ = VoicePersonalDictionaryStore.shared.learnWords(from: normalizedFinalText, localeIdentifier: localeIdentifier)
+    transcriptView.text = normalizedFinalText
     statusLabel.text = "完成，请返回上一应用"
-    tipLabel.text = "你可以点击系统左上角返回原应用，文本会自动回填。"
+    if let fallbackReason, !fallbackReason.isEmpty {
+      tipLabel.text = "\(fallbackReason)。你可以继续使用，也可以在“账户 > AI 处理配置”调整。"
+    } else {
+      tipLabel.text = "你可以点击系统左上角返回原应用，文本会自动回填。"
+    }
     stopButton.setTitle("已完成", for: .normal)
     stopButton.isEnabled = false
     stopButton.alpha = 0.72

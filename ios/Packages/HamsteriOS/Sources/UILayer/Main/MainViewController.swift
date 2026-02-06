@@ -1478,6 +1478,7 @@ final class VoiceModelManagementRootView: NibLessView {
 final class VoiceAccountViewController: NibLessViewController {
   private let accountView = VoiceAccountRootView()
   private lazy var modelManagementController = VoiceModelManagementViewController()
+  private lazy var llmSettingsController = VoiceLLMSettingsViewController()
 
   override func loadView() {
     title = "账户"
@@ -1502,7 +1503,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     switch section {
     case 0: return 1
     case 1: return 1
-    case 2: return 3
+    case 2: return 4
     default: return 2
     }
   }
@@ -1526,9 +1527,12 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       cell.textLabel?.text = "语音模型"
       cell.imageView?.image = UIImage(systemName: "waveform.badge.mic")
     case (2, 1):
+      cell.textLabel?.text = "AI 处理配置"
+      cell.imageView?.image = UIImage(systemName: "brain.head.profile")
+    case (2, 2):
       cell.textLabel?.text = "设置"
       cell.imageView?.image = UIImage(systemName: "gearshape")
-    case (2, 2):
+    case (2, 3):
       cell.textLabel?.text = "关于"
       cell.imageView?.image = UIImage(systemName: "info.circle")
     case (3, 0):
@@ -1551,6 +1555,10 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     tableView.deselectRow(at: indexPath, animated: true)
     if indexPath.section == 2, indexPath.row == 0 {
       navigationController?.pushViewController(modelManagementController, animated: true)
+      return
+    }
+    if indexPath.section == 2, indexPath.row == 1 {
+      navigationController?.pushViewController(llmSettingsController, animated: true)
     }
   }
 }
@@ -1679,5 +1687,322 @@ final class AccountNotificationCell: UITableViewCell {
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+}
+
+// MARK: - LLM Settings
+
+final class VoiceLLMSettingsViewController: NibLessViewController {
+  private let settingsStore: VoiceLLMSettingsStore = .shared
+  private let settingsView = VoiceLLMSettingsRootView()
+
+  override func loadView() {
+    title = "AI 处理配置"
+    view = settingsView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    settingsView.authModeControl.addTarget(self, action: #selector(handleAuthModeChanged), for: .valueChanged)
+    settingsView.providerControl.addTarget(self, action: #selector(handleProviderChanged), for: .valueChanged)
+    settingsView.saveButton.addTarget(self, action: #selector(handleSaveTap), for: .touchUpInside)
+    loadSettings()
+  }
+
+  private func loadSettings() {
+    let mode = settingsStore.authMode()
+    let provider = settingsStore.provider()
+    settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
+    settingsView.providerControl.selectedSegmentIndex = providerSegmentIndex(for: provider)
+    settingsView.proxyEndpointField.text = settingsStore.proxyEndpoint()
+    settingsView.byokBaseURLField.text = settingsStore.byokBaseURL()
+    settingsView.modelField.text = settingsStore.byokModel()
+    settingsView.apiKeyField.text = settingsStore.apiKey()
+    settingsView.updateVisibleSections(authMode: mode)
+    settingsView.updateProviderHint(provider: provider)
+  }
+
+  private func providerSegmentIndex(for provider: VoiceLLMProvider) -> Int {
+    switch provider {
+    case .openAI:
+      return 0
+    case .qwen:
+      return 1
+    case .glm:
+      return 2
+    case .custom:
+      return 3
+    }
+  }
+
+  private func providerForSelectedIndex() -> VoiceLLMProvider {
+    switch settingsView.providerControl.selectedSegmentIndex {
+    case 1:
+      return .qwen
+    case 2:
+      return .glm
+    case 3:
+      return .custom
+    default:
+      return .openAI
+    }
+  }
+
+  private func authModeForSelectedIndex() -> VoiceLLMAuthMode {
+    settingsView.authModeControl.selectedSegmentIndex == 1 ? .byok : .proxy
+  }
+
+  @objc private func handleAuthModeChanged() {
+    let mode = authModeForSelectedIndex()
+    settingsView.updateVisibleSections(authMode: mode)
+  }
+
+  @objc private func handleProviderChanged() {
+    let provider = providerForSelectedIndex()
+    settingsView.updateProviderHint(provider: provider)
+
+    // 当用户首次切换供应商时，自动填充默认地址与模型，减少配置摩擦。
+    let currentBaseURL = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let currentModel = (settingsView.modelField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if currentBaseURL.isEmpty {
+      settingsView.byokBaseURLField.text = provider.defaultBaseURL
+    }
+    if currentModel.isEmpty {
+      settingsView.modelField.text = provider.defaultModel
+    }
+  }
+
+  @objc private func handleSaveTap() {
+    let provider = providerForSelectedIndex()
+    let authMode = authModeForSelectedIndex()
+    let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
+    let baseURLInput = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let modelInput = (settingsView.modelField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let apiKeyInput = settingsView.apiKeyField.text
+
+    let baseURL = baseURLInput.isEmpty ? provider.defaultBaseURL : baseURLInput
+    let model = modelInput.isEmpty ? provider.defaultModel : modelInput
+
+    settingsStore.setAuthMode(authMode)
+    settingsStore.setProvider(provider)
+    settingsStore.setProxyEndpoint(proxyEndpoint)
+    settingsStore.setByokBaseURL(baseURL)
+    settingsStore.setByokModel(model)
+    settingsStore.setAPIKey(apiKeyInput)
+
+    settingsView.byokBaseURLField.text = baseURL
+    settingsView.modelField.text = model
+    settingsView.updateVisibleSections(authMode: authMode)
+
+    let message = authMode == .proxy
+      ? "已保存代理模式配置。编辑/翻译模式会优先调用服务端代理。"
+      : "已保存 BYOK 配置。编辑/翻译模式会直接调用你填写的模型接口。"
+    let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
+}
+
+final class VoiceLLMSettingsRootView: NibLessView {
+  let authModeControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: ["服务端代理", "BYOK"])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = 0
+    return control
+  }()
+
+  let providerControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: ["OpenAI", "Qwen", "GLM", "自定义"])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = 0
+    return control
+  }()
+
+  let proxyEndpointField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "https://your-server.example.com/api/voice/transform"
+  )
+
+  let byokBaseURLField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "https://api.openai.com/v1"
+  )
+
+  let modelField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "gpt-4o-mini"
+  )
+
+  let apiKeyField: UITextField = {
+    let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "输入 API Key")
+    field.isSecureTextEntry = true
+    field.autocorrectionType = .no
+    field.autocapitalizationType = .none
+    field.spellCheckingType = .no
+    return field
+  }()
+
+  let saveButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("保存配置", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+    button.setTitleColor(.white, for: .normal)
+    button.backgroundColor = .label
+    button.layer.cornerRadius = 12
+    return button
+  }()
+
+  private let descriptionLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    label.text = "此页面用于配置编辑/翻译模式的 LLM 链路。听写模式仍优先使用 Apple Speech / Whisper。"
+    return label
+  }()
+
+  private let providerHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    return label
+  }()
+
+  private let scrollView: UIScrollView = {
+    let view = UIScrollView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }()
+
+  private let contentStack: UIStackView = {
+    let stack = UIStackView()
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .vertical
+    stack.spacing = 14
+    return stack
+  }()
+
+  private lazy var proxySection = makeSection(
+    title: "代理地址",
+    description: "代理模式下，客户端只请求你自己的服务端。",
+    field: proxyEndpointField
+  )
+
+  private lazy var byokBaseSection = makeSection(
+    title: "BYOK Base URL",
+    description: "通常填写 OpenAI 兼容接口根路径。",
+    field: byokBaseURLField
+  )
+
+  private lazy var modelSection = makeSection(
+    title: "模型",
+    description: "编辑/翻译请求会使用该模型。",
+    field: modelField
+  )
+
+  private lazy var apiKeySection = makeSection(
+    title: "BYOK API Key",
+    description: "密钥会保存在本机 Keychain 中。",
+    field: apiKeyField
+  )
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    setupView()
+  }
+
+  private func setupView() {
+    constructViewHierarchy()
+    activateViewConstraints()
+    setupAppearance()
+    updateVisibleSections(authMode: .proxy)
+    updateProviderHint(provider: .openAI)
+  }
+
+  override func constructViewHierarchy() {
+    addSubview(scrollView)
+    scrollView.addSubview(contentStack)
+    contentStack.addArrangedSubview(descriptionLabel)
+    contentStack.addArrangedSubview(makeControlSection(title: "认证模式", control: authModeControl))
+    contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerControl))
+    contentStack.addArrangedSubview(providerHintLabel)
+    contentStack.addArrangedSubview(proxySection)
+    contentStack.addArrangedSubview(byokBaseSection)
+    contentStack.addArrangedSubview(modelSection)
+    contentStack.addArrangedSubview(apiKeySection)
+    contentStack.addArrangedSubview(saveButton)
+  }
+
+  override func activateViewConstraints() {
+    NSLayoutConstraint.activate([
+      scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+      contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor, constant: 16),
+      contentStack.leadingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.leadingAnchor, constant: 20),
+      contentStack.trailingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.trailingAnchor, constant: -20),
+      contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
+
+      saveButton.heightAnchor.constraint(equalToConstant: 46)
+    ])
+  }
+
+  override func setupAppearance() {
+    backgroundColor = .systemBackground
+  }
+
+  func updateVisibleSections(authMode: VoiceLLMAuthMode) {
+    let isProxy = authMode == .proxy
+    proxySection.isHidden = !isProxy
+    byokBaseSection.isHidden = isProxy
+    apiKeySection.isHidden = isProxy
+  }
+
+  func updateProviderHint(provider: VoiceLLMProvider) {
+    providerHintLabel.text = "当前 Provider：\(provider.displayName)。默认 Base URL：\(provider.defaultBaseURL)"
+  }
+
+  private func makeControlSection(title: String, control: UIView) -> UIView {
+    let titleLabel = UILabel(frame: .zero)
+    titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+    titleLabel.textColor = .secondaryLabel
+    titleLabel.text = title
+    let stack = UIStackView(arrangedSubviews: [titleLabel, control])
+    stack.axis = .vertical
+    stack.spacing = 8
+    return stack
+  }
+
+  private func makeSection(title: String, description: String, field: UITextField) -> UIView {
+    let titleLabel = UILabel(frame: .zero)
+    titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
+    titleLabel.textColor = .secondaryLabel
+    titleLabel.text = title
+
+    let descriptionLabel = UILabel(frame: .zero)
+    descriptionLabel.font = .systemFont(ofSize: 12, weight: .regular)
+    descriptionLabel.textColor = .tertiaryLabel
+    descriptionLabel.numberOfLines = 0
+    descriptionLabel.text = description
+
+    let stack = UIStackView(arrangedSubviews: [titleLabel, descriptionLabel, field])
+    stack.axis = .vertical
+    stack.spacing = 6
+    return stack
+  }
+
+  private static func makeTextField(placeholder: String) -> UITextField {
+    let field = UITextField(frame: .zero)
+    field.translatesAutoresizingMaskIntoConstraints = false
+    field.placeholder = placeholder
+    field.borderStyle = .roundedRect
+    field.clearButtonMode = .whileEditing
+    field.autocorrectionType = .no
+    field.autocapitalizationType = .none
+    field.spellCheckingType = .no
+    return field
   }
 }

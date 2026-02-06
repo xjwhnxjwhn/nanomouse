@@ -8,6 +8,7 @@
 import AVFoundation
 import Foundation
 import Network
+import Security
 import Speech
 #if canImport(WhisperKit)
 import WhisperKit
@@ -480,6 +481,503 @@ private extension VoicePersonalDictionaryStore {
     return matches.compactMap { match in
       guard let swiftRange = Range(match.range, in: text) else { return nil }
       return String(text[swiftRange])
+    }
+  }
+}
+
+enum VoiceLLMAuthMode: String, Codable, CaseIterable {
+  case proxy
+  case byok
+}
+
+enum VoiceLLMProvider: String, Codable, CaseIterable {
+  case openAI = "openai"
+  case qwen
+  case glm
+  case custom
+
+  var displayName: String {
+    switch self {
+    case .openAI:
+      return "OpenAI"
+    case .qwen:
+      return "Qwen"
+    case .glm:
+      return "智谱 GLM"
+    case .custom:
+      return "自定义"
+    }
+  }
+
+  var defaultBaseURL: String {
+    switch self {
+    case .openAI:
+      return "https://api.openai.com/v1"
+    case .qwen:
+      return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    case .glm:
+      return "https://open.bigmodel.cn/api/paas/v4"
+    case .custom:
+      return ""
+    }
+  }
+
+  var defaultModel: String {
+    switch self {
+    case .openAI:
+      return "gpt-4o-mini"
+    case .qwen:
+      return "qwen-plus"
+    case .glm:
+      return "glm-4-flash"
+    case .custom:
+      return ""
+    }
+  }
+}
+
+struct VoiceLLMRuntimeConfig {
+  let authMode: VoiceLLMAuthMode
+  let provider: VoiceLLMProvider
+  let proxyEndpoint: String
+  let byokBaseURL: String
+  let model: String
+  let apiKey: String?
+}
+
+final class VoiceLLMSettingsStore {
+  static let shared = VoiceLLMSettingsStore()
+
+  private enum Constants {
+    static let authModeKey = "voice.llm.auth.mode"
+    static let providerKey = "voice.llm.provider"
+    static let proxyEndpointKey = "voice.llm.proxy.endpoint"
+    static let byokBaseURLKey = "voice.llm.byok.base_url"
+    static let byokModelKey = "voice.llm.byok.model"
+    static let keychainService = "com.XiangqingZHANG.nanomouse.voice.llm"
+    static let keychainAccount = "byok_api_key"
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.llm.settings")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func runtimeConfig() -> VoiceLLMRuntimeConfig {
+    queue.sync {
+      let provider = self.providerLocked()
+      let authMode = self.authModeLocked()
+      let proxyEndpoint = (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let byokBaseURLStored = (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let byokBaseURL = byokBaseURLStored.isEmpty ? provider.defaultBaseURL : byokBaseURLStored
+      let modelStored = (userDefaults.string(forKey: Constants.byokModelKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let model = modelStored.isEmpty ? provider.defaultModel : modelStored
+      return VoiceLLMRuntimeConfig(
+        authMode: authMode,
+        provider: provider,
+        proxyEndpoint: proxyEndpoint,
+        byokBaseURL: byokBaseURL,
+        model: model,
+        apiKey: self.readAPIKeyLocked()
+      )
+    }
+  }
+
+  func setAuthMode(_ mode: VoiceLLMAuthMode) {
+    queue.sync {
+      userDefaults.set(mode.rawValue, forKey: Constants.authModeKey)
+    }
+  }
+
+  func setProvider(_ provider: VoiceLLMProvider) {
+    queue.sync {
+      userDefaults.set(provider.rawValue, forKey: Constants.providerKey)
+      if (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").isEmpty {
+        userDefaults.set(provider.defaultBaseURL, forKey: Constants.byokBaseURLKey)
+      }
+      if (userDefaults.string(forKey: Constants.byokModelKey) ?? "").isEmpty {
+        userDefaults.set(provider.defaultModel, forKey: Constants.byokModelKey)
+      }
+    }
+  }
+
+  func setProxyEndpoint(_ endpoint: String) {
+    queue.sync {
+      userDefaults.set(endpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.proxyEndpointKey)
+    }
+  }
+
+  func setByokBaseURL(_ baseURL: String) {
+    queue.sync {
+      userDefaults.set(baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.byokBaseURLKey)
+    }
+  }
+
+  func setByokModel(_ model: String) {
+    queue.sync {
+      userDefaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.byokModelKey)
+    }
+  }
+
+  func setAPIKey(_ apiKey: String?) {
+    queue.sync {
+      saveAPIKeyLocked(apiKey?.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+  }
+
+  func authMode() -> VoiceLLMAuthMode {
+    queue.sync { authModeLocked() }
+  }
+
+  func provider() -> VoiceLLMProvider {
+    queue.sync { providerLocked() }
+  }
+
+  func proxyEndpoint() -> String {
+    queue.sync {
+      (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+  }
+
+  func byokBaseURL() -> String {
+    queue.sync {
+      let provider = providerLocked()
+      let stored = (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      return stored.isEmpty ? provider.defaultBaseURL : stored
+    }
+  }
+
+  func byokModel() -> String {
+    queue.sync {
+      let provider = providerLocked()
+      let stored = (userDefaults.string(forKey: Constants.byokModelKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      return stored.isEmpty ? provider.defaultModel : stored
+    }
+  }
+
+  func apiKey() -> String? {
+    queue.sync { readAPIKeyLocked() }
+  }
+}
+
+private extension VoiceLLMSettingsStore {
+  func authModeLocked() -> VoiceLLMAuthMode {
+    let raw = userDefaults.string(forKey: Constants.authModeKey) ?? VoiceLLMAuthMode.proxy.rawValue
+    return VoiceLLMAuthMode(rawValue: raw) ?? .proxy
+  }
+
+  func providerLocked() -> VoiceLLMProvider {
+    let raw = userDefaults.string(forKey: Constants.providerKey) ?? VoiceLLMProvider.openAI.rawValue
+    return VoiceLLMProvider(rawValue: raw) ?? .openAI
+  }
+
+  func keychainQueryLocked() -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Constants.keychainService,
+      kSecAttrAccount as String: Constants.keychainAccount
+    ]
+  }
+
+  func readAPIKeyLocked() -> String? {
+    var query = keychainQueryLocked()
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    guard status == errSecSuccess, let data = result as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func saveAPIKeyLocked(_ apiKey: String?) {
+    let query = keychainQueryLocked()
+    SecItemDelete(query as CFDictionary)
+    guard let apiKey, !apiKey.isEmpty else { return }
+    var insert = query
+    insert[kSecValueData as String] = apiKey.data(using: .utf8)
+    SecItemAdd(insert as CFDictionary, nil)
+  }
+}
+
+enum VoiceLLMTask: String {
+  case speakToEdit = "speak_to_edit"
+  case translation = "translation"
+}
+
+enum VoiceLLMServiceError: LocalizedError {
+  case proxyEndpointMissing
+  case byokEndpointMissing
+  case byokAPIKeyMissing
+  case invalidResponse
+  case emptyResponse
+  case requestFailed(message: String)
+
+  var errorDescription: String? {
+    switch self {
+    case .proxyEndpointMissing:
+      return "服务端代理地址未配置"
+    case .byokEndpointMissing:
+      return "BYOK Base URL 未配置"
+    case .byokAPIKeyMissing:
+      return "BYOK API Key 未配置"
+    case .invalidResponse:
+      return "LLM 返回格式异常"
+    case .emptyResponse:
+      return "LLM 返回为空"
+    case .requestFailed(let message):
+      return "LLM 请求失败：\(message)"
+    }
+  }
+}
+
+final class VoiceLLMService {
+  static let shared = VoiceLLMService()
+
+  private let settingsStore: VoiceLLMSettingsStore
+  private let session: URLSession
+
+  init(settingsStore: VoiceLLMSettingsStore = .shared, session: URLSession = .shared) {
+    self.settingsStore = settingsStore
+    self.session = session
+  }
+
+  func transform(
+    task: VoiceLLMTask,
+    sourceText: String,
+    instruction: String?,
+    localeIdentifier: String?
+  ) async throws -> String {
+    let config = settingsStore.runtimeConfig()
+    switch config.authMode {
+    case .proxy:
+      return try await requestViaProxy(
+        task: task,
+        sourceText: sourceText,
+        instruction: instruction,
+        localeIdentifier: localeIdentifier,
+        config: config
+      )
+    case .byok:
+      return try await requestViaByok(
+        task: task,
+        sourceText: sourceText,
+        instruction: instruction,
+        localeIdentifier: localeIdentifier,
+        config: config
+      )
+    }
+  }
+}
+
+private extension VoiceLLMService {
+  struct ProxyRequestBody: Codable {
+    let task: String
+    let sourceText: String
+    let instruction: String?
+    let localeIdentifier: String?
+    let model: String?
+  }
+
+  struct ProxyResponseBody: Codable {
+    let text: String
+  }
+
+  struct ChatCompletionsRequestBody: Codable {
+    struct Message: Codable {
+      let role: String
+      let content: String
+    }
+    let model: String
+    let messages: [Message]
+    let temperature: Double
+  }
+
+  struct ChatCompletionsResponseBody: Decodable {
+    struct Choice: Decodable {
+      struct Message: Decodable {
+        struct ContentPart: Decodable {
+          let text: String?
+        }
+        let textContent: String
+
+        enum CodingKeys: String, CodingKey {
+          case content
+        }
+
+        init(from decoder: Decoder) throws {
+          let container = try decoder.container(keyedBy: CodingKeys.self)
+          if let rawString = try? container.decode(String.self, forKey: .content) {
+            textContent = rawString
+            return
+          }
+          if let parts = try? container.decode([ContentPart].self, forKey: .content) {
+            textContent = parts.compactMap(\.text).joined()
+            return
+          }
+          textContent = ""
+        }
+      }
+      let message: Message
+    }
+    let choices: [Choice]
+  }
+
+  struct ErrorResponseBody: Decodable {
+    struct ErrorMessage: Decodable {
+      let message: String?
+    }
+    let error: ErrorMessage?
+    let message: String?
+  }
+
+  func requestViaProxy(
+    task: VoiceLLMTask,
+    sourceText: String,
+    instruction: String?,
+    localeIdentifier: String?,
+    config: VoiceLLMRuntimeConfig
+  ) async throws -> String {
+    guard !config.proxyEndpoint.isEmpty else {
+      throw VoiceLLMServiceError.proxyEndpointMissing
+    }
+    guard let endpointURL = URL(string: config.proxyEndpoint) else {
+      throw VoiceLLMServiceError.requestFailed(message: "代理地址无效")
+    }
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.timeoutInterval = 25
+    let body = ProxyRequestBody(
+      task: task.rawValue,
+      sourceText: sourceText,
+      instruction: instruction,
+      localeIdentifier: localeIdentifier,
+      model: config.model.isEmpty ? nil : config.model
+    )
+    request.httpBody = try JSONEncoder().encode(body)
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceLLMServiceError.requestFailed(message: message)
+    }
+    let payload = try JSONDecoder().decode(ProxyResponseBody.self, from: data)
+    let text = payload.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty else { throw VoiceLLMServiceError.emptyResponse }
+    return text
+  }
+
+  func requestViaByok(
+    task: VoiceLLMTask,
+    sourceText: String,
+    instruction: String?,
+    localeIdentifier: String?,
+    config: VoiceLLMRuntimeConfig
+  ) async throws -> String {
+    let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !baseURL.isEmpty else {
+      throw VoiceLLMServiceError.byokEndpointMissing
+    }
+    guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+      throw VoiceLLMServiceError.byokAPIKeyMissing
+    }
+    let endpointString: String
+    if baseURL.hasSuffix("/") {
+      endpointString = baseURL + "chat/completions"
+    } else {
+      endpointString = baseURL + "/chat/completions"
+    }
+    guard let endpointURL = URL(string: endpointString) else {
+      throw VoiceLLMServiceError.requestFailed(message: "BYOK 地址无效")
+    }
+
+    let prompts = buildPrompts(
+      task: task,
+      sourceText: sourceText,
+      instruction: instruction,
+      localeIdentifier: localeIdentifier
+    )
+    let model = config.model.isEmpty ? config.provider.defaultModel : config.model
+    let requestBody = ChatCompletionsRequestBody(
+      model: model,
+      messages: [
+        .init(role: "system", content: prompts.systemPrompt),
+        .init(role: "user", content: prompts.userPrompt)
+      ],
+      temperature: 0.2
+    )
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.timeoutInterval = 25
+    request.httpBody = try JSONEncoder().encode(requestBody)
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceLLMServiceError.requestFailed(message: message)
+    }
+
+    let payload = try JSONDecoder().decode(ChatCompletionsResponseBody.self, from: data)
+    let text = payload.choices.first?.message.textContent.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !text.isEmpty else { throw VoiceLLMServiceError.emptyResponse }
+    return text
+  }
+
+  func decodeErrorMessage(data: Data) -> String? {
+    guard let payload = try? JSONDecoder().decode(ErrorResponseBody.self, from: data) else { return nil }
+    if let message = payload.error?.message, !message.isEmpty {
+      return message
+    }
+    if let message = payload.message, !message.isEmpty {
+      return message
+    }
+    return nil
+  }
+
+  func buildPrompts(
+    task: VoiceLLMTask,
+    sourceText: String,
+    instruction: String?,
+    localeIdentifier: String?
+  ) -> (systemPrompt: String, userPrompt: String) {
+    let localeLine = "locale=\(localeIdentifier ?? "unknown")"
+    switch task {
+    case .speakToEdit:
+      let systemPrompt = """
+      你是输入法中的文本编辑器。你必须严格根据用户命令编辑原文，并且只返回最终文本，不要解释。
+      你不能凭空添加事实，也不能输出 markdown。
+      """
+      let userPrompt = """
+      \(localeLine)
+      原文:
+      \(sourceText)
+
+      命令:
+      \(instruction ?? "")
+      """
+      return (systemPrompt, userPrompt)
+    case .translation:
+      let systemPrompt = """
+      你是输入法中的翻译器。请在中英文之间做准确直译，保持原意和语气，只返回翻译后的文本，不要解释。
+      """
+      let userPrompt = """
+      \(localeLine)
+      待翻译文本:
+      \(sourceText)
+      """
+      return (systemPrompt, userPrompt)
     }
   }
 }
