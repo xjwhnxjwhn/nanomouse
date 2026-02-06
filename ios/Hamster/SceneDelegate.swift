@@ -13,6 +13,7 @@ import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   var window: UIWindow?
+  private let voiceInputBridge: AppVoiceInputBridge = .shared
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -134,24 +135,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   }
 
   private func handleVoiceDictationURL(_ url: URL) -> Bool {
-    let component = url.lastPathComponent.lowercased()
-    guard component == HamsterConstants.VoiceInput.deepLinkPath else { return false }
-    let requestId = parseVoiceRequestId(from: url) ?? VoiceInputBridge.makeRequestId()
-    VoiceInputBridge.setState(requestId: requestId, state: .launching)
+    guard voiceInputBridge.isDictationURL(url) else { return false }
+    let requestId = voiceInputBridge.parseRequestId(from: url) ?? voiceInputBridge.makeRequestId()
+    voiceInputBridge.setState(requestId: requestId, state: .launching)
 
     guard let rootController = window?.rootViewController as? MainTabBarController else {
       return true
     }
     rootController.activateVoiceDictation(requestId: requestId)
     return true
-  }
-
-  private func parseVoiceRequestId(from url: URL) -> String? {
-    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-    return components?
-      .queryItems?
-      .first(where: { $0.name == HamsterConstants.VoiceInput.requestIdQueryName })?
-      .value
   }
 
   func sceneDidDisconnect(_ scene: UIScene) {

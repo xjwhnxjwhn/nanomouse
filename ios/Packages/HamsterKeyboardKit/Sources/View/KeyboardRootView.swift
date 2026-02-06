@@ -156,7 +156,11 @@ class KeyboardRootView: NibLessView {
 
   /// 口述模式视图
   private lazy var voiceModeView: VoiceModeView = {
-    let view = VoiceModeView(actionHandler: actionHandler, keyboardContext: keyboardContext)
+    let view = VoiceModeView(
+      actionHandler: actionHandler,
+      keyboardContext: keyboardContext,
+      voiceInputBridge: KeyboardVoiceInputBridge.shared
+    )
     view.translatesAutoresizingMaskIntoConstraints = false
     view.isHidden = true
     view.onClose = { [weak self] in
@@ -508,6 +512,7 @@ final class VoiceModeView: NibLessView {
 
   private let actionHandler: KeyboardActionHandler
   private let keyboardContext: KeyboardContext
+  private let voiceInputBridge: KeyboardVoiceInputBridge
   private var activeRequestId: String?
 
   private lazy var titleLabel: UILabel = {
@@ -590,9 +595,14 @@ final class VoiceModeView: NibLessView {
     return stack
   }()
 
-  init(actionHandler: KeyboardActionHandler, keyboardContext: KeyboardContext) {
+  init(
+    actionHandler: KeyboardActionHandler,
+    keyboardContext: KeyboardContext,
+    voiceInputBridge: KeyboardVoiceInputBridge = .shared
+  ) {
     self.actionHandler = actionHandler
     self.keyboardContext = keyboardContext
+    self.voiceInputBridge = voiceInputBridge
     super.init(frame: .zero)
     setupSubview()
   }
@@ -700,11 +710,11 @@ final class VoiceModeView: NibLessView {
 
   @objc private func handleMicTap() {
     guard micButton.isEnabled else { return }
-    let requestId = VoiceInputBridge.makeRequestId()
+    let requestId = voiceInputBridge.makeRequestId()
     activeRequestId = requestId
-    VoiceInputBridge.setState(requestId: requestId, state: .launching)
-    guard let openURL = VoiceInputBridge.dictationURL(requestId: requestId) else {
-      VoiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid dictation url")
+    voiceInputBridge.setState(requestId: requestId, state: .launching)
+    guard let openURL = voiceInputBridge.makeDictationURL(requestId: requestId) else {
+      voiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid dictation url")
       return
     }
 

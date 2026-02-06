@@ -51,6 +51,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputPrefixPinyinLetterCount: Int = 0
   private var mixedInputSuffixMode = false
   private var mixedInputResyncing = false
+  private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
   private var lastVoiceInsertedCharacterCount = 0
   private var lastVoiceInsertedRequestId: String?
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
@@ -4003,15 +4004,15 @@ private extension KeyboardInputViewController {
 
   /// 键盘回到前台后，尝试读取主 App 写入的语音结果并自动回填。
   func viewWillHandleVoiceInputResult() {
-    VoiceInputBridge.cleanupExpiredData()
-    guard let payload = VoiceInputBridge.readLatestUnconsumedResult() else { return }
-    guard !payload.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-      VoiceInputBridge.markResultConsumed(requestId: payload.requestId)
+    voiceInputBridge.cleanupExpiredData()
+    guard let payload = voiceInputBridge.readLatestUnconsumedResult() else { return }
+    guard !payload.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
+      voiceInputBridge.markResultConsumed(requestId: payload.requestId)
       return
     }
     textDocumentProxy.insertText(payload.text)
-    VoiceInputBridge.markResultConsumed(requestId: payload.requestId)
-    VoiceInputBridge.setState(requestId: payload.requestId, state: .inserted)
+    voiceInputBridge.markResultConsumed(requestId: payload.requestId)
+    voiceInputBridge.setState(requestId: payload.requestId, state: KeyboardVoiceInputState.inserted)
     showVoiceUndoButton(requestId: payload.requestId, insertedTextCount: payload.text.count)
   }
 
@@ -4020,7 +4021,7 @@ private extension KeyboardInputViewController {
     ensureVoiceUndoButton()
     lastVoiceInsertedCharacterCount = insertedTextCount
     lastVoiceInsertedRequestId = requestId
-    VoiceInputBridge.setState(requestId: requestId, state: .undoWindow)
+    voiceInputBridge.setState(requestId: requestId, state: KeyboardVoiceInputState.undoWindow)
 
     hideVoiceUndoWorkItem?.cancel()
     voiceUndoButton.isHidden = false
@@ -4068,7 +4069,7 @@ private extension KeyboardInputViewController {
     }
     deleteBackward(times: lastVoiceInsertedCharacterCount)
     if let requestId = lastVoiceInsertedRequestId {
-      VoiceInputBridge.setState(requestId: requestId, state: .cancelled)
+      voiceInputBridge.setState(requestId: requestId, state: KeyboardVoiceInputState.cancelled)
     }
     lastVoiceInsertedCharacterCount = 0
     lastVoiceInsertedRequestId = nil
