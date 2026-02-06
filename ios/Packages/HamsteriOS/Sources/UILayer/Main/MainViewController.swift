@@ -926,21 +926,117 @@ final class VoiceHistoryCell: UITableViewCell {
 // MARK: - Dictionary
 
 final class VoiceDictionaryViewController: NibLessViewController {
-  private let dictionaryView = VoiceDictionaryRootView()
+  override func loadView() {
+    title = "词典"
+    view = VoiceDictionaryRootView()
+  }
+}
+
+final class VoiceDictionaryRootView: NibLessView {
+  private lazy var segmentedControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: ["所有", "自动添加", "手动添加"])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = 0
+    control.selectedSegmentTintColor = .label
+    control.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+    control.setTitleTextAttributes([.foregroundColor: UIColor.label], for: .normal)
+    return control
+  }()
+
+  private lazy var emptyTitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 16, weight: .semibold)
+    label.text = "尚无单词"
+    return label
+  }()
+
+  private lazy var emptySubtitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 14, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    label.textAlignment = .center
+    label.text = "Nanomouse 会记住您独特的名称与单词，您也可以手动添加。"
+    return label
+  }()
+
+  private lazy var addButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(systemName: "plus"), for: .normal)
+    button.tintColor = .white
+    button.backgroundColor = .label
+    button.layer.cornerRadius = 24
+    button.layer.shadowColor = UIColor.black.cgColor
+    button.layer.shadowOpacity = 0.18
+    button.layer.shadowRadius = 8
+    button.layer.shadowOffset = CGSize(width: 0, height: 4)
+    return button
+  }()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    setupView()
+  }
+
+  private func setupView() {
+    constructViewHierarchy()
+    activateViewConstraints()
+    setupAppearance()
+  }
+
+  override func constructViewHierarchy() {
+    addSubview(segmentedControl)
+    addSubview(emptyTitleLabel)
+    addSubview(emptySubtitleLabel)
+    addSubview(addButton)
+  }
+
+  override func activateViewConstraints() {
+    NSLayoutConstraint.activate([
+      segmentedControl.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 8),
+      segmentedControl.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+      segmentedControl.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+
+      emptyTitleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+      emptyTitleLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -16),
+
+      emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: 12),
+      emptySubtitleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
+      emptySubtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -40),
+
+      addButton.widthAnchor.constraint(equalToConstant: 48),
+      addButton.heightAnchor.constraint(equalTo: addButton.widthAnchor),
+      addButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
+      addButton.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -24),
+    ])
+  }
+
+  override func setupAppearance() {
+    backgroundColor = .systemBackground
+  }
+}
+
+// MARK: - Voice Model Management
+
+final class VoiceModelManagementViewController: NibLessViewController {
+  private let modelView = VoiceModelManagementRootView()
   private let modelStore: VoiceWhisperModelStore = .shared
   private var models: [VoiceWhisperModelStatus] = []
   private var downloadingModelID: String?
 
   override func loadView() {
-    title = "模型"
-    view = dictionaryView
+    title = "语音模型"
+    view = modelView
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    dictionaryView.tableView.dataSource = self
-    dictionaryView.tableView.delegate = self
-    dictionaryView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
+    modelView.tableView.dataSource = self
+    modelView.tableView.delegate = self
+    modelView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
     refreshModels()
   }
 
@@ -952,8 +1048,8 @@ final class VoiceDictionaryViewController: NibLessViewController {
   private func refreshModels() {
     models = modelStore.availableModelStatuses()
     let isAppleOnly = !models.contains(where: { $0.isDownloaded })
-    dictionaryView.updateSummary(isAppleOnly: isAppleOnly)
-    dictionaryView.tableView.reloadData()
+    modelView.updateSummary(isAppleOnly: isAppleOnly)
+    modelView.tableView.reloadData()
   }
 
   private func handleAction(at indexPath: IndexPath) {
@@ -965,7 +1061,7 @@ final class VoiceDictionaryViewController: NibLessViewController {
     }
 
     downloadingModelID = model.option.id
-    dictionaryView.tableView.reloadRows(at: [indexPath], with: .none)
+    modelView.tableView.reloadRows(at: [indexPath], with: .none)
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -1003,7 +1099,7 @@ final class VoiceDictionaryViewController: NibLessViewController {
   }
 }
 
-extension VoiceDictionaryViewController: UITableViewDataSource, UITableViewDelegate {
+extension VoiceModelManagementViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
     1
   }
@@ -1148,7 +1244,7 @@ final class VoiceModelCell: UITableViewCell {
   }
 }
 
-final class VoiceDictionaryRootView: NibLessView {
+final class VoiceModelManagementRootView: NibLessView {
   let tableView: UITableView = {
     let view = UITableView(frame: .zero, style: .insetGrouped)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -1213,6 +1309,7 @@ final class VoiceDictionaryRootView: NibLessView {
 
 final class VoiceAccountViewController: NibLessViewController {
   private let accountView = VoiceAccountRootView()
+  private lazy var modelManagementController = VoiceModelManagementViewController()
 
   override func loadView() {
     title = "账户"
@@ -1237,7 +1334,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     switch section {
     case 0: return 1
     case 1: return 1
-    case 2: return 2
+    case 2: return 3
     default: return 2
     }
   }
@@ -1249,7 +1346,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     }
 
     let cell = tableView.dequeueReusableCell(withIdentifier: "AccountCell", for: indexPath)
-    cell.selectionStyle = .none
+    cell.selectionStyle = .default
     cell.accessoryType = .disclosureIndicator
     cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
 
@@ -1258,9 +1355,12 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       cell.textLabel?.text = "choushoukei@gmail.com"
       cell.imageView?.image = UIImage(systemName: "person.crop.circle")
     case (2, 0):
+      cell.textLabel?.text = "语音模型"
+      cell.imageView?.image = UIImage(systemName: "waveform.badge.mic")
+    case (2, 1):
       cell.textLabel?.text = "设置"
       cell.imageView?.image = UIImage(systemName: "gearshape")
-    case (2, 1):
+    case (2, 2):
       cell.textLabel?.text = "关于"
       cell.imageView?.image = UIImage(systemName: "info.circle")
     case (3, 0):
@@ -1277,6 +1377,13 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
 
   func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
     UITableView.automaticDimension
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    if indexPath.section == 2, indexPath.row == 0 {
+      navigationController?.pushViewController(modelManagementController, animated: true)
+    }
   }
 }
 
