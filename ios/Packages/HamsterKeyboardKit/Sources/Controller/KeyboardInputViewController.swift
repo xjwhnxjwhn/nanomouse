@@ -55,6 +55,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var lastVoiceInsertedCharacterCount = 0
   private var lastVoiceInsertedRequestId: String?
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
+  private var voiceResultPollingTimer: Timer?
+  private var voiceResultPollingDeadline: Date?
 
   private lazy var voiceUndoButton: UIButton = {
     let button = UIButton(type: .system)
@@ -123,12 +125,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    viewWillHandleVoiceInputResult()
+    startVoiceResultPollingIfNeeded()
+    _ = viewWillHandleVoiceInputResult()
   }
 
   override open func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     didApplyDefaultLanguage = false
+    stopVoiceResultPolling()
     hideVoiceUndoButton(animated: false)
   }
 
@@ -1016,6 +1020,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     
     // 更新文本替换建议
     updateTextReplacementSuggestion()
+    if viewWillHandleVoiceInputResult() {
+      stopVoiceResultPolling()
+    }
   }
   
   /// 更新文本替换建议
@@ -4003,17 +4010,46 @@ private extension KeyboardInputViewController {
   }
 
   /// 键盘回到前台后，尝试读取主 App 写入的语音结果并自动回填。
-  func viewWillHandleVoiceInputResult() {
+  @discardableResult
+  func viewWillHandleVoiceInputResult() -> Bool {
     voiceInputBridge.cleanupExpiredData()
-    guard let payload = voiceInputBridge.readLatestUnconsumedResult() else { return }
+    guard let payload = voiceInputBridge.readLatestUnconsumedResult() else { return false }
     guard !payload.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
       voiceInputBridge.markResultConsumed(requestId: payload.requestId)
-      return
+      return false
     }
     textDocumentProxy.insertText(payload.text)
     voiceInputBridge.markResultConsumed(requestId: payload.requestId)
     voiceInputBridge.setState(requestId: payload.requestId, state: KeyboardVoiceInputState.inserted)
     showVoiceUndoButton(requestId: payload.requestId, insertedTextCount: payload.text.count)
+    return true
+  }
+
+  /// 语音回填轮询兜底：解决“先返回键盘、后写入结果”时的一次性漏插入问题。
+  func startVoiceResultPollingIfNeeded() {
+    voiceResultPollingDeadline = Date().addingTimeInterval(20)
+    if voiceResultPollingTimer != nil {
+      return
+    }
+
+    let timer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
+      guard let self else { return }
+      if self.viewWillHandleVoiceInputResult() {
+        self.stopVoiceResultPolling()
+        return
+      }
+      if let deadline = self.voiceResultPollingDeadline, Date() >= deadline {
+        self.stopVoiceResultPolling()
+      }
+    }
+    timer.tolerance = 0.2
+    voiceResultPollingTimer = timer
+  }
+
+  func stopVoiceResultPolling() {
+    voiceResultPollingTimer?.invalidate()
+    voiceResultPollingTimer = nil
+    voiceResultPollingDeadline = nil
   }
 
   func showVoiceUndoButton(requestId: String, insertedTextCount: Int) {

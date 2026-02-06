@@ -93,8 +93,27 @@ final class KeyboardVoiceInputBridge {
     userDefaults.set(state.rawValue, forKey: Constants.stateKey)
   }
 
+  func activeRequestId() -> String? {
+    userDefaults.string(forKey: Constants.activeRequestIdKey)
+  }
+
+  func state() -> KeyboardVoiceInputState {
+    let raw = userDefaults.string(forKey: Constants.stateKey)
+    return KeyboardVoiceInputState(rawValue: raw ?? "") ?? .idle
+  }
+
   func readLatestUnconsumedResult() -> KeyboardVoiceInputResultPayload? {
     ensureDirectories()
+
+    // 优先消费当前请求对应的结果，避免旧任务结果覆盖新任务。
+    if let activeRequestId = activeRequestId(),
+      let payload = read(KeyboardVoiceInputResultPayload.self, from: resultFileURL(for: activeRequestId)),
+      payload.consumed == false,
+      !payload.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
+    {
+      return payload
+    }
+
     guard let fileURLs = try? fileManager.contentsOfDirectory(
       at: resultsDirectoryURL,
       includingPropertiesForKeys: nil,
