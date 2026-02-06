@@ -10,15 +10,23 @@ import HamsterUIKit
 import UIKit
 
 final class VoiceDictationViewController: NibLessViewController {
+  private enum VoiceMode: Int {
+    case dictation = 0
+    case speakToEdit = 1
+    case translation = 2
+  }
+
   private var requestId: String
   private let speechEngine = VoiceSpeechRecognizerEngine()
   private let voiceInputBridge: AppVoiceInputBridge
   private var latestTranscript = ""
+  private var latestCommittedText = ""
   private var isStarting = false
   private var isFinishing = false
   private var isRecording = false
   private var activeRoute: VoiceSpeechRecognizerEngine.Route = .appleOnDevice
   private var lastStartError: VoiceSpeechRecognizerEngine.EngineError?
+  private var voiceMode: VoiceMode = .dictation
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -35,6 +43,14 @@ final class VoiceDictationViewController: NibLessViewController {
     label.textColor = .secondaryLabel
     label.text = "准备中..."
     return label
+  }()
+
+  private lazy var modeSegmentedControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: ["听写", "编辑", "翻译"])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = VoiceMode.dictation.rawValue
+    control.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
+    return control
   }()
 
   private lazy var transcriptView: UITextView = {
@@ -116,22 +132,27 @@ final class VoiceDictationViewController: NibLessViewController {
   func updateRequestId(_ requestId: String) {
     self.requestId = requestId
     latestTranscript = ""
+    latestCommittedText = ""
     transcriptView.text = "请开始说话"
     statusLabel.text = "准备中..."
-    tipLabel.text = "识别完成后，请点击系统左上角“返回到上一应用”。"
+    tipLabel.text = makeModeHintText()
     isRecording = false
     isFinishing = false
     isStarting = false
     lastStartError = nil
+    voiceMode = .dictation
+    modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
     configureStopButtonForFinish()
     voiceInputBridge.setState(requestId: requestId, state: .launching)
     speechEngine.stop(cancel: true)
+    refreshUIForCurrentMode(keepTranscript: false)
     startRecognitionIfNeeded(force: true)
   }
 
   private func setupView() {
     view.backgroundColor = .systemBackground
     view.addSubview(titleLabel)
+    view.addSubview(modeSegmentedControl)
     view.addSubview(statusLabel)
     view.addSubview(transcriptView)
     view.addSubview(stopButton)
@@ -143,7 +164,11 @@ final class VoiceDictationViewController: NibLessViewController {
       titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
-      statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+      modeSegmentedControl.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
+      modeSegmentedControl.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      modeSegmentedControl.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+
+      statusLabel.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 10),
       statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
       statusLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
@@ -162,6 +187,7 @@ final class VoiceDictationViewController: NibLessViewController {
       tipLabel.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
       tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
     ])
+    refreshUIForCurrentMode(keepTranscript: false)
   }
 
   private func startRecognitionIfNeeded(force: Bool = false) {
@@ -203,7 +229,7 @@ final class VoiceDictationViewController: NibLessViewController {
             if route == .whisperOnDevice {
               self.tipLabel.text = "已切换 Whisper 离线识别，点击“完成”后会进行本地转写。"
             } else {
-              self.tipLabel.text = "识别完成后，请点击系统左上角“返回到上一应用”。"
+              self.tipLabel.text = self.makeModeHintText()
             }
           },
           onError: { [weak self] error in
@@ -214,7 +240,7 @@ final class VoiceDictationViewController: NibLessViewController {
         await MainActor.run {
           self.voiceInputBridge.setState(requestId: self.requestId, state: .recording)
           self.statusLabel.text = self.makeRecordingStatusText()
-          self.tipLabel.text = "识别完成后，请点击系统左上角“返回到上一应用”。"
+          self.tipLabel.text = self.makeModeHintText()
           self.isStarting = false
           self.isRecording = true
           self.lastStartError = nil
@@ -228,6 +254,46 @@ final class VoiceDictationViewController: NibLessViewController {
           self.handleStartFailure(.runtimeFailure(message: error.localizedDescription))
         }
       }
+    }
+  }
+
+  @objc private func handleModeChanged() {
+    let selected = VoiceMode(rawValue: modeSegmentedControl.selectedSegmentIndex) ?? .dictation
+    voiceMode = selected
+    refreshUIForCurrentMode(keepTranscript: true)
+  }
+
+  private func refreshUIForCurrentMode(keepTranscript: Bool) {
+    switch voiceMode {
+    case .dictation:
+      titleLabel.text = "语音输入"
+      if !keepTranscript || latestTranscript.isEmpty {
+        transcriptView.text = latestCommittedText.isEmpty ? "请开始说话" : latestCommittedText
+      }
+    case .speakToEdit:
+      titleLabel.text = "语音编辑"
+      if !keepTranscript || latestTranscript.isEmpty {
+        transcriptView.text = latestCommittedText.isEmpty
+          ? "请先在“听写”模式生成一段文本，再说编辑指令。"
+          : latestCommittedText
+      }
+    case .translation:
+      titleLabel.text = "语音翻译"
+      if !keepTranscript || latestTranscript.isEmpty {
+        transcriptView.text = "请开始说话，系统会自动在中英之间翻译。"
+      }
+    }
+    tipLabel.text = makeModeHintText()
+  }
+
+  private func makeModeHintText() -> String {
+    switch voiceMode {
+    case .dictation:
+      return "识别完成后，请点击系统左上角“返回到上一应用”。"
+    case .speakToEdit:
+      return "示例：\"删除最后一句\"、\"把项目A改成项目B\"、\"更礼貌一点\"。"
+    case .translation:
+      return "翻译模式会优先做中英互译；未命中词条时保留原文。"
     }
   }
 
@@ -270,13 +336,22 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   private func makeRecordingStatusText() -> String {
+    let modePrefix: String
+    switch voiceMode {
+    case .dictation:
+      modePrefix = "听写"
+    case .speakToEdit:
+      modePrefix = "编辑"
+    case .translation:
+      modePrefix = "翻译"
+    }
     switch activeRoute {
     case .appleOnDevice:
-      return "正在听写（离线）..."
+      return "正在\(modePrefix)（离线）..."
     case .appleNetwork:
-      return "正在听写（在线）..."
+      return "正在\(modePrefix)（在线）..."
     case .whisperOnDevice:
-      return "正在听写（Whisper 离线）..."
+      return "正在\(modePrefix)（Whisper 离线）..."
     }
   }
 
@@ -416,15 +491,149 @@ final class VoiceDictationViewController: NibLessViewController {
     return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: template)
   }
 
+  private func resolveOutputText(rawText: String, localeIdentifier: String?) -> String {
+    // 阶段3：同一条 ASR 文本按模式走不同后处理链路，统一在回填前收敛为最终文本。
+    let normalizedInput = postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
+    switch voiceMode {
+    case .dictation:
+      return normalizedInput
+    case .speakToEdit:
+      return applySpeakToEdit(commandText: normalizedInput)
+    case .translation:
+      return translateTranscript(normalizedInput)
+    }
+  }
+
+  private func applySpeakToEdit(commandText: String) -> String {
+    let command = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !command.isEmpty else { return "" }
+    var base = latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    if base.isEmpty {
+      return ""
+    }
+
+    if command.contains("删除最后一句") || command.contains("删掉最后一句") {
+      base = removeLastSentence(from: base)
+      return base
+    }
+
+    if command.contains("更礼貌") || command.contains("礼貌一点") {
+      let respectful = base
+        .replacingOccurrences(of: "你", with: "您")
+        .replacingOccurrences(of: "给我", with: "请给我")
+      if respectful.hasPrefix("请") || respectful.hasPrefix("您好") {
+        return respectful
+      }
+      return "请\(respectful)"
+    }
+
+    if command.contains("精简") || command.contains("简短") {
+      return removeLastSentence(from: base)
+    }
+
+    if let replaceRange = command.range(of: "把"), let toRange = command.range(of: "改成") {
+      let oldStart = replaceRange.upperBound
+      let oldEnd = toRange.lowerBound
+      if oldStart < oldEnd {
+        let oldText = String(command[oldStart..<oldEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let newText = String(command[toRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !oldText.isEmpty, !newText.isEmpty {
+          return base.replacingOccurrences(of: oldText, with: newText)
+        }
+      }
+    }
+
+    if command.hasPrefix("追加") || command.hasPrefix("加上") {
+      let appendText = command
+        .replacingOccurrences(of: "追加", with: "")
+        .replacingOccurrences(of: "加上", with: "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !appendText.isEmpty {
+        if base.hasSuffix("。") || base.hasSuffix(".") || base.hasSuffix("!") || base.hasSuffix("！") {
+          return base + " " + appendText
+        }
+        return base + "，" + appendText
+      }
+    }
+
+    return base
+  }
+
+  private func removeLastSentence(from text: String) -> String {
+    let separators = CharacterSet(charactersIn: "。！？.!?\n")
+    if let range = text.rangeOfCharacter(from: separators, options: .backwards) {
+      let trimmed = String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed
+    }
+    return ""
+  }
+
+  private func translateTranscript(_ text: String) -> String {
+    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return "" }
+
+    let hasHan = normalized.range(of: "\\p{Han}", options: .regularExpression) != nil
+    if hasHan {
+      return translateChineseToEnglish(normalized)
+    }
+    return translateEnglishToChinese(normalized)
+  }
+
+  private func translateChineseToEnglish(_ text: String) -> String {
+    let dictionary: [String: String] = [
+      "你好": "Hello",
+      "早上好": "Good morning",
+      "下午好": "Good afternoon",
+      "晚上好": "Good evening",
+      "谢谢": "Thank you",
+      "请帮我": "Please help me",
+      "我已经到达": "I have arrived",
+      "会议改到明天": "The meeting is moved to tomorrow",
+      "我稍后回复": "I will reply later",
+      "请确认时间": "Please confirm the time",
+      "今天": "today",
+      "明天": "tomorrow",
+      "后天": "the day after tomorrow"
+    ]
+    if let exact = dictionary[text] {
+      return exact
+    }
+    return text
+  }
+
+  private func translateEnglishToChinese(_ text: String) -> String {
+    let normalized = text.lowercased()
+    let dictionary: [String: String] = [
+      "hello": "你好",
+      "good morning": "早上好",
+      "good afternoon": "下午好",
+      "good evening": "晚上好",
+      "thank you": "谢谢",
+      "please help me": "请帮我",
+      "i have arrived": "我已经到达",
+      "the meeting is moved to tomorrow": "会议改到明天",
+      "i will reply later": "我稍后回复",
+      "please confirm the time": "请确认时间",
+      "today": "今天",
+      "tomorrow": "明天"
+    ]
+    if let exact = dictionary[normalized] {
+      return exact
+    }
+    return text
+  }
+
   private func completeFinishingFlow(rawText: String) {
     guard isFinishing else { return }
-    let finalText = postProcessTranscript(
-      rawText,
-      localeIdentifier: Locale.preferredLanguages.first
-    )
+    let localeIdentifier = Locale.preferredLanguages.first
+    let finalText = resolveOutputText(rawText: rawText, localeIdentifier: localeIdentifier)
     if finalText.isEmpty {
       statusLabel.text = "未识别到语音，请重试"
-      tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
+      if voiceMode == .speakToEdit {
+        tipLabel.text = "编辑模式需要先有一段文本，请先切回“听写”模式生成文本。"
+      } else {
+        tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
+      }
       voiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "empty transcript")
       configureStopButtonForRetry()
       lastStartError = .emptyAudio
@@ -435,8 +644,10 @@ final class VoiceDictationViewController: NibLessViewController {
     voiceInputBridge.writeResult(
       requestId: requestId,
       text: finalText,
-      localeIdentifier: Locale.preferredLanguages.first
+      localeIdentifier: localeIdentifier
     )
+    latestCommittedText = finalText
+    _ = VoicePersonalDictionaryStore.shared.learnWords(from: finalText, localeIdentifier: localeIdentifier)
     transcriptView.text = finalText
     statusLabel.text = "完成，请返回上一应用"
     tipLabel.text = "你可以点击系统左上角返回原应用，文本会自动回填。"

@@ -264,6 +264,226 @@ private extension VoiceWhisperModelStore {
   }
 }
 
+enum VoicePersonalWordSource: String, Codable, CaseIterable {
+  case auto
+  case manual
+}
+
+struct VoicePersonalWord: Codable, Hashable {
+  let word: String
+  let source: VoicePersonalWordSource
+  let score: Int
+  let updatedAt: TimeInterval
+}
+
+final class VoicePersonalDictionaryStore {
+  static let shared = VoicePersonalDictionaryStore()
+
+  private enum Constants {
+    static let storageKey = "voice.personal.dictionary.v1"
+    static let maxWordCount = 400
+  }
+
+  private struct StoredWordRecord: Codable {
+    let word: String
+    var source: VoicePersonalWordSource
+    var score: Int
+    var updatedAt: TimeInterval
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.personal-dictionary")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func words(filter: VoicePersonalWordSource?) -> [VoicePersonalWord] {
+    queue.sync {
+      let all = loadRecordsLocked()
+      return all
+        .filter { filter == nil || $0.source == filter }
+        .sorted { lhs, rhs in
+          if lhs.score == rhs.score {
+            return lhs.updatedAt > rhs.updatedAt
+          }
+          return lhs.score > rhs.score
+        }
+        .map {
+          VoicePersonalWord(
+            word: $0.word,
+            source: $0.source,
+            score: $0.score,
+            updatedAt: $0.updatedAt
+          )
+        }
+    }
+  }
+
+  func hotwords(limit: Int) -> [String] {
+    queue.sync {
+      let positiveLimit = max(0, limit)
+      guard positiveLimit > 0 else { return [] }
+      return loadRecordsLocked()
+        .sorted { lhs, rhs in
+          if lhs.score == rhs.score {
+            return lhs.updatedAt > rhs.updatedAt
+          }
+          return lhs.score > rhs.score
+        }
+        .prefix(positiveLimit)
+        .map(\.word)
+    }
+  }
+
+  func addManualWord(_ rawWord: String) {
+    let normalizedWord = normalizeWord(rawWord)
+    guard !normalizedWord.isEmpty else { return }
+    queue.sync {
+      var records = loadRecordsLocked()
+      let now = Date().timeIntervalSince1970
+      if let index = records.firstIndex(where: { $0.word == normalizedWord }) {
+        records[index].source = .manual
+        records[index].score = max(records[index].score, 12)
+        records[index].updatedAt = now
+      } else {
+        records.append(
+          StoredWordRecord(
+            word: normalizedWord,
+            source: .manual,
+            score: 12,
+            updatedAt: now
+          )
+        )
+      }
+      saveRecordsLocked(trim(records: records))
+    }
+  }
+
+  func removeWord(_ rawWord: String) {
+    let normalizedWord = normalizeWord(rawWord)
+    guard !normalizedWord.isEmpty else { return }
+    queue.sync {
+      let filtered = loadRecordsLocked().filter { $0.word != normalizedWord }
+      saveRecordsLocked(filtered)
+    }
+  }
+
+  @discardableResult
+  func learnWords(from text: String, localeIdentifier: String?) -> [String] {
+    // 自动学习词典：把高频专有词沉淀成热词，供下一次识别注入 contextualStrings。
+    let candidates = extractCandidates(from: text, localeIdentifier: localeIdentifier)
+    guard !candidates.isEmpty else { return [] }
+    return queue.sync {
+      var records = loadRecordsLocked()
+      let now = Date().timeIntervalSince1970
+      var inserted: [String] = []
+      for candidate in candidates {
+        if let index = records.firstIndex(where: { $0.word == candidate }) {
+          if records[index].source == .manual {
+            records[index].score += 1
+          } else {
+            records[index].score = min(99, records[index].score + 2)
+          }
+          records[index].updatedAt = now
+        } else {
+          records.append(
+            StoredWordRecord(
+              word: candidate,
+              source: .auto,
+              score: 3,
+              updatedAt: now
+            )
+          )
+          inserted.append(candidate)
+        }
+      }
+      saveRecordsLocked(trim(records: records))
+      return inserted
+    }
+  }
+}
+
+private extension VoicePersonalDictionaryStore {
+  private func loadRecordsLocked() -> [StoredWordRecord] {
+    guard let data = userDefaults.data(forKey: Constants.storageKey) else { return [] }
+    let decoder = JSONDecoder()
+    return (try? decoder.decode([StoredWordRecord].self, from: data)) ?? []
+  }
+
+  private func saveRecordsLocked(_ records: [StoredWordRecord]) {
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(records) else { return }
+    userDefaults.set(data, forKey: Constants.storageKey)
+  }
+
+  private func trim(records: [StoredWordRecord]) -> [StoredWordRecord] {
+    if records.count <= Constants.maxWordCount {
+      return records
+    }
+    let sorted = records.sorted { lhs, rhs in
+      if lhs.source != rhs.source {
+        return lhs.source == .manual
+      }
+      if lhs.score == rhs.score {
+        return lhs.updatedAt > rhs.updatedAt
+      }
+      return lhs.score > rhs.score
+    }
+    return Array(sorted.prefix(Constants.maxWordCount))
+  }
+
+  private func normalizeWord(_ rawWord: String) -> String {
+    let trimmed = rawWord.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    let collapsed = trimmed.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression)
+    return collapsed
+  }
+
+  private func extractCandidates(from text: String, localeIdentifier: String?) -> [String] {
+    let normalizedText = normalizeWord(text)
+    guard !normalizedText.isEmpty else { return [] }
+
+    var candidates: [String] = []
+    let hanPattern = "[\\p{Han}]{2,8}"
+    candidates.append(contentsOf: matches(pattern: hanPattern, in: normalizedText))
+
+    let latinPattern = "[A-Za-z][A-Za-z0-9_\\-]{2,}"
+    candidates.append(
+      contentsOf: matches(pattern: latinPattern, in: normalizedText)
+        .map { $0.lowercased() }
+    )
+
+    let locale = (localeIdentifier ?? "").lowercased()
+    let stopwords: Set<String>
+    if locale.hasPrefix("zh") || locale.hasPrefix("ja") {
+      stopwords = ["这个", "那个", "我们", "你们", "他们", "就是", "然后", "可以", "一个", "一下"]
+    } else {
+      stopwords = ["the", "and", "for", "with", "this", "that", "you", "your", "from", "into"]
+    }
+
+    var seen = Set<String>()
+    var result: [String] = []
+    for candidate in candidates {
+      let word = normalizeWord(candidate)
+      guard !word.isEmpty, !stopwords.contains(word), !seen.contains(word) else { continue }
+      seen.insert(word)
+      result.append(word)
+    }
+    return result
+  }
+
+  private func matches(pattern: String, in text: String) -> [String] {
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex.matches(in: text, options: [], range: range)
+    return matches.compactMap { match in
+      guard let swiftRange = Range(match.range, in: text) else { return nil }
+      return String(text[swiftRange])
+    }
+  }
+}
+
 final class VoiceSpeechRecognizerEngine {
   enum Route: String {
     case appleOnDevice
@@ -278,18 +498,21 @@ final class VoiceSpeechRecognizerEngine {
     let allowWhisperFallback: Bool
     let retryCount: Int
     let whisperModelID: String?
+    let contextualStrings: [String]
 
     static func recommended(for localeIdentifier: String) -> StartStrategy {
       let normalized = localeIdentifier.lowercased()
       let prefersOnDevice = normalized.hasPrefix("zh") || normalized.hasPrefix("en") || normalized.hasPrefix("ja")
       let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModel()
+      let contextualStrings = VoicePersonalDictionaryStore.shared.hotwords(limit: 40)
       return StartStrategy(
         localeIdentifier: localeIdentifier,
         prefersOnDevice: prefersOnDevice,
         allowNetworkFallback: true,
         allowWhisperFallback: selectedWhisperModel != nil,
         retryCount: 1,
-        whisperModelID: selectedWhisperModel?.modelID
+        whisperModelID: selectedWhisperModel?.modelID,
+        contextualStrings: contextualStrings
       )
     }
   }
@@ -390,6 +613,7 @@ final class VoiceSpeechRecognizerEngine {
           try startSpeechRecognition(
             localeIdentifier: resolvedStrategy.localeIdentifier,
             requiresOnDevice: true,
+            contextualStrings: resolvedStrategy.contextualStrings,
             onResult: onResult,
             onError: onError
           )
@@ -411,6 +635,7 @@ final class VoiceSpeechRecognizerEngine {
             try startSpeechRecognition(
               localeIdentifier: resolvedStrategy.localeIdentifier,
               requiresOnDevice: false,
+              contextualStrings: resolvedStrategy.contextualStrings,
               onResult: onResult,
               onError: onError
             )
@@ -485,6 +710,7 @@ final class VoiceSpeechRecognizerEngine {
   private func startSpeechRecognition(
     localeIdentifier: String,
     requiresOnDevice: Bool,
+    contextualStrings: [String],
     onResult: @escaping (String, Bool) -> Void,
     onError: @escaping (EngineError) -> Void
   ) throws {
@@ -505,6 +731,7 @@ final class VoiceSpeechRecognizerEngine {
     let request = SFSpeechAudioBufferRecognitionRequest()
     request.shouldReportPartialResults = true
     request.requiresOnDeviceRecognition = requiresOnDevice
+    request.contextualStrings = contextualStrings
     self.recognitionRequest = request
 
     let session = AVAudioSession.sharedInstance()

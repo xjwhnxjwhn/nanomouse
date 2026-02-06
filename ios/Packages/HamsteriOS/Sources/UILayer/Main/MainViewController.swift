@@ -926,14 +926,150 @@ final class VoiceHistoryCell: UITableViewCell {
 // MARK: - Dictionary
 
 final class VoiceDictionaryViewController: NibLessViewController {
+  private let dictionaryView = VoiceDictionaryRootView()
+  private let personalStore: VoicePersonalDictionaryStore = .shared
+  private var filter: VoicePersonalWordSource?
+  private var words: [VoicePersonalWord] = []
+
   override func loadView() {
     title = "词典"
-    view = VoiceDictionaryRootView()
+    view = dictionaryView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    dictionaryView.tableView.dataSource = self
+    dictionaryView.tableView.delegate = self
+    dictionaryView.tableView.register(VoiceDictionaryCell.self, forCellReuseIdentifier: VoiceDictionaryCell.identifier)
+    dictionaryView.segmentedControl.addTarget(self, action: #selector(handleFilterChanged), for: .valueChanged)
+    dictionaryView.addButton.addTarget(self, action: #selector(handleAddWordTap), for: .touchUpInside)
+    refreshWords()
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    refreshWords()
+  }
+
+  @objc private func handleFilterChanged() {
+    switch dictionaryView.segmentedControl.selectedSegmentIndex {
+    case 1:
+      filter = .auto
+    case 2:
+      filter = .manual
+    default:
+      filter = nil
+    }
+    refreshWords()
+  }
+
+  @objc private func handleAddWordTap() {
+    let alert = UIAlertController(title: "添加词条", message: "输入你想优先识别的词语。", preferredStyle: .alert)
+    alert.addTextField { textField in
+      textField.placeholder = "例如：Nanomouse、项目代号"
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "保存", style: .default) { [weak self] _ in
+      guard let self else { return }
+      let rawWord = alert.textFields?.first?.text ?? ""
+      self.personalStore.addManualWord(rawWord)
+      self.refreshWords()
+    })
+    present(alert, animated: true)
+  }
+
+  private func refreshWords() {
+    words = personalStore.words(filter: filter)
+    dictionaryView.updateEmptyState(isEmpty: words.isEmpty, filter: filter)
+    dictionaryView.tableView.reloadData()
+  }
+
+  private func deleteWord(at indexPath: IndexPath, completion: @escaping (Bool) -> Void) {
+    let word = words[indexPath.row]
+    personalStore.removeWord(word.word)
+    refreshWords()
+    completion(true)
+  }
+}
+
+extension VoiceDictionaryViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    words.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: VoiceDictionaryCell.identifier, for: indexPath)
+    guard let dictionaryCell = cell as? VoiceDictionaryCell else { return cell }
+    dictionaryCell.configure(with: words[indexPath.row])
+    return dictionaryCell
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    "词典会自动注入到语音识别热词，提升专有名词识别稳定性。"
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      self?.deleteWord(at: indexPath, completion: completion)
+    }
+    return UISwipeActionsConfiguration(actions: [deleteAction])
+  }
+}
+
+final class VoiceDictionaryCell: UITableViewCell {
+  static let identifier = "VoiceDictionaryCell"
+
+  private lazy var wordLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 16, weight: .semibold)
+    return label
+  }()
+
+  private lazy var detailLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .regular)
+    label.textColor = .secondaryLabel
+    return label
+  }()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    selectionStyle = .none
+    contentView.addSubview(wordLabel)
+    contentView.addSubview(detailLabel)
+
+    NSLayoutConstraint.activate([
+      wordLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+      wordLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      wordLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+
+      detailLabel.topAnchor.constraint(equalTo: wordLabel.bottomAnchor, constant: 6),
+      detailLabel.leadingAnchor.constraint(equalTo: wordLabel.leadingAnchor),
+      detailLabel.trailingAnchor.constraint(equalTo: wordLabel.trailingAnchor),
+      detailLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(with word: VoicePersonalWord) {
+    wordLabel.text = word.word
+    let source = word.source == .manual ? "手动" : "自动"
+    detailLabel.text = "\(source) · 热度 \(word.score)"
   }
 }
 
 final class VoiceDictionaryRootView: NibLessView {
-  private lazy var segmentedControl: UISegmentedControl = {
+  let segmentedControl: UISegmentedControl = {
     let control = UISegmentedControl(items: ["所有", "自动添加", "手动添加"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = 0
@@ -941,6 +1077,13 @@ final class VoiceDictionaryRootView: NibLessView {
     control.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
     control.setTitleTextAttributes([.foregroundColor: UIColor.label], for: .normal)
     return control
+  }()
+
+  let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.separatorInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+    return view
   }()
 
   private lazy var emptyTitleLabel: UILabel = {
@@ -962,7 +1105,7 @@ final class VoiceDictionaryRootView: NibLessView {
     return label
   }()
 
-  private lazy var addButton: UIButton = {
+  let addButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
     button.setImage(UIImage(systemName: "plus"), for: .normal)
@@ -989,6 +1132,7 @@ final class VoiceDictionaryRootView: NibLessView {
 
   override func constructViewHierarchy() {
     addSubview(segmentedControl)
+    addSubview(tableView)
     addSubview(emptyTitleLabel)
     addSubview(emptySubtitleLabel)
     addSubview(addButton)
@@ -1000,10 +1144,15 @@ final class VoiceDictionaryRootView: NibLessView {
       segmentedControl.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
       segmentedControl.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-      emptyTitleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-      emptyTitleLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -16),
+      tableView.topAnchor.constraint(equalTo: segmentedControl.bottomAnchor, constant: 8),
+      tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
-      emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: 12),
+      emptyTitleLabel.centerXAnchor.constraint(equalTo: tableView.centerXAnchor),
+      emptyTitleLabel.centerYAnchor.constraint(equalTo: tableView.centerYAnchor, constant: -20),
+
+      emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: 10),
       emptySubtitleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
       emptySubtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -40),
 
@@ -1016,6 +1165,25 @@ final class VoiceDictionaryRootView: NibLessView {
 
   override func setupAppearance() {
     backgroundColor = .systemBackground
+    tableView.backgroundColor = .systemBackground
+  }
+
+  func updateEmptyState(isEmpty: Bool, filter: VoicePersonalWordSource?) {
+    emptyTitleLabel.isHidden = !isEmpty
+    emptySubtitleLabel.isHidden = !isEmpty
+    if isEmpty {
+      switch filter {
+      case .auto:
+        emptyTitleLabel.text = "尚无自动词条"
+        emptySubtitleLabel.text = "系统会从你的语音输入中自动学习高频词。"
+      case .manual:
+        emptyTitleLabel.text = "尚无手动词条"
+        emptySubtitleLabel.text = "点击右下角 + 添加你想优先识别的专有名词。"
+      default:
+        emptyTitleLabel.text = "尚无单词"
+        emptySubtitleLabel.text = "Nanomouse 会记住您独特的名称与单词，您也可以手动添加。"
+      }
+    }
   }
 }
 
