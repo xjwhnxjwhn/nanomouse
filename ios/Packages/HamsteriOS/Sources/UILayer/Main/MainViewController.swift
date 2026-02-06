@@ -1697,6 +1697,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   private let llmService: VoiceLLMService = .shared
   private let settingsView = VoiceLLMSettingsRootView()
   private var cachedModelIDs: [String] = []
+  private var promptPresets: [VoiceLLMPromptPreset] = []
+  private var selectedPromptPresetID: String = ""
 
   override func loadView() {
     title = "AI 处理配置"
@@ -1709,6 +1711,9 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.providerControl.addTarget(self, action: #selector(handleProviderChanged), for: .valueChanged)
     settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
     settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
+    settingsView.choosePresetButton.addTarget(self, action: #selector(handleChoosePresetTap), for: .touchUpInside)
+    settingsView.savePresetButton.addTarget(self, action: #selector(handleSavePresetTap), for: .touchUpInside)
+    settingsView.resetPresetsButton.addTarget(self, action: #selector(handleResetPresetsTap), for: .touchUpInside)
     settingsView.saveButton.addTarget(self, action: #selector(handleSaveTap), for: .touchUpInside)
     loadSettings()
   }
@@ -1724,6 +1729,10 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.modelField.text = settingsStore.byokModel()
     settingsView.apiKeyField.text = settingsStore.apiKey()
     cachedModelIDs = settingsStore.cachedModelIDs()
+    promptPresets = settingsStore.promptPresets()
+    let selectedPreset = settingsStore.selectedPromptPreset()
+    selectedPromptPresetID = selectedPreset.id
+    settingsView.updatePresetEditor(preset: selectedPreset, totalCount: promptPresets.count)
     settingsView.updateVisibleSections(authMode: mode)
     settingsView.updateProviderHint(provider: provider)
     settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
@@ -1876,7 +1885,70 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     presentModelPicker(cachedModelIDs)
   }
 
+  @objc private func handleChoosePresetTap() {
+    // 切换预设前先保存当前草稿，避免用户来回切换时丢失手动修改。
+    persistCurrentPresetDraft()
+    let options = settingsStore.promptPresets()
+    if options.isEmpty {
+      presentErrorAlert(title: "暂无预设", message: "当前没有可用预设，请稍后重试。")
+      return
+    }
+    promptPresets = options
+
+    let alert = UIAlertController(
+      title: "选择处理预设",
+      message: "每次 AI 处理只会使用一个预设。",
+      preferredStyle: .actionSheet
+    )
+    for preset in options {
+      let title = preset.id == selectedPromptPresetID ? "✓ \(preset.name)" : preset.name
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        guard let self else { return }
+        _ = self.settingsStore.setSelectedPromptPresetID(preset.id)
+        self.selectedPromptPresetID = preset.id
+        self.settingsView.updatePresetEditor(preset: preset, totalCount: options.count)
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = settingsView.choosePresetButton
+      popover.sourceRect = settingsView.choosePresetButton.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  @objc private func handleSavePresetTap() {
+    guard !selectedPromptPresetID.isEmpty else {
+      presentErrorAlert(title: "保存失败", message: "当前没有选中的预设。")
+      return
+    }
+    let name = settingsView.presetNameField.text ?? ""
+    let instruction = settingsView.presetInstructionView.text ?? ""
+    guard let updated = settingsStore.updatePromptPreset(
+      id: selectedPromptPresetID,
+      name: name,
+      instruction: instruction
+    ) else {
+      presentErrorAlert(title: "保存失败", message: "预设保存失败，请稍后重试。")
+      return
+    }
+
+    promptPresets = settingsStore.promptPresets()
+    settingsView.updatePresetEditor(preset: updated, totalCount: promptPresets.count)
+    presentHintAlert(title: "预设已保存", message: "当前预设已更新，后续 AI 处理会按此预设执行。")
+  }
+
+  @objc private func handleResetPresetsTap() {
+    settingsStore.resetPromptPresetsToDefault()
+    promptPresets = settingsStore.promptPresets()
+    let preset = settingsStore.selectedPromptPreset()
+    selectedPromptPresetID = preset.id
+    settingsView.updatePresetEditor(preset: preset, totalCount: promptPresets.count)
+    presentHintAlert(title: "已恢复默认", message: "6 个预设已恢复为系统默认内容。")
+  }
+
   @objc private func handleSaveTap() {
+    persistCurrentPresetDraft()
     persistFormSettings()
     let authMode = authModeForSelectedIndex()
     settingsView.updateVisibleSections(authMode: authMode)
@@ -1887,6 +1959,18 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)
+  }
+
+  private func persistCurrentPresetDraft() {
+    guard !selectedPromptPresetID.isEmpty else { return }
+    let name = settingsView.presetNameField.text ?? ""
+    let instruction = settingsView.presetInstructionView.text ?? ""
+    _ = settingsStore.updatePromptPreset(
+      id: selectedPromptPresetID,
+      name: name,
+      instruction: instruction
+    )
+    promptPresets = settingsStore.promptPresets()
   }
 
   private func persistFormSettings() {
@@ -1995,6 +2079,51 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return button
   }()
 
+  let choosePresetButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("选择预设", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemGray5
+    button.layer.cornerRadius = 10
+    return button
+  }()
+
+  let presetNameField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "预设名称"
+  )
+
+  let presetInstructionView: UITextView = {
+    let view = UITextView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.font = .systemFont(ofSize: 14, weight: .regular)
+    view.textColor = .label
+    view.backgroundColor = .secondarySystemBackground
+    view.layer.cornerRadius = 10
+    view.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+    return view
+  }()
+
+  let savePresetButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("保存当前预设", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+    button.layer.cornerRadius = 10
+    return button
+  }()
+
+  let resetPresetsButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("恢复默认预设", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemGray5
+    button.layer.cornerRadius = 10
+    return button
+  }()
+
   let apiKeyField: UITextField = {
     let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "输入 API Key")
     field.isSecureTextEntry = true
@@ -2035,6 +2164,15 @@ final class VoiceLLMSettingsRootView: NibLessView {
   }()
 
   private let cachedModelHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    return label
+  }()
+
+  private let presetHintLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 12, weight: .regular)
@@ -2099,6 +2237,26 @@ final class VoiceLLMSettingsRootView: NibLessView {
     field: apiKeyField
   )
 
+  private lazy var presetSection: UIView = {
+    let presetStack = UIStackView(
+      arrangedSubviews: [
+        self.choosePresetButton,
+        self.presetNameField,
+        self.presetInstructionView,
+        self.savePresetButton,
+        self.resetPresetsButton,
+        self.presetHintLabel
+      ]
+    )
+    presetStack.axis = .vertical
+    presetStack.spacing = 8
+    return self.makeSection(
+      title: "处理预设",
+      description: "每次 AI 处理只使用一个预设。你可以选择并修改系统提供的 6 个预设。",
+      content: presetStack
+    )
+  }()
+
   override init(frame: CGRect) {
     super.init(frame: frame)
     setupView()
@@ -2110,6 +2268,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     setupAppearance()
     updateVisibleSections(authMode: .proxy)
     updateProviderHint(provider: .openAI)
+    updatePresetEditor(preset: VoiceLLMPromptPreset.defaultPresets[0], totalCount: VoiceLLMPromptPreset.defaultPresets.count)
   }
 
   override func constructViewHierarchy() {
@@ -2124,6 +2283,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     contentStack.addArrangedSubview(byokBaseSection)
     contentStack.addArrangedSubview(modelSection)
     contentStack.addArrangedSubview(apiKeySection)
+    contentStack.addArrangedSubview(presetSection)
     contentStack.addArrangedSubview(saveButton)
   }
 
@@ -2139,6 +2299,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
       contentStack.trailingAnchor.constraint(equalTo: scrollView.frameLayoutGuide.trailingAnchor, constant: -20),
       contentStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor, constant: -24),
 
+      presetInstructionView.heightAnchor.constraint(greaterThanOrEqualToConstant: 110),
       saveButton.heightAnchor.constraint(equalToConstant: 46)
     ])
   }
@@ -2172,6 +2333,13 @@ final class VoiceLLMSettingsRootView: NibLessView {
     } else {
       cachedModelHintLabel.text = "已缓存 \(modelCount) 个模型。"
     }
+  }
+
+  func updatePresetEditor(preset: VoiceLLMPromptPreset, totalCount: Int) {
+    choosePresetButton.setTitle("选择预设：\(preset.name)", for: .normal)
+    presetNameField.text = preset.name
+    presetInstructionView.text = preset.instruction
+    presetHintLabel.text = "当前预设 ID：\(preset.id) · 共 \(totalCount) 个预设。"
   }
 
   private func makeControlSection(title: String, control: UIView) -> UIView {

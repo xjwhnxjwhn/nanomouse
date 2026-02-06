@@ -584,6 +584,45 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
   }
 }
 
+struct VoiceLLMPromptPreset: Codable, Equatable {
+  let id: String
+  var name: String
+  var instruction: String
+
+  static let defaultPresets: [VoiceLLMPromptPreset] = [
+    .init(
+      id: "balanced",
+      name: "平衡优化",
+      instruction: "保留原意并修正语法与标点，输出自然、清晰、可直接发送的文本。"
+    ),
+    .init(
+      id: "structured",
+      name: "条理清晰",
+      instruction: "保持原意并重组结构，优先使用短句或条目，让信息层次更清楚。"
+    ),
+    .init(
+      id: "concise",
+      name: "简洁专业",
+      instruction: "删除口语化和重复表达，尽量精炼，但不要丢失关键信息。"
+    ),
+    .init(
+      id: "polite",
+      name: "礼貌友好",
+      instruction: "保持内容准确，并将语气调整为礼貌、友好、专业。"
+    ),
+    .init(
+      id: "actionable",
+      name: "行动导向",
+      instruction: "优先突出结论、待办事项和下一步动作，必要时整理为列表。"
+    ),
+    .init(
+      id: "proofread",
+      name: "纠错优先",
+      instruction: "优先修正错别字、专有名词、数字与时间表达，避免语义偏移。"
+    ),
+  ]
+}
+
 struct VoiceLLMRuntimeConfig {
   let authMode: VoiceLLMAuthMode
   let provider: VoiceLLMProvider
@@ -604,6 +643,8 @@ final class VoiceLLMSettingsStore {
     static let proxyModelsEndpointKey = "voice.llm.proxy.models.endpoint"
     static let byokBaseURLKey = "voice.llm.byok.base_url"
     static let byokModelKey = "voice.llm.byok.model"
+    static let promptPresetsKey = "voice.llm.prompt.presets"
+    static let selectedPromptPresetIDKey = "voice.llm.prompt.selected_id"
     static let cachedModelsKey = "voice.llm.cached.models"
     static let cachedModelsUpdatedAtKey = "voice.llm.cached.models.updated_at"
     static let keychainService = "com.XiangqingZHANG.nanomouse.voice.llm"
@@ -727,6 +768,62 @@ final class VoiceLLMSettingsStore {
     queue.sync { readAPIKeyLocked() }
   }
 
+  func promptPresets() -> [VoiceLLMPromptPreset] {
+    queue.sync { loadPromptPresetsLocked() }
+  }
+
+  func selectedPromptPresetID() -> String {
+    queue.sync {
+      let presets = loadPromptPresetsLocked()
+      return selectedPromptPresetIDLocked(presets: presets)
+    }
+  }
+
+  func selectedPromptPreset() -> VoiceLLMPromptPreset {
+    queue.sync {
+      let presets = loadPromptPresetsLocked()
+      let selectedID = selectedPromptPresetIDLocked(presets: presets)
+      return presets.first(where: { $0.id == selectedID }) ?? presets[0]
+    }
+  }
+
+  @discardableResult
+  func setSelectedPromptPresetID(_ presetID: String) -> Bool {
+    queue.sync {
+      let presets = loadPromptPresetsLocked()
+      guard presets.contains(where: { $0.id == presetID }) else { return false }
+      userDefaults.set(presetID, forKey: Constants.selectedPromptPresetIDKey)
+      return true
+    }
+  }
+
+  @discardableResult
+  func updatePromptPreset(
+    id: String,
+    name: String,
+    instruction: String
+  ) -> VoiceLLMPromptPreset? {
+    queue.sync {
+      var presets = loadPromptPresetsLocked()
+      guard let index = presets.firstIndex(where: { $0.id == id }) else { return nil }
+      let fallback = presets[index]
+      presets[index].name = sanitizedPresetName(name, fallback: fallback.name)
+      presets[index].instruction = sanitizedPresetInstruction(instruction, fallback: fallback.instruction)
+      savePromptPresetsLocked(presets)
+      return presets[index]
+    }
+  }
+
+  func resetPromptPresetsToDefault() {
+    queue.sync {
+      let defaults = VoiceLLMPromptPreset.defaultPresets
+      savePromptPresetsLocked(defaults)
+      if let first = defaults.first {
+        userDefaults.set(first.id, forKey: Constants.selectedPromptPresetIDKey)
+      }
+    }
+  }
+
   func cachedModelIDs() -> [String] {
     queue.sync {
       guard let data = userDefaults.data(forKey: Constants.cachedModelsKey) else { return [] }
@@ -754,6 +851,67 @@ final class VoiceLLMSettingsStore {
 }
 
 private extension VoiceLLMSettingsStore {
+  func loadPromptPresetsLocked() -> [VoiceLLMPromptPreset] {
+    if let data = userDefaults.data(forKey: Constants.promptPresetsKey),
+      let decoded = try? JSONDecoder().decode([VoiceLLMPromptPreset].self, from: data),
+      !decoded.isEmpty
+    {
+      let normalized = normalizedPromptPresets(decoded)
+      if normalized != decoded {
+        savePromptPresetsLocked(normalized)
+      }
+      _ = selectedPromptPresetIDLocked(presets: normalized)
+      return normalized
+    }
+
+    let defaults = VoiceLLMPromptPreset.defaultPresets
+    savePromptPresetsLocked(defaults)
+    if let first = defaults.first {
+      userDefaults.set(first.id, forKey: Constants.selectedPromptPresetIDKey)
+    }
+    return defaults
+  }
+
+  func savePromptPresetsLocked(_ presets: [VoiceLLMPromptPreset]) {
+    guard let data = try? JSONEncoder().encode(presets) else { return }
+    userDefaults.set(data, forKey: Constants.promptPresetsKey)
+  }
+
+  func selectedPromptPresetIDLocked(presets: [VoiceLLMPromptPreset]) -> String {
+    let storedID = (userDefaults.string(forKey: Constants.selectedPromptPresetIDKey) ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if presets.contains(where: { $0.id == storedID }) {
+      return storedID
+    }
+    let fallback = presets[0].id
+    userDefaults.set(fallback, forKey: Constants.selectedPromptPresetIDKey)
+    return fallback
+  }
+
+  func normalizedPromptPresets(_ presets: [VoiceLLMPromptPreset]) -> [VoiceLLMPromptPreset] {
+    let mapped = Dictionary(uniqueKeysWithValues: presets.map { ($0.id, $0) })
+    return VoiceLLMPromptPreset.defaultPresets.map { preset in
+      guard let stored = mapped[preset.id] else { return preset }
+      return VoiceLLMPromptPreset(
+        id: preset.id,
+        name: sanitizedPresetName(stored.name, fallback: preset.name),
+        instruction: sanitizedPresetInstruction(stored.instruction, fallback: preset.instruction)
+      )
+    }
+  }
+
+  func sanitizedPresetName(_ name: String, fallback: String) -> String {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return fallback }
+    return String(trimmed.prefix(20))
+  }
+
+  func sanitizedPresetInstruction(_ instruction: String, fallback: String) -> String {
+    let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return fallback }
+    return String(trimmed.prefix(240))
+  }
+
   func authModeLocked() -> VoiceLLMAuthMode {
     let raw = userDefaults.string(forKey: Constants.authModeKey) ?? VoiceLLMAuthMode.proxy.rawValue
     return VoiceLLMAuthMode(rawValue: raw) ?? .proxy
@@ -847,12 +1005,14 @@ final class VoiceLLMService {
     localeIdentifier: String?
   ) async throws -> String {
     let config = settingsStore.runtimeConfig()
+    let userInstruction = normalizeUserInstruction(instruction)
+    let proxyInstruction = buildProxyInstruction(task: task, userInstruction: userInstruction)
     switch config.authMode {
     case .proxy:
       return try await requestViaProxy(
         task: task,
         sourceText: sourceText,
-        instruction: instruction,
+        instruction: proxyInstruction,
         localeIdentifier: localeIdentifier,
         config: config
       )
@@ -860,7 +1020,7 @@ final class VoiceLLMService {
       return try await requestViaByok(
         task: task,
         sourceText: sourceText,
-        instruction: instruction,
+        instruction: userInstruction,
         localeIdentifier: localeIdentifier,
         config: config
       )
@@ -1330,37 +1490,100 @@ private extension VoiceLLMService {
     return nil
   }
 
+  func normalizeUserInstruction(_ instruction: String?) -> String? {
+    let value = (instruction ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? nil : value
+  }
+
+  func buildProxyInstruction(task: VoiceLLMTask, userInstruction: String?) -> String? {
+    let preset = settingsStore.selectedPromptPreset()
+    let presetInstruction = sanitizedPresetInstruction(preset.instruction)
+    let role: String
+    switch task {
+    case .speakToEdit:
+      role = "输入法文本整理助手"
+    case .translation:
+      role = "输入法双语翻译整理助手"
+    }
+
+    var instruction = """
+    角色：\(role)
+    目标风格：\(preset.name)
+    风格要求：\(presetInstruction)
+    """
+    if let userInstruction, !userInstruction.isEmpty {
+      instruction += """
+
+      用户附加要求：\(userInstruction)
+      """
+    }
+    return instruction
+  }
+
+  func sanitizedPresetInstruction(_ rawValue: String) -> String {
+    let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.isEmpty {
+      return "保留原意并修正语法、标点与结构。"
+    }
+    return value
+  }
+
   func buildPrompts(
     task: VoiceLLMTask,
     sourceText: String,
     instruction: String?,
     localeIdentifier: String?
   ) -> (systemPrompt: String, userPrompt: String) {
+    let preset = settingsStore.selectedPromptPreset()
+    let presetInstruction = sanitizedPresetInstruction(preset.instruction)
     let localeLine = "locale=\(localeIdentifier ?? "unknown")"
+    let normalizedInstruction = normalizeUserInstruction(instruction)
     switch task {
     case .speakToEdit:
       let systemPrompt = """
-      你是输入法中的文本编辑器。你必须严格根据用户命令编辑原文，并且只返回最终文本，不要解释。
-      你不能凭空添加事实，也不能输出 markdown。
+      你是一个输入法文本整理助手。
+      用户将给你一段口述转写文本，你需要把文本整理成“\(preset.name)”风格。
+      风格要求：\(presetInstruction)
+      你必须遵守以下约束：
+      1) 你必须保留原意，不得编造事实，不得引入原文没有的新信息。
+      2) 你应优先修正口语化、错别字、标点和结构问题。
+      3) 你必须只输出最终文本，不要解释，不要步骤，不要 markdown。
       """
-      let userPrompt = """
+      var userPrompt = """
       \(localeLine)
       原文:
       \(sourceText)
-
-      命令:
-      \(instruction ?? "")
       """
+      if let normalizedInstruction, !normalizedInstruction.isEmpty {
+        userPrompt += """
+
+        用户附加要求:
+        \(normalizedInstruction)
+        """
+      }
       return (systemPrompt, userPrompt)
     case .translation:
       let systemPrompt = """
-      你是输入法中的翻译器。请在中英文之间做准确直译，保持原意和语气，只返回翻译后的文本，不要解释。
+      你是一个输入法双语翻译整理助手。
+      用户将给你一段口述转写文本，你需要先完成中英文翻译，再整理成“\(preset.name)”风格。
+      风格要求：\(presetInstruction)
+      你必须遵守以下约束：
+      1) 你必须保留原意和语气，不得编造事实。
+      2) 你应在中文和英文之间做准确翻译；如果文本不适合翻译，你可以保持原文并做最小整理。
+      3) 你必须只输出最终文本，不要解释，不要步骤，不要 markdown。
       """
-      let userPrompt = """
+      var userPrompt = """
       \(localeLine)
       待翻译文本:
       \(sourceText)
       """
+      if let normalizedInstruction, !normalizedInstruction.isEmpty {
+        userPrompt += """
+
+        用户附加要求:
+        \(normalizedInstruction)
+        """
+      }
       return (systemPrompt, userPrompt)
     }
   }

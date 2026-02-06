@@ -13,7 +13,6 @@ final class VoiceDictationViewController: NibLessViewController {
   private enum VoiceMode: Int {
     case dictation = 0
     case speakToEdit = 1
-    case translation = 2
   }
 
   private var requestId: String
@@ -48,7 +47,7 @@ final class VoiceDictationViewController: NibLessViewController {
   }()
 
   private lazy var modeSegmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["听写", "编辑", "翻译"])
+    let control = UISegmentedControl(items: ["听写", "编辑"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = VoiceMode.dictation.rawValue
     control.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
@@ -283,11 +282,6 @@ final class VoiceDictationViewController: NibLessViewController {
           ? "请先在“听写”模式生成一段文本，再说编辑指令。"
           : latestCommittedText
       }
-    case .translation:
-      titleLabel.text = "语音翻译"
-      if !keepTranscript || latestTranscript.isEmpty {
-        transcriptView.text = "请开始说话，系统会自动在中英之间翻译。"
-      }
     }
     tipLabel.text = makeModeHintText()
   }
@@ -297,9 +291,7 @@ final class VoiceDictationViewController: NibLessViewController {
     case .dictation:
       return "识别完成后，请点击系统左上角“返回到上一应用”。"
     case .speakToEdit:
-      return "示例：\"删除最后一句\"、\"把项目A改成项目B\"、\"更礼貌一点\"。"
-    case .translation:
-      return "翻译模式会优先做中英互译；未命中词条时保留原文。"
+      return "示例：\"删除最后一句\"、\"把项目A改成项目B\"、\"更礼貌一点\"、\"翻译成英文\"。"
     }
   }
 
@@ -350,8 +342,6 @@ final class VoiceDictationViewController: NibLessViewController {
       modePrefix = "听写"
     case .speakToEdit:
       modePrefix = "编辑"
-    case .translation:
-      modePrefix = "翻译"
     }
     switch activeRoute {
     case .appleOnDevice:
@@ -517,8 +507,6 @@ final class VoiceDictationViewController: NibLessViewController {
       return normalizedInput
     case .speakToEdit:
       return applySpeakToEdit(commandText: normalizedInput)
-    case .translation:
-      return translateTranscript(normalizedInput)
     }
   }
 
@@ -545,9 +533,11 @@ final class VoiceDictationViewController: NibLessViewController {
           fallbackReason: "编辑模式需要先生成一段文本"
         )
       }
+      let isTranslation = isTranslationCommand(normalizedInput)
       do {
+        let task: VoiceLLMTask = isTranslation ? .translation : .speakToEdit
         let editedText = try await llmService.transform(
-          task: .speakToEdit,
+          task: task,
           sourceText: normalizedBase,
           instruction: normalizedInput,
           localeIdentifier: localeIdentifier
@@ -559,43 +549,30 @@ final class VoiceDictationViewController: NibLessViewController {
             fallbackReason: nil
           )
         }
+        if isTranslation {
+          return OutputResolution(
+            text: translateTranscript(normalizedBase, instruction: normalizedInput),
+            usesLLM: false,
+            fallbackReason: "AI 返回为空，已回退本地翻译规则"
+          )
+        }
         return OutputResolution(
           text: applySpeakToEdit(commandText: normalizedInput),
           usesLLM: false,
           fallbackReason: "AI 返回为空，已回退本地编辑规则"
         )
       } catch {
+        if isTranslation {
+          return OutputResolution(
+            text: translateTranscript(normalizedBase, instruction: normalizedInput),
+            usesLLM: false,
+            fallbackReason: "AI 翻译失败：\(error.localizedDescription)"
+          )
+        }
         return OutputResolution(
           text: applySpeakToEdit(commandText: normalizedInput),
           usesLLM: false,
           fallbackReason: "AI 编辑失败：\(error.localizedDescription)"
-        )
-      }
-    case .translation:
-      do {
-        let translated = try await llmService.transform(
-          task: .translation,
-          sourceText: normalizedInput,
-          instruction: nil,
-          localeIdentifier: localeIdentifier
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !translated.isEmpty {
-          return OutputResolution(
-            text: translated,
-            usesLLM: true,
-            fallbackReason: nil
-          )
-        }
-        return OutputResolution(
-          text: translateTranscript(normalizedInput),
-          usesLLM: false,
-          fallbackReason: "AI 返回为空，已回退本地翻译规则"
-        )
-      } catch {
-        return OutputResolution(
-          text: translateTranscript(normalizedInput),
-          usesLLM: false,
-          fallbackReason: "AI 翻译失败：\(error.localizedDescription)"
         )
       }
     }
@@ -607,6 +584,10 @@ final class VoiceDictationViewController: NibLessViewController {
     var base = latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines)
     if base.isEmpty {
       return ""
+    }
+
+    if isTranslationCommand(command) {
+      return translateTranscript(base, instruction: command)
     }
 
     if command.contains("删除最后一句") || command.contains("删掉最后一句") {
@@ -665,15 +646,49 @@ final class VoiceDictationViewController: NibLessViewController {
     return ""
   }
 
-  private func translateTranscript(_ text: String) -> String {
+  private func translateTranscript(_ text: String, instruction: String? = nil) -> String {
     let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalized.isEmpty else { return "" }
+
+    if let targetLanguage = detectTargetLanguage(from: instruction) {
+      switch targetLanguage {
+      case .english:
+        return translateChineseToEnglish(normalized)
+      case .chinese:
+        return translateEnglishToChinese(normalized)
+      }
+    }
 
     let hasHan = normalized.range(of: "\\p{Han}", options: .regularExpression) != nil
     if hasHan {
       return translateChineseToEnglish(normalized)
     }
     return translateEnglishToChinese(normalized)
+  }
+
+  private enum TranslationTargetLanguage {
+    case chinese
+    case english
+  }
+
+  private func isTranslationCommand(_ commandText: String) -> Bool {
+    let normalized = commandText.lowercased()
+    if normalized.contains("翻译") || normalized.contains("translate") {
+      return true
+    }
+    return false
+  }
+
+  private func detectTargetLanguage(from instruction: String?) -> TranslationTargetLanguage? {
+    let normalized = (instruction ?? "").lowercased()
+    guard !normalized.isEmpty else { return nil }
+    if normalized.contains("英文") || normalized.contains("英语") || normalized.contains("english") {
+      return .english
+    }
+    if normalized.contains("中文") || normalized.contains("汉语") || normalized.contains("chinese") {
+      return .chinese
+    }
+    return nil
   }
 
   private func translateChineseToEnglish(_ text: String) -> String {
