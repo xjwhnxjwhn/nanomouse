@@ -299,9 +299,9 @@ extension HamsterAppDependencyContainer: OpenSourceViewModelFactory {
 }
 
 extension HamsterAppDependencyContainer: SubViewControllerFactory {
-  public func makeRootController() -> MainViewController {
-    let navigationController = MainViewController(mainViewModel: mainViewModel, subViewControllerFactory: self)
-    return navigationController
+  public func makeRootController() -> UIViewController {
+    let rootController = MainTabBarController(mainViewModel: mainViewModel, subViewControllerFactory: self)
+    return rootController
   }
 
   public func makeSettingsViewController() -> SettingsViewController {

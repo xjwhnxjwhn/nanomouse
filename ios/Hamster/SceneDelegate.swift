@@ -39,6 +39,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     if let url = connectionOptions.urlContexts.first?.url {
       if url.pathExtension.lowercased() == "zip" {
         Task {
+          activateSettingsTabIfNeeded()
           HamsterAppDependencyContainer.shared.mainViewModel.navigationToInputSchema()
           await HamsterAppDependencyContainer.shared.inputSchemaViewModel.importZipFile(fileURL: url)
         }
@@ -49,6 +50,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
       let components = url.lastPathComponent
       if let subView = SettingsSubView(rawValue: components) {
+        activateSettingsTabIfNeeded()
         HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
       }
     }
@@ -58,6 +60,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
        let shortItemType = ShortcutItemType(rawValue: shortItem.localizedTitle),
        shortItemType != .none
     {
+      activateSettingsTabIfNeeded()
       HamsterAppDependencyContainer.shared.mainViewModel.navigationToRIME()
       HamsterAppDependencyContainer.shared.mainViewModel.execShortcutCommand(shortItemType)
     }
@@ -80,6 +83,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     if let url = URLContexts.first?.url {
       if url.pathExtension.lowercased() == "zip" {
         Task {
+          activateSettingsTabIfNeeded()
           HamsterAppDependencyContainer.shared.mainViewModel.navigationToInputSchema()
           await HamsterAppDependencyContainer.shared.inputSchemaViewModel.importZipFile(fileURL: url)
         }
@@ -90,6 +94,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
       let components = url.lastPathComponent
       if let subView = SettingsSubView(rawValue: components) {
+        activateSettingsTabIfNeeded()
         HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
       }
     }
@@ -99,14 +104,24 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   func windowScene(_ windowScene: UIWindowScene, performActionFor shortcutItem: UIApplicationShortcutItem, completionHandler: @escaping (Bool) -> Void) {
     guard let window = window else { return }
     guard let rootController = window.rootViewController else { return }
-    guard let mainViewController = rootController as? MainViewController else { return }
-
-    mainViewController.navigationController?.popViewController(animated: false)
+    if let tabBarController = rootController as? MainTabBarController {
+      tabBarController.activateSettingsTab()
+    } else if let mainViewController = rootController as? MainViewController {
+      mainViewController.navigationController?.popViewController(animated: false)
+    }
 
     // 通过快捷方式打开
     if let shortItemType = ShortcutItemType(rawValue: shortcutItem.localizedTitle), shortItemType != .none {
+      activateSettingsTabIfNeeded()
       HamsterAppDependencyContainer.shared.mainViewModel.navigationToRIME()
       HamsterAppDependencyContainer.shared.mainViewModel.execShortcutCommand(shortItemType)
+    }
+  }
+
+  private func activateSettingsTabIfNeeded() {
+    guard let rootController = window?.rootViewController else { return }
+    if let tabBarController = rootController as? MainTabBarController {
+      tabBarController.activateSettingsTab()
     }
   }
 
