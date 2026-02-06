@@ -1694,7 +1694,9 @@ final class AccountNotificationCell: UITableViewCell {
 
 final class VoiceLLMSettingsViewController: NibLessViewController {
   private let settingsStore: VoiceLLMSettingsStore = .shared
+  private let llmService: VoiceLLMService = .shared
   private let settingsView = VoiceLLMSettingsRootView()
+  private var cachedModelIDs: [String] = []
 
   override func loadView() {
     title = "AI 处理配置"
@@ -1705,6 +1707,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     super.viewDidLoad()
     settingsView.authModeControl.addTarget(self, action: #selector(handleAuthModeChanged), for: .valueChanged)
     settingsView.providerControl.addTarget(self, action: #selector(handleProviderChanged), for: .valueChanged)
+    settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
+    settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
     settingsView.saveButton.addTarget(self, action: #selector(handleSaveTap), for: .touchUpInside)
     loadSettings()
   }
@@ -1715,11 +1719,14 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
     settingsView.providerControl.selectedSegmentIndex = providerSegmentIndex(for: provider)
     settingsView.proxyEndpointField.text = settingsStore.proxyEndpoint()
+    settingsView.proxyModelsEndpointField.text = settingsStore.proxyModelsEndpoint()
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL()
     settingsView.modelField.text = settingsStore.byokModel()
     settingsView.apiKeyField.text = settingsStore.apiKey()
+    cachedModelIDs = settingsStore.cachedModelIDs()
     settingsView.updateVisibleSections(authMode: mode)
     settingsView.updateProviderHint(provider: provider)
+    settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
   }
 
   private func providerSegmentIndex(for provider: VoiceLLMProvider) -> Int {
@@ -1772,7 +1779,117 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     }
   }
 
+  @objc private func handleRefreshModelsTap() {
+    persistFormSettings()
+    settingsView.refreshModelsButton.isEnabled = false
+    settingsView.refreshModelsButton.setTitle("读取中...", for: .normal)
+
+    let config = settingsStore.runtimeConfig()
+    if config.authMode == .byok {
+      let apiKey = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      if apiKey.isEmpty {
+        Task { [weak self] in
+          guard let self else { return }
+          do {
+            let officialModels = try await llmService.fetchOfficialCatalogModels(provider: config.provider)
+            await MainActor.run {
+              self.cachedModelIDs = officialModels
+              self.settingsStore.setCachedModelIDs(officialModels)
+              self.settingsView.updateCachedModelHint(
+                modelCount: officialModels.count,
+                updatedAt: self.settingsStore.cachedModelsUpdatedAt()
+              )
+              self.settingsView.refreshModelsButton.isEnabled = true
+              self.settingsView.refreshModelsButton.setTitle("读取模型列表", for: .normal)
+              self.presentModelPicker(officialModels)
+              self.presentHintAlert(
+                title: "已使用官网模型列表",
+                message: "你当前未填写 API Key，系统已从官方公开文档抓取候选模型。填写 API Key 后再次读取可获取实时可用列表。"
+              )
+            }
+          } catch {
+            let fallbackModels = config.provider.staticModelCandidates
+            await MainActor.run {
+              self.settingsView.refreshModelsButton.isEnabled = true
+              self.settingsView.refreshModelsButton.setTitle("读取模型列表", for: .normal)
+              if fallbackModels.isEmpty {
+                self.presentErrorAlert(
+                  title: "读取失败",
+                  message: error.localizedDescription
+                )
+                return
+              }
+              self.cachedModelIDs = fallbackModels
+              self.settingsStore.setCachedModelIDs(fallbackModels)
+              self.settingsView.updateCachedModelHint(
+                modelCount: fallbackModels.count,
+                updatedAt: self.settingsStore.cachedModelsUpdatedAt()
+              )
+              self.presentModelPicker(fallbackModels)
+              self.presentHintAlert(
+                title: "官网抓取失败，已回退",
+                message: "官方页面暂时不可用，系统已回退到本地候选模型。你可以稍后再试，或先填写 API Key。"
+              )
+            }
+          }
+        }
+        return
+      }
+    }
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let modelIDs = try await llmService.fetchAvailableModels()
+        await MainActor.run {
+          self.cachedModelIDs = modelIDs
+          self.settingsStore.setCachedModelIDs(modelIDs)
+          self.settingsView.updateCachedModelHint(
+            modelCount: modelIDs.count,
+            updatedAt: self.settingsStore.cachedModelsUpdatedAt()
+          )
+          self.settingsView.refreshModelsButton.isEnabled = true
+          self.settingsView.refreshModelsButton.setTitle("读取模型列表", for: .normal)
+          self.presentModelPicker(modelIDs)
+        }
+      } catch {
+        await MainActor.run {
+          self.settingsView.refreshModelsButton.isEnabled = true
+          self.settingsView.refreshModelsButton.setTitle("读取模型列表", for: .normal)
+          self.presentErrorAlert(
+            title: "读取失败",
+            message: error.localizedDescription
+          )
+        }
+      }
+    }
+  }
+
+  @objc private func handleChooseModelTap() {
+    if cachedModelIDs.isEmpty {
+      presentErrorAlert(
+        title: "暂无模型列表",
+        message: "请先点击“读取模型列表”，或者手动输入模型名。"
+      )
+      return
+    }
+    presentModelPicker(cachedModelIDs)
+  }
+
   @objc private func handleSaveTap() {
+    persistFormSettings()
+    let authMode = authModeForSelectedIndex()
+    settingsView.updateVisibleSections(authMode: authMode)
+
+    let message = authMode == .proxy
+      ? "已保存代理模式配置。编辑/翻译模式会优先调用服务端代理。"
+      : "已保存 BYOK 配置。编辑/翻译模式会直接调用你填写的模型接口。"
+    let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
+
+  private func persistFormSettings() {
     let provider = providerForSelectedIndex()
     let authMode = authModeForSelectedIndex()
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
@@ -1786,18 +1903,42 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsStore.setAuthMode(authMode)
     settingsStore.setProvider(provider)
     settingsStore.setProxyEndpoint(proxyEndpoint)
+    settingsStore.setProxyModelsEndpoint(settingsView.proxyModelsEndpointField.text ?? "")
     settingsStore.setByokBaseURL(baseURL)
     settingsStore.setByokModel(model)
     settingsStore.setAPIKey(apiKeyInput)
 
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
-    settingsView.updateVisibleSections(authMode: authMode)
+  }
 
-    let message = authMode == .proxy
-      ? "已保存代理模式配置。编辑/翻译模式会优先调用服务端代理。"
-      : "已保存 BYOK 配置。编辑/翻译模式会直接调用你填写的模型接口。"
-    let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
+  private func presentModelPicker(_ modelIDs: [String]) {
+    let options = Array(modelIDs.prefix(20))
+    let alert = UIAlertController(title: "选择模型", message: "已读取 \(modelIDs.count) 个可用模型。", preferredStyle: .actionSheet)
+    for modelID in options {
+      alert.addAction(UIAlertAction(title: modelID, style: .default) { [weak self] _ in
+        self?.settingsView.modelField.text = modelID
+      })
+    }
+    if modelIDs.count > options.count {
+      alert.addAction(UIAlertAction(title: "模型过多，请手动输入", style: .default))
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = settingsView.chooseModelButton
+      popover.sourceRect = settingsView.chooseModelButton.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func presentErrorAlert(title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
+
+  private func presentHintAlert(title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)
   }
@@ -1822,6 +1963,10 @@ final class VoiceLLMSettingsRootView: NibLessView {
     placeholder: "https://your-server.example.com/api/voice/transform"
   )
 
+  let proxyModelsEndpointField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "https://your-server.example.com/api/voice/models（可选）"
+  )
+
   let byokBaseURLField = VoiceLLMSettingsRootView.makeTextField(
     placeholder: "https://api.openai.com/v1"
   )
@@ -1829,6 +1974,26 @@ final class VoiceLLMSettingsRootView: NibLessView {
   let modelField = VoiceLLMSettingsRootView.makeTextField(
     placeholder: "gpt-4o-mini"
   )
+
+  let refreshModelsButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("读取模型列表", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+    button.layer.cornerRadius = 10
+    return button
+  }()
+
+  let chooseModelButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("从列表选择模型", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemGray5
+    button.layer.cornerRadius = 10
+    return button
+  }()
 
   let apiKeyField: UITextField = {
     let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "输入 API Key")
@@ -1869,6 +2034,15 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return label
   }()
 
+  private let cachedModelHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    return label
+  }()
+
   private let scrollView: UIScrollView = {
     let view = UIScrollView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -1889,17 +2063,35 @@ final class VoiceLLMSettingsRootView: NibLessView {
     field: proxyEndpointField
   )
 
+  private lazy var proxyModelsSection = makeSection(
+    title: "代理模型列表地址",
+    description: "可选。未填写时，默认从代理地址自动推断 /models。",
+    field: proxyModelsEndpointField
+  )
+
   private lazy var byokBaseSection = makeSection(
     title: "BYOK Base URL",
     description: "通常填写 OpenAI 兼容接口根路径。",
     field: byokBaseURLField
   )
 
-  private lazy var modelSection = makeSection(
-    title: "模型",
-    description: "编辑/翻译请求会使用该模型。",
-    field: modelField
-  )
+  private lazy var modelSection: UIView = {
+    let modelStack = UIStackView(
+      arrangedSubviews: [
+        self.modelField,
+        self.refreshModelsButton,
+        self.chooseModelButton,
+        self.cachedModelHintLabel
+      ]
+    )
+    modelStack.axis = .vertical
+    modelStack.spacing = 8
+    return self.makeSection(
+      title: "模型",
+      description: "优先建议先读取模型列表再选择；你仍然可以手动输入模型名。",
+      content: modelStack
+    )
+  }()
 
   private lazy var apiKeySection = makeSection(
     title: "BYOK API Key",
@@ -1928,6 +2120,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerControl))
     contentStack.addArrangedSubview(providerHintLabel)
     contentStack.addArrangedSubview(proxySection)
+    contentStack.addArrangedSubview(proxyModelsSection)
     contentStack.addArrangedSubview(byokBaseSection)
     contentStack.addArrangedSubview(modelSection)
     contentStack.addArrangedSubview(apiKeySection)
@@ -1957,12 +2150,28 @@ final class VoiceLLMSettingsRootView: NibLessView {
   func updateVisibleSections(authMode: VoiceLLMAuthMode) {
     let isProxy = authMode == .proxy
     proxySection.isHidden = !isProxy
+    proxyModelsSection.isHidden = !isProxy
     byokBaseSection.isHidden = isProxy
     apiKeySection.isHidden = isProxy
   }
 
   func updateProviderHint(provider: VoiceLLMProvider) {
     providerHintLabel.text = "当前 Provider：\(provider.displayName)。默认 Base URL：\(provider.defaultBaseURL)"
+  }
+
+  func updateCachedModelHint(modelCount: Int, updatedAt: TimeInterval?) {
+    if modelCount == 0 {
+      cachedModelHintLabel.text = "当前尚未缓存模型列表。"
+      return
+    }
+    if let updatedAt {
+      let formatter = DateFormatter()
+      formatter.dateFormat = "MM-dd HH:mm"
+      let timeText = formatter.string(from: Date(timeIntervalSince1970: updatedAt))
+      cachedModelHintLabel.text = "已缓存 \(modelCount) 个模型，最近更新：\(timeText)"
+    } else {
+      cachedModelHintLabel.text = "已缓存 \(modelCount) 个模型。"
+    }
   }
 
   private func makeControlSection(title: String, control: UIView) -> UIView {
@@ -1977,6 +2186,10 @@ final class VoiceLLMSettingsRootView: NibLessView {
   }
 
   private func makeSection(title: String, description: String, field: UITextField) -> UIView {
+    makeSection(title: title, description: description, content: field)
+  }
+
+  private func makeSection(title: String, description: String, content: UIView) -> UIView {
     let titleLabel = UILabel(frame: .zero)
     titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
     titleLabel.textColor = .secondaryLabel
@@ -1988,7 +2201,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     descriptionLabel.numberOfLines = 0
     descriptionLabel.text = description
 
-    let stack = UIStackView(arrangedSubviews: [titleLabel, descriptionLabel, field])
+    let stack = UIStackView(arrangedSubviews: [titleLabel, descriptionLabel, content])
     stack.axis = .vertical
     stack.spacing = 6
     return stack

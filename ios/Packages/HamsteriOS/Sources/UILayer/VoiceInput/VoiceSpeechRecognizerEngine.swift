@@ -534,12 +534,61 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
       return ""
     }
   }
+
+  // 静态候选模型：用于 BYOK 未配置 API Key 时的离线兜底展示。
+  var staticModelCandidates: [String] {
+    switch self {
+    case .openAI:
+      return [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4.1-mini",
+        "gpt-4.1"
+      ]
+    case .qwen:
+      return [
+        "qwen-plus",
+        "qwen-max",
+        "qwen-turbo"
+      ]
+    case .glm:
+      return [
+        "glm-4-flash",
+        "glm-4-plus",
+        "glm-4-air"
+      ]
+    case .custom:
+      return []
+    }
+  }
+
+  // 官方公开文档源：用于 BYOK 未配置 API Key 时在线抓取候选模型。
+  var officialCatalogURLs: [String] {
+    switch self {
+    case .openAI:
+      return [
+        "https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml"
+      ]
+    case .qwen:
+      return [
+        "https://help.aliyun.com/zh/model-studio/models"
+      ]
+    case .glm:
+      return [
+        "https://docs.bigmodel.cn/cn/guide/start/model-overview",
+        "https://docs.bigmodel.cn/llms.txt"
+      ]
+    case .custom:
+      return []
+    }
+  }
 }
 
 struct VoiceLLMRuntimeConfig {
   let authMode: VoiceLLMAuthMode
   let provider: VoiceLLMProvider
   let proxyEndpoint: String
+  let proxyModelsEndpoint: String
   let byokBaseURL: String
   let model: String
   let apiKey: String?
@@ -552,8 +601,11 @@ final class VoiceLLMSettingsStore {
     static let authModeKey = "voice.llm.auth.mode"
     static let providerKey = "voice.llm.provider"
     static let proxyEndpointKey = "voice.llm.proxy.endpoint"
+    static let proxyModelsEndpointKey = "voice.llm.proxy.models.endpoint"
     static let byokBaseURLKey = "voice.llm.byok.base_url"
     static let byokModelKey = "voice.llm.byok.model"
+    static let cachedModelsKey = "voice.llm.cached.models"
+    static let cachedModelsUpdatedAtKey = "voice.llm.cached.models.updated_at"
     static let keychainService = "com.XiangqingZHANG.nanomouse.voice.llm"
     static let keychainAccount = "byok_api_key"
   }
@@ -570,6 +622,7 @@ final class VoiceLLMSettingsStore {
       let provider = self.providerLocked()
       let authMode = self.authModeLocked()
       let proxyEndpoint = (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      let proxyModelsEndpoint = (userDefaults.string(forKey: Constants.proxyModelsEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let byokBaseURLStored = (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let byokBaseURL = byokBaseURLStored.isEmpty ? provider.defaultBaseURL : byokBaseURLStored
       let modelStored = (userDefaults.string(forKey: Constants.byokModelKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -578,6 +631,7 @@ final class VoiceLLMSettingsStore {
         authMode: authMode,
         provider: provider,
         proxyEndpoint: proxyEndpoint,
+        proxyModelsEndpoint: proxyModelsEndpoint,
         byokBaseURL: byokBaseURL,
         model: model,
         apiKey: self.readAPIKeyLocked()
@@ -606,6 +660,12 @@ final class VoiceLLMSettingsStore {
   func setProxyEndpoint(_ endpoint: String) {
     queue.sync {
       userDefaults.set(endpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.proxyEndpointKey)
+    }
+  }
+
+  func setProxyModelsEndpoint(_ endpoint: String) {
+    queue.sync {
+      userDefaults.set(endpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.proxyModelsEndpointKey)
     }
   }
 
@@ -641,6 +701,12 @@ final class VoiceLLMSettingsStore {
     }
   }
 
+  func proxyModelsEndpoint() -> String {
+    queue.sync {
+      (userDefaults.string(forKey: Constants.proxyModelsEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+  }
+
   func byokBaseURL() -> String {
     queue.sync {
       let provider = providerLocked()
@@ -659,6 +725,31 @@ final class VoiceLLMSettingsStore {
 
   func apiKey() -> String? {
     queue.sync { readAPIKeyLocked() }
+  }
+
+  func cachedModelIDs() -> [String] {
+    queue.sync {
+      guard let data = userDefaults.data(forKey: Constants.cachedModelsKey) else { return [] }
+      let decoder = JSONDecoder()
+      return (try? decoder.decode([String].self, from: data)) ?? []
+    }
+  }
+
+  func cachedModelsUpdatedAt() -> TimeInterval? {
+    queue.sync {
+      userDefaults.object(forKey: Constants.cachedModelsUpdatedAtKey) as? TimeInterval
+    }
+  }
+
+  func setCachedModelIDs(_ modelIDs: [String]) {
+    queue.sync {
+      let normalized = Array(Set(modelIDs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) })).filter { !$0.isEmpty }.sorted()
+      let encoder = JSONEncoder()
+      if let data = try? encoder.encode(normalized) {
+        userDefaults.set(data, forKey: Constants.cachedModelsKey)
+      }
+      userDefaults.set(Date().timeIntervalSince1970, forKey: Constants.cachedModelsUpdatedAtKey)
+    }
   }
 }
 
@@ -708,8 +799,10 @@ enum VoiceLLMTask: String {
 
 enum VoiceLLMServiceError: LocalizedError {
   case proxyEndpointMissing
+  case proxyModelsEndpointMissing
   case byokEndpointMissing
   case byokAPIKeyMissing
+  case modelListUnavailable
   case invalidResponse
   case emptyResponse
   case requestFailed(message: String)
@@ -718,10 +811,14 @@ enum VoiceLLMServiceError: LocalizedError {
     switch self {
     case .proxyEndpointMissing:
       return "服务端代理地址未配置"
+    case .proxyModelsEndpointMissing:
+      return "代理模型列表地址未配置"
     case .byokEndpointMissing:
       return "BYOK Base URL 未配置"
     case .byokAPIKeyMissing:
       return "BYOK API Key 未配置"
+    case .modelListUnavailable:
+      return "未读取到可用模型列表"
     case .invalidResponse:
       return "LLM 返回格式异常"
     case .emptyResponse:
@@ -768,6 +865,43 @@ final class VoiceLLMService {
         config: config
       )
     }
+  }
+
+  func fetchAvailableModels() async throws -> [String] {
+    let config = settingsStore.runtimeConfig()
+    switch config.authMode {
+    case .proxy:
+      return try await requestModelListViaProxy(config: config)
+    case .byok:
+      return try await requestModelListViaByok(config: config)
+    }
+  }
+
+  func fetchOfficialCatalogModels(provider: VoiceLLMProvider) async throws -> [String] {
+    let sourceURLs = provider.officialCatalogURLs
+    guard !sourceURLs.isEmpty else {
+      throw VoiceLLMServiceError.modelListUnavailable
+    }
+
+    var lastError: Error?
+    for source in sourceURLs {
+      do {
+        let modelIDs = try await requestOfficialCatalogModels(
+          sourceURLString: source,
+          provider: provider
+        )
+        if !modelIDs.isEmpty {
+          return prioritizeModelIDs(modelIDs, provider: provider)
+        }
+      } catch {
+        lastError = error
+      }
+    }
+
+    if let lastError {
+      throw VoiceLLMServiceError.requestFailed(message: "官方模型页面抓取失败：\(lastError.localizedDescription)")
+    }
+    throw VoiceLLMServiceError.modelListUnavailable
   }
 }
 
@@ -830,6 +964,35 @@ private extension VoiceLLMService {
     }
     let error: ErrorMessage?
     let message: String?
+  }
+
+  struct ModelListResponseBody: Decodable {
+    struct ModelItem: Decodable {
+      let id: String?
+      let name: String?
+
+      enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case ownedBy = "owned_by"
+      }
+
+      init(from decoder: Decoder) throws {
+        if let single = try? decoder.singleValueContainer(),
+          let value = try? single.decode(String.self)
+        {
+          id = value
+          name = nil
+          return
+        }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+      }
+    }
+
+    let data: [ModelItem]?
+    let models: [ModelItem]?
   }
 
   func requestViaProxy(
@@ -933,6 +1096,227 @@ private extension VoiceLLMService {
     let text = payload.choices.first?.message.textContent.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     guard !text.isEmpty else { throw VoiceLLMServiceError.emptyResponse }
     return text
+  }
+
+  func requestModelListViaProxy(config: VoiceLLMRuntimeConfig) async throws -> [String] {
+    let endpointString: String
+    if !config.proxyModelsEndpoint.isEmpty {
+      endpointString = config.proxyModelsEndpoint
+    } else {
+      endpointString = inferProxyModelsEndpoint(from: config.proxyEndpoint)
+    }
+    guard !endpointString.isEmpty else {
+      if config.proxyEndpoint.isEmpty {
+        throw VoiceLLMServiceError.proxyEndpointMissing
+      }
+      throw VoiceLLMServiceError.proxyModelsEndpointMissing
+    }
+    guard let endpointURL = URL(string: endpointString) else {
+      throw VoiceLLMServiceError.requestFailed(message: "代理模型列表地址无效")
+    }
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 20
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceLLMServiceError.requestFailed(message: message)
+    }
+    return try decodeModelIDs(data: data)
+  }
+
+  func requestModelListViaByok(config: VoiceLLMRuntimeConfig) async throws -> [String] {
+    let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !baseURL.isEmpty else {
+      throw VoiceLLMServiceError.byokEndpointMissing
+    }
+    guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+      throw VoiceLLMServiceError.byokAPIKeyMissing
+    }
+    let endpointString: String
+    if baseURL.hasSuffix("/") {
+      endpointString = baseURL + "models"
+    } else {
+      endpointString = baseURL + "/models"
+    }
+    guard let endpointURL = URL(string: endpointString) else {
+      throw VoiceLLMServiceError.requestFailed(message: "BYOK 模型列表地址无效")
+    }
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 20
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceLLMServiceError.requestFailed(message: message)
+    }
+    return try decodeModelIDs(data: data)
+  }
+
+  func decodeModelIDs(data: Data) throws -> [String] {
+    let payload = try JSONDecoder().decode(ModelListResponseBody.self, from: data)
+    var values: [String] = []
+    let arrays = [payload.data ?? [], payload.models ?? []]
+    for array in arrays {
+      for item in array {
+        let id = (item.id ?? item.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !id.isEmpty {
+          values.append(id)
+        }
+      }
+    }
+    let deduped = Array(Set(values)).sorted()
+    guard !deduped.isEmpty else { throw VoiceLLMServiceError.modelListUnavailable }
+    return deduped
+  }
+
+  func inferProxyModelsEndpoint(from endpoint: String) -> String {
+    let trimmed = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    if trimmed.hasSuffix("/transform") {
+      return String(trimmed.dropLast("/transform".count)) + "/models"
+    }
+    if trimmed.hasSuffix("/") {
+      return trimmed + "models"
+    }
+    return trimmed + "/models"
+  }
+
+  func requestOfficialCatalogModels(
+    sourceURLString: String,
+    provider: VoiceLLMProvider
+  ) async throws -> [String] {
+    guard let sourceURL = URL(string: sourceURLString) else {
+      throw VoiceLLMServiceError.requestFailed(message: "官方模型地址无效")
+    }
+    var request = URLRequest(url: sourceURL)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 20
+    request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile", forHTTPHeaderField: "User-Agent")
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      throw VoiceLLMServiceError.requestFailed(message: "HTTP \(httpResponse.statusCode)")
+    }
+
+    // 尝试先按 JSON 模型列表解析；不命中再按文档文本解析。
+    if let jsonModelIDs = try? decodeModelIDs(data: data), !jsonModelIDs.isEmpty {
+      return jsonModelIDs
+    }
+    guard let text = decodeTextPayload(data: data), !text.isEmpty else {
+      throw VoiceLLMServiceError.modelListUnavailable
+    }
+    let modelIDs = extractModelIDs(from: text, provider: provider)
+    guard !modelIDs.isEmpty else {
+      throw VoiceLLMServiceError.modelListUnavailable
+    }
+    return modelIDs
+  }
+
+  func decodeTextPayload(data: Data) -> String? {
+    if let text = String(data: data, encoding: .utf8) {
+      return text
+    }
+    if let text = String(data: data, encoding: .unicode) {
+      return text
+    }
+    if let text = String(data: data, encoding: .ascii) {
+      return text
+    }
+    return String(data: data, encoding: .isoLatin1)
+  }
+
+  func extractModelIDs(from text: String, provider: VoiceLLMProvider) -> [String] {
+    let patterns: [String]
+    switch provider {
+    case .openAI:
+      patterns = [
+        "\\b(?:gpt|o[134]|text-embedding|whisper)-[a-z0-9\\.-]+\\b"
+      ]
+    case .qwen:
+      patterns = [
+        "\\bqwen[a-z0-9\\.-]+\\b"
+      ]
+    case .glm:
+      patterns = [
+        "\\bglm-[a-z0-9\\.-]+\\b"
+      ]
+    case .custom:
+      return []
+    }
+
+    var candidates: [String] = []
+    for pattern in patterns {
+      candidates.append(contentsOf: regexMatches(pattern: pattern, in: text))
+    }
+    let normalized = candidates
+      .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+    return prioritizeModelIDs(filterModelIDs(normalized, provider: provider), provider: provider)
+  }
+
+  func filterModelIDs(_ modelIDs: [String], provider: VoiceLLMProvider) -> [String] {
+    let unique = Array(Set(modelIDs))
+    switch provider {
+    case .openAI:
+      return unique.filter { id in
+        guard !id.contains("and-"), !id.contains("audio-preview"), !id.contains("vision-preview") else {
+          return false
+        }
+        return id.hasPrefix("gpt-") || id.hasPrefix("o1-") || id.hasPrefix("o3-") || id.hasPrefix("o4-")
+      }
+    case .qwen:
+      return unique.filter { id in
+        guard id.contains("-"), !id.contains("api"), !id.contains("reference"),
+          !id.contains("guide"), !id.contains("doc"), !id.contains("case")
+        else {
+          return false
+        }
+        return id.hasPrefix("qwen-")
+      }
+    case .glm:
+      return unique.filter { id in
+        guard id.hasPrefix("glm-"), !id.contains("-new"), !id.contains("api") else { return false }
+        return true
+      }
+    case .custom:
+      return unique
+    }
+  }
+
+  func prioritizeModelIDs(_ modelIDs: [String], provider: VoiceLLMProvider) -> [String] {
+    var values = Array(Set(modelIDs)).sorted()
+    let defaults = ([provider.defaultModel] + provider.staticModelCandidates).map { $0.lowercased() }
+    for target in defaults.reversed() {
+      guard let index = values.firstIndex(of: target) else { continue }
+      let value = values.remove(at: index)
+      values.insert(value, at: 0)
+    }
+    return Array(values.prefix(80))
+  }
+
+  func regexMatches(pattern: String, in text: String) -> [String] {
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
+    let range = NSRange(text.startIndex..<text.endIndex, in: text)
+    let matches = regex.matches(in: text, options: [], range: range)
+    return matches.compactMap { match in
+      guard let swiftRange = Range(match.range, in: text) else { return nil }
+      return String(text[swiftRange])
+    }
   }
 
   func decodeErrorMessage(data: Data) -> String? {
