@@ -926,54 +926,244 @@ final class VoiceHistoryCell: UITableViewCell {
 // MARK: - Dictionary
 
 final class VoiceDictionaryViewController: NibLessViewController {
+  private let dictionaryView = VoiceDictionaryRootView()
+  private let modelStore: VoiceWhisperModelStore = .shared
+  private var models: [VoiceWhisperModelStatus] = []
+  private var downloadingModelID: String?
+
   override func loadView() {
-    title = "词典"
-    view = VoiceDictionaryRootView()
+    title = "模型"
+    view = dictionaryView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    dictionaryView.tableView.dataSource = self
+    dictionaryView.tableView.delegate = self
+    dictionaryView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
+    refreshModels()
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    refreshModels()
+  }
+
+  private func refreshModels() {
+    models = modelStore.availableModelStatuses()
+    let isAppleOnly = !models.contains(where: { $0.isDownloaded })
+    dictionaryView.updateSummary(isAppleOnly: isAppleOnly)
+    dictionaryView.tableView.reloadData()
+  }
+
+  private func handleAction(at indexPath: IndexPath) {
+    let model = models[indexPath.row]
+    if model.isDownloaded {
+      modelStore.setSelectedModel(model.option.id)
+      refreshModels()
+      return
+    }
+
+    downloadingModelID = model.option.id
+    dictionaryView.tableView.reloadRows(at: [indexPath], with: .none)
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        _ = try await self.modelStore.downloadModel(model.option.id)
+        await MainActor.run {
+          self.downloadingModelID = nil
+          self.refreshModels()
+        }
+      } catch {
+        await MainActor.run {
+          self.downloadingModelID = nil
+          self.refreshModels()
+          self.presentErrorAlert(message: error.localizedDescription)
+        }
+      }
+    }
+  }
+
+  private func deleteModel(at indexPath: IndexPath, completion: @escaping (Bool) -> Void) {
+    let model = models[indexPath.row]
+    do {
+      try modelStore.deleteModel(model.option.id)
+      refreshModels()
+      completion(true)
+    } catch {
+      presentErrorAlert(message: error.localizedDescription)
+      completion(false)
+    }
+  }
+
+  private func presentErrorAlert(message: String) {
+    let controller = UIAlertController(title: "操作失败", message: message, preferredStyle: .alert)
+    controller.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(controller, animated: true)
+  }
+}
+
+extension VoiceDictionaryViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    models.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: VoiceModelCell.identifier, for: indexPath)
+    guard let modelCell = cell as? VoiceModelCell else { return cell }
+    let status = models[indexPath.row]
+    let isDownloading = downloadingModelID == status.option.id
+    modelCell.configure(status: status, isDownloading: isDownloading)
+    modelCell.onActionTap = { [weak self] in
+      self?.handleAction(at: indexPath)
+    }
+    return modelCell
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    "Whisper 离线模型"
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    "点击“下载”后才会拉取模型。左滑可删除模型；当模型全部删除后，系统将仅使用 Apple Speech。"
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let status = models[indexPath.row]
+    guard status.isDownloaded else { return nil }
+    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      self?.deleteModel(at: indexPath, completion: completion)
+    }
+    return UISwipeActionsConfiguration(actions: [deleteAction])
+  }
+}
+
+final class VoiceModelCell: UITableViewCell {
+  static let identifier = "VoiceModelCell"
+
+  var onActionTap: (() -> Void)?
+
+  private lazy var titleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 16, weight: .semibold)
+    return label
+  }()
+
+  private lazy var subtitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    return label
+  }()
+
+  private lazy var stateLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .medium)
+    label.textColor = .secondaryLabel
+    return label
+  }()
+
+  private lazy var actionButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.layer.cornerRadius = 10
+    button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+    button.addTarget(self, action: #selector(handleActionTap), for: .touchUpInside)
+    return button
+  }()
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    selectionStyle = .none
+    let infoStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, stateLabel])
+    infoStack.translatesAutoresizingMaskIntoConstraints = false
+    infoStack.axis = .vertical
+    infoStack.spacing = 6
+    contentView.addSubview(infoStack)
+    contentView.addSubview(actionButton)
+
+    NSLayoutConstraint.activate([
+      infoStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+      infoStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      infoStack.trailingAnchor.constraint(equalTo: actionButton.leadingAnchor, constant: -12),
+      infoStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+
+      actionButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      actionButton.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+      actionButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88)
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(status: VoiceWhisperModelStatus, isDownloading: Bool) {
+    titleLabel.text = status.option.displayName
+    subtitleLabel.text = "\(status.option.sizeText) · \(status.option.summary)"
+    if isDownloading {
+      stateLabel.text = "状态：下载中..."
+      actionButton.setTitle("下载中", for: .normal)
+      actionButton.isEnabled = false
+      actionButton.backgroundColor = .systemGray5
+      actionButton.setTitleColor(.secondaryLabel, for: .normal)
+      return
+    }
+
+    if status.isDownloaded {
+      if status.isSelected {
+        stateLabel.text = "状态：已下载 · 当前使用"
+        actionButton.setTitle("使用中", for: .normal)
+        actionButton.isEnabled = false
+        actionButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.15)
+        actionButton.setTitleColor(.systemBlue, for: .normal)
+      } else {
+        stateLabel.text = "状态：已下载"
+        actionButton.setTitle("设为默认", for: .normal)
+        actionButton.isEnabled = true
+        actionButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.12)
+        actionButton.setTitleColor(.systemGreen, for: .normal)
+      }
+    } else {
+      stateLabel.text = "状态：未下载"
+      actionButton.setTitle("下载", for: .normal)
+      actionButton.isEnabled = true
+      actionButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+      actionButton.setTitleColor(.systemBlue, for: .normal)
+    }
+  }
+
+  @objc private func handleActionTap() {
+    onActionTap?()
   }
 }
 
 final class VoiceDictionaryRootView: NibLessView {
-  private lazy var segmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["所有", "自动添加", "手动添加"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 0
-    control.selectedSegmentTintColor = .label
-    control.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-    control.setTitleTextAttributes([.foregroundColor: UIColor.label], for: .normal)
-    return control
+  let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.separatorInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+    return view
   }()
 
-  private lazy var emptyTitleLabel: UILabel = {
+  private lazy var summaryLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 16, weight: .semibold)
-    label.text = "尚无单词"
-    return label
-  }()
-
-  private lazy var emptySubtitleLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 14, weight: .regular)
+    label.font = .systemFont(ofSize: 13, weight: .regular)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.textAlignment = .center
-    label.text = "Nanomouse 会记住您独特的名称与单词，您也可以手动添加。"
+    label.textAlignment = .left
     return label
-  }()
-
-  private lazy var addButton: UIButton = {
-    let button = UIButton(type: .system)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    button.setImage(UIImage(systemName: "plus"), for: .normal)
-    button.tintColor = .white
-    button.backgroundColor = .label
-    button.layer.cornerRadius = 24
-    button.layer.shadowColor = UIColor.black.cgColor
-    button.layer.shadowOpacity = 0.18
-    button.layer.shadowRadius = 8
-    button.layer.shadowOffset = CGSize(width: 0, height: 4)
-    return button
   }()
 
   override init(frame: CGRect) {
@@ -988,34 +1178,34 @@ final class VoiceDictionaryRootView: NibLessView {
   }
 
   override func constructViewHierarchy() {
-    addSubview(segmentedControl)
-    addSubview(emptyTitleLabel)
-    addSubview(emptySubtitleLabel)
-    addSubview(addButton)
+    addSubview(summaryLabel)
+    addSubview(tableView)
   }
 
   override func activateViewConstraints() {
     NSLayoutConstraint.activate([
-      segmentedControl.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 8),
-      segmentedControl.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-      segmentedControl.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+      summaryLabel.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 10),
+      summaryLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+      summaryLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
 
-      emptyTitleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
-      emptyTitleLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -16),
-
-      emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: 12),
-      emptySubtitleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
-      emptySubtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -40),
-
-      addButton.widthAnchor.constraint(equalToConstant: 48),
-      addButton.heightAnchor.constraint(equalTo: addButton.widthAnchor),
-      addButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -24),
-      addButton.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -24),
+      tableView.topAnchor.constraint(equalTo: summaryLabel.bottomAnchor, constant: 8),
+      tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: bottomAnchor)
     ])
   }
 
   override func setupAppearance() {
     backgroundColor = .systemBackground
+    tableView.backgroundColor = .systemBackground
+  }
+
+  func updateSummary(isAppleOnly: Bool) {
+    if isAppleOnly {
+      summaryLabel.text = "当前已无本地 Whisper 模型，系统将只使用 Apple Speech。"
+    } else {
+      summaryLabel.text = "你可以下载多个 Whisper 模型，并手动切换默认模型。"
+    }
   }
 }
 
