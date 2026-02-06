@@ -33,6 +33,10 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Nanomouse 需要使用麦克风进行语音输入。</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Nanomouse 需要语音识别权限将口述转换为文字。</string>
 	<key>NSUbiquitousContainers</key>
 	<dict>
 		<key>iCloud.com.XiangqingZHANG.nanomouse</key>

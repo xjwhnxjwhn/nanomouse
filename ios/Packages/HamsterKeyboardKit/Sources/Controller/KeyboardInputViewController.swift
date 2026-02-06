@@ -51,6 +51,25 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputPrefixPinyinLetterCount: Int = 0
   private var mixedInputSuffixMode = false
   private var mixedInputResyncing = false
+  private var lastVoiceInsertedCharacterCount = 0
+  private var lastVoiceInsertedRequestId: String?
+  private var hideVoiceUndoWorkItem: DispatchWorkItem?
+
+  private lazy var voiceUndoButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.isHidden = true
+    button.alpha = 0
+    button.setTitle("已插入，撤销", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.setTitleColor(.white, for: .normal)
+    button.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+    button.layer.cornerRadius = 16
+    button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 12, bottom: 7, right: 12)
+    button.addTarget(self, action: #selector(handleVoiceUndoTap), for: .touchUpInside)
+    return button
+  }()
+
   // MARK: - View Controller Lifecycle ViewController 生命周期
 
   override open func viewDidLoad() {
@@ -103,12 +122,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-//    viewWillHandleDictationResult()
+    viewWillHandleVoiceInputResult()
   }
 
   override open func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     didApplyDefaultLanguage = false
+    hideVoiceUndoButton(animated: false)
   }
 
   override open func viewDidLayoutSubviews() {
@@ -3979,6 +3999,80 @@ private extension KeyboardInputViewController {
       case .success(let result): context.suggestions = result
       }
     }
+  }
+
+  /// 键盘回到前台后，尝试读取主 App 写入的语音结果并自动回填。
+  func viewWillHandleVoiceInputResult() {
+    VoiceInputBridge.cleanupExpiredData()
+    guard let payload = VoiceInputBridge.readLatestUnconsumedResult() else { return }
+    guard !payload.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      VoiceInputBridge.markResultConsumed(requestId: payload.requestId)
+      return
+    }
+    textDocumentProxy.insertText(payload.text)
+    VoiceInputBridge.markResultConsumed(requestId: payload.requestId)
+    VoiceInputBridge.setState(requestId: payload.requestId, state: .inserted)
+    showVoiceUndoButton(requestId: payload.requestId, insertedTextCount: payload.text.count)
+  }
+
+  func showVoiceUndoButton(requestId: String, insertedTextCount: Int) {
+    guard insertedTextCount > 0 else { return }
+    ensureVoiceUndoButton()
+    lastVoiceInsertedCharacterCount = insertedTextCount
+    lastVoiceInsertedRequestId = requestId
+    VoiceInputBridge.setState(requestId: requestId, state: .undoWindow)
+
+    hideVoiceUndoWorkItem?.cancel()
+    voiceUndoButton.isHidden = false
+    UIView.animate(withDuration: 0.18) {
+      self.voiceUndoButton.alpha = 1
+    }
+
+    let workItem = DispatchWorkItem { [weak self] in
+      self?.hideVoiceUndoButton(animated: true)
+    }
+    hideVoiceUndoWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0, execute: workItem)
+  }
+
+  func hideVoiceUndoButton(animated: Bool) {
+    hideVoiceUndoWorkItem?.cancel()
+    hideVoiceUndoWorkItem = nil
+    let hideView = {
+      self.voiceUndoButton.alpha = 0
+    }
+    let completion: (Bool) -> Void = { _ in
+      self.voiceUndoButton.isHidden = true
+    }
+    if animated {
+      UIView.animate(withDuration: 0.18, animations: hideView, completion: completion)
+    } else {
+      hideView()
+      voiceUndoButton.isHidden = true
+    }
+  }
+
+  func ensureVoiceUndoButton() {
+    guard voiceUndoButton.superview == nil else { return }
+    view.addSubview(voiceUndoButton)
+    NSLayoutConstraint.activate([
+      voiceUndoButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      voiceUndoButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 8)
+    ])
+  }
+
+  @objc func handleVoiceUndoTap() {
+    guard lastVoiceInsertedCharacterCount > 0 else {
+      hideVoiceUndoButton(animated: true)
+      return
+    }
+    deleteBackward(times: lastVoiceInsertedCharacterCount)
+    if let requestId = lastVoiceInsertedRequestId {
+      VoiceInputBridge.setState(requestId: requestId, state: .cancelled)
+    }
+    lastVoiceInsertedCharacterCount = 0
+    lastVoiceInsertedRequestId = nil
+    hideVoiceUndoButton(animated: true)
   }
 
   /// 上屏补丁：增加了成对符号/光标回退/返回主键盘的支持

@@ -6,7 +6,10 @@
 //
 
 import Combine
+import AVFoundation
+import HamsterKit
 import HamsterUIKit
+import Speech
 import UIKit
 
 protocol SubViewControllerFactory {
@@ -246,6 +249,7 @@ extension MainViewController {
 open class MainTabBarController: UITabBarController {
   private let mainViewModel: MainViewModel
   private let subViewControllerFactory: SubViewControllerFactory
+  private var pendingVoiceRequestId: String?
 
   private lazy var settingsController = MainViewController(
     mainViewModel: mainViewModel,
@@ -271,6 +275,7 @@ open class MainTabBarController: UITabBarController {
   override open func viewDidLoad() {
     super.viewDidLoad()
     setupTabs()
+    deliverPendingVoiceRequestIfNeeded()
   }
 
   private func setupTabs() {
@@ -330,17 +335,48 @@ open class MainTabBarController: UITabBarController {
     selectedIndex = 0
     settingsController.presentMainViewController()
   }
+
+  open func activateVoiceDictation(requestId: String) {
+    pendingVoiceRequestId = requestId
+    selectedIndex = 1
+    deliverPendingVoiceRequestIfNeeded()
+  }
+
+  private func deliverPendingVoiceRequestIfNeeded() {
+    guard let requestId = pendingVoiceRequestId else { return }
+    guard isViewLoaded else { return }
+    pendingVoiceRequestId = nil
+    homeController.startDictation(requestId: requestId)
+  }
 }
 
 // MARK: - Home
 
 final class VoiceHomeViewController: NibLessViewController {
+  private lazy var homeRootView = VoiceHomeRootView()
+
   override func loadView() {
-    view = VoiceHomeRootView()
+    homeRootView.onStartDictation = { [weak self] in
+      guard let self = self else { return }
+      let requestId = VoiceInputBridge.makeRequestId()
+      self.startDictation(requestId: requestId)
+    }
+    view = homeRootView
+  }
+
+  func startDictation(requestId: String) {
+    if let dictationController = presentedViewController as? VoiceDictationViewController {
+      dictationController.updateRequestId(requestId)
+      return
+    }
+    let controller = VoiceDictationViewController(requestId: requestId)
+    controller.modalPresentationStyle = .fullScreen
+    present(controller, animated: true)
   }
 }
 
 final class VoiceHomeRootView: NibLessView {
+  var onStartDictation: (() -> Void)?
   private let statsCard = VoiceCardView(style: .standard)
   private let desktopCard = VoiceCardView(style: .standard)
   private let statusCard = VoiceCardView(style: .accent)
@@ -474,6 +510,19 @@ final class VoiceHomeRootView: NibLessView {
     return view
   }()
 
+  private lazy var startDictationButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("开始口述", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.setTitleColor(.white, for: .normal)
+    button.backgroundColor = .label
+    button.layer.cornerRadius = 16
+    button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+    button.addTarget(self, action: #selector(handleStartDictationTap), for: .touchUpInside)
+    return button
+  }()
+
   private lazy var statusSubtitleLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -530,7 +579,7 @@ final class VoiceHomeRootView: NibLessView {
     statusFooter.spacing = 6
     statusFooter.alignment = .center
 
-    let statusStack = UIStackView(arrangedSubviews: [statusHeader, statusSubtitleLabel, statusFooter])
+    let statusStack = UIStackView(arrangedSubviews: [statusHeader, statusSubtitleLabel, statusFooter, startDictationButton])
     statusStack.axis = .vertical
     statusStack.spacing = 10
     statusCard.addContentView(statusStack)
@@ -557,6 +606,10 @@ final class VoiceHomeRootView: NibLessView {
 
   override func setupAppearance() {
     backgroundColor = .systemBackground
+  }
+
+  @objc private func handleStartDictationTap() {
+    onStartDictation?()
   }
 
   private func makeStatItem(value: String, unit: String, title: String) -> UIStackView {
@@ -1162,5 +1215,324 @@ final class AccountNotificationCell: UITableViewCell {
   @available(*, unavailable)
   required init?(coder: NSCoder) {
     fatalError("init(coder:) has not been implemented")
+  }
+}
+
+// MARK: - Voice Dictation Flow
+
+final class VoiceDictationViewController: NibLessViewController {
+  private var requestId: String
+  private let speechEngine = VoiceSpeechRecognizerEngine()
+  private var latestTranscript = ""
+  private var isStarting = false
+  private var isFinishing = false
+
+  private lazy var titleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 28, weight: .bold)
+    label.text = "语音输入"
+    return label
+  }()
+
+  private lazy var statusLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 15, weight: .medium)
+    label.textColor = .secondaryLabel
+    label.text = "准备中..."
+    return label
+  }()
+
+  private lazy var transcriptView: UITextView = {
+    let view = UITextView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.isEditable = false
+    view.font = .systemFont(ofSize: 22, weight: .semibold)
+    view.textColor = .label
+    view.backgroundColor = .secondarySystemBackground
+    view.layer.cornerRadius = 16
+    view.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+    view.text = "请开始说话"
+    return view
+  }()
+
+  private lazy var stopButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("完成", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
+    button.setTitleColor(.white, for: .normal)
+    button.backgroundColor = .label
+    button.layer.cornerRadius = 24
+    button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 26, bottom: 12, right: 26)
+    button.addTarget(self, action: #selector(handleStopTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var cancelButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("取消", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+    button.setTitleColor(.secondaryLabel, for: .normal)
+    button.addTarget(self, action: #selector(handleCancelTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var tipLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    label.text = "识别完成后，请点击系统左上角“返回到上一应用”。"
+    return label
+  }()
+
+  init(requestId: String) {
+    self.requestId = requestId
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func loadView() {
+    view = NibLessView()
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    setupView()
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    startRecognitionIfNeeded()
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    speechEngine.stop(cancel: true)
+  }
+
+  func updateRequestId(_ requestId: String) {
+    self.requestId = requestId
+    latestTranscript = ""
+    transcriptView.text = "请开始说话"
+    statusLabel.text = "准备中..."
+    VoiceInputBridge.setState(requestId: requestId, state: .launching)
+    speechEngine.stop(cancel: true)
+    startRecognitionIfNeeded(force: true)
+  }
+
+  private func setupView() {
+    view.backgroundColor = .systemBackground
+    view.addSubview(titleLabel)
+    view.addSubview(statusLabel)
+    view.addSubview(transcriptView)
+    view.addSubview(stopButton)
+    view.addSubview(cancelButton)
+    view.addSubview(tipLabel)
+
+    NSLayoutConstraint.activate([
+      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
+      titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+
+      statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+      statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      statusLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+
+      transcriptView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 14),
+      transcriptView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      transcriptView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      transcriptView.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
+
+      stopButton.topAnchor.constraint(equalTo: transcriptView.bottomAnchor, constant: 18),
+      stopButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+      cancelButton.topAnchor.constraint(equalTo: stopButton.bottomAnchor, constant: 10),
+      cancelButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+      tipLabel.leadingAnchor.constraint(equalTo: transcriptView.leadingAnchor),
+      tipLabel.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
+      tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+    ])
+  }
+
+  private func startRecognitionIfNeeded(force: Bool = false) {
+    if isStarting, !force { return }
+    isStarting = true
+    VoiceInputBridge.setState(requestId: requestId, state: .launching)
+    statusLabel.text = "请求语音权限..."
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        try await self.speechEngine.start(
+          localeIdentifier: Locale.preferredLanguages.first ?? "zh-CN",
+          onResult: { [weak self] text, isFinal in
+            guard let self else { return }
+            self.latestTranscript = text
+            self.transcriptView.text = text.isEmpty ? "请开始说话" : text
+            self.statusLabel.text = isFinal ? "识别完成" : "正在听写..."
+          }
+        )
+        await MainActor.run {
+          VoiceInputBridge.setState(requestId: self.requestId, state: .recording)
+          self.statusLabel.text = "正在听写..."
+          self.isStarting = false
+        }
+      } catch {
+        await MainActor.run {
+          self.statusLabel.text = "无法开始录音：\(error.localizedDescription)"
+          VoiceInputBridge.setState(requestId: self.requestId, state: .failed, errorMessage: error.localizedDescription)
+          self.isStarting = false
+        }
+      }
+    }
+  }
+
+  @objc private func handleStopTap() {
+    guard !isFinishing else { return }
+    isFinishing = true
+    statusLabel.text = "处理中..."
+    VoiceInputBridge.setState(requestId: requestId, state: .processing)
+    speechEngine.stop(cancel: false)
+
+    // 等待最后一批回调写入后再落盘，避免用户快速点击导致最后几个词丢失。
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+      guard let self else { return }
+      let finalText = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+      if finalText.isEmpty {
+        self.statusLabel.text = "未识别到语音，请重试"
+        VoiceInputBridge.setState(requestId: self.requestId, state: .failed, errorMessage: "empty transcript")
+        self.isFinishing = false
+        return
+      }
+      VoiceInputBridge.writeResult(requestId: self.requestId, text: finalText, localeIdentifier: Locale.preferredLanguages.first)
+      self.transcriptView.text = finalText
+      self.statusLabel.text = "完成，请返回上一应用"
+      self.stopButton.setTitle("已完成", for: .normal)
+      self.stopButton.isEnabled = false
+      self.stopButton.alpha = 0.72
+      self.isFinishing = false
+    }
+  }
+
+  @objc private func handleCancelTap() {
+    speechEngine.stop(cancel: true)
+    VoiceInputBridge.setState(requestId: requestId, state: .cancelled)
+    dismiss(animated: true)
+  }
+}
+
+final class VoiceSpeechRecognizerEngine {
+  private let audioEngine = AVAudioEngine()
+  private var recognitionTask: SFSpeechRecognitionTask?
+  private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+  private var recognizer: SFSpeechRecognizer?
+
+  enum EngineError: LocalizedError {
+    case microphonePermissionDenied
+    case speechPermissionDenied
+    case recognizerUnavailable
+    case inputNodeUnavailable
+
+    var errorDescription: String? {
+      switch self {
+      case .microphonePermissionDenied:
+        return "麦克风权限未开启"
+      case .speechPermissionDenied:
+        return "语音识别权限未开启"
+      case .recognizerUnavailable:
+        return "语音识别服务不可用"
+      case .inputNodeUnavailable:
+        return "音频输入不可用"
+      }
+    }
+  }
+
+  func start(
+    localeIdentifier: String,
+    onResult: @escaping (String, Bool) -> Void
+  ) async throws {
+    try await requestPermissions()
+    stop(cancel: true)
+
+    let locale = Locale(identifier: localeIdentifier)
+    let recognizer = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer()
+    guard let recognizer, recognizer.isAvailable else {
+      throw EngineError.recognizerUnavailable
+    }
+    self.recognizer = recognizer
+
+    let request = SFSpeechAudioBufferRecognitionRequest()
+    request.shouldReportPartialResults = true
+    request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+    self.recognitionRequest = request
+
+    let session = AVAudioSession.sharedInstance()
+    try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+    try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+    let inputNode = audioEngine.inputNode
+    let recordingFormat = inputNode.outputFormat(forBus: 0)
+    guard recordingFormat.channelCount > 0 else {
+      throw EngineError.inputNodeUnavailable
+    }
+
+    inputNode.removeTap(onBus: 0)
+    inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+      self?.recognitionRequest?.append(buffer)
+    }
+
+    audioEngine.prepare()
+    try audioEngine.start()
+
+    recognitionTask = recognizer.recognitionTask(with: request) { result, _ in
+      guard let result else { return }
+      let text = result.bestTranscription.formattedString
+      DispatchQueue.main.async {
+        onResult(text, result.isFinal)
+      }
+    }
+  }
+
+  func stop(cancel: Bool) {
+    if audioEngine.isRunning {
+      audioEngine.stop()
+    }
+    audioEngine.inputNode.removeTap(onBus: 0)
+    if cancel {
+      recognitionTask?.cancel()
+    } else {
+      recognitionRequest?.endAudio()
+    }
+    recognitionTask = nil
+    recognitionRequest = nil
+    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+  }
+
+  private func requestPermissions() async throws {
+    let microphoneGranted = await withCheckedContinuation { continuation in
+      AVAudioSession.sharedInstance().requestRecordPermission { granted in
+        continuation.resume(returning: granted)
+      }
+    }
+    guard microphoneGranted else { throw EngineError.microphonePermissionDenied }
+
+    let speechAuthorization = await withCheckedContinuation { continuation in
+      SFSpeechRecognizer.requestAuthorization { status in
+        continuation.resume(returning: status)
+      }
+    }
+    guard speechAuthorization == .authorized else {
+      throw EngineError.speechPermissionDenied
+    }
   }
 }

@@ -46,6 +46,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
 
+      if handleVoiceDictationURL(url) {
+        return
+      }
+
       // url.query(): 获取 `URL` 查询参数
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
       let components = url.lastPathComponent
@@ -90,6 +94,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
 
+      if handleVoiceDictationURL(url) {
+        return
+      }
+
       // url.query(): 获取 `URL` 查询参数
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
       let components = url.lastPathComponent
@@ -123,6 +131,27 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     if let tabBarController = rootController as? MainTabBarController {
       tabBarController.activateSettingsTab()
     }
+  }
+
+  private func handleVoiceDictationURL(_ url: URL) -> Bool {
+    let component = url.lastPathComponent.lowercased()
+    guard component == HamsterConstants.VoiceInput.deepLinkPath else { return false }
+    let requestId = parseVoiceRequestId(from: url) ?? VoiceInputBridge.makeRequestId()
+    VoiceInputBridge.setState(requestId: requestId, state: .launching)
+
+    guard let rootController = window?.rootViewController as? MainTabBarController else {
+      return true
+    }
+    rootController.activateVoiceDictation(requestId: requestId)
+    return true
+  }
+
+  private func parseVoiceRequestId(from url: URL) -> String? {
+    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    return components?
+      .queryItems?
+      .first(where: { $0.name == HamsterConstants.VoiceInput.requestIdQueryName })?
+      .value
   }
 
   func sceneDidDisconnect(_ scene: UIScene) {

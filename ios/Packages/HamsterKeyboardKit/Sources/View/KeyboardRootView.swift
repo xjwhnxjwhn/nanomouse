@@ -508,6 +508,7 @@ final class VoiceModeView: NibLessView {
 
   private let actionHandler: KeyboardActionHandler
   private let keyboardContext: KeyboardContext
+  private var activeRequestId: String?
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -693,11 +694,34 @@ final class VoiceModeView: NibLessView {
   }
 
   @objc private func handleCloseTap() {
+    resetMicLaunchState()
     onClose?()
   }
 
   @objc private func handleMicTap() {
-    // 这里只放 UI 占位，后续在此接入口述录音与转写流程
+    guard micButton.isEnabled else { return }
+    let requestId = VoiceInputBridge.makeRequestId()
+    activeRequestId = requestId
+    VoiceInputBridge.setState(requestId: requestId, state: .launching)
+    guard let openURL = VoiceInputBridge.dictationURL(requestId: requestId) else {
+      VoiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid dictation url")
+      return
+    }
+
+    promptLabel.text = "正在启动..."
+    micButton.isEnabled = false
+    actionHandler.handle(.release, on: .url(openURL, id: "voiceDictation"))
+
+    // 避免跳转失败后按钮被锁死，延时恢复点击
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+      guard let self = self else { return }
+      self.resetMicLaunchState()
+    }
+  }
+
+  private func resetMicLaunchState() {
+    promptLabel.text = "点击说话"
+    micButton.isEnabled = true
   }
 }
 
