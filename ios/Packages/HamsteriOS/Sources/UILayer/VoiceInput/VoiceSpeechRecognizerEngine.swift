@@ -525,7 +525,7 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
   var defaultModel: String {
     switch self {
     case .openAI:
-      return "gpt-4o-mini"
+      return "gpt-5-nano"
     case .qwen:
       return "qwen-plus"
     case .glm:
@@ -540,6 +540,7 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
     switch self {
     case .openAI:
       return [
+        "gpt-5-nano",
         "gpt-4o-mini",
         "gpt-4o",
         "gpt-4.1-mini",
@@ -641,14 +642,17 @@ final class VoiceLLMSettingsStore {
     static let providerKey = "voice.llm.provider"
     static let proxyEndpointKey = "voice.llm.proxy.endpoint"
     static let proxyModelsEndpointKey = "voice.llm.proxy.models.endpoint"
-    static let byokBaseURLKey = "voice.llm.byok.base_url"
-    static let byokModelKey = "voice.llm.byok.model"
+    static let byokBaseURLKeyLegacy = "voice.llm.byok.base_url"
+    static let byokModelKeyLegacy = "voice.llm.byok.model"
+    static let byokBaseURLKeyPrefix = "voice.llm.byok.base_url."
+    static let byokModelKeyPrefix = "voice.llm.byok.model."
     static let promptPresetsKey = "voice.llm.prompt.presets"
     static let selectedPromptPresetIDKey = "voice.llm.prompt.selected_id"
     static let cachedModelsKey = "voice.llm.cached.models"
     static let cachedModelsUpdatedAtKey = "voice.llm.cached.models.updated_at"
     static let keychainService = "com.XiangqingZHANG.nanomouse.voice.llm"
-    static let keychainAccount = "byok_api_key"
+    static let keychainAccountLegacy = "byok_api_key"
+    static let keychainAccountPrefix = "byok_api_key."
   }
 
   private let queue = DispatchQueue(label: "nanomouse.voice.llm.settings")
@@ -664,10 +668,8 @@ final class VoiceLLMSettingsStore {
       let authMode = self.authModeLocked()
       let proxyEndpoint = (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let proxyModelsEndpoint = (userDefaults.string(forKey: Constants.proxyModelsEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      let byokBaseURLStored = (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      let byokBaseURL = byokBaseURLStored.isEmpty ? provider.defaultBaseURL : byokBaseURLStored
-      let modelStored = (userDefaults.string(forKey: Constants.byokModelKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      let model = modelStored.isEmpty ? provider.defaultModel : modelStored
+      let byokBaseURL = loadByokBaseURLLocked(for: provider)
+      let model = loadByokModelLocked(for: provider)
       return VoiceLLMRuntimeConfig(
         authMode: authMode,
         provider: provider,
@@ -675,7 +677,7 @@ final class VoiceLLMSettingsStore {
         proxyModelsEndpoint: proxyModelsEndpoint,
         byokBaseURL: byokBaseURL,
         model: model,
-        apiKey: self.readAPIKeyLocked()
+        apiKey: self.readAPIKeyLocked(for: provider)
       )
     }
   }
@@ -689,12 +691,6 @@ final class VoiceLLMSettingsStore {
   func setProvider(_ provider: VoiceLLMProvider) {
     queue.sync {
       userDefaults.set(provider.rawValue, forKey: Constants.providerKey)
-      if (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").isEmpty {
-        userDefaults.set(provider.defaultBaseURL, forKey: Constants.byokBaseURLKey)
-      }
-      if (userDefaults.string(forKey: Constants.byokModelKey) ?? "").isEmpty {
-        userDefaults.set(provider.defaultModel, forKey: Constants.byokModelKey)
-      }
     }
   }
 
@@ -712,19 +708,46 @@ final class VoiceLLMSettingsStore {
 
   func setByokBaseURL(_ baseURL: String) {
     queue.sync {
-      userDefaults.set(baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.byokBaseURLKey)
+      let provider = providerLocked()
+      saveByokBaseURLLocked(baseURL, for: provider)
+    }
+  }
+
+  func setByokBaseURL(_ baseURL: String, for provider: VoiceLLMProvider) {
+    queue.sync {
+      saveByokBaseURLLocked(baseURL, for: provider)
     }
   }
 
   func setByokModel(_ model: String) {
     queue.sync {
-      userDefaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.byokModelKey)
+      let provider = providerLocked()
+      saveByokModelLocked(model, for: provider)
+    }
+  }
+
+  func setByokModel(_ model: String, for provider: VoiceLLMProvider) {
+    queue.sync {
+      saveByokModelLocked(model, for: provider)
     }
   }
 
   func setAPIKey(_ apiKey: String?) {
     queue.sync {
-      saveAPIKeyLocked(apiKey?.trimmingCharacters(in: .whitespacesAndNewlines))
+      let provider = providerLocked()
+      saveAPIKeyLocked(
+        apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+        for: provider
+      )
+    }
+  }
+
+  func setAPIKey(_ apiKey: String?, for provider: VoiceLLMProvider) {
+    queue.sync {
+      saveAPIKeyLocked(
+        apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+        for: provider
+      )
     }
   }
 
@@ -751,21 +774,34 @@ final class VoiceLLMSettingsStore {
   func byokBaseURL() -> String {
     queue.sync {
       let provider = providerLocked()
-      let stored = (userDefaults.string(forKey: Constants.byokBaseURLKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      return stored.isEmpty ? provider.defaultBaseURL : stored
+      return loadByokBaseURLLocked(for: provider)
     }
+  }
+
+  func byokBaseURL(for provider: VoiceLLMProvider) -> String {
+    queue.sync { loadByokBaseURLLocked(for: provider) }
   }
 
   func byokModel() -> String {
     queue.sync {
       let provider = providerLocked()
-      let stored = (userDefaults.string(forKey: Constants.byokModelKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-      return stored.isEmpty ? provider.defaultModel : stored
+      return loadByokModelLocked(for: provider)
     }
   }
 
+  func byokModel(for provider: VoiceLLMProvider) -> String {
+    queue.sync { loadByokModelLocked(for: provider) }
+  }
+
   func apiKey() -> String? {
-    queue.sync { readAPIKeyLocked() }
+    queue.sync {
+      let provider = providerLocked()
+      return readAPIKeyLocked(for: provider)
+    }
+  }
+
+  func apiKey(for provider: VoiceLLMProvider) -> String? {
+    queue.sync { readAPIKeyLocked(for: provider) }
   }
 
   func promptPresets() -> [VoiceLLMPromptPreset] {
@@ -851,6 +887,60 @@ final class VoiceLLMSettingsStore {
 }
 
 private extension VoiceLLMSettingsStore {
+  func byokBaseURLKeyLocked(for provider: VoiceLLMProvider) -> String {
+    Constants.byokBaseURLKeyPrefix + provider.rawValue
+  }
+
+  func byokModelKeyLocked(for provider: VoiceLLMProvider) -> String {
+    Constants.byokModelKeyPrefix + provider.rawValue
+  }
+
+  func loadByokBaseURLLocked(for provider: VoiceLLMProvider) -> String {
+    let providerKey = byokBaseURLKeyLocked(for: provider)
+    let stored = (userDefaults.string(forKey: providerKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !stored.isEmpty {
+      return stored
+    }
+
+    // 兼容旧版本：旧版本只有一份 baseURL，这里迁移到当前 provider。
+    let legacy = (userDefaults.string(forKey: Constants.byokBaseURLKeyLegacy) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !legacy.isEmpty {
+      userDefaults.set(legacy, forKey: providerKey)
+      userDefaults.removeObject(forKey: Constants.byokBaseURLKeyLegacy)
+      return legacy
+    }
+    return provider.defaultBaseURL
+  }
+
+  func saveByokBaseURLLocked(_ baseURL: String, for provider: VoiceLLMProvider) {
+    let providerKey = byokBaseURLKeyLocked(for: provider)
+    userDefaults.set(baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: providerKey)
+    userDefaults.removeObject(forKey: Constants.byokBaseURLKeyLegacy)
+  }
+
+  func loadByokModelLocked(for provider: VoiceLLMProvider) -> String {
+    let providerKey = byokModelKeyLocked(for: provider)
+    let stored = (userDefaults.string(forKey: providerKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !stored.isEmpty {
+      return stored
+    }
+
+    // 兼容旧版本：旧版本只有一份 model，这里迁移到当前 provider。
+    let legacy = (userDefaults.string(forKey: Constants.byokModelKeyLegacy) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !legacy.isEmpty {
+      userDefaults.set(legacy, forKey: providerKey)
+      userDefaults.removeObject(forKey: Constants.byokModelKeyLegacy)
+      return legacy
+    }
+    return provider.defaultModel
+  }
+
+  func saveByokModelLocked(_ model: String, for provider: VoiceLLMProvider) {
+    let providerKey = byokModelKeyLocked(for: provider)
+    userDefaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: providerKey)
+    userDefaults.removeObject(forKey: Constants.byokModelKeyLegacy)
+  }
+
   func loadPromptPresetsLocked() -> [VoiceLLMPromptPreset] {
     if let data = userDefaults.data(forKey: Constants.promptPresetsKey),
       let decoded = try? JSONDecoder().decode([VoiceLLMPromptPreset].self, from: data),
@@ -922,16 +1012,20 @@ private extension VoiceLLMSettingsStore {
     return VoiceLLMProvider(rawValue: raw) ?? .openAI
   }
 
-  func keychainQueryLocked() -> [String: Any] {
+  func keychainAccountLocked(for provider: VoiceLLMProvider) -> String {
+    Constants.keychainAccountPrefix + provider.rawValue
+  }
+
+  func keychainQueryLocked(account: String) -> [String: Any] {
     [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: Constants.keychainService,
-      kSecAttrAccount as String: Constants.keychainAccount
+      kSecAttrAccount as String: account
     ]
   }
 
-  func readAPIKeyLocked() -> String? {
-    var query = keychainQueryLocked()
+  func readRawAPIKeyLocked(account: String) -> String? {
+    var query = keychainQueryLocked(account: account)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
@@ -940,13 +1034,35 @@ private extension VoiceLLMSettingsStore {
     return String(data: data, encoding: .utf8)
   }
 
-  func saveAPIKeyLocked(_ apiKey: String?) {
-    let query = keychainQueryLocked()
+  func saveRawAPIKeyLocked(_ apiKey: String?, account: String) {
+    let query = keychainQueryLocked(account: account)
     SecItemDelete(query as CFDictionary)
     guard let apiKey, !apiKey.isEmpty else { return }
     var insert = query
     insert[kSecValueData as String] = apiKey.data(using: .utf8)
     SecItemAdd(insert as CFDictionary, nil)
+  }
+
+  // 兼容旧版本：旧版本只保存一把 key，这里在首次读取时迁移到当前 provider 分桶。
+  func readAPIKeyLocked(for provider: VoiceLLMProvider) -> String? {
+    let providerAccount = keychainAccountLocked(for: provider)
+    if let providerKey = readRawAPIKeyLocked(account: providerAccount), !providerKey.isEmpty {
+      return providerKey
+    }
+
+    if let legacy = readRawAPIKeyLocked(account: Constants.keychainAccountLegacy), !legacy.isEmpty {
+      saveRawAPIKeyLocked(legacy, account: providerAccount)
+      saveRawAPIKeyLocked(nil, account: Constants.keychainAccountLegacy)
+      return legacy
+    }
+    return nil
+  }
+
+  func saveAPIKeyLocked(_ apiKey: String?, for provider: VoiceLLMProvider) {
+    let providerAccount = keychainAccountLocked(for: provider)
+    saveRawAPIKeyLocked(apiKey, account: providerAccount)
+    // 清理旧账户，避免未来再次误读。
+    saveRawAPIKeyLocked(nil, account: Constants.keychainAccountLegacy)
   }
 }
 

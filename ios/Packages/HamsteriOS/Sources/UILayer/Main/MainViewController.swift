@@ -1699,6 +1699,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   private var cachedModelIDs: [String] = []
   private var promptPresets: [VoiceLLMPromptPreset] = []
   private var selectedPromptPresetID: String = ""
+  private var currentProviderSelection: VoiceLLMProvider = .openAI
 
   override func loadView() {
     title = "AI 处理配置"
@@ -1723,11 +1724,12 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let provider = settingsStore.provider()
     settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
     settingsView.providerControl.selectedSegmentIndex = providerSegmentIndex(for: provider)
+    currentProviderSelection = provider
     settingsView.proxyEndpointField.text = settingsStore.proxyEndpoint()
     settingsView.proxyModelsEndpointField.text = settingsStore.proxyModelsEndpoint()
-    settingsView.byokBaseURLField.text = settingsStore.byokBaseURL()
-    settingsView.modelField.text = settingsStore.byokModel()
-    settingsView.apiKeyField.text = settingsStore.apiKey()
+    settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
+    settingsView.modelField.text = settingsStore.byokModel(for: provider)
+    settingsView.apiKeyField.text = settingsStore.apiKey(for: provider)
     cachedModelIDs = settingsStore.cachedModelIDs()
     promptPresets = settingsStore.promptPresets()
     let selectedPreset = settingsStore.selectedPromptPreset()
@@ -1774,18 +1776,19 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   }
 
   @objc private func handleProviderChanged() {
+    let previousProvider = currentProviderSelection
     let provider = providerForSelectedIndex()
+    if provider != previousProvider {
+      // 用户切换 Provider 时先保存当前供应商草稿，避免跨供应商切换时丢失。
+      settingsStore.setByokBaseURL(settingsView.byokBaseURLField.text ?? "", for: previousProvider)
+      settingsStore.setByokModel(settingsView.modelField.text ?? "", for: previousProvider)
+      settingsStore.setAPIKey(settingsView.apiKeyField.text, for: previousProvider)
+      currentProviderSelection = provider
+    }
     settingsView.updateProviderHint(provider: provider)
-
-    // 当用户首次切换供应商时，自动填充默认地址与模型，减少配置摩擦。
-    let currentBaseURL = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    let currentModel = (settingsView.modelField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    if currentBaseURL.isEmpty {
-      settingsView.byokBaseURLField.text = provider.defaultBaseURL
-    }
-    if currentModel.isEmpty {
-      settingsView.modelField.text = provider.defaultModel
-    }
+    settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
+    settingsView.modelField.text = settingsStore.byokModel(for: provider)
+    settingsView.apiKeyField.text = settingsStore.apiKey(for: provider)
   }
 
   @objc private func handleRefreshModelsTap() {
@@ -1988,12 +1991,13 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsStore.setProvider(provider)
     settingsStore.setProxyEndpoint(proxyEndpoint)
     settingsStore.setProxyModelsEndpoint(settingsView.proxyModelsEndpointField.text ?? "")
-    settingsStore.setByokBaseURL(baseURL)
-    settingsStore.setByokModel(model)
-    settingsStore.setAPIKey(apiKeyInput)
+    settingsStore.setByokBaseURL(baseURL, for: provider)
+    settingsStore.setByokModel(model, for: provider)
+    settingsStore.setAPIKey(apiKeyInput, for: provider)
 
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
+    currentProviderSelection = provider
   }
 
   private func presentModelPicker(_ modelIDs: [String]) {
