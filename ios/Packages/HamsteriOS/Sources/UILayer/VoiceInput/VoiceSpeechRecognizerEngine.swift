@@ -494,6 +494,14 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
   case openAI = "openai"
   case qwen
   case glm
+  case baiduQianfan = "baidu_qianfan"
+  case doubao
+  case tencentHunyuan = "tencent_hunyuan"
+  case gemini
+  case deepseek
+  case claude
+  case minimax
+  case moonshot
   case custom
 
   var displayName: String {
@@ -504,6 +512,22 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
       return "Qwen"
     case .glm:
       return "智谱 GLM"
+    case .baiduQianfan:
+      return "百度千帆"
+    case .doubao:
+      return "豆包"
+    case .tencentHunyuan:
+      return "腾讯混元"
+    case .gemini:
+      return "Google Gemini"
+    case .deepseek:
+      return "DeepSeek"
+    case .claude:
+      return "Anthropic Claude"
+    case .minimax:
+      return "MiniMax"
+    case .moonshot:
+      return "Moonshot"
     case .custom:
       return "自定义"
     }
@@ -517,6 +541,22 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
       return "https://dashscope.aliyuncs.com/compatible-mode/v1"
     case .glm:
       return "https://open.bigmodel.cn/api/paas/v4"
+    case .baiduQianfan:
+      return "https://qianfan.baidubce.com/v2"
+    case .doubao:
+      return "https://ark.cn-beijing.volces.com/api/v3"
+    case .tencentHunyuan:
+      return "https://api.hunyuan.cloud.tencent.com/v1"
+    case .gemini:
+      return "https://generativelanguage.googleapis.com/v1beta/openai"
+    case .deepseek:
+      return "https://api.deepseek.com/v1"
+    case .claude:
+      return "https://api.anthropic.com/v1"
+    case .minimax:
+      return "https://api.minimax.chat/v1"
+    case .moonshot:
+      return "https://api.moonshot.cn/v1"
     case .custom:
       return ""
     }
@@ -530,6 +570,22 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
       return "qwen-plus"
     case .glm:
       return "glm-4-flash"
+    case .baiduQianfan:
+      return "ernie-4.5-0.3b"
+    case .doubao:
+      return "doubao-seed-1.6-lite"
+    case .tencentHunyuan:
+      return "hunyuan-a13b"
+    case .gemini:
+      return "gemini-2.0-flash-lite"
+    case .deepseek:
+      return "deepseek-chat"
+    case .claude:
+      return "claude-3-haiku-20240307"
+    case .minimax:
+      return "minimax-m2.1"
+    case .moonshot:
+      return "moonshot-v1-8k"
     case .custom:
       return ""
     }
@@ -558,6 +614,53 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
         "glm-4-plus",
         "glm-4-air"
       ]
+    case .baiduQianfan:
+      return [
+        "ernie-4.5-0.3b",
+        "ernie-4.5-8b",
+        "ernie-4.0-8k"
+      ]
+    case .doubao:
+      return [
+        "doubao-seed-1.6-lite",
+        "doubao-seed-1.6",
+        "doubao-pro-32k"
+      ]
+    case .tencentHunyuan:
+      return [
+        "hunyuan-a13b",
+        "hunyuan-lite",
+        "hunyuan-standard"
+      ]
+    case .gemini:
+      return [
+        "gemini-2.0-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
+      ]
+    case .deepseek:
+      return [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ]
+    case .claude:
+      return [
+        "claude-3-haiku-20240307",
+        "claude-3-5-haiku-latest",
+        "claude-3-5-sonnet-latest"
+      ]
+    case .minimax:
+      return [
+        "minimax-m2.1",
+        "minimax-m1",
+        "abab6.5s-chat"
+      ]
+    case .moonshot:
+      return [
+        "moonshot-v1-8k",
+        "moonshot-v1-32k",
+        "moonshot-v1-128k"
+      ]
     case .custom:
       return []
     }
@@ -579,8 +682,53 @@ enum VoiceLLMProvider: String, Codable, CaseIterable {
         "https://docs.bigmodel.cn/cn/guide/start/model-overview",
         "https://docs.bigmodel.cn/llms.txt"
       ]
+    case .baiduQianfan:
+      return [
+        "https://cloud.baidu.com/doc/qianfan/s/wmh4sv6ya"
+      ]
+    case .doubao:
+      return [
+        "https://www.volcengine.com/product/doubao/"
+      ]
+    case .tencentHunyuan:
+      return [
+        "https://cloud.tencent.com/document/product/1729/97731"
+      ]
+    case .gemini:
+      return [
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ]
+    case .deepseek:
+      return [
+        "https://api-docs.deepseek.com/quick_start/pricing/"
+      ]
+    case .claude:
+      return [
+        "https://platform.claude.com/docs/en/about-claude/pricing"
+      ]
+    case .minimax:
+      return [
+        "https://platform.minimaxi.com/docs/guides/pricing-paygo"
+      ]
+    case .moonshot:
+      return [
+        "https://platform.moonshot.cn/docs/pricing/chat"
+      ]
     case .custom:
       return []
+    }
+  }
+
+  var byokCompatibilityHint: String {
+    switch self {
+    case .openAI, .qwen, .glm, .deepseek, .moonshot:
+      return "当前客户端按 OpenAI 兼容格式调用。"
+    case .baiduQianfan, .doubao, .tencentHunyuan, .gemini, .minimax:
+      return "该供应商接口版本可能存在差异；若失败请改用代理模式。"
+    case .claude:
+      return "当前客户端按 OpenAI 兼容格式调用，Claude 官方原生接口建议走代理模式。"
+    case .custom:
+      return "请填写你自己的 OpenAI 兼容地址与模型。"
     }
   }
 }
@@ -1550,6 +1698,40 @@ private extension VoiceLLMService {
       patterns = [
         "\\bglm-[a-z0-9\\.-]+\\b"
       ]
+    case .baiduQianfan:
+      patterns = [
+        "\\bernie-[a-z0-9\\.-]+\\b"
+      ]
+    case .doubao:
+      patterns = [
+        "\\bdoubao-[a-z0-9\\.-]+\\b"
+      ]
+    case .tencentHunyuan:
+      patterns = [
+        "\\bhunyuan-[a-z0-9\\.-]+\\b"
+      ]
+    case .gemini:
+      patterns = [
+        "\\bgemini-[a-z0-9\\.-]+\\b"
+      ]
+    case .deepseek:
+      patterns = [
+        "\\bdeepseek-[a-z0-9\\.-]+\\b"
+      ]
+    case .claude:
+      patterns = [
+        "\\bclaude-[a-z0-9\\.-]+\\b"
+      ]
+    case .minimax:
+      patterns = [
+        "\\bminimax-[a-z0-9\\.-]+\\b",
+        "\\babab[a-z0-9\\.-]+\\b"
+      ]
+    case .moonshot:
+      patterns = [
+        "\\bmoonshot-[a-z0-9\\.-]+\\b",
+        "\\bkimi-[a-z0-9\\.-]+\\b"
+      ]
     case .custom:
       return []
     }
@@ -1587,6 +1769,38 @@ private extension VoiceLLMService {
       return unique.filter { id in
         guard id.hasPrefix("glm-"), !id.contains("-new"), !id.contains("api") else { return false }
         return true
+      }
+    case .baiduQianfan:
+      return unique.filter { id in
+        id.hasPrefix("ernie-")
+      }
+    case .doubao:
+      return unique.filter { id in
+        id.hasPrefix("doubao-")
+      }
+    case .tencentHunyuan:
+      return unique.filter { id in
+        id.hasPrefix("hunyuan-")
+      }
+    case .gemini:
+      return unique.filter { id in
+        id.hasPrefix("gemini-")
+      }
+    case .deepseek:
+      return unique.filter { id in
+        id.hasPrefix("deepseek-")
+      }
+    case .claude:
+      return unique.filter { id in
+        id.hasPrefix("claude-")
+      }
+    case .minimax:
+      return unique.filter { id in
+        id.hasPrefix("minimax-") || id.hasPrefix("abab")
+      }
+    case .moonshot:
+      return unique.filter { id in
+        id.hasPrefix("moonshot-") || id.hasPrefix("kimi-")
       }
     case .custom:
       return unique

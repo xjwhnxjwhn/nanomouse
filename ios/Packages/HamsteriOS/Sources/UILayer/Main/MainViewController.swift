@@ -1710,7 +1710,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     super.viewDidLoad()
     settingsView.llmEnabledControl.addTarget(self, action: #selector(handleLLMEnabledChanged), for: .valueChanged)
     settingsView.authModeControl.addTarget(self, action: #selector(handleAuthModeChanged), for: .valueChanged)
-    settingsView.providerControl.addTarget(self, action: #selector(handleProviderChanged), for: .valueChanged)
+    settingsView.providerButton.addTarget(self, action: #selector(handleProviderTap), for: .touchUpInside)
     settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
     settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
     settingsView.choosePresetButton.addTarget(self, action: #selector(handleChoosePresetTap), for: .touchUpInside)
@@ -1726,8 +1726,9 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let provider = settingsStore.provider()
     settingsView.llmEnabledControl.selectedSegmentIndex = llmEnabled ? 1 : 0
     settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
-    settingsView.providerControl.selectedSegmentIndex = providerSegmentIndex(for: provider)
     currentProviderSelection = provider
+    settingsView.updateProviderSelection(provider: provider)
+    settingsView.updateProviderPlaceholders(provider: provider)
     settingsView.proxyEndpointField.text = settingsStore.proxyEndpoint()
     settingsView.proxyModelsEndpointField.text = settingsStore.proxyModelsEndpoint()
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
@@ -1741,32 +1742,6 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabled)
     settingsView.updateProviderHint(provider: provider)
     settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
-  }
-
-  private func providerSegmentIndex(for provider: VoiceLLMProvider) -> Int {
-    switch provider {
-    case .openAI:
-      return 0
-    case .qwen:
-      return 1
-    case .glm:
-      return 2
-    case .custom:
-      return 3
-    }
-  }
-
-  private func providerForSelectedIndex() -> VoiceLLMProvider {
-    switch settingsView.providerControl.selectedSegmentIndex {
-    case 1:
-      return .qwen
-    case 2:
-      return .glm
-    case 3:
-      return .custom
-    default:
-      return .openAI
-    }
   }
 
   private func authModeForSelectedIndex() -> VoiceLLMAuthMode {
@@ -1787,9 +1762,24 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabledForSelectedIndex())
   }
 
-  @objc private func handleProviderChanged() {
+  @objc private func handleProviderTap() {
+    let alert = UIAlertController(title: "选择 Provider", message: nil, preferredStyle: .actionSheet)
+    for provider in VoiceLLMProvider.allCases {
+      let title = provider == currentProviderSelection ? "✓ \(provider.displayName)" : provider.displayName
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        self?.applyProvider(provider)
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = settingsView.providerButton
+      popover.sourceRect = settingsView.providerButton.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func applyProvider(_ provider: VoiceLLMProvider) {
     let previousProvider = currentProviderSelection
-    let provider = providerForSelectedIndex()
     if provider != previousProvider {
       // 用户切换 Provider 时先保存当前供应商草稿，避免跨供应商切换时丢失。
       settingsStore.setByokBaseURL(settingsView.byokBaseURLField.text ?? "", for: previousProvider)
@@ -1797,6 +1787,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
       settingsStore.setAPIKey(settingsView.apiKeyField.text, for: previousProvider)
       currentProviderSelection = provider
     }
+    settingsView.updateProviderSelection(provider: provider)
+    settingsView.updateProviderPlaceholders(provider: provider)
     settingsView.updateProviderHint(provider: provider)
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
     settingsView.modelField.text = settingsStore.byokModel(for: provider)
@@ -1996,7 +1988,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
   private func persistFormSettings() {
     let llmEnabled = llmEnabledForSelectedIndex()
-    let provider = providerForSelectedIndex()
+    let provider = currentProviderSelection
     let authMode = authModeForSelectedIndex()
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
     let baseURLInput = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2018,6 +2010,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
     currentProviderSelection = provider
+    settingsView.updateProviderSelection(provider: provider)
+    settingsView.updateProviderPlaceholders(provider: provider)
   }
 
   private func presentModelPicker(_ modelIDs: [String]) {
@@ -2067,11 +2061,16 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return control
   }()
 
-  let providerControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["OpenAI", "Qwen", "GLM", "自定义"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 0
-    return control
+  let providerButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("OpenAI", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.contentHorizontalAlignment = .left
+    button.backgroundColor = .secondarySystemBackground
+    button.layer.cornerRadius = 10
+    button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+    return button
   }()
 
   let proxyEndpointField = VoiceLLMSettingsRootView.makeTextField(
@@ -2304,6 +2303,8 @@ final class VoiceLLMSettingsRootView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     updateVisibleSections(authMode: .proxy, isLLMEnabled: true)
+    updateProviderSelection(provider: .openAI)
+    updateProviderPlaceholders(provider: .openAI)
     updateProviderHint(provider: .openAI)
     updatePresetEditor(preset: VoiceLLMPromptPreset.defaultPresets[0], totalCount: VoiceLLMPromptPreset.defaultPresets.count)
   }
@@ -2314,7 +2315,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     contentStack.addArrangedSubview(descriptionLabel)
     contentStack.addArrangedSubview(makeControlSection(title: "AI 编辑", control: llmEnabledControl))
     contentStack.addArrangedSubview(makeControlSection(title: "认证模式", control: authModeControl))
-    contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerControl))
+    contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerButton))
     contentStack.addArrangedSubview(providerHintLabel)
     contentStack.addArrangedSubview(proxySection)
     contentStack.addArrangedSubview(proxyModelsSection)
@@ -2357,7 +2358,17 @@ final class VoiceLLMSettingsRootView: NibLessView {
   }
 
   func updateProviderHint(provider: VoiceLLMProvider) {
-    providerHintLabel.text = "当前 Provider：\(provider.displayName)。默认 Base URL：\(provider.defaultBaseURL)"
+    let baseURL = provider.defaultBaseURL.isEmpty ? "未预置（请手动填写）" : provider.defaultBaseURL
+    providerHintLabel.text = "当前 Provider：\(provider.displayName)。默认 Base URL：\(baseURL)。\(provider.byokCompatibilityHint)"
+  }
+
+  func updateProviderSelection(provider: VoiceLLMProvider) {
+    providerButton.setTitle("\(provider.displayName)  ▾", for: .normal)
+  }
+
+  func updateProviderPlaceholders(provider: VoiceLLMProvider) {
+    byokBaseURLField.placeholder = provider.defaultBaseURL.isEmpty ? "https://api.example.com/v1" : provider.defaultBaseURL
+    modelField.placeholder = provider.defaultModel.isEmpty ? "输入模型名" : provider.defaultModel
   }
 
   func updateCachedModelHint(modelCount: Int, updatedAt: TimeInterval?) {
