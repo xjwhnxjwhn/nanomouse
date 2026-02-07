@@ -2059,9 +2059,13 @@ final class VoiceLLMSettingsRootView: NibLessView {
     placeholder: "https://api.openai.com/v1"
   )
 
-  let modelField = VoiceLLMSettingsRootView.makeTextField(
-    placeholder: "gpt-4o-mini"
-  )
+  let modelField: UITextField = {
+    let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "gpt-5-nano")
+    // 使用一次性验证码语义规避登录表单误判，但保持默认键盘类型。
+    field.textContentType = .oneTimeCode
+    field.keyboardType = .default
+    return field
+  }()
 
   let refreshModelsButton: UIButton = {
     let button = UIButton(type: .system)
@@ -2131,6 +2135,8 @@ final class VoiceLLMSettingsRootView: NibLessView {
   let apiKeyField: UITextField = {
     let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "输入 API Key")
     field.isSecureTextEntry = true
+    // 避免被系统当作“密码登录表单”，减少对第三方键盘可用性的干扰。
+    field.textContentType = .oneTimeCode
     field.autocorrectionType = .no
     field.autocapitalizationType = .none
     field.spellCheckingType = .no
@@ -2385,6 +2391,9 @@ final class VoiceLLMSettingsRootView: NibLessView {
     field.placeholder = placeholder
     field.borderStyle = .roundedRect
     field.clearButtonMode = .whileEditing
+    // 显式声明普通文本输入，避免系统根据上下文自动套用受限输入策略。
+    field.textContentType = .none
+    field.keyboardType = .default
     field.autocorrectionType = .no
     field.autocapitalizationType = .none
     field.spellCheckingType = .no
