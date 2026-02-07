@@ -515,29 +515,17 @@ final class VoiceModeView: NibLessView {
   private let voiceInputBridge: KeyboardVoiceInputBridge
   private var activeRequestId: String?
 
-  private lazy var titleLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.text = "Nanomouse"
-    label.font = .systemFont(ofSize: 17, weight: .semibold)
-    return label
-  }()
-
-  private lazy var logoImageView: UIImageView = {
-    let image = UIImage(named: "NanomouseLogo", in: .module, compatibleWith: nil)
-    let view = UIImageView(image: image)
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.contentMode = .scaleAspectFit
-    return view
-  }()
-
-  private lazy var titleStack: UIStackView = {
-    let stack = UIStackView(arrangedSubviews: [logoImageView, titleLabel])
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    stack.axis = .horizontal
-    stack.alignment = .center
-    stack.spacing = 6
-    return stack
+  private lazy var appIconButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(named: "NanomouseLogo", in: .module, compatibleWith: nil), for: .normal)
+    button.imageView?.contentMode = .scaleAspectFill
+    button.clipsToBounds = true
+    button.addTarget(self, action: #selector(handleOpenAppTouchDown), for: .touchDown)
+    button.addTarget(self, action: #selector(handleOpenAppTouchUp), for: .touchUpInside)
+    button.addTarget(self, action: #selector(handleOpenAppTouchCancel), for: .touchCancel)
+    button.addTarget(self, action: #selector(handleOpenAppTouchCancel), for: .touchUpOutside)
+    return button
   }()
 
   private lazy var promptLabel: UILabel = {
@@ -569,16 +557,27 @@ final class VoiceModeView: NibLessView {
     makeTopButton(title: "@", action: #selector(handleAtTap))
   }()
 
-  private lazy var smallReturnButton: UIButton = {
-    makeTopButton(title: "⏎", action: #selector(handleLineBreakTap))
+  private lazy var spaceButton: UIButton = {
+    makeTopButton(title: "空格", action: #selector(handleSpaceTap))
+  }()
+
+  private lazy var backspaceButton: UIButton = {
+    makeTopButton(title: "⌫", action: #selector(handleBackspaceTap))
   }()
 
   private lazy var closeButton: UIButton = {
-    makeTopButton(title: "x", action: #selector(handleCloseTap))
+    makeTopButton(title: "×", action: #selector(handleCloseTap))
+  }()
+
+  private lazy var dismissKeyboardButton: UIButton = {
+    makeTopIconButton(
+      symbolName: "chevron.down.circle",
+      action: #selector(handleDismissKeyboardTap)
+    )
   }()
 
   private lazy var topRightStack: UIStackView = {
-    let stack = UIStackView(arrangedSubviews: [atButton, smallReturnButton, closeButton])
+    let stack = UIStackView(arrangedSubviews: [atButton, spaceButton, backspaceButton, closeButton, dismissKeyboardButton])
     stack.translatesAutoresizingMaskIntoConstraints = false
     stack.axis = .horizontal
     stack.alignment = .center
@@ -614,7 +613,7 @@ final class VoiceModeView: NibLessView {
   }
 
   override func constructViewHierarchy() {
-    addSubview(titleStack)
+    addSubview(appIconButton)
     addSubview(topRightStack)
     addSubview(centerStack)
   }
@@ -622,21 +621,24 @@ final class VoiceModeView: NibLessView {
   override func activateViewConstraints() {
     layoutMargins = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
     NSLayoutConstraint.activate([
-      titleStack.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
-      titleStack.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
-
-      logoImageView.widthAnchor.constraint(equalToConstant: 20),
-      logoImageView.heightAnchor.constraint(equalTo: logoImageView.widthAnchor),
+      appIconButton.leadingAnchor.constraint(equalTo: layoutMarginsGuide.leadingAnchor),
+      appIconButton.topAnchor.constraint(equalTo: layoutMarginsGuide.topAnchor),
+      appIconButton.widthAnchor.constraint(equalToConstant: 36),
+      appIconButton.heightAnchor.constraint(equalTo: appIconButton.widthAnchor),
 
       topRightStack.trailingAnchor.constraint(equalTo: layoutMarginsGuide.trailingAnchor),
-      topRightStack.centerYAnchor.constraint(equalTo: titleStack.centerYAnchor),
+      topRightStack.centerYAnchor.constraint(equalTo: appIconButton.centerYAnchor),
 
       atButton.widthAnchor.constraint(equalToConstant: 36),
       atButton.heightAnchor.constraint(equalTo: atButton.widthAnchor),
-      smallReturnButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
-      smallReturnButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
+      spaceButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
+      spaceButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
+      backspaceButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
+      backspaceButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
       closeButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
       closeButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
+      dismissKeyboardButton.widthAnchor.constraint(equalTo: atButton.widthAnchor),
+      dismissKeyboardButton.heightAnchor.constraint(equalTo: atButton.heightAnchor),
 
       centerStack.centerXAnchor.constraint(equalTo: centerXAnchor),
       centerStack.centerYAnchor.constraint(equalTo: centerYAnchor, constant: 8),
@@ -653,8 +655,11 @@ final class VoiceModeView: NibLessView {
     micButton.layer.cornerRadius = micButton.bounds.height / 2
     lineBreakButton.layer.cornerRadius = lineBreakButton.bounds.height / 2
     atButton.layer.cornerRadius = atButton.bounds.height / 2
-    smallReturnButton.layer.cornerRadius = smallReturnButton.bounds.height / 2
+    spaceButton.layer.cornerRadius = spaceButton.bounds.height / 2
+    backspaceButton.layer.cornerRadius = backspaceButton.bounds.height / 2
     closeButton.layer.cornerRadius = closeButton.bounds.height / 2
+    dismissKeyboardButton.layer.cornerRadius = dismissKeyboardButton.bounds.height / 2
+    appIconButton.layer.cornerRadius = appIconButton.bounds.height / 2
   }
 
   override func setupAppearance() {
@@ -672,7 +677,6 @@ final class VoiceModeView: NibLessView {
     let topButtonText = isDark ? UIColor(white: 0.95, alpha: 1.0) : UIColor(white: 0.1, alpha: 1.0)
 
     backgroundColor = background
-    titleLabel.textColor = primaryText
     promptLabel.textColor = secondaryText
 
     micButton.backgroundColor = pillBackground
@@ -680,10 +684,14 @@ final class VoiceModeView: NibLessView {
     lineBreakButton.backgroundColor = pillBackground
     lineBreakButton.setTitleColor(pillText, for: .normal)
 
-    [atButton, smallReturnButton, closeButton].forEach { button in
+    [atButton, spaceButton, backspaceButton, closeButton, dismissKeyboardButton].forEach { button in
       button.backgroundColor = topButtonBackground
+    }
+    [atButton, spaceButton, backspaceButton, closeButton].forEach { button in
       button.setTitleColor(topButtonText, for: .normal)
     }
+    dismissKeyboardButton.tintColor = topButtonText
+    appIconButton.backgroundColor = topButtonBackground
   }
 
   private func makeTopButton(title: String, action: Selector) -> UIButton {
@@ -695,8 +703,29 @@ final class VoiceModeView: NibLessView {
     return button
   }
 
+  private func makeTopIconButton(symbolName: String, action: Selector) -> UIButton {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(systemName: symbolName), for: .normal)
+    button.setPreferredSymbolConfiguration(
+      .init(font: .systemFont(ofSize: 18, weight: .semibold), scale: .default),
+      forImageIn: .normal
+    )
+    button.addTarget(self, action: action, for: .touchUpInside)
+    return button
+  }
+
   @objc private func handleAtTap() {
     actionHandler.handle(.release, on: .character("@"))
+  }
+
+  @objc private func handleSpaceTap() {
+    actionHandler.handle(.release, on: .space)
+  }
+
+  @objc private func handleBackspaceTap() {
+    actionHandler.handle(.press, on: .backspace)
+    actionHandler.handle(.release, on: .backspace)
   }
 
   @objc private func handleLineBreakTap() {
@@ -706,6 +735,32 @@ final class VoiceModeView: NibLessView {
   @objc private func handleCloseTap() {
     resetMicLaunchState()
     onClose?()
+  }
+
+  @objc private func handleDismissKeyboardTap() {
+    actionHandler.handle(.release, on: .dismissKeyboard)
+  }
+
+  @objc private func handleOpenAppTouchDown() {
+    appIconButton.backgroundColor = keyboardContext.colorScheme == .dark
+      ? UIColor(white: 0.34, alpha: 1.0)
+      : UIColor(white: 0.76, alpha: 1.0)
+  }
+
+  @objc private func handleOpenAppTouchUp() {
+    appIconButton.backgroundColor = keyboardContext.colorScheme == .dark
+      ? UIColor(white: 0.34, alpha: 1.0)
+      : UIColor(white: 0.76, alpha: 1.0)
+    actionHandler.handle(
+      .release,
+      on: .url(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/main"), id: "openHamster")
+    )
+  }
+
+  @objc private func handleOpenAppTouchCancel() {
+    appIconButton.backgroundColor = keyboardContext.colorScheme == .dark
+      ? UIColor(white: 0.26, alpha: 1.0)
+      : UIColor(white: 0.85, alpha: 1.0)
   }
 
   @objc private func handleMicTap() {
