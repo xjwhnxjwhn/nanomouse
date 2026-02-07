@@ -105,28 +105,20 @@ final class KeyboardVoiceInputBridge {
   func readLatestUnconsumedResult() -> KeyboardVoiceInputResultPayload? {
     ensureDirectories()
 
-    // 优先消费当前请求对应的结果，避免旧任务结果覆盖新任务。
-    if let activeRequestId = activeRequestId(),
-      let payload = read(KeyboardVoiceInputResultPayload.self, from: resultFileURL(for: activeRequestId)),
-      payload.consumed == false,
-      !payload.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty
-    {
-      return payload
-    }
-
-    guard let fileURLs = try? fileManager.contentsOfDirectory(
-      at: resultsDirectoryURL,
-      includingPropertiesForKeys: nil,
-      options: [.skipsHiddenFiles]
-    ) else {
+    // 只消费当前 activeRequestId 对应结果，禁止回退扫描历史结果，
+    // 否则会把旧会话文本误插入到当前宿主输入框中。
+    guard let activeRequestId = activeRequestId() else {
       return nil
     }
 
-    return fileURLs
-      .compactMap { read(KeyboardVoiceInputResultPayload.self, from: $0) }
-      .filter { !$0.consumed && !$0.text.isEmpty }
-      .sorted(by: { $0.updatedAt > $1.updatedAt })
-      .first
+    guard let payload = read(KeyboardVoiceInputResultPayload.self, from: resultFileURL(for: activeRequestId)) else {
+      return nil
+    }
+    guard payload.consumed == false else { return nil }
+    guard !payload.text.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty else {
+      return nil
+    }
+    return payload
   }
 
   func markResultConsumed(requestId: String) {
