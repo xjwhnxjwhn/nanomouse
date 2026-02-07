@@ -108,7 +108,7 @@ final class VoiceDictationViewController: NibLessViewController {
     button.setTitle("完成", for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
     button.setTitleColor(.white, for: .normal)
-    button.backgroundColor = .label
+    button.backgroundColor = .systemBlue
     button.layer.cornerRadius = 24
     button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 26, bottom: 12, right: 26)
     button.addTarget(self, action: #selector(handleStopTap), for: .touchUpInside)
@@ -473,7 +473,7 @@ final class VoiceDictationViewController: NibLessViewController {
     stopButton.setTitle("完成", for: .normal)
     stopButton.isEnabled = true
     stopButton.alpha = 1
-    stopButton.backgroundColor = .label
+    stopButton.backgroundColor = .systemBlue
   }
 
   private func configureStopButtonForRetry() {

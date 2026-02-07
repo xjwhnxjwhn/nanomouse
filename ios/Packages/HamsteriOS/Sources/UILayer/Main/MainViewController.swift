@@ -515,7 +515,7 @@ final class VoiceHomeRootView: NibLessView {
     button.setTitle("开始口述", for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
     button.setTitleColor(.white, for: .normal)
-    button.backgroundColor = .label
+    button.backgroundColor = .systemBlue
     button.layer.cornerRadius = 16
     button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
     button.addTarget(self, action: #selector(handleStartDictationTap), for: .touchUpInside)
@@ -646,6 +646,12 @@ final class VoiceCardView: UIView {
 
   private let style: Style
   private let contentContainer = UIView()
+  private static let accentBackgroundColor = UIColor { trait in
+    if trait.userInterfaceStyle == .dark {
+      return UIColor(red: 0.17, green: 0.24, blue: 0.34, alpha: 1.0)
+    }
+    return UIColor(red: 0.88, green: 0.93, blue: 1.0, alpha: 1.0)
+  }
 
   init(style: Style = .standard) {
     self.style = style
@@ -688,7 +694,7 @@ final class VoiceCardView: UIView {
       layer.shadowRadius = 12
       layer.shadowOffset = CGSize(width: 0, height: 6)
     case .accent:
-      backgroundColor = UIColor(red: 0.88, green: 0.93, blue: 1.0, alpha: 1.0)
+      backgroundColor = Self.accentBackgroundColor
       layer.shadowOpacity = 0
     }
   }
@@ -1073,7 +1079,7 @@ final class VoiceDictionaryRootView: NibLessView {
     let control = UISegmentedControl(items: ["所有", "自动添加", "手动添加"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = 0
-    control.selectedSegmentTintColor = .label
+    control.selectedSegmentTintColor = .systemBlue
     control.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
     control.setTitleTextAttributes([.foregroundColor: UIColor.label], for: .normal)
     return control
@@ -1110,7 +1116,7 @@ final class VoiceDictionaryRootView: NibLessView {
     button.translatesAutoresizingMaskIntoConstraints = false
     button.setImage(UIImage(systemName: "plus"), for: .normal)
     button.tintColor = .white
-    button.backgroundColor = .label
+    button.backgroundColor = .systemBlue
     button.layer.cornerRadius = 24
     button.layer.shadowColor = UIColor.black.cgColor
     button.layer.shadowOpacity = 0.18
@@ -2175,7 +2181,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     button.setTitle("保存配置", for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
     button.setTitleColor(.white, for: .normal)
-    button.backgroundColor = .label
+    button.backgroundColor = .systemBlue
     button.layer.cornerRadius = 12
     return button
   }()
