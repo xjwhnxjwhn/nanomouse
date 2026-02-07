@@ -9,26 +9,23 @@ import HamsterKit
 import HamsterUIKit
 import UIKit
 
+@MainActor
 final class VoiceDictationViewController: NibLessViewController {
-  private enum VoiceMode: Int {
-    case dictation = 0
-    case speakToEdit = 1
-  }
-
   private var requestId: String
   private let speechEngine = VoiceSpeechRecognizerEngine()
   private let llmService: VoiceLLMService = .shared
   private let llmSettingsStore: VoiceLLMSettingsStore = .shared
   private let voiceInputBridge: AppVoiceInputBridge
   private var latestTranscript = ""
+  private var latestNonEmptyTranscript = ""
   private var latestCommittedText = ""
   private var isStarting = false
   private var isFinishing = false
   private var isRecording = false
   private var activeRoute: VoiceSpeechRecognizerEngine.Route = .appleOnDevice
   private var lastStartError: VoiceSpeechRecognizerEngine.EngineError?
-  private var voiceMode: VoiceMode = .dictation
   private var llmTransformTask: Task<Void, Never>?
+  private var stopTapTranscriptSnapshot = ""
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -47,12 +44,36 @@ final class VoiceDictationViewController: NibLessViewController {
     return label
   }()
 
-  private lazy var modeSegmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["听写", "编辑"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = VoiceMode.dictation.rawValue
-    control.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
-    return control
+  private lazy var llmIndicatorLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .semibold)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    label.backgroundColor = .tertiarySystemBackground
+    label.layer.cornerRadius = 10
+    label.layer.masksToBounds = true
+    label.isHidden = true
+    label.text = ""
+    return label
+  }()
+
+  private lazy var dictationSectionTitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .medium)
+    label.textColor = .secondaryLabel
+    label.text = "听写文本"
+    return label
+  }()
+
+  private lazy var editSectionTitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .medium)
+    label.textColor = .secondaryLabel
+    label.text = "预设整理结果"
+    return label
   }()
 
   private lazy var transcriptView: UITextView = {
@@ -65,6 +86,19 @@ final class VoiceDictationViewController: NibLessViewController {
     view.layer.cornerRadius = 16
     view.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
     view.text = "请开始说话"
+    return view
+  }()
+
+  private lazy var editCommandView: UITextView = {
+    let view = UITextView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.isEditable = false
+    view.font = .systemFont(ofSize: 17, weight: .regular)
+    view.textColor = .label
+    view.backgroundColor = .tertiarySystemBackground
+    view.layer.cornerRadius = 16
+    view.textContainerInset = UIEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
+    view.text = "完成听写后，系统会按当前预设自动整理，并在这里显示结果。"
     return view
   }()
 
@@ -97,7 +131,7 @@ final class VoiceDictationViewController: NibLessViewController {
     label.font = .systemFont(ofSize: 13, weight: .regular)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "识别完成后，请点击系统左上角“返回到上一应用”。"
+    label.text = "请先完成听写。"
     return label
   }()
 
@@ -138,17 +172,16 @@ final class VoiceDictationViewController: NibLessViewController {
     llmTransformTask = nil
     self.requestId = requestId
     latestTranscript = ""
+    latestNonEmptyTranscript = ""
     latestCommittedText = ""
     transcriptView.text = "请开始说话"
+    editCommandView.text = "完成听写后，系统会按当前预设自动整理，并在这里显示结果。"
     statusLabel.text = "准备中..."
     tipLabel.text = makeModeHintText()
     isRecording = false
     isFinishing = false
     isStarting = false
     lastStartError = nil
-    voiceMode = .dictation
-    modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
-    updateModeControlAvailability()
     configureStopButtonForFinish()
     voiceInputBridge.setState(requestId: requestId, state: .launching)
     speechEngine.stop(cancel: true)
@@ -159,9 +192,12 @@ final class VoiceDictationViewController: NibLessViewController {
   private func setupView() {
     view.backgroundColor = .systemBackground
     view.addSubview(titleLabel)
-    view.addSubview(modeSegmentedControl)
     view.addSubview(statusLabel)
+    view.addSubview(llmIndicatorLabel)
+    view.addSubview(dictationSectionTitleLabel)
     view.addSubview(transcriptView)
+    view.addSubview(editSectionTitleLabel)
+    view.addSubview(editCommandView)
     view.addSubview(stopButton)
     view.addSubview(cancelButton)
     view.addSubview(tipLabel)
@@ -171,20 +207,33 @@ final class VoiceDictationViewController: NibLessViewController {
       titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
-      modeSegmentedControl.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
-      modeSegmentedControl.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      modeSegmentedControl.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-
-      statusLabel.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 10),
+      statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
       statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
       statusLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
 
-      transcriptView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 14),
+      llmIndicatorLabel.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 8),
+      llmIndicatorLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      llmIndicatorLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+
+      dictationSectionTitleLabel.topAnchor.constraint(equalTo: llmIndicatorLabel.bottomAnchor, constant: 12),
+      dictationSectionTitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      dictationSectionTitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+
+      transcriptView.topAnchor.constraint(equalTo: dictationSectionTitleLabel.bottomAnchor, constant: 8),
       transcriptView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       transcriptView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-      transcriptView.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
+      transcriptView.heightAnchor.constraint(greaterThanOrEqualToConstant: 150),
 
-      stopButton.topAnchor.constraint(equalTo: transcriptView.bottomAnchor, constant: 18),
+      editSectionTitleLabel.topAnchor.constraint(equalTo: transcriptView.bottomAnchor, constant: 10),
+      editSectionTitleLabel.leadingAnchor.constraint(equalTo: transcriptView.leadingAnchor),
+      editSectionTitleLabel.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
+
+      editCommandView.topAnchor.constraint(equalTo: editSectionTitleLabel.bottomAnchor, constant: 8),
+      editCommandView.leadingAnchor.constraint(equalTo: transcriptView.leadingAnchor),
+      editCommandView.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
+      editCommandView.heightAnchor.constraint(greaterThanOrEqualToConstant: 110),
+
+      stopButton.topAnchor.constraint(equalTo: editCommandView.bottomAnchor, constant: 16),
       stopButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
       cancelButton.topAnchor.constraint(equalTo: stopButton.bottomAnchor, constant: 10),
@@ -194,7 +243,6 @@ final class VoiceDictationViewController: NibLessViewController {
       tipLabel.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
       tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
     ])
-    updateModeControlAvailability()
     refreshUIForCurrentMode(keepTranscript: false)
   }
 
@@ -205,6 +253,7 @@ final class VoiceDictationViewController: NibLessViewController {
       isRecording = false
       isFinishing = false
       latestTranscript = ""
+      latestNonEmptyTranscript = ""
     }
     isStarting = true
     lastStartError = nil
@@ -221,28 +270,61 @@ final class VoiceDictationViewController: NibLessViewController {
           localeIdentifier: localeIdentifier,
           strategy: strategy,
           onResult: { [weak self] text, isFinal in
-            guard let self else { return }
-            self.latestTranscript = text
-            self.transcriptView.text = text.isEmpty ? "请开始说话" : text
-            if self.isFinishing && isFinal {
-              self.completeFinishingFlow(rawText: text)
-              return
+            Task { @MainActor [weak self] in
+              guard let self else { return }
+              let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+              if self.isFinishing {
+                // 完成阶段禁止空回调覆盖已有文本，避免“点完成后文本消失”。
+                if !trimmed.isEmpty {
+                  self.latestTranscript = text
+                  self.latestNonEmptyTranscript = text
+                  self.transcriptView.text = text
+                }
+                if isFinal {
+                  let candidate = trimmed.isEmpty ? self.stopTapTranscriptSnapshot : text
+                  self.completeFinishingFlow(rawText: candidate)
+                }
+                return
+              }
+
+              if trimmed.isEmpty {
+                // 识别过程中引擎可能回空包；如果已有文本，则保持现状，避免“突然清空”。
+                if self.latestNonEmptyTranscript.isEmpty {
+                  self.latestTranscript = ""
+                  self.transcriptView.text = "请开始说话"
+                } else {
+                  self.latestTranscript = self.latestNonEmptyTranscript
+                }
+              } else {
+                let acceptedText = self.acceptedTranscriptCandidate(newText: text, isFinal: isFinal)
+                self.latestTranscript = acceptedText
+                self.latestNonEmptyTranscript = acceptedText
+                self.transcriptView.text = acceptedText
+              }
+              if isFinal {
+                self.statusLabel.text = "识别完成，点击“完成”生成结果"
+              } else {
+                self.statusLabel.text = self.makeRecordingStatusText()
+              }
             }
-            self.statusLabel.text = isFinal ? "识别完成，点击“完成”回填" : self.makeRecordingStatusText()
           },
           onRouteChanged: { [weak self] route in
-            guard let self else { return }
-            self.activeRoute = route
-            self.statusLabel.text = self.makeRecordingStatusText()
-            if route == .whisperOnDevice {
-              self.tipLabel.text = "已切换 Whisper 离线识别，点击“完成”后会进行本地转写。"
-            } else {
-              self.tipLabel.text = self.makeModeHintText()
+            Task { @MainActor [weak self] in
+              guard let self else { return }
+              self.activeRoute = route
+              self.statusLabel.text = self.makeRecordingStatusText()
+              if route == .whisperOnDevice {
+                self.tipLabel.text = "已切换 Whisper 离线识别，点击“完成”后会进行本地转写。"
+              } else {
+                self.tipLabel.text = self.makeModeHintText()
+              }
             }
           },
           onError: { [weak self] error in
-            guard let self else { return }
-            self.handleRuntimeError(error)
+            Task { @MainActor [weak self] in
+              guard let self else { return }
+              self.handleRuntimeError(error)
+            }
           }
         )
         await MainActor.run {
@@ -265,57 +347,51 @@ final class VoiceDictationViewController: NibLessViewController {
     }
   }
 
-  @objc private func handleModeChanged() {
-    let selected = VoiceMode(rawValue: modeSegmentedControl.selectedSegmentIndex) ?? .dictation
-    if selected == .speakToEdit && latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      voiceMode = .dictation
-      modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
-      statusLabel.text = "请先完成一次听写，再使用编辑模式"
-      tipLabel.text = "先在“听写”模式说一句话并点击“完成”，然后再切换到“编辑”。"
-      refreshUIForCurrentMode(keepTranscript: true)
+  private func refreshUIForCurrentMode(keepTranscript: Bool) {
+    if !Thread.isMainThread {
+      DispatchQueue.main.async { [weak self] in
+        self?.refreshUIForCurrentMode(keepTranscript: keepTranscript)
+      }
       return
     }
-    voiceMode = selected
-    refreshUIForCurrentMode(keepTranscript: true)
-  }
-
-  private func updateModeControlAvailability() {
-    let hasCommittedText = !latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    modeSegmentedControl.setEnabled(hasCommittedText, forSegmentAt: VoiceMode.speakToEdit.rawValue)
-    if !hasCommittedText, voiceMode == .speakToEdit {
-      voiceMode = .dictation
-      modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
+    titleLabel.text = "语音输入"
+    if !keepTranscript || latestTranscript.isEmpty {
+      transcriptView.text = latestCommittedText.isEmpty ? "请开始说话" : latestCommittedText
     }
-  }
-
-  private func refreshUIForCurrentMode(keepTranscript: Bool) {
-    switch voiceMode {
-    case .dictation:
-      titleLabel.text = "语音输入"
-      if !keepTranscript || latestTranscript.isEmpty {
-        transcriptView.text = latestCommittedText.isEmpty ? "请开始说话" : latestCommittedText
-      }
-    case .speakToEdit:
-      titleLabel.text = "语音编辑"
-      if !keepTranscript || latestTranscript.isEmpty {
-        transcriptView.text = latestCommittedText.isEmpty
-          ? "请先在“听写”模式生成一段文本，再说编辑指令。"
-          : latestCommittedText
-      }
+    if latestCommittedText.isEmpty {
+      editCommandView.text = "完成听写后，系统会按当前预设自动整理，并在这里显示结果。"
+    } else {
+      editCommandView.text = latestCommittedText
     }
     tipLabel.text = makeModeHintText()
+    hideLLMIndicator()
   }
 
   private func makeModeHintText() -> String {
-    switch voiceMode {
-    case .dictation:
-      return "识别完成后，请点击系统左上角“返回到上一应用”。"
-    case .speakToEdit:
-      if !llmSettingsStore.isLLMEnabled() {
-        return "AI 编辑已关闭，当前会使用本地编辑规则（删除、替换、翻译等）。"
-      }
-      return "示例：\"删除最后一句\"、\"把项目A改成项目B\"、\"更礼貌一点\"、\"翻译成英文\"。"
+    if !llmSettingsStore.isLLMEnabled() {
+      return "AI 预设整理已关闭，完成后仅使用本地文本清洗规则。"
     }
+    return "完成听写后，系统会按当前预设自动整理。"
+  }
+
+  private func currentLLMProviderModelText() -> String {
+    let config = llmSettingsStore.runtimeConfig()
+    let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? config.provider.defaultModel
+      : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    return "\(config.provider.displayName) / \(model)"
+  }
+
+  private func updateLLMIndicator(text: String, textColor: UIColor = .secondaryLabel) {
+    // UILabel 没有内边距，这里通过空格让提示条可读性更稳定。
+    llmIndicatorLabel.text = "  \(text)  "
+    llmIndicatorLabel.textColor = textColor
+    llmIndicatorLabel.isHidden = false
+  }
+
+  private func hideLLMIndicator() {
+    llmIndicatorLabel.isHidden = true
+    llmIndicatorLabel.text = ""
   }
 
   @objc private func handleStopTap() {
@@ -329,13 +405,31 @@ final class VoiceDictationViewController: NibLessViewController {
     isRecording = false
     statusLabel.text = "处理中..."
     voiceInputBridge.setState(requestId: requestId, state: .processing)
+    stopButton.isEnabled = false
+    stopButton.alpha = 0.72
+    stopTapTranscriptSnapshot = latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    if stopTapTranscriptSnapshot.isEmpty {
+      let nonEmpty = latestNonEmptyTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !nonEmpty.isEmpty {
+        stopTapTranscriptSnapshot = nonEmpty
+      }
+    }
+    if stopTapTranscriptSnapshot.isEmpty {
+      let uiText = transcriptView.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if uiText != "请开始说话" {
+        stopTapTranscriptSnapshot = uiText
+      }
+    }
     speechEngine.stop(cancel: false)
 
     if activeRoute == .whisperOnDevice {
       tipLabel.text = "Whisper 正在本地转写，请稍候..."
       DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
         guard let self, self.isFinishing else { return }
-        self.completeFinishingFlow(rawText: self.latestTranscript)
+        let candidate = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          ? self.stopTapTranscriptSnapshot
+          : self.latestTranscript
+        self.completeFinishingFlow(rawText: candidate)
       }
       return
     }
@@ -343,7 +437,10 @@ final class VoiceDictationViewController: NibLessViewController {
     // 等待最后一批回调写入后再落盘，避免用户快速点击导致最后几个词丢失。
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
       guard let self else { return }
-      self.completeFinishingFlow(rawText: self.latestTranscript)
+      let candidate = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ? self.stopTapTranscriptSnapshot
+        : self.latestTranscript
+      self.completeFinishingFlow(rawText: candidate)
     }
   }
 
@@ -354,25 +451,21 @@ final class VoiceDictationViewController: NibLessViewController {
     isRecording = false
     isFinishing = false
     isStarting = false
+    latestTranscript = ""
+    latestNonEmptyTranscript = ""
+    stopTapTranscriptSnapshot = ""
     voiceInputBridge.setState(requestId: requestId, state: .cancelled)
     dismiss(animated: true)
   }
 
   private func makeRecordingStatusText() -> String {
-    let modePrefix: String
-    switch voiceMode {
-    case .dictation:
-      modePrefix = "听写"
-    case .speakToEdit:
-      modePrefix = "编辑"
-    }
     switch activeRoute {
     case .appleOnDevice:
-      return "正在\(modePrefix)（离线）..."
+      return "正在听写（离线）..."
     case .appleNetwork:
-      return "正在\(modePrefix)（在线）..."
+      return "正在听写（在线）..."
     case .whisperOnDevice:
-      return "正在\(modePrefix)（Whisper 离线）..."
+      return "正在听写（Whisper 离线）..."
     }
   }
 
@@ -403,6 +496,7 @@ final class VoiceDictationViewController: NibLessViewController {
     isFinishing = false
     lastStartError = error
     configureStopButtonForRetry()
+    hideLLMIndicator()
   }
 
   private func handleRuntimeError(_ error: VoiceSpeechRecognizerEngine.EngineError) {
@@ -421,6 +515,7 @@ final class VoiceDictationViewController: NibLessViewController {
     isFinishing = false
     lastStartError = error
     configureStopButtonForRetry()
+    hideLLMIndicator()
   }
 
   private func makeHintText(for error: VoiceSpeechRecognizerEngine.EngineError) -> String {
@@ -512,295 +607,162 @@ final class VoiceDictationViewController: NibLessViewController {
     return regex.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: template)
   }
 
+  private func acceptedTranscriptCandidate(newText: String, isFinal: Bool) -> String {
+    let trimmedNew = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedNew.isEmpty else { return latestNonEmptyTranscript }
+    if isFinal { return newText }
+
+    let previous = latestNonEmptyTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !previous.isEmpty else { return newText }
+
+    // 某些引擎会偶发短回退（例如从整句退回到几个词），这里过滤明显异常抖动。
+    if trimmedNew.count >= previous.count { return newText }
+    if previous.hasPrefix(trimmedNew) { return newText }
+
+    let collapseThreshold = max(12, previous.count / 2)
+    if trimmedNew.count < collapseThreshold {
+      return latestNonEmptyTranscript
+    }
+    return newText
+  }
+
   private struct OutputResolution {
     let text: String
     let usesLLM: Bool
     let fallbackReason: String?
   }
 
-  private func resolveOutputTextLocally(
-    mode: VoiceMode,
-    rawText: String,
-    localeIdentifier: String?
-  ) -> String {
+  private func resolveOutputTextLocally(rawText: String, localeIdentifier: String?) -> String {
     // 阶段3：保留本地规则链路，作为 LLM 不可用时的稳定兜底。
-    let normalizedInput = postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
-    switch mode {
-    case .dictation:
-      return normalizedInput
-    case .speakToEdit:
-      return applySpeakToEdit(commandText: normalizedInput)
-    }
+    postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
   }
 
   private func resolveOutputTextWithLLM(
-    mode: VoiceMode,
     rawText: String,
-    baseText: String,
     localeIdentifier: String?
   ) async -> OutputResolution {
-    let normalizedInput = postProcessTranscript(rawText, localeIdentifier: localeIdentifier)
-    switch mode {
-    case .dictation:
+    let normalizedInput = resolveOutputTextLocally(rawText: rawText, localeIdentifier: localeIdentifier)
+    guard !normalizedInput.isEmpty else {
+      return OutputResolution(text: "", usesLLM: false, fallbackReason: nil)
+    }
+    do {
+      let editedText = try await llmService.transform(
+        task: .speakToEdit,
+        sourceText: normalizedInput,
+        instruction: nil,
+        localeIdentifier: localeIdentifier
+      ).trimmingCharacters(in: .whitespacesAndNewlines)
+      if !editedText.isEmpty {
+        return OutputResolution(text: editedText, usesLLM: true, fallbackReason: nil)
+      }
       return OutputResolution(
         text: normalizedInput,
         usesLLM: false,
-        fallbackReason: nil
+        fallbackReason: "AI 返回为空，已回退本地整理规则"
       )
-    case .speakToEdit:
-      let normalizedBase = baseText.trimmingCharacters(in: .whitespacesAndNewlines)
-      guard !normalizedBase.isEmpty else {
-        return OutputResolution(
-          text: "",
-          usesLLM: false,
-          fallbackReason: "编辑模式需要先生成一段文本"
-        )
-      }
-      let isTranslation = isTranslationCommand(normalizedInput)
-      if !llmSettingsStore.isLLMEnabled() {
-        return OutputResolution(
-          text: isTranslation ? translateTranscript(normalizedBase, instruction: normalizedInput) : applySpeakToEdit(commandText: normalizedInput),
-          usesLLM: false,
-          fallbackReason: nil
-        )
-      }
-      do {
-        let task: VoiceLLMTask = isTranslation ? .translation : .speakToEdit
-        let editedText = try await llmService.transform(
-          task: task,
-          sourceText: normalizedBase,
-          instruction: normalizedInput,
-          localeIdentifier: localeIdentifier
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !editedText.isEmpty {
-          return OutputResolution(
-            text: editedText,
-            usesLLM: true,
-            fallbackReason: nil
-          )
-        }
-        if isTranslation {
-          return OutputResolution(
-            text: translateTranscript(normalizedBase, instruction: normalizedInput),
-            usesLLM: false,
-            fallbackReason: "AI 返回为空，已回退本地翻译规则"
-          )
-        }
-        return OutputResolution(
-          text: applySpeakToEdit(commandText: normalizedInput),
-          usesLLM: false,
-          fallbackReason: "AI 返回为空，已回退本地编辑规则"
-        )
-      } catch {
-        if isTranslation {
-          return OutputResolution(
-            text: translateTranscript(normalizedBase, instruction: normalizedInput),
-            usesLLM: false,
-            fallbackReason: "AI 翻译失败：\(error.localizedDescription)"
-          )
-        }
-        return OutputResolution(
-          text: applySpeakToEdit(commandText: normalizedInput),
-          usesLLM: false,
-          fallbackReason: "AI 编辑失败：\(error.localizedDescription)"
-        )
-      }
+    } catch {
+      return OutputResolution(
+        text: normalizedInput,
+        usesLLM: false,
+        fallbackReason: userFacingLLMFailureReason(error)
+      )
     }
   }
 
-  private func applySpeakToEdit(commandText: String) -> String {
-    let command = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !command.isEmpty else { return "" }
-    var base = latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines)
-    if base.isEmpty {
-      return ""
+  private func userFacingLLMFailureReason(_ error: Error) -> String {
+    let raw = error.localizedDescription
+    let lowered = raw.lowercased()
+    if lowered.contains("incorrect api key") || lowered.contains("invalid_api_key") || lowered.contains("api key") {
+      return "AI 处理失败：API Key 无效或已过期，请在“账户 > AI 处理配置”更新后重试"
+    }
+    if lowered.contains("insufficient_quota") || lowered.contains("quota") || lowered.contains("billing") {
+      return "AI 处理失败：账户额度不足或计费不可用，请检查供应商账户状态"
+    }
+    if lowered.contains("rate limit") || lowered.contains("too many requests") || lowered.contains("429") {
+      return "AI 处理失败：请求过于频繁，请稍后重试"
+    }
+    if lowered.contains("timeout") || lowered.contains("timed out") || lowered.contains("network") {
+      return "AI 处理失败：网络超时或连接失败，请检查网络后重试"
     }
 
-    if isTranslationCommand(command) {
-      return translateTranscript(base, instruction: command)
+    let sanitized = sanitizeSensitiveErrorText(raw)
+    if sanitized.isEmpty {
+      return "AI 处理失败：请求未成功，已回退本地整理规则"
     }
-
-    if command.contains("删除最后一句") || command.contains("删掉最后一句") {
-      base = removeLastSentence(from: base)
-      return base
-    }
-
-    if command.contains("更礼貌") || command.contains("礼貌一点") {
-      let respectful = base
-        .replacingOccurrences(of: "你", with: "您")
-        .replacingOccurrences(of: "给我", with: "请给我")
-      if respectful.hasPrefix("请") || respectful.hasPrefix("您好") {
-        return respectful
-      }
-      return "请\(respectful)"
-    }
-
-    if command.contains("精简") || command.contains("简短") {
-      return removeLastSentence(from: base)
-    }
-
-    if let replaceRange = command.range(of: "把"), let toRange = command.range(of: "改成") {
-      let oldStart = replaceRange.upperBound
-      let oldEnd = toRange.lowerBound
-      if oldStart < oldEnd {
-        let oldText = String(command[oldStart..<oldEnd]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let newText = String(command[toRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !oldText.isEmpty, !newText.isEmpty {
-          return base.replacingOccurrences(of: oldText, with: newText)
-        }
-      }
-    }
-
-    if command.hasPrefix("追加") || command.hasPrefix("加上") {
-      let appendText = command
-        .replacingOccurrences(of: "追加", with: "")
-        .replacingOccurrences(of: "加上", with: "")
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-      if !appendText.isEmpty {
-        if base.hasSuffix("。") || base.hasSuffix(".") || base.hasSuffix("!") || base.hasSuffix("！") {
-          return base + " " + appendText
-        }
-        return base + "，" + appendText
-      }
-    }
-
-    return base
+    return "AI 处理失败：\(sanitized)"
   }
 
-  private func removeLastSentence(from text: String) -> String {
-    let separators = CharacterSet(charactersIn: "。！？.!?\n")
-    if let range = text.rangeOfCharacter(from: separators, options: .backwards) {
-      let trimmed = String(text[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-      return trimmed
+  private func sanitizeSensitiveErrorText(_ text: String) -> String {
+    var output = text
+    output = replaceRegex(
+      pattern: "sk-[A-Za-z0-9_\\-]{6,}",
+      in: output,
+      with: "sk-****"
+    )
+    output = replaceRegex(
+      pattern: "https?://\\S+",
+      in: output,
+      with: ""
+    )
+    output = replaceRegex(
+      pattern: "\\s+",
+      in: output,
+      with: " "
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    if output.count > 72 {
+      let index = output.index(output.startIndex, offsetBy: 72)
+      output = String(output[..<index]) + "..."
     }
-    return ""
-  }
-
-  private func translateTranscript(_ text: String, instruction: String? = nil) -> String {
-    let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !normalized.isEmpty else { return "" }
-
-    if let targetLanguage = detectTargetLanguage(from: instruction) {
-      switch targetLanguage {
-      case .english:
-        return translateChineseToEnglish(normalized)
-      case .chinese:
-        return translateEnglishToChinese(normalized)
-      }
-    }
-
-    let hasHan = normalized.range(of: "\\p{Han}", options: .regularExpression) != nil
-    if hasHan {
-      return translateChineseToEnglish(normalized)
-    }
-    return translateEnglishToChinese(normalized)
-  }
-
-  private enum TranslationTargetLanguage {
-    case chinese
-    case english
-  }
-
-  private func isTranslationCommand(_ commandText: String) -> Bool {
-    let normalized = commandText.lowercased()
-    if normalized.contains("翻译") || normalized.contains("translate") {
-      return true
-    }
-    return false
-  }
-
-  private func detectTargetLanguage(from instruction: String?) -> TranslationTargetLanguage? {
-    let normalized = (instruction ?? "").lowercased()
-    guard !normalized.isEmpty else { return nil }
-    if normalized.contains("英文") || normalized.contains("英语") || normalized.contains("english") {
-      return .english
-    }
-    if normalized.contains("中文") || normalized.contains("汉语") || normalized.contains("chinese") {
-      return .chinese
-    }
-    return nil
-  }
-
-  private func translateChineseToEnglish(_ text: String) -> String {
-    let dictionary: [String: String] = [
-      "你好": "Hello",
-      "早上好": "Good morning",
-      "下午好": "Good afternoon",
-      "晚上好": "Good evening",
-      "谢谢": "Thank you",
-      "请帮我": "Please help me",
-      "我已经到达": "I have arrived",
-      "会议改到明天": "The meeting is moved to tomorrow",
-      "我稍后回复": "I will reply later",
-      "请确认时间": "Please confirm the time",
-      "今天": "today",
-      "明天": "tomorrow",
-      "后天": "the day after tomorrow"
-    ]
-    if let exact = dictionary[text] {
-      return exact
-    }
-    return text
-  }
-
-  private func translateEnglishToChinese(_ text: String) -> String {
-    let normalized = text.lowercased()
-    let dictionary: [String: String] = [
-      "hello": "你好",
-      "good morning": "早上好",
-      "good afternoon": "下午好",
-      "good evening": "晚上好",
-      "thank you": "谢谢",
-      "please help me": "请帮我",
-      "i have arrived": "我已经到达",
-      "the meeting is moved to tomorrow": "会议改到明天",
-      "i will reply later": "我稍后回复",
-      "please confirm the time": "请确认时间",
-      "today": "今天",
-      "tomorrow": "明天"
-    ]
-    if let exact = dictionary[normalized] {
-      return exact
-    }
-    return text
+    return output
   }
 
   private func completeFinishingFlow(rawText: String) {
-    guard isFinishing else { return }
-    let localeIdentifier = Locale.preferredLanguages.first
-    let mode = voiceMode
-    let baseText = latestCommittedText
-    let requestIdSnapshot = requestId
-
-    if mode == .dictation {
-      let finalText = resolveOutputTextLocally(
-        mode: mode,
-        rawText: rawText,
-        localeIdentifier: localeIdentifier
-      )
-      finalizeOutputText(finalText, localeIdentifier: localeIdentifier, mode: mode, fallbackReason: nil)
+    // 防御式兜底：该方法会修改多处 Auto Layout 相关 UI，必须在主线程执行。
+    if !Thread.isMainThread {
+      DispatchQueue.main.async { [weak self] in
+        self?.completeFinishingFlow(rawText: rawText)
+      }
       return
     }
+    guard isFinishing else { return }
+    // 先将 finishing 置为 false，避免 stop 回调和延迟兜底同时触发重复落盘。
+    isFinishing = false
+    let localeIdentifier = Locale.preferredLanguages.first
+    let requestIdSnapshot = requestId
+    let fallbackRawText: String = {
+      let primary = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !primary.isEmpty { return rawText }
+      let latest = latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !latest.isEmpty { return latestTranscript }
+      let nonEmpty = latestNonEmptyTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !nonEmpty.isEmpty { return latestNonEmptyTranscript }
+      let snap = stopTapTranscriptSnapshot.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !snap.isEmpty { return stopTapTranscriptSnapshot }
+      let uiText = transcriptView.text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !uiText.isEmpty && uiText != "请开始说话" { return transcriptView.text }
+      return ""
+    }()
+    let localText = resolveOutputTextLocally(rawText: fallbackRawText, localeIdentifier: localeIdentifier)
 
     if !llmSettingsStore.isLLMEnabled() {
-      let finalText = resolveOutputTextLocally(
-        mode: mode,
-        rawText: rawText,
-        localeIdentifier: localeIdentifier
+      finalizeOutputText(
+        localText,
+        localeIdentifier: localeIdentifier,
+        fallbackReason: nil,
+        usedLLM: false,
+        llmAttempted: false
       )
-      finalizeOutputText(finalText, localeIdentifier: localeIdentifier, mode: mode, fallbackReason: nil)
       return
     }
 
     statusLabel.text = "AI 处理中..."
     tipLabel.text = "正在调用 AI 优化结果..."
+    updateLLMIndicator(text: "AI 整理：请求中（\(currentLLMProviderModelText())）", textColor: .systemOrange)
     llmTransformTask?.cancel()
     llmTransformTask = Task { [weak self] in
       guard let self else { return }
       let resolution = await self.resolveOutputTextWithLLM(
-        mode: mode,
-        rawText: rawText,
-        baseText: baseText,
+        rawText: fallbackRawText,
         localeIdentifier: localeIdentifier
       )
       guard !Task.isCancelled else { return }
@@ -809,12 +771,10 @@ final class VoiceDictationViewController: NibLessViewController {
         self.finalizeOutputText(
           resolution.text,
           localeIdentifier: localeIdentifier,
-          mode: mode,
-          fallbackReason: resolution.fallbackReason
+          fallbackReason: resolution.fallbackReason,
+          usedLLM: resolution.usesLLM,
+          llmAttempted: true
         )
-        if resolution.usesLLM {
-          self.statusLabel.text = "AI 处理完成，请返回上一应用"
-        }
       }
     }
   }
@@ -822,21 +782,31 @@ final class VoiceDictationViewController: NibLessViewController {
   private func finalizeOutputText(
     _ finalText: String,
     localeIdentifier: String?,
-    mode: VoiceMode,
-    fallbackReason: String?
+    fallbackReason: String?,
+    usedLLM: Bool,
+    llmAttempted: Bool
   ) {
+    // 防御式兜底：避免后台线程触发布局引擎修改导致主线程检查崩溃。
+    if !Thread.isMainThread {
+      DispatchQueue.main.async { [weak self] in
+        self?.finalizeOutputText(
+          finalText,
+          localeIdentifier: localeIdentifier,
+          fallbackReason: fallbackReason,
+          usedLLM: usedLLM,
+          llmAttempted: llmAttempted
+        )
+      }
+      return
+    }
     let normalizedFinalText = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
     if normalizedFinalText.isEmpty {
       statusLabel.text = "未识别到语音，请重试"
-      if mode == .speakToEdit {
-        tipLabel.text = "编辑模式需要先有一段文本，请先切回“听写”模式生成文本。"
-      } else {
-        tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
-      }
+      tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
       voiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "empty transcript")
       configureStopButtonForRetry()
       lastStartError = .emptyAudio
-      isFinishing = false
+      hideLLMIndicator()
       return
     }
 
@@ -846,10 +816,23 @@ final class VoiceDictationViewController: NibLessViewController {
       localeIdentifier: localeIdentifier
     )
     latestCommittedText = normalizedFinalText
-    updateModeControlAvailability()
     _ = VoicePersonalDictionaryStore.shared.learnWords(from: normalizedFinalText, localeIdentifier: localeIdentifier)
-    transcriptView.text = normalizedFinalText
-    statusLabel.text = "完成，请返回上一应用"
+    if transcriptView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      transcriptView.text = latestTranscript.isEmpty ? normalizedFinalText : latestTranscript
+    }
+    editCommandView.text = normalizedFinalText
+    statusLabel.text = usedLLM ? "AI 处理完成，请返回上一应用" : "处理完成，请返回上一应用"
+    if llmAttempted {
+      if usedLLM {
+        updateLLMIndicator(text: "AI 整理：已完成（\(currentLLMProviderModelText())）", textColor: .systemGreen)
+      } else if let fallbackReason, !fallbackReason.isEmpty {
+        updateLLMIndicator(text: "AI 整理：失败，已回退本地", textColor: .systemOrange)
+      } else {
+        updateLLMIndicator(text: "AI 整理：未生效，已回退本地", textColor: .systemOrange)
+      }
+    } else {
+      hideLLMIndicator()
+    }
     if let fallbackReason, !fallbackReason.isEmpty {
       tipLabel.text = "\(fallbackReason)。你可以继续使用，也可以在“账户 > AI 处理配置”调整。"
     } else {
@@ -858,6 +841,8 @@ final class VoiceDictationViewController: NibLessViewController {
     stopButton.setTitle("已完成", for: .normal)
     stopButton.isEnabled = false
     stopButton.alpha = 0.72
-    isFinishing = false
+    latestTranscript = normalizedFinalText
+    latestNonEmptyTranscript = normalizedFinalText
+    stopTapTranscriptSnapshot = ""
   }
 }
