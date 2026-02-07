@@ -1708,6 +1708,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    settingsView.llmEnabledControl.addTarget(self, action: #selector(handleLLMEnabledChanged), for: .valueChanged)
     settingsView.authModeControl.addTarget(self, action: #selector(handleAuthModeChanged), for: .valueChanged)
     settingsView.providerControl.addTarget(self, action: #selector(handleProviderChanged), for: .valueChanged)
     settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
@@ -1720,8 +1721,10 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   }
 
   private func loadSettings() {
+    let llmEnabled = settingsStore.isLLMEnabled()
     let mode = settingsStore.authMode()
     let provider = settingsStore.provider()
+    settingsView.llmEnabledControl.selectedSegmentIndex = llmEnabled ? 1 : 0
     settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
     settingsView.providerControl.selectedSegmentIndex = providerSegmentIndex(for: provider)
     currentProviderSelection = provider
@@ -1735,7 +1738,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let selectedPreset = settingsStore.selectedPromptPreset()
     selectedPromptPresetID = selectedPreset.id
     settingsView.updatePresetEditor(preset: selectedPreset, totalCount: promptPresets.count)
-    settingsView.updateVisibleSections(authMode: mode)
+    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabled)
     settingsView.updateProviderHint(provider: provider)
     settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
   }
@@ -1770,9 +1773,18 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.authModeControl.selectedSegmentIndex == 1 ? .byok : .proxy
   }
 
+  private func llmEnabledForSelectedIndex() -> Bool {
+    settingsView.llmEnabledControl.selectedSegmentIndex == 1
+  }
+
+  @objc private func handleLLMEnabledChanged() {
+    let mode = authModeForSelectedIndex()
+    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabledForSelectedIndex())
+  }
+
   @objc private func handleAuthModeChanged() {
     let mode = authModeForSelectedIndex()
-    settingsView.updateVisibleSections(authMode: mode)
+    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabledForSelectedIndex())
   }
 
   @objc private func handleProviderChanged() {
@@ -1954,11 +1966,17 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     persistCurrentPresetDraft()
     persistFormSettings()
     let authMode = authModeForSelectedIndex()
-    settingsView.updateVisibleSections(authMode: authMode)
+    let llmEnabled = llmEnabledForSelectedIndex()
+    settingsView.updateVisibleSections(authMode: authMode, isLLMEnabled: llmEnabled)
 
-    let message = authMode == .proxy
-      ? "已保存代理模式配置。编辑/翻译模式会优先调用服务端代理。"
-      : "已保存 BYOK 配置。编辑/翻译模式会直接调用你填写的模型接口。"
+    let message: String
+    if !llmEnabled {
+      message = "已关闭 AI 编辑。编辑模式将只使用本地规则，不会请求 LLM。"
+    } else if authMode == .proxy {
+      message = "已保存代理模式配置。编辑/翻译模式会优先调用服务端代理。"
+    } else {
+      message = "已保存 BYOK 配置。编辑/翻译模式会直接调用你填写的模型接口。"
+    }
     let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)
@@ -1977,6 +1995,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   }
 
   private func persistFormSettings() {
+    let llmEnabled = llmEnabledForSelectedIndex()
     let provider = providerForSelectedIndex()
     let authMode = authModeForSelectedIndex()
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
@@ -1987,6 +2006,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let baseURL = baseURLInput.isEmpty ? provider.defaultBaseURL : baseURLInput
     let model = modelInput.isEmpty ? provider.defaultModel : modelInput
 
+    settingsStore.setLLMEnabled(llmEnabled)
     settingsStore.setAuthMode(authMode)
     settingsStore.setProvider(provider)
     settingsStore.setProxyEndpoint(proxyEndpoint)
@@ -2033,6 +2053,13 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 }
 
 final class VoiceLLMSettingsRootView: NibLessView {
+  let llmEnabledControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: ["关闭", "开启"])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = 1
+    return control
+  }()
+
   let authModeControl: UISegmentedControl = {
     let control = UISegmentedControl(items: ["服务端代理", "BYOK"])
     control.translatesAutoresizingMaskIntoConstraints = false
@@ -2276,7 +2303,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     constructViewHierarchy()
     activateViewConstraints()
     setupAppearance()
-    updateVisibleSections(authMode: .proxy)
+    updateVisibleSections(authMode: .proxy, isLLMEnabled: true)
     updateProviderHint(provider: .openAI)
     updatePresetEditor(preset: VoiceLLMPromptPreset.defaultPresets[0], totalCount: VoiceLLMPromptPreset.defaultPresets.count)
   }
@@ -2285,6 +2312,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     addSubview(scrollView)
     scrollView.addSubview(contentStack)
     contentStack.addArrangedSubview(descriptionLabel)
+    contentStack.addArrangedSubview(makeControlSection(title: "AI 编辑", control: llmEnabledControl))
     contentStack.addArrangedSubview(makeControlSection(title: "认证模式", control: authModeControl))
     contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerControl))
     contentStack.addArrangedSubview(providerHintLabel)
@@ -2318,12 +2346,14 @@ final class VoiceLLMSettingsRootView: NibLessView {
     backgroundColor = .systemBackground
   }
 
-  func updateVisibleSections(authMode: VoiceLLMAuthMode) {
+  func updateVisibleSections(authMode: VoiceLLMAuthMode, isLLMEnabled: Bool) {
     let isProxy = authMode == .proxy
-    proxySection.isHidden = !isProxy
-    proxyModelsSection.isHidden = !isProxy
-    byokBaseSection.isHidden = isProxy
-    apiKeySection.isHidden = isProxy
+    proxySection.isHidden = !isLLMEnabled || !isProxy
+    proxyModelsSection.isHidden = !isLLMEnabled || !isProxy
+    byokBaseSection.isHidden = !isLLMEnabled || isProxy
+    modelSection.isHidden = !isLLMEnabled
+    apiKeySection.isHidden = !isLLMEnabled || isProxy
+    presetSection.isHidden = !isLLMEnabled
   }
 
   func updateProviderHint(provider: VoiceLLMProvider) {

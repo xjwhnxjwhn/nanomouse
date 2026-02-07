@@ -18,6 +18,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var requestId: String
   private let speechEngine = VoiceSpeechRecognizerEngine()
   private let llmService: VoiceLLMService = .shared
+  private let llmSettingsStore: VoiceLLMSettingsStore = .shared
   private let voiceInputBridge: AppVoiceInputBridge
   private var latestTranscript = ""
   private var latestCommittedText = ""
@@ -147,6 +148,7 @@ final class VoiceDictationViewController: NibLessViewController {
     lastStartError = nil
     voiceMode = .dictation
     modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
+    updateModeControlAvailability()
     configureStopButtonForFinish()
     voiceInputBridge.setState(requestId: requestId, state: .launching)
     speechEngine.stop(cancel: true)
@@ -192,6 +194,7 @@ final class VoiceDictationViewController: NibLessViewController {
       tipLabel.trailingAnchor.constraint(equalTo: transcriptView.trailingAnchor),
       tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
     ])
+    updateModeControlAvailability()
     refreshUIForCurrentMode(keepTranscript: false)
   }
 
@@ -264,8 +267,25 @@ final class VoiceDictationViewController: NibLessViewController {
 
   @objc private func handleModeChanged() {
     let selected = VoiceMode(rawValue: modeSegmentedControl.selectedSegmentIndex) ?? .dictation
+    if selected == .speakToEdit && latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      voiceMode = .dictation
+      modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
+      statusLabel.text = "请先完成一次听写，再使用编辑模式"
+      tipLabel.text = "先在“听写”模式说一句话并点击“完成”，然后再切换到“编辑”。"
+      refreshUIForCurrentMode(keepTranscript: true)
+      return
+    }
     voiceMode = selected
     refreshUIForCurrentMode(keepTranscript: true)
+  }
+
+  private func updateModeControlAvailability() {
+    let hasCommittedText = !latestCommittedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    modeSegmentedControl.setEnabled(hasCommittedText, forSegmentAt: VoiceMode.speakToEdit.rawValue)
+    if !hasCommittedText, voiceMode == .speakToEdit {
+      voiceMode = .dictation
+      modeSegmentedControl.selectedSegmentIndex = VoiceMode.dictation.rawValue
+    }
   }
 
   private func refreshUIForCurrentMode(keepTranscript: Bool) {
@@ -291,6 +311,9 @@ final class VoiceDictationViewController: NibLessViewController {
     case .dictation:
       return "识别完成后，请点击系统左上角“返回到上一应用”。"
     case .speakToEdit:
+      if !llmSettingsStore.isLLMEnabled() {
+        return "AI 编辑已关闭，当前会使用本地编辑规则（删除、替换、翻译等）。"
+      }
       return "示例：\"删除最后一句\"、\"把项目A改成项目B\"、\"更礼貌一点\"、\"翻译成英文\"。"
     }
   }
@@ -534,6 +557,13 @@ final class VoiceDictationViewController: NibLessViewController {
         )
       }
       let isTranslation = isTranslationCommand(normalizedInput)
+      if !llmSettingsStore.isLLMEnabled() {
+        return OutputResolution(
+          text: isTranslation ? translateTranscript(normalizedBase, instruction: normalizedInput) : applySpeakToEdit(commandText: normalizedInput),
+          usesLLM: false,
+          fallbackReason: nil
+        )
+      }
       do {
         let task: VoiceLLMTask = isTranslation ? .translation : .speakToEdit
         let editedText = try await llmService.transform(
@@ -752,6 +782,16 @@ final class VoiceDictationViewController: NibLessViewController {
       return
     }
 
+    if !llmSettingsStore.isLLMEnabled() {
+      let finalText = resolveOutputTextLocally(
+        mode: mode,
+        rawText: rawText,
+        localeIdentifier: localeIdentifier
+      )
+      finalizeOutputText(finalText, localeIdentifier: localeIdentifier, mode: mode, fallbackReason: nil)
+      return
+    }
+
     statusLabel.text = "AI 处理中..."
     tipLabel.text = "正在调用 AI 优化结果..."
     llmTransformTask?.cancel()
@@ -806,6 +846,7 @@ final class VoiceDictationViewController: NibLessViewController {
       localeIdentifier: localeIdentifier
     )
     latestCommittedText = normalizedFinalText
+    updateModeControlAvailability()
     _ = VoicePersonalDictionaryStore.shared.learnWords(from: normalizedFinalText, localeIdentifier: localeIdentifier)
     transcriptView.text = normalizedFinalText
     statusLabel.text = "完成，请返回上一应用"

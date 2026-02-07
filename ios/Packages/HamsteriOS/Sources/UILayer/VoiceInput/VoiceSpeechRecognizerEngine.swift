@@ -638,6 +638,7 @@ final class VoiceLLMSettingsStore {
   static let shared = VoiceLLMSettingsStore()
 
   private enum Constants {
+    static let llmEnabledKey = "voice.llm.enabled"
     static let authModeKey = "voice.llm.auth.mode"
     static let providerKey = "voice.llm.provider"
     static let proxyEndpointKey = "voice.llm.proxy.endpoint"
@@ -680,6 +681,16 @@ final class VoiceLLMSettingsStore {
         apiKey: self.readAPIKeyLocked(for: provider)
       )
     }
+  }
+
+  func setLLMEnabled(_ enabled: Bool) {
+    queue.sync {
+      userDefaults.set(enabled, forKey: Constants.llmEnabledKey)
+    }
+  }
+
+  func isLLMEnabled() -> Bool {
+    queue.sync { llmEnabledLocked() }
   }
 
   func setAuthMode(_ mode: VoiceLLMAuthMode) {
@@ -1000,6 +1011,14 @@ private extension VoiceLLMSettingsStore {
     let trimmed = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return fallback }
     return String(trimmed.prefix(240))
+  }
+
+  func llmEnabledLocked() -> Bool {
+    // 兼容旧版本：未写入开关时，默认保持“开启”以避免行为突变。
+    if userDefaults.object(forKey: Constants.llmEnabledKey) == nil {
+      return true
+    }
+    return userDefaults.bool(forKey: Constants.llmEnabledKey)
   }
 
   func authModeLocked() -> VoiceLLMAuthMode {
