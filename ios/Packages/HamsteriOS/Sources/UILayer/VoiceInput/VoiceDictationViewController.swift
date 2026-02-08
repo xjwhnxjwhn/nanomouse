@@ -12,7 +12,7 @@ import UIKit
 @MainActor
 final class VoiceDictationViewController: NibLessViewController {
   private var requestId: String
-  private let speechEngine = VoiceSpeechRecognizerEngine()
+  private let speechEngine: VoiceSpeechRecognizerEngine = .shared
   private let llmService: VoiceLLMService = .shared
   private let llmSettingsStore: VoiceLLMSettingsStore = .shared
   private let voiceInputBridge: AppVoiceInputBridge
@@ -640,18 +640,63 @@ final class VoiceDictationViewController: NibLessViewController {
     guard !trimmedNew.isEmpty else { return latestNonEmptyTranscript }
     if isFinal { return newText }
 
-    let previous = latestNonEmptyTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !previous.isEmpty else { return newText }
+    let previousRaw = latestNonEmptyTranscript
+    let previous = previousRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !previous.isEmpty else { return trimmedNew }
 
-    // 某些引擎会偶发短回退（例如从整句退回到几个词），这里过滤明显异常抖动。
-    if trimmedNew.count >= previous.count { return newText }
-    if previous.hasPrefix(trimmedNew) { return newText }
+    if trimmedNew == previous { return previousRaw }
 
-    let collapseThreshold = max(12, previous.count / 2)
-    if trimmedNew.count < collapseThreshold {
-      return latestNonEmptyTranscript
+    // 实时预览阶段强制“只增不减”，避免窗口滑动导致的整段回退/清空。
+    if trimmedNew.count < previous.count {
+      return previousRaw
     }
-    return newText
+
+    // 新结果完整覆盖旧结果时，直接更新。
+    if trimmedNew.hasPrefix(previous) || trimmedNew.contains(previous) {
+      return trimmedNew
+    }
+
+    if previous.contains(trimmedNew) {
+      return previousRaw
+    }
+
+    // 窗口向后滑动时，尝试按重叠部分拼接，保留累计文本。
+    let overlap = longestSuffixPrefixOverlap(lhs: previous, rhs: trimmedNew, maxLength: 36)
+    if overlap >= 3 {
+      let start = trimmedNew.index(trimmedNew.startIndex, offsetBy: overlap)
+      let addition = String(trimmedNew[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !addition.isEmpty else { return previousRaw }
+      return mergeRealtimeTranscript(previous: previousRaw, addition: addition)
+    }
+
+    // 无重叠的新片段通常是噪声或短时幻觉，保留已识别内容更稳。
+    return previousRaw
+  }
+
+  private func mergeRealtimeTranscript(previous: String, addition: String) -> String {
+    let trimmedPrevious = previous.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPrevious.isEmpty else { return addition }
+    let separator: String
+    if trimmedPrevious.hasSuffix(" ") || trimmedPrevious.hasSuffix("\n") {
+      separator = ""
+    } else {
+      separator = " "
+    }
+    return trimmedPrevious + separator + addition
+  }
+
+  private func longestSuffixPrefixOverlap(lhs: String, rhs: String, maxLength: Int) -> Int {
+    let lhsChars = Array(lhs)
+    let rhsChars = Array(rhs)
+    let upperBound = min(maxLength, lhsChars.count, rhsChars.count)
+    guard upperBound > 0 else { return 0 }
+
+    for length in stride(from: upperBound, through: 1, by: -1) {
+      if lhsChars.suffix(length).elementsEqual(rhsChars.prefix(length)) {
+        return length
+      }
+    }
+    return 0
   }
 
   private struct OutputResolution {

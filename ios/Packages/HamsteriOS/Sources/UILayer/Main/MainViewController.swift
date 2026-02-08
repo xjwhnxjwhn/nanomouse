@@ -1486,6 +1486,7 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
         await MainActor.run {
           self.downloadingModelID = nil
           self.refreshModels()
+          VoiceSpeechRecognizerEngine.shared.prewarmWhisperModelIfNeeded(modelID)
         }
       } catch {
         await MainActor.run {
@@ -1567,12 +1568,14 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   }
 
   private func presentErrorAlert(message: String) {
+    guard presentedViewController == nil else { return }
     let controller = UIAlertController(title: "操作失败", message: message, preferredStyle: .alert)
     controller.addAction(UIAlertAction(title: "知道了", style: .default))
     present(controller, animated: true)
   }
 
   private func presentHintAlert(title: String, message: String) {
+    guard presentedViewController == nil else { return }
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)

@@ -11,6 +11,7 @@ import Network
 import Security
 import Speech
 #if canImport(WhisperKit)
+import CoreML
 import WhisperKit
 #endif
 
@@ -172,7 +173,7 @@ final class VoiceWhisperModelStore {
   }
 
   /// 在低内存设备上优先回退到更小的本地模型，降低 WhisperKit 初始化和推理峰值内存。
-  func selectedDownloadedModelForCurrentDevice() -> VoiceWhisperModelSelection? {
+  func selectedDownloadedModelForCurrentDevice(localeIdentifier: String? = nil) -> VoiceWhisperModelSelection? {
     storageQueue.sync {
       let records = compactManifestLocked()
       guard !records.isEmpty else { return nil }
@@ -194,12 +195,37 @@ final class VoiceWhisperModelStore {
         }
       }
 
+      if let localeIdentifier {
+        let normalizedLocale = localeIdentifier.lowercased()
+        let prefersMultilingual = normalizedLocale.hasPrefix("zh") || normalizedLocale.hasPrefix("ja") || normalizedLocale.hasPrefix("ko")
+        if prefersMultilingual && isLikelyEnglishOnlyModelID(runtimeModelID) {
+          let fallbackID = records
+            .sorted(by: { $0.downloadedAt > $1.downloadedAt })
+            .map(\.modelID)
+            .first(where: { !isLikelyEnglishOnlyModelID($0) })
+          if let fallbackID {
+            runtimeModelID = fallbackID
+          }
+        }
+      }
+
       guard let record = records.first(where: { $0.modelID == runtimeModelID }) else { return nil }
       return VoiceWhisperModelSelection(
         modelID: runtimeModelID,
         modelFolderURL: URL(fileURLWithPath: record.modelFolderPath)
       )
     }
+  }
+
+  private func isLikelyEnglishOnlyModelID(_ modelID: String) -> Bool {
+    let normalized = modelID.lowercased()
+    if normalized.contains(".en") {
+      return true
+    }
+    if normalized.hasSuffix("-en") {
+      return true
+    }
+    return false
   }
 
   func modelFolderURL(for modelID: String) -> URL? {
@@ -2865,6 +2891,21 @@ private extension VoiceLLMService {
 }
 
 final class VoiceSpeechRecognizerEngine {
+  static let shared = VoiceSpeechRecognizerEngine()
+
+  private enum WhisperRealtimeConfig {
+    static let intervalNanoseconds: UInt64 = 1_500_000_000
+    static let minSamplesToStart = 16_000
+    static let minNewSamplesForUpdate = 10_000
+    static let maxRealtimeSamples = 16_000 * 180
+    static let previewWindowSamples = 16_000 * 8
+  }
+
+  private struct WhisperRealtimeState {
+    var lastPartialEmissionSampleCount: Int = 0
+    var lastPartialText: String = ""
+  }
+
   enum Route: String {
     case appleOnDevice
     case appleNetwork
@@ -2887,7 +2928,7 @@ final class VoiceSpeechRecognizerEngine {
     static func recommended(for localeIdentifier: String) -> StartStrategy {
       let normalized = localeIdentifier.lowercased()
       let prefersOnDevice = normalized.hasPrefix("zh") || normalized.hasPrefix("en") || normalized.hasPrefix("ja")
-      let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModelForCurrentDevice()
+      let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModelForCurrentDevice(localeIdentifier: localeIdentifier)
       let contextualStrings = VoicePersonalDictionaryStore.shared.hotwords(limit: 40)
       let cloudRuntimeConfig = VoiceASRSettingsStore.shared.runtimeConfig()
       return StartStrategy(
@@ -2954,6 +2995,8 @@ final class VoiceSpeechRecognizerEngine {
   private let networkMonitor = NWPathMonitor()
   private let networkMonitorQueue = DispatchQueue(label: "nanomouse.voice.network")
   private let whisperBufferQueue = DispatchQueue(label: "nanomouse.voice.whisper.buffer")
+  private let whisperDecodeStateQueue = DispatchQueue(label: "nanomouse.voice.whisper.decode-state")
+  private let whisperLoadQueue = DispatchQueue(label: "nanomouse.voice.whisper.load")
   private var onResultHandler: ((String, Bool) -> Void)?
   private var onErrorHandler: ((EngineError) -> Void)?
   private var activePipeline: ActivePipeline = .none
@@ -2961,10 +3004,17 @@ final class VoiceSpeechRecognizerEngine {
   private var whisperConverter: AVAudioConverter?
   private var whisperOutputFormat: AVAudioFormat?
   private var whisperTranscribeTask: Task<Void, Never>?
+  private var whisperRealtimeTask: Task<Void, Never>?
+  private var whisperWarmupTask: Task<Void, Never>?
+  private var whisperRealtimeState = WhisperRealtimeState()
+  private var whisperRealtimeSessionID = UUID().uuidString
+  private var whisperDecodeInFlight = false
   private var cloudTranscribeTask: Task<Void, Never>?
   #if canImport(WhisperKit)
   private var whisperKit: WhisperKit?
   private var whisperLoadedModelID: String?
+  private var whisperLoadTask: Task<WhisperKit, Error>?
+  private var whisperLoadTaskModelID: String?
   #endif
   private let cloudASRService: VoiceASRService
   private var isNetworkAvailable = true
@@ -2981,6 +3031,16 @@ final class VoiceSpeechRecognizerEngine {
   deinit {
     networkMonitor.cancel()
     stop(cancel: true)
+  }
+
+  func prewarmWhisperModelIfNeeded(_ modelID: String) {
+    let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return }
+    whisperWarmupTask?.cancel()
+    whisperWarmupTask = Task { [weak self] in
+      guard let self else { return }
+      _ = try? await self.loadWhisperKit(modelID: normalized)
+    }
   }
 
   func start(
@@ -3067,6 +3127,10 @@ final class VoiceSpeechRecognizerEngine {
   }
 
   func stop(cancel: Bool) {
+    whisperRealtimeTask?.cancel()
+    whisperRealtimeTask = nil
+    whisperWarmupTask?.cancel()
+    whisperWarmupTask = nil
     if cancel {
       whisperTranscribeTask?.cancel()
       whisperTranscribeTask = nil
@@ -3292,6 +3356,12 @@ final class VoiceSpeechRecognizerEngine {
 
     audioEngine.prepare()
     try audioEngine.start()
+    whisperWarmupTask?.cancel()
+    whisperWarmupTask = Task { [weak self] in
+      guard let self else { return }
+      _ = try? await self.loadWhisperKit(modelID: modelID)
+    }
+    startWhisperRealtimeLoop(modelID: modelID)
     #endif
   }
 
@@ -3417,6 +3487,25 @@ final class VoiceSpeechRecognizerEngine {
     whisperTranscribeTask = Task { [weak self] in
       guard let self else { return }
       do {
+        await self.waitForWhisperDecodeAvailability(timeoutSeconds: 30)
+        guard self.beginWhisperDecodeSession() else {
+          let fallback = self.whisperBufferQueue.sync {
+            self.whisperRealtimeState.lastPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+          }
+          if !fallback.isEmpty {
+            await MainActor.run {
+              self.onResultHandler?(fallback, true)
+            }
+            self.activePipeline = .none
+            return
+          }
+          self.notifyError(.runtimeFailure(message: "Whisper 正在处理中，请稍后重试"))
+          self.activePipeline = .none
+          return
+        }
+        defer {
+          self.endWhisperDecodeSession()
+        }
         let text = try await self.transcribeWithWhisper(samples: samples, modelID: modelID)
         try Task.checkCancellation()
         await MainActor.run {
@@ -3506,7 +3595,12 @@ final class VoiceSpeechRecognizerEngine {
     }
 
     let whisper = try await loadWhisperKit(modelID: modelID)
-    let mergedText = try await transcribeWhisperInChunks(whisper: whisper, samples: samples)
+    let decodeOptions = makeWhisperDecodingOptions(localeIdentifier: activeLocaleIdentifier)
+    let mergedText = try await transcribeWhisperInChunks(
+      whisper: whisper,
+      samples: samples,
+      decodeOptions: decodeOptions
+    )
     guard !mergedText.isEmpty else {
       throw EngineError.emptyAudio
     }
@@ -3522,23 +3616,90 @@ final class VoiceSpeechRecognizerEngine {
       return whisperKit
     }
 
+    let existing: Task<WhisperKit, Error>? = whisperLoadQueue.sync {
+      if let running = whisperLoadTask, whisperLoadTaskModelID != modelID {
+        running.cancel()
+        whisperLoadTask = nil
+        whisperLoadTaskModelID = nil
+      }
+      return whisperLoadTask
+    }
+    if let existing {
+      return try await existing.value
+    }
+
+    let task = Task<WhisperKit, Error> { [weak self] in
+      guard let self else {
+        throw EngineError.whisperUnavailable
+      }
+      return try await self.buildWhisperKit(modelID: modelID)
+    }
+    whisperLoadQueue.sync {
+      whisperLoadTask = task
+      whisperLoadTaskModelID = modelID
+    }
+    do {
+      let instance = try await task.value
+      whisperLoadQueue.sync {
+        whisperLoadTask = nil
+        whisperLoadTaskModelID = nil
+      }
+      return instance
+    } catch {
+      whisperLoadQueue.sync {
+        whisperLoadTask = nil
+        whisperLoadTaskModelID = nil
+      }
+      throw error
+    }
+  }
+
+  private func buildWhisperKit(modelID: String) async throws -> WhisperKit {
+    if let whisperKit, whisperLoadedModelID == modelID {
+      return whisperKit
+    }
+
     guard let folderURL = VoiceWhisperModelStore.shared.modelFolderURL(for: modelID) else {
       throw EngineError.whisperUnavailable
     }
-    let config = WhisperKitConfig(
-      model: modelID,
-      modelFolder: folderURL.path,
-      download: false
-    )
-    let instance = try await WhisperKit(config)
-    whisperKit = instance
-    whisperLoadedModelID = modelID
-    return instance
+
+    let profiles = whisperComputeProfiles()
+    var lastError: Error?
+    for profile in profiles {
+      do {
+        let config = WhisperKitConfig(
+          model: modelID,
+          modelFolder: folderURL.path,
+          computeOptions: profile,
+          prewarm: false,
+          load: true,
+          download: false
+        )
+        let instance = try await WhisperKit(config)
+        whisperKit = instance
+        whisperLoadedModelID = modelID
+        return instance
+      } catch {
+        lastError = error
+        if !shouldRetryWhisperLoad(error: error) {
+          break
+        }
+      }
+    }
+
+    if let lastError {
+      throw EngineError.runtimeFailure(message: "Whisper 模型加载失败：\(lastError.localizedDescription)")
+    }
+    throw EngineError.whisperUnavailable
   }
   #endif
 
   #if canImport(WhisperKit)
-  private func transcribeWhisperInChunks(whisper: WhisperKit, samples: [Float]) async throws -> String {
+  private func transcribeWhisperInChunks(
+    whisper: WhisperKit,
+    samples: [Float],
+    decodeOptions: DecodingOptions
+  ) async throws -> String {
     let sampleRate = 16_000
     let chunkSeconds = 24
     let overlapSeconds = 1
@@ -3546,7 +3707,7 @@ final class VoiceSpeechRecognizerEngine {
     let overlapSampleCount = sampleRate * overlapSeconds
 
     if samples.count <= chunkSampleCount {
-      let results = try await whisper.transcribe(audioArray: samples)
+      let results = try await whisper.transcribe(audioArray: samples, decodeOptions: decodeOptions)
       return results
         .map(\.text)
         .joined(separator: " ")
@@ -3560,7 +3721,7 @@ final class VoiceSpeechRecognizerEngine {
     while cursor < samples.count {
       let end = min(samples.count, cursor + chunkSampleCount)
       let chunk = Array(samples[cursor..<end])
-      let results = try await whisper.transcribe(audioArray: chunk)
+      let results = try await whisper.transcribe(audioArray: chunk, decodeOptions: decodeOptions)
       let chunkText = results
         .map(\.text)
         .joined(separator: " ")
@@ -3583,9 +3744,209 @@ final class VoiceSpeechRecognizerEngine {
   }
   #endif
 
+  private func beginWhisperDecodeSession() -> Bool {
+    whisperDecodeStateQueue.sync {
+      if whisperDecodeInFlight {
+        return false
+      }
+      whisperDecodeInFlight = true
+      return true
+    }
+  }
+
+  private func endWhisperDecodeSession() {
+    whisperDecodeStateQueue.sync {
+      whisperDecodeInFlight = false
+    }
+  }
+
+  private func waitForWhisperDecodeAvailability(timeoutSeconds: TimeInterval) async {
+    let deadline = Date().addingTimeInterval(timeoutSeconds)
+    while Date() < deadline {
+      let isBusy = whisperDecodeStateQueue.sync { whisperDecodeInFlight }
+      if !isBusy {
+        return
+      }
+      try? await Task.sleep(nanoseconds: 80_000_000)
+    }
+  }
+
+  private func startWhisperRealtimeLoop(modelID: String) {
+    whisperRealtimeTask?.cancel()
+    let sessionID = UUID().uuidString
+    whisperRealtimeSessionID = sessionID
+    whisperRealtimeTask = Task { [weak self] in
+      guard let self else { return }
+      while !Task.isCancelled {
+        await self.publishWhisperRealtimePartialIfNeeded(modelID: modelID, sessionID: sessionID)
+        try? await Task.sleep(nanoseconds: WhisperRealtimeConfig.intervalNanoseconds)
+      }
+    }
+  }
+
+  private func publishWhisperRealtimePartialIfNeeded(modelID: String, sessionID: String) async {
+    guard whisperRealtimeSessionID == sessionID else { return }
+    guard case .whisper = activePipeline else { return }
+
+    let snapshot: (samples: [Float], totalSampleCount: Int)?
+    snapshot = whisperBufferQueue.sync {
+      let total = whisperSamples.count
+      if total < WhisperRealtimeConfig.minSamplesToStart {
+        return nil
+      }
+      if total > WhisperRealtimeConfig.maxRealtimeSamples {
+        return nil
+      }
+      let previous = whisperRealtimeState.lastPartialEmissionSampleCount
+      if total - previous < WhisperRealtimeConfig.minNewSamplesForUpdate {
+        return nil
+      }
+      let start = max(0, total - WhisperRealtimeConfig.previewWindowSamples)
+      let previewSamples = Array(whisperSamples[start..<total])
+      return (previewSamples, total)
+    }
+    guard let snapshot else { return }
+
+    await waitForWhisperDecodeAvailability(timeoutSeconds: 0.8)
+    guard beginWhisperDecodeSession() else { return }
+    defer {
+      endWhisperDecodeSession()
+    }
+
+    do {
+      let partialText = try await transcribeWithWhisperRealtimePreview(samples: snapshot.samples, modelID: modelID)
+      try Task.checkCancellation()
+      guard whisperRealtimeSessionID == sessionID else { return }
+      let shouldEmit = whisperBufferQueue.sync { () -> Bool in
+        let normalized = partialText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty {
+          return false
+        }
+        whisperRealtimeState.lastPartialEmissionSampleCount = snapshot.totalSampleCount
+        if whisperRealtimeState.lastPartialText == normalized {
+          return false
+        }
+        whisperRealtimeState.lastPartialText = normalized
+        return true
+      }
+      guard shouldEmit else { return }
+      await MainActor.run {
+        self.onResultHandler?(partialText, false)
+      }
+    } catch is CancellationError {
+      return
+    } catch {
+      // 实时预览失败不打断主流程；最终结果仍由“完成”后的最终转写提供。
+      return
+    }
+  }
+
+  #if canImport(WhisperKit)
+  private func makeWhisperDecodingOptions(localeIdentifier: String, isRealtimePreview: Bool = false) -> DecodingOptions {
+    let language = whisperLanguageCode(from: localeIdentifier)
+    if isRealtimePreview {
+      return DecodingOptions(
+        verbose: false,
+        task: .transcribe,
+        language: language,
+        temperature: 0,
+        temperatureIncrementOnFallback: 0,
+        temperatureFallbackCount: 0,
+        sampleLength: 96,
+        usePrefillPrompt: true,
+        detectLanguage: language == nil,
+        withoutTimestamps: true,
+        wordTimestamps: false,
+        compressionRatioThreshold: nil,
+        logProbThreshold: nil,
+        firstTokenLogProbThreshold: nil,
+        noSpeechThreshold: nil,
+        concurrentWorkerCount: 1,
+        chunkingStrategy: .none
+      )
+    }
+    return DecodingOptions(
+      verbose: false,
+      task: .transcribe,
+      language: language,
+      usePrefillPrompt: true,
+      detectLanguage: language == nil,
+      withoutTimestamps: true,
+      wordTimestamps: false,
+      concurrentWorkerCount: 3,
+      chunkingStrategy: .vad
+    )
+  }
+
+  private func whisperLanguageCode(from localeIdentifier: String) -> String? {
+    let normalized = localeIdentifier.lowercased()
+    if normalized.hasPrefix("zh") {
+      return "zh"
+    }
+    if normalized.hasPrefix("ja") {
+      return "ja"
+    }
+    if normalized.hasPrefix("en") {
+      return "en"
+    }
+    if normalized.hasPrefix("ko") {
+      return "ko"
+    }
+    return nil
+  }
+  #endif
+
+  private func transcribeWithWhisperRealtimePreview(samples: [Float], modelID: String) async throws -> String {
+    #if canImport(WhisperKit)
+    let whisper = try await loadWhisperKit(modelID: modelID)
+    let decodeOptions = makeWhisperDecodingOptions(localeIdentifier: activeLocaleIdentifier, isRealtimePreview: true)
+    let results = try await whisper.transcribe(audioArray: samples, decodeOptions: decodeOptions)
+    let mergedText = results
+      .map(\.text)
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return mergedText
+    #else
+    throw EngineError.whisperUnavailable
+    #endif
+  }
+
+  #if canImport(WhisperKit)
+  private func whisperComputeProfiles() -> [ModelComputeOptions] {
+    [
+      // 首选：让 WhisperKit 使用默认的 ANE/GPU 组合。
+      ModelComputeOptions(),
+      // 回退：禁用 ANE，优先 CPU+GPU，规避部分机型的 ANE 编译失败。
+      ModelComputeOptions(
+        melCompute: .cpuAndGPU,
+        audioEncoderCompute: .cpuAndGPU,
+        textDecoderCompute: .cpuAndGPU,
+        prefillCompute: .cpuOnly
+      ),
+      // 兜底：全部 CPU，牺牲速度换稳定。
+      ModelComputeOptions(
+        melCompute: .cpuOnly,
+        audioEncoderCompute: .cpuOnly,
+        textDecoderCompute: .cpuOnly,
+        prefillCompute: .cpuOnly
+      ),
+    ]
+  }
+
+  private func shouldRetryWhisperLoad(error: Error) -> Bool {
+    let message = error.localizedDescription.lowercased()
+    if message.contains("milcompilerforane") { return true }
+    if message.contains("aneccompile") { return true }
+    if message.contains("ane model") { return true }
+    if message.contains("compile") && message.contains("neural") { return true }
+    return false
+  }
+  #endif
+
   private func clearWhisperState() {
     whisperBufferQueue.sync {
       whisperSamples.removeAll(keepingCapacity: false)
+      whisperRealtimeState = WhisperRealtimeState()
     }
     whisperConverter = nil
     whisperOutputFormat = nil
