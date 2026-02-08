@@ -182,16 +182,37 @@ final class VoiceWhisperModelStore {
       let downloadedIDs = Set(records.map(\.modelID))
       let physicalMemory = ProcessInfo.processInfo.physicalMemory
       let lowMemoryThreshold: UInt64 = 6 * 1024 * 1024 * 1024
+      let mediumMemoryThreshold: UInt64 = 8 * 1024 * 1024 * 1024
+      let highMemoryThreshold: UInt64 = 10 * 1024 * 1024 * 1024
+      let mediumModelThreshold: UInt64 = 550 * 1024 * 1024
+      let largeModelThreshold: UInt64 = 750 * 1024 * 1024
 
       var runtimeModelID = selectedID
-      if physicalMemory < lowMemoryThreshold, selectedID.contains("distil-large") {
-        if downloadedIDs.contains("openai_whisper-small") {
-          runtimeModelID = "openai_whisper-small"
-        } else if downloadedIDs.contains("openai_whisper-tiny") {
-          runtimeModelID = "openai_whisper-tiny"
-        } else {
-          // 低内存设备仅有大模型时，直接返回 nil，避免 Whisper 初始化阶段触发崩溃。
-          return nil
+      if let selectedRecord = records.first(where: { $0.modelID == selectedID }) {
+        let selectedModelSize = modelFolderSizeInBytes(atPath: selectedRecord.modelFolderPath)
+        let shouldFallbackForMemory =
+          (physicalMemory < lowMemoryThreshold && selectedModelSize > 320 * 1024 * 1024) ||
+          (physicalMemory < mediumMemoryThreshold && selectedModelSize > mediumModelThreshold) ||
+          (physicalMemory < highMemoryThreshold && selectedModelSize > largeModelThreshold)
+        if shouldFallbackForMemory {
+          if let fallbackID = memorySafeFallbackModelID(
+            records: records,
+            preferredLocaleIdentifier: localeIdentifier,
+            excludingModelID: selectedID
+          ) {
+            runtimeModelID = fallbackID
+          } else {
+            // 设备内存与模型体积不匹配时，宁可降级不可用，也不能让 App 因 OOM 闪退。
+            return nil
+          }
+        } else if physicalMemory < lowMemoryThreshold, selectedID.contains("distil-large") {
+          if downloadedIDs.contains("openai_whisper-small") {
+            runtimeModelID = "openai_whisper-small"
+          } else if downloadedIDs.contains("openai_whisper-tiny") {
+            runtimeModelID = "openai_whisper-tiny"
+          } else {
+            return nil
+          }
         }
       }
 
@@ -226,6 +247,71 @@ final class VoiceWhisperModelStore {
       return true
     }
     return false
+  }
+
+  private func memorySafeFallbackModelID(
+    records: [StoredModelRecord],
+    preferredLocaleIdentifier: String?,
+    excludingModelID: String
+  ) -> String? {
+    let preferredOrder = ["openai_whisper-small", "openai_whisper-tiny"]
+    let locale = preferredLocaleIdentifier?.lowercased() ?? ""
+    let prefersMultilingual = locale.hasPrefix("zh") || locale.hasPrefix("ja") || locale.hasPrefix("ko")
+    let maxFallbackModelBytes: UInt64 = 450 * 1024 * 1024
+
+    let knownFirst = preferredOrder + records.sorted(by: { $0.downloadedAt > $1.downloadedAt }).map(\.modelID)
+    var orderedUniqueIDs: [String] = []
+    for modelID in knownFirst where !orderedUniqueIDs.contains(modelID) {
+      orderedUniqueIDs.append(modelID)
+    }
+
+    for modelID in orderedUniqueIDs where modelID != excludingModelID {
+      guard let record = records.first(where: { $0.modelID == modelID }) else { continue }
+      let size = modelFolderSizeInBytes(atPath: record.modelFolderPath)
+      if size == 0 || size > maxFallbackModelBytes {
+        continue
+      }
+      if prefersMultilingual && isLikelyEnglishOnlyModelID(modelID) {
+        continue
+      }
+      return modelID
+    }
+
+    // 第二轮放宽语言限制，至少保证可运行。
+    for record in records.sorted(by: { $0.downloadedAt > $1.downloadedAt }) where record.modelID != excludingModelID {
+      let size = modelFolderSizeInBytes(atPath: record.modelFolderPath)
+      if size > 0, size <= maxFallbackModelBytes {
+        return record.modelID
+      }
+    }
+    return nil
+  }
+
+  private func modelFolderSizeInBytes(atPath path: String) -> UInt64 {
+    let folderURL = URL(fileURLWithPath: path, isDirectory: true)
+    guard let enumerator = fileManager.enumerator(
+      at: folderURL,
+      includingPropertiesForKeys: [.isRegularFileKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .fileSizeKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return 0
+    }
+
+    var total: UInt64 = 0
+    for case let fileURL as URL in enumerator {
+      guard
+        let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileAllocatedSizeKey, .totalFileAllocatedSizeKey, .fileSizeKey]),
+        values.isRegularFile == true
+      else {
+        continue
+      }
+      if let allocated = values.totalFileAllocatedSize ?? values.fileAllocatedSize {
+        total += UInt64(max(0, allocated))
+      } else if let fileSize = values.fileSize {
+        total += UInt64(max(0, fileSize))
+      }
+    }
+    return total
   }
 
   func modelFolderURL(for modelID: String) -> URL? {
@@ -2988,6 +3074,13 @@ final class VoiceSpeechRecognizerEngine {
     case cloud(config: VoiceASRRuntimeConfig)
   }
 
+  enum WhisperLoadState {
+    case disabled
+    case idle
+    case loading
+    case ready
+  }
+
   private let audioEngine = AVAudioEngine()
   private var recognitionTask: SFSpeechRecognitionTask?
   private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -3036,11 +3129,46 @@ final class VoiceSpeechRecognizerEngine {
   func prewarmWhisperModelIfNeeded(_ modelID: String) {
     let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !normalized.isEmpty else { return }
+    #if canImport(WhisperKit)
+    if whisperLoadedModelID == normalized, whisperKit != nil {
+      return
+    }
+    let loadingModelID = whisperLoadQueue.sync { whisperLoadTaskModelID }
+    if loadingModelID == normalized {
+      return
+    }
+    #endif
     whisperWarmupTask?.cancel()
     whisperWarmupTask = Task { [weak self] in
       guard let self else { return }
       _ = try? await self.loadWhisperKit(modelID: normalized)
     }
+  }
+
+  func prewarmSelectedWhisperModelIfNeeded(localeIdentifier: String? = nil) {
+    let locale = localeIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard
+      let selected = VoiceWhisperModelStore.shared.selectedDownloadedModelForCurrentDevice(localeIdentifier: locale)
+    else {
+      return
+    }
+    prewarmWhisperModelIfNeeded(selected.modelID)
+  }
+
+  func whisperLoadState(for modelID: String) -> WhisperLoadState {
+    let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalized.isEmpty else { return .idle }
+    #if canImport(WhisperKit)
+    if whisperLoadedModelID == normalized, whisperKit != nil {
+      return .ready
+    }
+    let isLoading = whisperLoadQueue.sync { () -> Bool in
+      whisperLoadTask != nil && whisperLoadTaskModelID == normalized
+    }
+    return isLoading ? .loading : .idle
+    #else
+    return .disabled
+    #endif
   }
 
   func start(
@@ -3061,7 +3189,11 @@ final class VoiceSpeechRecognizerEngine {
     var startErrors: [EngineError] = []
     var canUseSpeechFramework = false
 
-    let selectedEngines = normalizeStartEngines(resolvedStrategy.selectedEngines)
+    if let whisperModelID = resolvedStrategy.whisperModelID, !whisperModelID.isEmpty {
+      prewarmWhisperModelIfNeeded(whisperModelID)
+    }
+
+    let selectedEngines = runtimeOrderedEngines(for: resolvedStrategy)
     let speechRecognitionNeeded = selectedEngines.contains(.apple)
 
     if speechRecognitionNeeded {
@@ -3189,6 +3321,45 @@ final class VoiceSpeechRecognizerEngine {
       deduplicated = [.apple]
     }
     return deduplicated
+  }
+
+  private func runtimeOrderedEngines(for strategy: StartStrategy) -> [VoiceASREnginePreference] {
+    var engines = normalizeStartEngines(strategy.selectedEngines)
+    guard let whisperIndex = engines.firstIndex(of: .whisper) else {
+      return engines
+    }
+
+    #if canImport(WhisperKit)
+    if let whisperModelID = strategy.whisperModelID, !whisperModelID.isEmpty {
+      let whisperReady = whisperLoadQueue.sync { () -> Bool in
+        whisperLoadedModelID == whisperModelID && whisperKit != nil
+      }
+      if !whisperReady {
+        // Whisper 尚未就绪时，临时启用 Apple 实时识别避免冷启动等待。
+        // 这是运行时策略，不改变用户在设置页的勾选状态。
+        if let appleIndex = engines.firstIndex(of: .apple) {
+          if appleIndex > whisperIndex {
+            engines.remove(at: appleIndex)
+            engines.insert(.apple, at: whisperIndex)
+          }
+        } else {
+          engines.insert(.apple, at: whisperIndex)
+        }
+      }
+    } else {
+      // 当前设备无法安全使用已选 Whisper（例如模型过大/内存不匹配）时，
+      // 也临时回退到 Apple，避免“只勾选 Whisper 导致无法启动识别”。
+      if let appleIndex = engines.firstIndex(of: .apple) {
+        if appleIndex > whisperIndex {
+          engines.remove(at: appleIndex)
+          engines.insert(.apple, at: whisperIndex)
+        }
+      } else {
+        engines.insert(.apple, at: whisperIndex)
+      }
+    }
+    #endif
+    return engines
   }
 
   private func tryStartApplePipelines(
@@ -3701,7 +3872,8 @@ final class VoiceSpeechRecognizerEngine {
     decodeOptions: DecodingOptions
   ) async throws -> String {
     let sampleRate = 16_000
-    let chunkSeconds = 24
+    // 降低单段长度，减少大模型单次推理时的峰值内存。
+    let chunkSeconds = 12
     let overlapSeconds = 1
     let chunkSampleCount = sampleRate * chunkSeconds
     let overlapSampleCount = sampleRate * overlapSeconds
@@ -3873,7 +4045,8 @@ final class VoiceSpeechRecognizerEngine {
       detectLanguage: language == nil,
       withoutTimestamps: true,
       wordTimestamps: false,
-      concurrentWorkerCount: 3,
+      // 大模型在移动端多 worker 容易抬高峰值内存，这里优先稳定性。
+      concurrentWorkerCount: 1,
       chunkingStrategy: .vad
     )
   }

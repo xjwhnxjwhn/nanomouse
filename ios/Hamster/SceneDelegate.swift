@@ -24,6 +24,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       self.window = window
       window.makeKeyAndVisible()
     }
+    let localeIdentifier = Locale.preferredLanguages.first
+    voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
 
     // 首次安装时主动触发首次编译，避免依赖进入特定页面
     if UserDefaults.standard.isFirstRunning {
@@ -156,6 +158,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   func sceneDidBecomeActive(_ scene: UIScene) {
     // Called when the scene has moved from an inactive state to an active state.
     // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+    let localeIdentifier = Locale.preferredLanguages.first
+    voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
   }
 
   /// 应用注册 quick action

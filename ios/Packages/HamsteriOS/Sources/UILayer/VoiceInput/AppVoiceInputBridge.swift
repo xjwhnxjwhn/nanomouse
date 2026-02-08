@@ -114,6 +114,11 @@ public final class AppVoiceInputBridge {
     write(payload, to: resultFileURL(for: requestId))
     setState(requestId: requestId, state: .ready)
   }
+
+  /// 在主 App 进入活跃态时预热 Whisper，降低首次听写等待时间。
+  public func prewarmSelectedWhisperModelIfNeeded(localeIdentifier: String? = nil) {
+    VoiceSpeechRecognizerEngine.shared.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
+  }
 }
 
 private extension AppVoiceInputBridge {

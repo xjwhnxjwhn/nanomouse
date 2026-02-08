@@ -1357,6 +1357,40 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   private var downloadingModelID: String?
   private var isFetchingRemoteModelList = false
   private var isApplyingWhisperToggle = false
+  private var runtimeBannerTimer: Timer?
+
+  private struct RuntimeBannerContent {
+    let text: String
+    let tintColor: UIColor
+    let backgroundColor: UIColor
+  }
+
+  private lazy var runtimeBannerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.layer.cornerRadius = 12
+    view.layer.masksToBounds = true
+    view.isHidden = true
+    view.alpha = 0
+    view.isUserInteractionEnabled = false
+    return view
+  }()
+
+  private lazy var runtimeBannerIconView: UIImageView = {
+    let view = UIImageView(image: UIImage(systemName: "apple.logo"))
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFit
+    return view
+  }()
+
+  private lazy var runtimeBannerLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .semibold)
+    label.numberOfLines = 2
+    label.textAlignment = .left
+    return label
+  }()
 
   private lazy var whisperEnabledSwitch: UISwitch = {
     let control = UISwitch(frame: .zero)
@@ -1376,12 +1410,19 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
     settingsView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWhisperToggleCell")
     settingsView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWhisperActionCell")
     settingsView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
+    setupRuntimeBannerOverlay()
     refreshModels()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     refreshModels()
+    startRuntimeBannerPolling()
+  }
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    stopRuntimeBannerPolling()
   }
 
   private func refreshModels() {
@@ -1391,6 +1432,109 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
     let isAppleOnly = !models.contains(where: { $0.isDownloaded })
     settingsView.updateSummary(isAppleOnly: isAppleOnly)
     settingsView.tableView.reloadData()
+    updateRuntimeBanner(animated: true)
+  }
+
+  private func setupRuntimeBannerOverlay() {
+    view.addSubview(runtimeBannerView)
+    runtimeBannerView.addSubview(runtimeBannerIconView)
+    runtimeBannerView.addSubview(runtimeBannerLabel)
+    NSLayoutConstraint.activate([
+      runtimeBannerView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+      runtimeBannerView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+      runtimeBannerView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+
+      runtimeBannerIconView.leadingAnchor.constraint(equalTo: runtimeBannerView.leadingAnchor, constant: 10),
+      runtimeBannerIconView.centerYAnchor.constraint(equalTo: runtimeBannerView.centerYAnchor),
+      runtimeBannerIconView.widthAnchor.constraint(equalToConstant: 16),
+      runtimeBannerIconView.heightAnchor.constraint(equalToConstant: 16),
+
+      runtimeBannerLabel.topAnchor.constraint(equalTo: runtimeBannerView.topAnchor, constant: 10),
+      runtimeBannerLabel.leadingAnchor.constraint(equalTo: runtimeBannerIconView.trailingAnchor, constant: 8),
+      runtimeBannerLabel.trailingAnchor.constraint(equalTo: runtimeBannerView.trailingAnchor, constant: -10),
+      runtimeBannerLabel.bottomAnchor.constraint(equalTo: runtimeBannerView.bottomAnchor, constant: -10),
+      runtimeBannerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+    ])
+  }
+
+  private func startRuntimeBannerPolling() {
+    stopRuntimeBannerPolling()
+    runtimeBannerTimer = Timer.scheduledTimer(withTimeInterval: 0.9, repeats: true) { [weak self] _ in
+      self?.updateRuntimeBanner(animated: false)
+    }
+    updateRuntimeBanner(animated: false)
+  }
+
+  private func stopRuntimeBannerPolling() {
+    runtimeBannerTimer?.invalidate()
+    runtimeBannerTimer = nil
+  }
+
+  private func updateRuntimeBanner(animated: Bool) {
+    guard let content = runtimeBannerContent() else {
+      guard !runtimeBannerView.isHidden else { return }
+      let hideBlock = {
+        self.runtimeBannerView.alpha = 0
+      }
+      let completion: (Bool) -> Void = { _ in
+        self.runtimeBannerView.isHidden = true
+      }
+      if animated {
+        UIView.animate(withDuration: 0.18, animations: hideBlock, completion: completion)
+      } else {
+        hideBlock()
+        completion(true)
+      }
+      return
+    }
+
+    runtimeBannerLabel.text = content.text
+    runtimeBannerLabel.textColor = content.tintColor
+    runtimeBannerIconView.tintColor = content.tintColor
+    runtimeBannerView.backgroundColor = content.backgroundColor
+
+    if runtimeBannerView.isHidden {
+      runtimeBannerView.isHidden = false
+      if animated {
+        runtimeBannerView.alpha = 0
+        UIView.animate(withDuration: 0.2) {
+          self.runtimeBannerView.alpha = 1
+        }
+      } else {
+        runtimeBannerView.alpha = 1
+      }
+    }
+  }
+
+  private func runtimeBannerContent() -> RuntimeBannerContent? {
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else { return nil }
+    guard isWhisperEnabled() else { return nil }
+    guard models.contains(where: { $0.isDownloaded }) else { return nil }
+
+    let localeIdentifier = Locale.preferredLanguages.first
+    guard let runtimeSelection = modelStore.selectedDownloadedModelForCurrentDevice(localeIdentifier: localeIdentifier) else {
+      return RuntimeBannerContent(
+        text: "当前听写使用 Apple Speech：该机型暂无可安全运行的 Whisper 模型。",
+        tintColor: .systemOrange,
+        backgroundColor: UIColor.systemOrange.withAlphaComponent(0.16)
+      )
+    }
+
+    let loadState = VoiceSpeechRecognizerEngine.shared.whisperLoadState(for: runtimeSelection.modelID)
+    switch loadState {
+    case .ready:
+      return nil
+    case .loading, .idle:
+      VoiceSpeechRecognizerEngine.shared.prewarmWhisperModelIfNeeded(runtimeSelection.modelID)
+      let modelName = VoiceWhisperModelOption.option(for: runtimeSelection.modelID).displayName
+      return RuntimeBannerContent(
+        text: "当前听写使用 Apple Speech：Whisper \(modelName) 正在预热中。",
+        tintColor: .systemBlue,
+        backgroundColor: UIColor.systemBlue.withAlphaComponent(0.14)
+      )
+    case .disabled:
+      return nil
+    }
   }
 
   private func syncWhisperSelectionWithAvailability() {
@@ -1686,7 +1830,7 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       return "你可以先读取可下载模型列表，再像在线模型那样从列表选择并下载。"
     }
     guard VoiceWhisperModelStore.isWhisperKitEnabled else { return nil }
-    return "点击“下载”后才会拉取模型；左滑可删除模型。你可以下载多个模型并切换默认模型。"
+    return "点击“下载”后才会拉取模型；左滑可删除模型。你可以下载多个模型并切换默认模型。适配规则：系统会按设备内存与模型体积自动判定是否可用（例如内存 <6GB 且模型 >320MB、内存 <8GB 且模型 >550MB、内存 <10GB 且模型 >750MB 时会回退）。若没有可回退的小模型，Whisper 会在当前机型临时不可用，并自动回退到 Apple 识别。"
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
