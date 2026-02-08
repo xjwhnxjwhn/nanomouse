@@ -10,15 +10,6 @@
       }
     },
     {
-      "identity" : "jinja",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/johnmai-dev/Jinja",
-      "state" : {
-        "revision" : "31c4dd39bcdc07eaa42a384bdc88ea599022b800",
-        "version" : "1.1.2"
-      }
-    },
-    {
       "identity" : "progresshud",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/relatedcode/ProgressHUD.git",
@@ -70,15 +61,6 @@
       "state" : {
         "revision" : "0c0290ff6b24942dadb83a929ffaaa1481df04a2",
         "version" : "1.1.1"
-      }
-    },
-    {
-      "identity" : "swift-tokenizers",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ensan-hcl/swift-tokenizers",
-      "state" : {
-        "revision" : "4a606f66e0cc4d7d9f0197649e812f7fc86a4c34",
-        "version" : "0.0.1"
       }
     },
     {

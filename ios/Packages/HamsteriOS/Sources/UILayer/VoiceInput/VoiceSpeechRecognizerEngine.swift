@@ -40,6 +40,18 @@ struct VoiceWhisperModelOption: Hashable {
       summary: "效果更好，资源占用更高"
     )
   ]
+
+  static func option(for modelID: String) -> VoiceWhisperModelOption {
+    if let known = supported.first(where: { $0.id == modelID }) {
+      return known
+    }
+    return VoiceWhisperModelOption(
+      id: modelID,
+      displayName: modelID,
+      sizeText: "大小未知",
+      summary: "来自在线可下载模型列表"
+    )
+  }
 }
 
 struct VoiceWhisperModelStatus: Hashable {
@@ -55,6 +67,7 @@ struct VoiceWhisperModelSelection: Equatable {
 
 enum VoiceWhisperModelStoreError: LocalizedError {
   case unsupportedModel
+  case invalidModelIdentifier
   case whisperEngineUnavailable
   case downloadFailed(message: String)
   case deleteFailed(message: String)
@@ -63,6 +76,8 @@ enum VoiceWhisperModelStoreError: LocalizedError {
     switch self {
     case .unsupportedModel:
       return "不支持该模型"
+    case .invalidModelIdentifier:
+      return "模型标识为空或无效"
     case .whisperEngineUnavailable:
       return "当前构建未启用 WhisperKit"
     case .downloadFailed(let message):
@@ -75,10 +90,18 @@ enum VoiceWhisperModelStoreError: LocalizedError {
 
 final class VoiceWhisperModelStore {
   static let shared = VoiceWhisperModelStore()
+  static var isWhisperKitEnabled: Bool {
+    #if canImport(WhisperKit)
+    true
+    #else
+    false
+    #endif
+  }
 
   private enum Constants {
     static let manifestKey = "voice.whisper.manifest.v1"
     static let selectedModelIDKey = "voice.whisper.selected_model_id"
+    static let remoteModelIDsKey = "voice.whisper.remote_model_ids.v1"
     static let rootDirectoryName = "VoiceInput"
     static let modelsDirectoryName = "WhisperModels"
   }
@@ -104,14 +127,39 @@ final class VoiceWhisperModelStore {
       records.sort { $0.downloadedAt > $1.downloadedAt }
       let selectedID = validSelectedModelIDLocked(records: records)
       let downloadedIDs = Set(records.map(\.modelID))
-      return VoiceWhisperModelOption.supported.map { option in
-        VoiceWhisperModelStatus(
+      let remoteModelIDs = remoteModelIDsLocked()
+      let orderedModelIDs = mergeOrderedModelIDs(
+        knownIDs: VoiceWhisperModelOption.supported.map(\.id),
+        remoteIDs: remoteModelIDs,
+        downloadedIDs: records.map(\.modelID)
+      )
+      return orderedModelIDs.map { modelID in
+        let option = VoiceWhisperModelOption.option(for: modelID)
+        return VoiceWhisperModelStatus(
           option: option,
           isDownloaded: downloadedIDs.contains(option.id),
           isSelected: selectedID == option.id
         )
       }
     }
+  }
+
+  func remoteModelIDs() -> [String] {
+    storageQueue.sync { remoteModelIDsLocked() }
+  }
+
+  @discardableResult
+  func refreshRemoteModelIDs() async throws -> [String] {
+    #if canImport(WhisperKit)
+    let fetched = try await WhisperKit.fetchAvailableModels()
+    let sanitized = sanitizeModelIDs(fetched)
+    storageQueue.sync {
+      saveRemoteModelIDsLocked(sanitized)
+    }
+    return sanitized
+    #else
+    throw VoiceWhisperModelStoreError.whisperEngineUnavailable
+    #endif
   }
 
   func selectedDownloadedModel() -> VoiceWhisperModelSelection? {
@@ -145,34 +193,35 @@ final class VoiceWhisperModelStore {
 
   @discardableResult
   func downloadModel(_ modelID: String) async throws -> URL {
-    guard VoiceWhisperModelOption.supported.contains(where: { $0.id == modelID }) else {
-      throw VoiceWhisperModelStoreError.unsupportedModel
+    let normalizedID = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedID.isEmpty else {
+      throw VoiceWhisperModelStoreError.invalidModelIdentifier
     }
     #if canImport(WhisperKit)
     let rootURL = modelsRootDirectoryURL
     try ensureModelsDirectory()
     do {
       // 使用固定 variant 标识下载，避免 tiny/tiny.en 这类模糊匹配导致结果不确定。
-      let modelFolder = try await WhisperKit.download(variant: modelID, downloadBase: rootURL)
+      let modelFolder = try await WhisperKit.download(variant: normalizedID, downloadBase: rootURL)
       storageQueue.sync {
         var records = compactManifestLocked()
-        if let index = records.firstIndex(where: { $0.modelID == modelID }) {
+        if let index = records.firstIndex(where: { $0.modelID == normalizedID }) {
           records[index] = StoredModelRecord(
-            modelID: modelID,
+            modelID: normalizedID,
             modelFolderPath: modelFolder.path,
             downloadedAt: Date().timeIntervalSince1970
           )
         } else {
           records.append(
             StoredModelRecord(
-              modelID: modelID,
+              modelID: normalizedID,
               modelFolderPath: modelFolder.path,
               downloadedAt: Date().timeIntervalSince1970
             )
           )
         }
         saveManifestLocked(records)
-        userDefaults.set(modelID, forKey: Constants.selectedModelIDKey)
+        userDefaults.set(normalizedID, forKey: Constants.selectedModelIDKey)
       }
       return modelFolder
     } catch {
@@ -222,6 +271,42 @@ private extension VoiceWhisperModelStore {
 
   func ensureModelsDirectory() throws {
     try fileManager.createDirectory(at: modelsRootDirectoryURL, withIntermediateDirectories: true)
+  }
+
+  func mergeOrderedModelIDs(knownIDs: [String], remoteIDs: [String], downloadedIDs: [String]) -> [String] {
+    var merged: [String] = []
+    for modelID in knownIDs where !merged.contains(modelID) {
+      merged.append(modelID)
+    }
+    for modelID in remoteIDs where !merged.contains(modelID) {
+      merged.append(modelID)
+    }
+    for modelID in downloadedIDs where !merged.contains(modelID) {
+      merged.append(modelID)
+    }
+    return merged
+  }
+
+  func sanitizeModelIDs(_ raw: [String]) -> [String] {
+    var unique: [String] = []
+    for entry in raw {
+      let trimmed = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { continue }
+      if !unique.contains(trimmed) {
+        unique.append(trimmed)
+      }
+    }
+    return unique
+  }
+
+  func remoteModelIDsLocked() -> [String] {
+    let raw = userDefaults.array(forKey: Constants.remoteModelIDsKey) as? [String] ?? []
+    return sanitizeModelIDs(raw)
+  }
+
+  func saveRemoteModelIDsLocked(_ ids: [String]) {
+    let sanitized = sanitizeModelIDs(ids)
+    userDefaults.set(sanitized, forKey: Constants.remoteModelIDsKey)
   }
 
   private func loadManifestLocked() -> [StoredModelRecord] {

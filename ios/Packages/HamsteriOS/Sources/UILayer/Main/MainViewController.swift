@@ -1232,6 +1232,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
 
   private func sanitizeSelectedEngines() {
     let hasWhisperModel = models.contains(where: { $0.isDownloaded })
+    let whisperAvailable = VoiceWhisperModelStore.isWhisperKitEnabled
     let provider = asrSettingsStore.provider()
     let hasOnlineAPIKey = !(asrSettingsStore.apiKey(for: provider) ?? "")
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1239,7 +1240,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
 
     var selected = asrSettingsStore.selectedEngines()
     selected.removeAll { engine in
-      (engine == .whisper && !hasWhisperModel) || (engine == .cloud && !hasOnlineAPIKey)
+      (engine == .whisper && (!whisperAvailable || !hasWhisperModel)) || (engine == .cloud && !hasOnlineAPIKey)
     }
     if selected.isEmpty {
       selected = [.apple]
@@ -1326,6 +1327,9 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
     case .apple:
       return selected ? "已启用" : "点击勾选"
     case .whisper:
+      guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+        return "当前构建未启用 WhisperKit"
+      }
       return selected ? "已启用" : "需要已下载模型"
     case .cloud:
       return selected ? "已启用 · 优先" : "需要 API Key，勾选后优先"
@@ -1349,7 +1353,9 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   private let modelStore: VoiceWhisperModelStore = .shared
   private let asrSettingsStore: VoiceASRSettingsStore = .shared
   private var models: [VoiceWhisperModelStatus] = []
+  private var remoteModelIDs: [String] = []
   private var downloadingModelID: String?
+  private var isFetchingRemoteModelList = false
 
   private lazy var whisperEnabledSwitch: UISwitch = {
     let control = UISwitch(frame: .zero)
@@ -1367,6 +1373,7 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
     settingsView.tableView.dataSource = self
     settingsView.tableView.delegate = self
     settingsView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWhisperToggleCell")
+    settingsView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWhisperActionCell")
     settingsView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
     refreshModels()
   }
@@ -1378,6 +1385,7 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
 
   private func refreshModels() {
     models = modelStore.availableModelStatuses()
+    remoteModelIDs = modelStore.remoteModelIDs()
     syncWhisperSelectionWithAvailability()
     let isAppleOnly = !models.contains(where: { $0.isDownloaded })
     settingsView.updateSummary(isAppleOnly: isAppleOnly)
@@ -1386,8 +1394,9 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
 
   private func syncWhisperSelectionWithAvailability() {
     let hasDownloadedModel = models.contains(where: { $0.isDownloaded })
+    let whisperAvailable = VoiceWhisperModelStore.isWhisperKitEnabled
     var selectedEngines = asrSettingsStore.selectedEngines()
-    if !hasDownloadedModel, let index = selectedEngines.firstIndex(of: .whisper) {
+    if (!whisperAvailable || !hasDownloadedModel), let index = selectedEngines.firstIndex(of: .whisper) {
       selectedEngines.remove(at: index)
       if selectedEngines.isEmpty {
         selectedEngines = [.apple]
@@ -1417,6 +1426,11 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   }
 
   @objc private func handleWhisperSwitchChanged(_ sender: UISwitch) {
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+      sender.setOn(false, animated: true)
+      presentWhisperUnavailableAlert()
+      return
+    }
     let hasDownloadedModel = models.contains(where: { $0.isDownloaded })
     if sender.isOn, !hasDownloadedModel {
       sender.setOn(false, animated: true)
@@ -1428,6 +1442,10 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   }
 
   private func handleAction(at indexPath: IndexPath) {
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+      presentWhisperUnavailableAlert()
+      return
+    }
     let model = models[indexPath.row]
     if model.isDownloaded {
       modelStore.setSelectedModel(model.option.id)
@@ -1435,12 +1453,20 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
       return
     }
 
-    downloadingModelID = model.option.id
-    settingsView.tableView.reloadRows(at: [indexPath], with: .none)
+    startDownload(for: model.option.id, rowIndex: indexPath.row)
+  }
+
+  private func startDownload(for modelID: String, rowIndex: Int? = nil) {
+    downloadingModelID = modelID
+    if let rowIndex {
+      settingsView.tableView.reloadRows(at: [IndexPath(row: rowIndex, section: 2)], with: .none)
+    } else {
+      settingsView.tableView.reloadSections(IndexSet(integer: 2), with: .none)
+    }
     Task { [weak self] in
       guard let self else { return }
       do {
-        _ = try await self.modelStore.downloadModel(model.option.id)
+        _ = try await self.modelStore.downloadModel(modelID)
         await MainActor.run {
           self.downloadingModelID = nil
           self.refreshModels()
@@ -1453,6 +1479,63 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
         }
       }
     }
+  }
+
+  private func refreshRemoteModelList(presentPickerAfterFetch: Bool) {
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+      presentWhisperUnavailableAlert()
+      return
+    }
+    guard !isFetchingRemoteModelList else { return }
+    isFetchingRemoteModelList = true
+    settingsView.tableView.reloadSections(IndexSet(integer: 1), with: .none)
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let ids = try await self.modelStore.refreshRemoteModelIDs()
+        await MainActor.run {
+          self.isFetchingRemoteModelList = false
+          self.refreshModels()
+          if ids.isEmpty {
+            self.presentHintAlert(title: "读取完成", message: "本次未发现可下载模型。")
+          } else {
+            self.presentHintAlert(title: "读取完成", message: "已读取 \(ids.count) 个可下载模型。")
+            if presentPickerAfterFetch {
+              self.presentRemoteModelPicker()
+            }
+          }
+        }
+      } catch {
+        await MainActor.run {
+          self.isFetchingRemoteModelList = false
+          self.settingsView.tableView.reloadSections(IndexSet(integer: 1), with: .none)
+          self.presentErrorAlert(message: error.localizedDescription)
+        }
+      }
+    }
+  }
+
+  private func presentRemoteModelPicker() {
+    let ids = remoteModelIDs
+    guard !ids.isEmpty else {
+      presentHintAlert(title: "暂无列表", message: "请先读取可下载模型列表。")
+      return
+    }
+    let limit = min(ids.count, 60)
+    let visibleIDs = Array(ids.prefix(limit))
+    let message: String? = ids.count > limit ? "共 \(ids.count) 个模型，当前仅显示前 \(limit) 个。" : nil
+    let alert = UIAlertController(title: "从列表选择模型", message: message, preferredStyle: .actionSheet)
+    for modelID in visibleIDs {
+      alert.addAction(UIAlertAction(title: modelID, style: .default) { [weak self] _ in
+        self?.startDownload(for: modelID)
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = settingsView.tableView
+      popover.sourceRect = settingsView.tableView.bounds
+    }
+    present(alert, animated: true)
   }
 
   private func deleteModel(at indexPath: IndexPath, completion: @escaping (Bool) -> Void) {
@@ -1472,17 +1555,32 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
     controller.addAction(UIAlertAction(title: "知道了", style: .default))
     present(controller, animated: true)
   }
+
+  private func presentHintAlert(title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
+
+  private func presentWhisperUnavailableAlert() {
+    let message = "当前构建未启用 WhisperKit。请在 Xcode 执行 Resolve Package Dependencies，并确认 App 目标已链接 WhisperKit 后重新构建。"
+    presentErrorAlert(message: message)
+  }
 }
 
 extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    2
+    3
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     if section == 0 {
       return 1
     }
+    if section == 1 {
+      return 2
+    }
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else { return 0 }
     return models.count
   }
 
@@ -1500,9 +1598,39 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       config.secondaryTextProperties.color = .secondaryLabel
       cell.contentConfiguration = config
       whisperEnabledSwitch.isOn = isWhisperEnabled()
-      whisperEnabledSwitch.isEnabled = models.contains(where: { $0.isDownloaded })
+      whisperEnabledSwitch.isEnabled = VoiceWhisperModelStore.isWhisperKitEnabled && models.contains(where: { $0.isDownloaded })
       cell.accessoryView = whisperEnabledSwitch
       cell.selectionStyle = .default
+      return cell
+    }
+
+    if indexPath.section == 1 {
+      let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceWhisperActionCell", for: indexPath)
+      var config = cell.defaultContentConfiguration()
+      if indexPath.row == 0 {
+        config.text = "读取可下载模型列表"
+        if isFetchingRemoteModelList {
+          config.secondaryText = "读取中..."
+        } else {
+          config.secondaryText = "从 WhisperKit 官方模型仓库拉取可下载列表"
+        }
+        config.image = UIImage(systemName: "arrow.clockwise")
+        cell.accessoryType = .none
+        cell.selectionStyle = isFetchingRemoteModelList ? .none : .default
+      } else {
+        config.text = "从列表选择并下载"
+        if remoteModelIDs.isEmpty {
+          config.secondaryText = "请先读取模型列表"
+        } else {
+          config.secondaryText = "已缓存 \(remoteModelIDs.count) 个模型"
+        }
+        config.image = UIImage(systemName: "list.bullet")
+        cell.accessoryType = .disclosureIndicator
+        cell.selectionStyle = .default
+      }
+      config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
+      config.secondaryTextProperties.color = .secondaryLabel
+      cell.contentConfiguration = config
       return cell
     }
 
@@ -1521,13 +1649,24 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
     if section == 0 {
       return "Whisper 开关"
     }
-    return "Whisper 离线模型"
+    if section == 1 {
+      return "在线模型列表"
+    }
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else { return nil }
+    return "Whisper 模型管理"
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
     if section == 0 {
+      guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+        return "当前构建未启用 WhisperKit，暂时无法下载或启用 Whisper 离线识别。"
+      }
       return "启用后，Whisper 会作为你勾选的识别引擎之一参与听写；关闭后将不再使用 Whisper。"
     }
+    if section == 1 {
+      return "你可以先读取可下载模型列表，再像在线模型那样从列表选择并下载。"
+    }
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else { return nil }
     return "点击“下载”后才会拉取模型；左滑可删除模型。你可以下载多个模型并切换默认模型。"
   }
 
@@ -1539,11 +1678,25 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       handleWhisperSwitchChanged(whisperEnabledSwitch)
       return
     }
+    if indexPath.section == 1 {
+      if indexPath.row == 0 {
+        refreshRemoteModelList(presentPickerAfterFetch: false)
+      } else if remoteModelIDs.isEmpty {
+        refreshRemoteModelList(presentPickerAfterFetch: true)
+      } else {
+        presentRemoteModelPicker()
+      }
+      return
+    }
+    guard VoiceWhisperModelStore.isWhisperKitEnabled else {
+      presentWhisperUnavailableAlert()
+      return
+    }
     handleAction(at: indexPath)
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    guard indexPath.section == 1 else { return nil }
+    guard indexPath.section == 2 else { return nil }
     let status = models[indexPath.row]
     guard status.isDownloaded else { return nil }
     let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in

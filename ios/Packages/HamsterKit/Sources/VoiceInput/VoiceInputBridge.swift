@@ -160,7 +160,7 @@ public final class VoiceInputBridge: VoiceInputBridgeProtocol {
     cleanupExpiredData(maxAge: Constants.resultRetentionSeconds)
   }
 
-  public func cleanupExpiredData(maxAge: TimeInterval = Constants.resultRetentionSeconds) {
+  public func cleanupExpiredData(maxAge: TimeInterval) {
     ensureDirectories()
     let now = Date().timeIntervalSince1970
     let directories = [sessionsDirectoryURL, resultsDirectoryURL]
