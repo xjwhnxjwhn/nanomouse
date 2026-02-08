@@ -315,6 +315,8 @@ final class VoiceDictationViewController: NibLessViewController {
               self.statusLabel.text = self.makeRecordingStatusText()
               if route == .whisperOnDevice {
                 self.tipLabel.text = "已切换 Whisper 离线识别，点击“完成”后会进行本地转写。"
+              } else if route == .cloudNetwork {
+                self.tipLabel.text = "已切换在线 ASR，点击“完成”后会上传音频并返回识别结果。"
               } else {
                 self.tipLabel.text = self.makeModeHintText()
               }
@@ -368,10 +370,30 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   private func makeModeHintText() -> String {
-    if !llmSettingsStore.isLLMEnabled() {
-      return "AI 预设整理已关闭，完成后仅使用本地文本清洗规则。"
+    let asrConfig = VoiceASRSettingsStore.shared.runtimeConfig()
+    let asrHint: String
+    switch asrConfig.enginePreference {
+    case .apple:
+      asrHint = "ASR 引擎：Apple（固定）。"
+    case .whisper:
+      asrHint = "ASR 引擎：Whisper（固定离线）。"
+    case .cloud:
+      asrHint = "ASR 引擎：在线（\(asrConfig.provider.displayName)）。"
+    case .auto:
+      switch asrConfig.mode {
+      case .disabled:
+        asrHint = "ASR 引擎：自动（仅本地 Apple/Whisper）。"
+      case .fallback:
+        asrHint = "ASR 引擎：自动（在线兜底：\(asrConfig.provider.displayName)）。"
+      case .preferred:
+        asrHint = "ASR 引擎：自动（在线优先：\(asrConfig.provider.displayName)）。"
+      }
     }
-    return "完成听写后，系统会按当前预设自动整理。"
+
+    if !llmSettingsStore.isLLMEnabled() {
+      return "\(asrHint) AI 预设整理已关闭，完成后仅使用本地文本清洗规则。"
+    }
+    return "\(asrHint) 完成听写后，系统会按当前预设自动整理。"
   }
 
   private func currentLLMProviderModelText() -> String {
@@ -434,6 +456,18 @@ final class VoiceDictationViewController: NibLessViewController {
       return
     }
 
+    if activeRoute == .cloudNetwork {
+      tipLabel.text = "云端 ASR 正在处理，请稍候..."
+      DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+        guard let self, self.isFinishing else { return }
+        let candidate = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          ? self.stopTapTranscriptSnapshot
+          : self.latestTranscript
+        self.completeFinishingFlow(rawText: candidate)
+      }
+      return
+    }
+
     // 等待最后一批回调写入后再落盘，避免用户快速点击导致最后几个词丢失。
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
       guard let self else { return }
@@ -466,6 +500,8 @@ final class VoiceDictationViewController: NibLessViewController {
       return "正在听写（在线）..."
     case .whisperOnDevice:
       return "正在听写（Whisper 离线）..."
+    case .cloudNetwork:
+      return "正在听写（云端 ASR）..."
     }
   }
 

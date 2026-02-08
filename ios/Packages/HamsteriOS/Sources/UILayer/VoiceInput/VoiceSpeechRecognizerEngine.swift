@@ -485,6 +485,762 @@ private extension VoicePersonalDictionaryStore {
   }
 }
 
+enum VoiceASRMode: String, Codable, CaseIterable {
+  case disabled
+  case fallback
+  case preferred
+
+  var displayName: String {
+    switch self {
+    case .disabled:
+      return "关闭"
+    case .fallback:
+      return "兜底"
+    case .preferred:
+      return "优先"
+    }
+  }
+}
+
+enum VoiceASREnginePreference: String, Codable, CaseIterable {
+  case auto
+  case apple
+  case whisper
+  case cloud
+
+  var displayName: String {
+    switch self {
+    case .auto:
+      return "自动"
+    case .apple:
+      return "Apple"
+    case .whisper:
+      return "Whisper"
+    case .cloud:
+      return "在线"
+    }
+  }
+}
+
+private enum VoiceASRDirectCallType {
+  case openAITranscriptions
+  case deepgramListen
+  case proxyOnly
+}
+
+enum VoiceASRProvider: String, Codable, CaseIterable {
+  case openAI = "openai"
+  case qwen
+  case glm
+  case baiduQianfan = "baidu_qianfan"
+  case doubao
+  case tencentHunyuan = "tencent_hunyuan"
+  case deepgram
+  case assemblyAI = "assemblyai"
+  case speechmatics
+  case googleSpeech = "google_speech"
+  case azureSpeech = "azure_speech"
+  case awsTranscribe = "aws_transcribe"
+  case groq
+  case custom
+
+  var displayName: String {
+    switch self {
+    case .openAI:
+      return "OpenAI"
+    case .qwen:
+      return "Qwen"
+    case .glm:
+      return "智谱 GLM-ASR"
+    case .baiduQianfan:
+      return "百度语音/千帆"
+    case .doubao:
+      return "豆包语音"
+    case .tencentHunyuan:
+      return "腾讯语音/混元"
+    case .deepgram:
+      return "Deepgram"
+    case .assemblyAI:
+      return "AssemblyAI"
+    case .speechmatics:
+      return "Speechmatics"
+    case .googleSpeech:
+      return "Google Speech-to-Text"
+    case .azureSpeech:
+      return "Azure Speech"
+    case .awsTranscribe:
+      return "AWS Transcribe"
+    case .groq:
+      return "Groq Whisper API"
+    case .custom:
+      return "自定义"
+    }
+  }
+
+  var defaultBaseURL: String {
+    switch self {
+    case .openAI:
+      return "https://api.openai.com/v1"
+    case .qwen:
+      return "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    case .glm:
+      return "https://open.bigmodel.cn/api/paas/v4"
+    case .baiduQianfan:
+      return ""
+    case .doubao:
+      return "https://ark.cn-beijing.volces.com/api/v3"
+    case .tencentHunyuan:
+      return "https://api.hunyuan.cloud.tencent.com/v1"
+    case .deepgram:
+      return "https://api.deepgram.com/v1"
+    case .assemblyAI:
+      return "https://api.assemblyai.com/v2"
+    case .speechmatics:
+      return "https://asr.api.speechmatics.com/v2"
+    case .googleSpeech:
+      return ""
+    case .azureSpeech:
+      return ""
+    case .awsTranscribe:
+      return ""
+    case .groq:
+      return "https://api.groq.com/openai/v1"
+    case .custom:
+      return ""
+    }
+  }
+
+  var defaultModel: String {
+    switch self {
+    case .openAI:
+      return "gpt-4o-mini-transcribe"
+    case .qwen:
+      return "qwen3-asr-flash"
+    case .glm:
+      return "glm-asr"
+    case .baiduQianfan:
+      return "asr"
+    case .doubao:
+      return "doubao-asr"
+    case .tencentHunyuan:
+      return "hunyuan-asr"
+    case .deepgram:
+      return "nova-3"
+    case .assemblyAI:
+      return "best"
+    case .speechmatics:
+      return "latest"
+    case .googleSpeech:
+      return "latest_long"
+    case .azureSpeech:
+      return "latest"
+    case .awsTranscribe:
+      return "standard"
+    case .groq:
+      return "whisper-large-v3-turbo"
+    case .custom:
+      return ""
+    }
+  }
+
+  var staticModelCandidates: [String] {
+    switch self {
+    case .openAI:
+      return ["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"]
+    case .qwen:
+      return ["qwen3-asr-flash", "qwen3-asr-flash-realtime", "qwen3-asr-flash-filetrans"]
+    case .glm:
+      return ["glm-asr", "glm-asr-2512"]
+    case .baiduQianfan:
+      return ["asr", "极速版", "高精度版"]
+    case .doubao:
+      return ["doubao-asr", "doubao-asr-realtime"]
+    case .tencentHunyuan:
+      return ["hunyuan-asr", "hunyuan-stream-asr"]
+    case .deepgram:
+      return ["nova-3", "nova-2", "flux-general-en"]
+    case .assemblyAI:
+      return ["best", "nano"]
+    case .speechmatics:
+      return ["latest", "enhanced"]
+    case .googleSpeech:
+      return ["latest_long", "latest_short", "chirp_2"]
+    case .azureSpeech:
+      return ["latest", "conversation", "dictation"]
+    case .awsTranscribe:
+      return ["standard", "medical"]
+    case .groq:
+      return ["whisper-large-v3-turbo", "whisper-large-v3"]
+    case .custom:
+      return []
+    }
+  }
+
+  var integrationHint: String {
+    switch directCallType {
+    case .openAITranscriptions:
+      return "当前支持应用内直连（OpenAI 兼容 /audio/transcriptions）。"
+    case .deepgramListen:
+      return "当前支持应用内直连（Deepgram /listen）。"
+    case .proxyOnly:
+      return "该供应商建议走服务端代理；若要应用内直连，请先确认官方 iOS 直连鉴权方式。"
+    }
+  }
+
+  fileprivate var directCallType: VoiceASRDirectCallType {
+    switch self {
+    case .openAI, .groq:
+      return .openAITranscriptions
+    case .deepgram:
+      return .deepgramListen
+    case .qwen, .glm, .baiduQianfan, .doubao, .tencentHunyuan, .assemblyAI, .speechmatics, .googleSpeech, .azureSpeech, .awsTranscribe, .custom:
+      return .proxyOnly
+    }
+  }
+}
+
+struct VoiceASRRuntimeConfig {
+  let enginePreference: VoiceASREnginePreference
+  let mode: VoiceASRMode
+  let provider: VoiceASRProvider
+  let proxyEndpoint: String
+  let byokBaseURL: String
+  let model: String
+  let apiKey: String?
+}
+
+final class VoiceASRSettingsStore {
+  static let shared = VoiceASRSettingsStore()
+
+  private enum Constants {
+    static let enginePreferenceKey = "voice.asr.engine.preference"
+    static let modeKey = "voice.asr.mode"
+    static let providerKey = "voice.asr.provider"
+    static let proxyEndpointKey = "voice.asr.proxy.endpoint"
+    static let byokBaseURLKeyPrefix = "voice.asr.byok.base_url."
+    static let byokModelKeyPrefix = "voice.asr.byok.model."
+    static let keychainService = "com.XiangqingZHANG.nanomouse.voice.asr"
+    static let keychainAccountPrefix = "byok_asr_api_key."
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.asr.settings")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func runtimeConfig() -> VoiceASRRuntimeConfig {
+    queue.sync {
+      let provider = providerLocked()
+      return VoiceASRRuntimeConfig(
+        enginePreference: enginePreferenceLocked(),
+        mode: modeLocked(),
+        provider: provider,
+        proxyEndpoint: (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+        byokBaseURL: loadByokBaseURLLocked(for: provider),
+        model: loadByokModelLocked(for: provider),
+        apiKey: readAPIKeyLocked(for: provider)
+      )
+    }
+  }
+
+  func mode() -> VoiceASRMode {
+    queue.sync { modeLocked() }
+  }
+
+  func enginePreference() -> VoiceASREnginePreference {
+    queue.sync { enginePreferenceLocked() }
+  }
+
+  func setEnginePreference(_ preference: VoiceASREnginePreference) {
+    queue.sync {
+      userDefaults.set(preference.rawValue, forKey: Constants.enginePreferenceKey)
+    }
+  }
+
+  func setMode(_ mode: VoiceASRMode) {
+    queue.sync {
+      userDefaults.set(mode.rawValue, forKey: Constants.modeKey)
+    }
+  }
+
+  func provider() -> VoiceASRProvider {
+    queue.sync { providerLocked() }
+  }
+
+  func setProvider(_ provider: VoiceASRProvider) {
+    queue.sync {
+      userDefaults.set(provider.rawValue, forKey: Constants.providerKey)
+    }
+  }
+
+  func proxyEndpoint() -> String {
+    queue.sync {
+      (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+  }
+
+  func setProxyEndpoint(_ endpoint: String) {
+    queue.sync {
+      userDefaults.set(endpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.proxyEndpointKey)
+    }
+  }
+
+  func byokBaseURL(for provider: VoiceASRProvider) -> String {
+    queue.sync { loadByokBaseURLLocked(for: provider) }
+  }
+
+  func setByokBaseURL(_ baseURL: String, for provider: VoiceASRProvider) {
+    queue.sync {
+      saveByokBaseURLLocked(baseURL, for: provider)
+    }
+  }
+
+  func byokModel(for provider: VoiceASRProvider) -> String {
+    queue.sync { loadByokModelLocked(for: provider) }
+  }
+
+  func setByokModel(_ model: String, for provider: VoiceASRProvider) {
+    queue.sync {
+      saveByokModelLocked(model, for: provider)
+    }
+  }
+
+  func apiKey(for provider: VoiceASRProvider) -> String? {
+    queue.sync { readAPIKeyLocked(for: provider) }
+  }
+
+  func setAPIKey(_ apiKey: String?, for provider: VoiceASRProvider) {
+    queue.sync {
+      saveAPIKeyLocked(
+        apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+        for: provider
+      )
+    }
+  }
+}
+
+private extension VoiceASRSettingsStore {
+  func byokBaseURLKeyLocked(for provider: VoiceASRProvider) -> String {
+    Constants.byokBaseURLKeyPrefix + provider.rawValue
+  }
+
+  func byokModelKeyLocked(for provider: VoiceASRProvider) -> String {
+    Constants.byokModelKeyPrefix + provider.rawValue
+  }
+
+  func enginePreferenceLocked() -> VoiceASREnginePreference {
+    let raw = userDefaults.string(forKey: Constants.enginePreferenceKey) ?? VoiceASREnginePreference.auto.rawValue
+    return VoiceASREnginePreference(rawValue: raw) ?? .auto
+  }
+
+  func modeLocked() -> VoiceASRMode {
+    let raw = userDefaults.string(forKey: Constants.modeKey) ?? VoiceASRMode.disabled.rawValue
+    return VoiceASRMode(rawValue: raw) ?? .disabled
+  }
+
+  func providerLocked() -> VoiceASRProvider {
+    let raw = userDefaults.string(forKey: Constants.providerKey) ?? VoiceASRProvider.openAI.rawValue
+    return VoiceASRProvider(rawValue: raw) ?? .openAI
+  }
+
+  func loadByokBaseURLLocked(for provider: VoiceASRProvider) -> String {
+    let key = byokBaseURLKeyLocked(for: provider)
+    let value = (userDefaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !value.isEmpty {
+      return value
+    }
+    return provider.defaultBaseURL
+  }
+
+  func saveByokBaseURLLocked(_ baseURL: String, for provider: VoiceASRProvider) {
+    let key = byokBaseURLKeyLocked(for: provider)
+    userDefaults.set(baseURL.trimmingCharacters(in: .whitespacesAndNewlines), forKey: key)
+  }
+
+  func loadByokModelLocked(for provider: VoiceASRProvider) -> String {
+    let key = byokModelKeyLocked(for: provider)
+    let value = (userDefaults.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !value.isEmpty {
+      return value
+    }
+    return provider.defaultModel
+  }
+
+  func saveByokModelLocked(_ model: String, for provider: VoiceASRProvider) {
+    let key = byokModelKeyLocked(for: provider)
+    userDefaults.set(model.trimmingCharacters(in: .whitespacesAndNewlines), forKey: key)
+  }
+
+  func keychainAccountLocked(for provider: VoiceASRProvider) -> String {
+    Constants.keychainAccountPrefix + provider.rawValue
+  }
+
+  func keychainQueryLocked(account: String) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Constants.keychainService,
+      kSecAttrAccount as String: account
+    ]
+  }
+
+  func readRawAPIKeyLocked(account: String) -> String? {
+    var query = keychainQueryLocked(account: account)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    guard status == errSecSuccess, let data = result as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func saveRawAPIKeyLocked(_ apiKey: String?, account: String) {
+    let query = keychainQueryLocked(account: account)
+    SecItemDelete(query as CFDictionary)
+    guard let apiKey, !apiKey.isEmpty else { return }
+    var insert = query
+    insert[kSecValueData as String] = apiKey.data(using: .utf8)
+    SecItemAdd(insert as CFDictionary, nil)
+  }
+
+  func readAPIKeyLocked(for provider: VoiceASRProvider) -> String? {
+    let account = keychainAccountLocked(for: provider)
+    return readRawAPIKeyLocked(account: account)
+  }
+
+  func saveAPIKeyLocked(_ apiKey: String?, for provider: VoiceASRProvider) {
+    let account = keychainAccountLocked(for: provider)
+    saveRawAPIKeyLocked(apiKey, account: account)
+  }
+}
+
+enum VoiceASRServiceError: LocalizedError {
+  case disabled
+  case proxyEndpointMissing
+  case byokEndpointMissing
+  case byokAPIKeyMissing
+  case providerDirectUnsupported(provider: VoiceASRProvider)
+  case invalidResponse
+  case emptyResponse
+  case requestFailed(message: String)
+
+  var errorDescription: String? {
+    switch self {
+    case .disabled:
+      return "在线 ASR 未开启"
+    case .proxyEndpointMissing:
+      return "ASR 代理地址未配置"
+    case .byokEndpointMissing:
+      return "ASR Base URL 未配置"
+    case .byokAPIKeyMissing:
+      return "ASR API Key 未配置"
+    case .providerDirectUnsupported(let provider):
+      return "\(provider.displayName) 当前不支持应用内直连，请改用代理模式。"
+    case .invalidResponse:
+      return "ASR 返回格式异常"
+    case .emptyResponse:
+      return "ASR 返回为空"
+    case .requestFailed(let message):
+      return "ASR 请求失败：\(message)"
+    }
+  }
+}
+
+final class VoiceASRService {
+  static let shared = VoiceASRService()
+
+  private let settingsStore: VoiceASRSettingsStore
+  private let session: URLSession
+
+  init(settingsStore: VoiceASRSettingsStore = .shared, session: URLSession = .shared) {
+    self.settingsStore = settingsStore
+    self.session = session
+  }
+
+  func transcribe(audioFileURL: URL, localeIdentifier: String?) async throws -> String {
+    let config = settingsStore.runtimeConfig()
+    return try await transcribe(audioFileURL: audioFileURL, localeIdentifier: localeIdentifier, config: config)
+  }
+
+  func transcribe(
+    audioFileURL: URL,
+    localeIdentifier: String?,
+    config: VoiceASRRuntimeConfig
+  ) async throws -> String {
+    guard config.mode != .disabled else { throw VoiceASRServiceError.disabled }
+    switch config.provider.directCallType {
+    case .openAITranscriptions:
+      return try await transcribeViaOpenAICompatible(
+        audioFileURL: audioFileURL,
+        localeIdentifier: localeIdentifier,
+        config: config
+      )
+    case .deepgramListen:
+      return try await transcribeViaDeepgram(
+        audioFileURL: audioFileURL,
+        localeIdentifier: localeIdentifier,
+        config: config
+      )
+    case .proxyOnly:
+      return try await transcribeViaProxy(
+        audioFileURL: audioFileURL,
+        localeIdentifier: localeIdentifier,
+        config: config
+      )
+    }
+  }
+}
+
+private extension VoiceASRService {
+  struct SimpleTextResponse: Decodable {
+    let text: String?
+  }
+
+  struct ErrorResponseBody: Decodable {
+    struct ErrorMessage: Decodable {
+      let message: String?
+    }
+    let error: ErrorMessage?
+    let message: String?
+  }
+
+  struct DeepgramResponseBody: Decodable {
+    struct ResultBody: Decodable {
+      struct Channel: Decodable {
+        struct Alternative: Decodable {
+          let transcript: String?
+        }
+        let alternatives: [Alternative]?
+      }
+      let channels: [Channel]?
+    }
+    let results: ResultBody?
+  }
+
+  func transcribeViaProxy(
+    audioFileURL: URL,
+    localeIdentifier: String?,
+    config: VoiceASRRuntimeConfig
+  ) async throws -> String {
+    let endpoint = config.proxyEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !endpoint.isEmpty else {
+      throw VoiceASRServiceError.providerDirectUnsupported(provider: config.provider)
+    }
+    guard let endpointURL = URL(string: endpoint) else {
+      throw VoiceASRServiceError.requestFailed(message: "ASR 代理地址无效")
+    }
+
+    let audioData = try Data(contentsOf: audioFileURL)
+    let boundary = "Boundary-\(UUID().uuidString)"
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 30
+    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+    let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? config.provider.defaultModel
+      : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    let fields = [
+      "provider": config.provider.rawValue,
+      "model": model,
+      "locale": normalizedLanguageCode(from: localeIdentifier)
+    ]
+    request.httpBody = buildMultipartBody(
+      boundary: boundary,
+      fields: fields,
+      fileFieldName: "file",
+      fileName: "dictation.wav",
+      mimeType: "audio/wav",
+      fileData: audioData
+    )
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceASRServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceASRServiceError.requestFailed(message: message)
+    }
+    let payload = try JSONDecoder().decode(SimpleTextResponse.self, from: data)
+    let text = (payload.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty else { throw VoiceASRServiceError.emptyResponse }
+    return text
+  }
+
+  func transcribeViaOpenAICompatible(
+    audioFileURL: URL,
+    localeIdentifier: String?,
+    config: VoiceASRRuntimeConfig
+  ) async throws -> String {
+    let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !baseURL.isEmpty else {
+      throw VoiceASRServiceError.byokEndpointMissing
+    }
+    guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+      throw VoiceASRServiceError.byokAPIKeyMissing
+    }
+
+    let endpointString = baseURL.hasSuffix("/") ? (baseURL + "audio/transcriptions") : (baseURL + "/audio/transcriptions")
+    guard let endpointURL = URL(string: endpointString) else {
+      throw VoiceASRServiceError.requestFailed(message: "ASR Base URL 无效")
+    }
+
+    let audioData = try Data(contentsOf: audioFileURL)
+    let boundary = "Boundary-\(UUID().uuidString)"
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 35
+    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+    let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? config.provider.defaultModel
+      : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    let fields = [
+      "model": model,
+      "response_format": "json",
+      "language": normalizedLanguageCode(from: localeIdentifier)
+    ]
+    request.httpBody = buildMultipartBody(
+      boundary: boundary,
+      fields: fields,
+      fileFieldName: "file",
+      fileName: "dictation.wav",
+      mimeType: "audio/wav",
+      fileData: audioData
+    )
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceASRServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceASRServiceError.requestFailed(message: message)
+    }
+
+    let payload = try JSONDecoder().decode(SimpleTextResponse.self, from: data)
+    let text = (payload.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty else { throw VoiceASRServiceError.emptyResponse }
+    return text
+  }
+
+  func transcribeViaDeepgram(
+    audioFileURL: URL,
+    localeIdentifier: String?,
+    config: VoiceASRRuntimeConfig
+  ) async throws -> String {
+    let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !baseURL.isEmpty else {
+      throw VoiceASRServiceError.byokEndpointMissing
+    }
+    guard let apiKey = config.apiKey, !apiKey.isEmpty else {
+      throw VoiceASRServiceError.byokAPIKeyMissing
+    }
+
+    let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      ? config.provider.defaultModel
+      : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
+    let language = normalizedLanguageCode(from: localeIdentifier)
+    let endpointString = "\(baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL)/listen?model=\(model)&smart_format=true&punctuate=true&language=\(language)"
+    guard let endpointURL = URL(string: endpointString) else {
+      throw VoiceASRServiceError.requestFailed(message: "Deepgram 地址无效")
+    }
+
+    let audioData = try Data(contentsOf: audioFileURL)
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 35
+    request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
+    request.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
+    request.httpBody = audioData
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceASRServiceError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceASRServiceError.requestFailed(message: message)
+    }
+
+    let payload = try JSONDecoder().decode(DeepgramResponseBody.self, from: data)
+    let transcript = payload.results?.channels?.first?.alternatives?.first?.transcript?
+      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard !transcript.isEmpty else { throw VoiceASRServiceError.emptyResponse }
+    return transcript
+  }
+
+  func buildMultipartBody(
+    boundary: String,
+    fields: [String: String],
+    fileFieldName: String,
+    fileName: String,
+    mimeType: String,
+    fileData: Data
+  ) -> Data {
+    var body = Data()
+    let lineBreak = "\r\n"
+
+    for (key, value) in fields where !value.isEmpty {
+      body.append("--\(boundary)\(lineBreak)")
+      body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak)\(lineBreak)")
+      body.append("\(value)\(lineBreak)")
+    }
+
+    body.append("--\(boundary)\(lineBreak)")
+    body.append("Content-Disposition: form-data; name=\"\(fileFieldName)\"; filename=\"\(fileName)\"\(lineBreak)")
+    body.append("Content-Type: \(mimeType)\(lineBreak)\(lineBreak)")
+    body.append(fileData)
+    body.append(lineBreak)
+    body.append("--\(boundary)--\(lineBreak)")
+    return body
+  }
+
+  func normalizedLanguageCode(from localeIdentifier: String?) -> String {
+    let locale = (localeIdentifier ?? "").lowercased()
+    if locale.hasPrefix("zh") {
+      return "zh"
+    }
+    if locale.hasPrefix("ja") {
+      return "ja"
+    }
+    if locale.hasPrefix("en") {
+      return "en"
+    }
+    return "auto"
+  }
+
+  func decodeErrorMessage(data: Data) -> String? {
+    if let payload = try? JSONDecoder().decode(ErrorResponseBody.self, from: data) {
+      let message = payload.error?.message ?? payload.message
+      if let message {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+          return trimmed
+        }
+      }
+    }
+    if let text = String(data: data, encoding: .utf8) {
+      let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return trimmed
+      }
+    }
+    return nil
+  }
+}
+
+private extension Data {
+  mutating func append(_ string: String) {
+    if let data = string.data(using: .utf8) {
+      append(data)
+    }
+  }
+}
+
 enum VoiceLLMAuthMode: String, Codable, CaseIterable {
   case proxy
   case byok
@@ -1943,6 +2699,7 @@ final class VoiceSpeechRecognizerEngine {
     case appleOnDevice
     case appleNetwork
     case whisperOnDevice
+    case cloudNetwork
   }
 
   struct StartStrategy {
@@ -1950,6 +2707,9 @@ final class VoiceSpeechRecognizerEngine {
     let prefersOnDevice: Bool
     let allowNetworkFallback: Bool
     let allowWhisperFallback: Bool
+    let enginePreference: VoiceASREnginePreference
+    let cloudMode: VoiceASRMode
+    let cloudRuntimeConfig: VoiceASRRuntimeConfig
     let retryCount: Int
     let whisperModelID: String?
     let contextualStrings: [String]
@@ -1959,11 +2719,15 @@ final class VoiceSpeechRecognizerEngine {
       let prefersOnDevice = normalized.hasPrefix("zh") || normalized.hasPrefix("en") || normalized.hasPrefix("ja")
       let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModel()
       let contextualStrings = VoicePersonalDictionaryStore.shared.hotwords(limit: 40)
+      let cloudRuntimeConfig = VoiceASRSettingsStore.shared.runtimeConfig()
       return StartStrategy(
         localeIdentifier: localeIdentifier,
         prefersOnDevice: prefersOnDevice,
         allowNetworkFallback: true,
         allowWhisperFallback: selectedWhisperModel != nil,
+        enginePreference: cloudRuntimeConfig.enginePreference,
+        cloudMode: cloudRuntimeConfig.mode,
+        cloudRuntimeConfig: cloudRuntimeConfig,
         retryCount: 1,
         whisperModelID: selectedWhisperModel?.modelID,
         contextualStrings: contextualStrings
@@ -2010,6 +2774,7 @@ final class VoiceSpeechRecognizerEngine {
     case none
     case apple(requiresOnDevice: Bool)
     case whisper(model: String?)
+    case cloud(config: VoiceASRRuntimeConfig)
   }
 
   private let audioEngine = AVAudioEngine()
@@ -2026,13 +2791,17 @@ final class VoiceSpeechRecognizerEngine {
   private var whisperConverter: AVAudioConverter?
   private var whisperOutputFormat: AVAudioFormat?
   private var whisperTranscribeTask: Task<Void, Never>?
+  private var cloudTranscribeTask: Task<Void, Never>?
   #if canImport(WhisperKit)
   private var whisperKit: WhisperKit?
   private var whisperLoadedModelID: String?
   #endif
+  private let cloudASRService: VoiceASRService
   private var isNetworkAvailable = true
+  private var activeLocaleIdentifier = "zh-CN"
 
-  init() {
+  init(cloudASRService: VoiceASRService = .shared) {
+    self.cloudASRService = cloudASRService
     networkMonitor.pathUpdateHandler = { [weak self] path in
       self?.isNetworkAvailable = (path.status == .satisfied)
     }
@@ -2051,63 +2820,56 @@ final class VoiceSpeechRecognizerEngine {
     onRouteChanged: @escaping (Route) -> Void = { _ in },
     onError: @escaping (EngineError) -> Void = { _ in }
   ) async throws {
-    try await requestPermissions()
+    try await requestMicrophonePermission()
     stop(cancel: true)
     onResultHandler = onResult
     onErrorHandler = onError
 
     let resolvedStrategy = strategy ?? .recommended(for: localeIdentifier)
+    activeLocaleIdentifier = resolvedStrategy.localeIdentifier
     let attempts = max(1, resolvedStrategy.retryCount + 1)
     var startErrors: [EngineError] = []
+    var canUseSpeechFramework = false
 
-    // 阶段2：优先离线 Apple，再回退在线 Apple，最后回退 Whisper 离线，保障可恢复性。
-    if resolvedStrategy.prefersOnDevice {
-      for _ in 0..<attempts {
-        do {
-          try startSpeechRecognition(
-            localeIdentifier: resolvedStrategy.localeIdentifier,
-            requiresOnDevice: true,
-            contextualStrings: resolvedStrategy.contextualStrings,
-            onResult: onResult,
-            onError: onError
-          )
-          activePipeline = .apple(requiresOnDevice: true)
-          onRouteChanged(.appleOnDevice)
-          return
-        } catch let error as EngineError {
-          startErrors.append(error)
-        } catch {
-          startErrors.append(.runtimeFailure(message: error.localizedDescription))
-        }
+    let speechRecognitionNeeded: Bool
+    switch resolvedStrategy.enginePreference {
+    case .apple:
+      speechRecognitionNeeded = true
+    case .auto:
+      speechRecognitionNeeded = resolvedStrategy.prefersOnDevice || resolvedStrategy.allowNetworkFallback
+    case .whisper, .cloud:
+      speechRecognitionNeeded = false
+    }
+
+    if speechRecognitionNeeded {
+      do {
+        try await requestSpeechPermission()
+        canUseSpeechFramework = true
+      } catch let error as EngineError {
+        startErrors.append(error)
+      } catch {
+        startErrors.append(.runtimeFailure(message: error.localizedDescription))
       }
     }
 
-    if resolvedStrategy.allowNetworkFallback {
-      if isNetworkAvailable {
-        for _ in 0..<attempts {
-          do {
-            try startSpeechRecognition(
-              localeIdentifier: resolvedStrategy.localeIdentifier,
-              requiresOnDevice: false,
-              contextualStrings: resolvedStrategy.contextualStrings,
-              onResult: onResult,
-              onError: onError
-            )
-            activePipeline = .apple(requiresOnDevice: false)
-            onRouteChanged(.appleNetwork)
-            return
-          } catch let error as EngineError {
-            startErrors.append(error)
-          } catch {
-            startErrors.append(.runtimeFailure(message: error.localizedDescription))
-          }
-        }
-      } else {
-        startErrors.append(.networkUnavailable)
+    switch resolvedStrategy.enginePreference {
+    case .cloud:
+      do {
+        try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
+        activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
+        onRouteChanged(.cloudNetwork)
+        return
+      } catch let error as EngineError {
+        startErrors.append(error)
+      } catch {
+        startErrors.append(.runtimeFailure(message: error.localizedDescription))
       }
-    }
+      throw composeStartError(from: startErrors)
 
-    if resolvedStrategy.allowWhisperFallback, let whisperModelID = resolvedStrategy.whisperModelID {
+    case .whisper:
+      guard let whisperModelID = resolvedStrategy.whisperModelID, !whisperModelID.isEmpty else {
+        throw EngineError.runtimeFailure(message: "当前固定使用 Whisper，但未下载可用 Whisper 模型。")
+      }
       do {
         try startWhisperRecording(modelID: whisperModelID)
         activePipeline = .whisper(model: whisperModelID)
@@ -2118,15 +2880,88 @@ final class VoiceSpeechRecognizerEngine {
       } catch {
         startErrors.append(.runtimeFailure(message: error.localizedDescription))
       }
-    }
+      throw composeStartError(from: startErrors)
 
-    throw composeStartError(from: startErrors)
+    case .apple:
+      guard canUseSpeechFramework else {
+        throw composeStartError(from: startErrors)
+      }
+      if tryStartApplePipelines(
+        strategy: resolvedStrategy,
+        attempts: attempts,
+        onResult: onResult,
+        onRouteChanged: onRouteChanged,
+        onError: onError,
+        startErrors: &startErrors
+      ) {
+        return
+      }
+      throw composeStartError(from: startErrors)
+
+    case .auto:
+      if resolvedStrategy.cloudMode == .preferred {
+        do {
+          try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
+          activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
+          onRouteChanged(.cloudNetwork)
+          return
+        } catch let error as EngineError {
+          startErrors.append(error)
+        } catch {
+          startErrors.append(.runtimeFailure(message: error.localizedDescription))
+        }
+      }
+
+      // 自动模式：优先离线 Apple，再回退在线 Apple，最后回退 Whisper 离线。
+      if canUseSpeechFramework,
+        tryStartApplePipelines(
+          strategy: resolvedStrategy,
+          attempts: attempts,
+          onResult: onResult,
+          onRouteChanged: onRouteChanged,
+          onError: onError,
+          startErrors: &startErrors
+        )
+      {
+        return
+      }
+
+      if resolvedStrategy.allowWhisperFallback, let whisperModelID = resolvedStrategy.whisperModelID {
+        do {
+          try startWhisperRecording(modelID: whisperModelID)
+          activePipeline = .whisper(model: whisperModelID)
+          onRouteChanged(.whisperOnDevice)
+          return
+        } catch let error as EngineError {
+          startErrors.append(error)
+        } catch {
+          startErrors.append(.runtimeFailure(message: error.localizedDescription))
+        }
+      }
+
+      if resolvedStrategy.cloudMode == .fallback {
+        do {
+          try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
+          activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
+          onRouteChanged(.cloudNetwork)
+          return
+        } catch let error as EngineError {
+          startErrors.append(error)
+        } catch {
+          startErrors.append(.runtimeFailure(message: error.localizedDescription))
+        }
+      }
+
+      throw composeStartError(from: startErrors)
+    }
   }
 
   func stop(cancel: Bool) {
     if cancel {
       whisperTranscribeTask?.cancel()
       whisperTranscribeTask = nil
+      cloudTranscribeTask?.cancel()
+      cloudTranscribeTask = nil
     }
     if audioEngine.isRunning {
       audioEngine.stop()
@@ -2146,6 +2981,12 @@ final class VoiceSpeechRecognizerEngine {
       } else {
         transcribeWhisperResult(using: model)
       }
+    case .cloud(let config):
+      if cancel {
+        clearWhisperState()
+      } else {
+        transcribeCloudResult(config: config)
+      }
     case .none:
       break
     }
@@ -2159,6 +3000,62 @@ final class VoiceSpeechRecognizerEngine {
     }
 
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+  }
+
+  private func tryStartApplePipelines(
+    strategy: StartStrategy,
+    attempts: Int,
+    onResult: @escaping (String, Bool) -> Void,
+    onRouteChanged: @escaping (Route) -> Void,
+    onError: @escaping (EngineError) -> Void,
+    startErrors: inout [EngineError]
+  ) -> Bool {
+    if strategy.prefersOnDevice {
+      for _ in 0..<attempts {
+        do {
+          try startSpeechRecognition(
+            localeIdentifier: strategy.localeIdentifier,
+            requiresOnDevice: true,
+            contextualStrings: strategy.contextualStrings,
+            onResult: onResult,
+            onError: onError
+          )
+          activePipeline = .apple(requiresOnDevice: true)
+          onRouteChanged(.appleOnDevice)
+          return true
+        } catch let error as EngineError {
+          startErrors.append(error)
+        } catch {
+          startErrors.append(.runtimeFailure(message: error.localizedDescription))
+        }
+      }
+    }
+
+    if strategy.allowNetworkFallback {
+      if !isNetworkAvailable {
+        startErrors.append(.networkUnavailable)
+      } else {
+        for _ in 0..<attempts {
+          do {
+            try startSpeechRecognition(
+              localeIdentifier: strategy.localeIdentifier,
+              requiresOnDevice: false,
+              contextualStrings: strategy.contextualStrings,
+              onResult: onResult,
+              onError: onError
+            )
+            activePipeline = .apple(requiresOnDevice: false)
+            onRouteChanged(.appleNetwork)
+            return true
+          } catch let error as EngineError {
+            startErrors.append(error)
+          } catch {
+            startErrors.append(.runtimeFailure(message: error.localizedDescription))
+          }
+        }
+      }
+    }
+    return false
   }
 
   private func startSpeechRecognition(
@@ -2273,6 +3170,64 @@ final class VoiceSpeechRecognizerEngine {
     #endif
   }
 
+  private func startCloudRecording(config: VoiceASRRuntimeConfig) throws {
+    try validateCloudConfig(config)
+    let session = AVAudioSession.sharedInstance()
+    try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+    try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+    let inputNode = audioEngine.inputNode
+    let inputFormat = inputNode.outputFormat(forBus: 0)
+    guard inputFormat.channelCount > 0 else {
+      throw EngineError.inputNodeUnavailable
+    }
+    guard let outputFormat = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: 16_000,
+      channels: 1,
+      interleaved: false
+    ) else {
+      throw EngineError.runtimeFailure(message: "无法创建云端 ASR 音频格式")
+    }
+    guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+      throw EngineError.runtimeFailure(message: "无法初始化云端 ASR 音频转换器")
+    }
+
+    clearWhisperState()
+    whisperOutputFormat = outputFormat
+    whisperConverter = converter
+
+    inputNode.removeTap(onBus: 0)
+    inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+      self?.appendWhisperBuffer(buffer)
+    }
+
+    audioEngine.prepare()
+    try audioEngine.start()
+  }
+
+  private func validateCloudConfig(_ config: VoiceASRRuntimeConfig) throws {
+    if config.mode == .disabled {
+      throw EngineError.runtimeFailure(message: "在线 ASR 已关闭")
+    }
+    switch config.provider.directCallType {
+    case .openAITranscriptions, .deepgramListen:
+      let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+      let apiKey = (config.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      if baseURL.isEmpty {
+        throw EngineError.runtimeFailure(message: "在线 ASR Base URL 未配置")
+      }
+      if apiKey.isEmpty {
+        throw EngineError.runtimeFailure(message: "在线 ASR API Key 未配置")
+      }
+    case .proxyOnly:
+      let proxy = config.proxyEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+      if proxy.isEmpty {
+        throw EngineError.runtimeFailure(message: "\(config.provider.displayName) 需通过代理调用，请先配置 ASR 代理地址")
+      }
+    }
+  }
+
   private func appendWhisperBuffer(_ inputBuffer: AVAudioPCMBuffer) {
     guard let converter = whisperConverter, let outputFormat = whisperOutputFormat else { return }
     let ratio = outputFormat.sampleRate / inputBuffer.format.sampleRate
@@ -2353,6 +3308,69 @@ final class VoiceSpeechRecognizerEngine {
     }
   }
 
+  private func transcribeCloudResult(config: VoiceASRRuntimeConfig) {
+    let samples = whisperBufferQueue.sync { whisperSamples }
+    clearWhisperState()
+
+    guard !samples.isEmpty else {
+      notifyError(.emptyAudio)
+      activePipeline = .none
+      return
+    }
+
+    cloudTranscribeTask?.cancel()
+    cloudTranscribeTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        let audioFileURL = try self.writeTemporaryWAVFile(samples: samples)
+        defer {
+          try? FileManager.default.removeItem(at: audioFileURL)
+        }
+
+        let text = try await self.cloudASRService.transcribe(
+          audioFileURL: audioFileURL,
+          localeIdentifier: self.activeLocaleIdentifier,
+          config: config
+        )
+        try Task.checkCancellation()
+        await MainActor.run {
+          self.onResultHandler?(text, true)
+        }
+      } catch is CancellationError {
+        return
+      } catch let error as VoiceASRServiceError {
+        self.notifyError(.runtimeFailure(message: error.localizedDescription))
+      } catch {
+        self.notifyError(.runtimeFailure(message: error.localizedDescription))
+      }
+      self.activePipeline = .none
+    }
+  }
+
+  private func writeTemporaryWAVFile(samples: [Float]) throws -> URL {
+    let tempURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nanomouse_asr_\(UUID().uuidString)")
+      .appendingPathExtension("wav")
+    guard let format = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1) else {
+      throw EngineError.runtimeFailure(message: "无法创建 WAV 输出格式")
+    }
+    guard let buffer = AVAudioPCMBuffer(
+      pcmFormat: format,
+      frameCapacity: AVAudioFrameCount(samples.count)
+    ) else {
+      throw EngineError.runtimeFailure(message: "无法创建 WAV 缓冲区")
+    }
+    buffer.frameLength = AVAudioFrameCount(samples.count)
+    if let channelData = buffer.floatChannelData?[0] {
+      for (index, sample) in samples.enumerated() {
+        channelData[index] = sample
+      }
+    }
+    let file = try AVAudioFile(forWriting: tempURL, settings: format.settings)
+    try file.write(from: buffer)
+    return tempURL
+  }
+
   private func transcribeWithWhisper(samples: [Float], modelID: String) async throws -> String {
     #if canImport(WhisperKit)
     let whisper = try await loadWhisperKit(modelID: modelID)
@@ -2430,14 +3448,16 @@ final class VoiceSpeechRecognizerEngine {
     return .runtimeFailure(message: message)
   }
 
-  private func requestPermissions() async throws {
+  private func requestMicrophonePermission() async throws {
     let microphoneGranted = await withCheckedContinuation { continuation in
       AVAudioSession.sharedInstance().requestRecordPermission { granted in
         continuation.resume(returning: granted)
       }
     }
     guard microphoneGranted else { throw EngineError.microphonePermissionDenied }
+  }
 
+  private func requestSpeechPermission() async throws {
     let speechAuthorization = await withCheckedContinuation { continuation in
       SFSpeechRecognizer.requestAuthorization { status in
         continuation.resume(returning: status)
