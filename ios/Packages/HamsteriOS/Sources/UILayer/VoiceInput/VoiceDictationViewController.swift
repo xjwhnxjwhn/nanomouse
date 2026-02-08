@@ -371,24 +371,14 @@ final class VoiceDictationViewController: NibLessViewController {
 
   private func makeModeHintText() -> String {
     let asrConfig = VoiceASRSettingsStore.shared.runtimeConfig()
-    let asrHint: String
-    switch asrConfig.enginePreference {
-    case .apple:
-      asrHint = "ASR 引擎：Apple（固定）。"
-    case .whisper:
-      asrHint = "ASR 引擎：Whisper（固定离线）。"
-    case .cloud:
-      asrHint = "ASR 引擎：在线（\(asrConfig.provider.displayName)）。"
-    case .auto:
-      switch asrConfig.mode {
-      case .disabled:
-        asrHint = "ASR 引擎：自动（仅本地 Apple/Whisper）。"
-      case .fallback:
-        asrHint = "ASR 引擎：自动（在线兜底：\(asrConfig.provider.displayName)）。"
-      case .preferred:
-        asrHint = "ASR 引擎：自动（在线优先：\(asrConfig.provider.displayName)）。"
+    let selectedEngines = asrConfig.selectedEngines
+    let engineText = selectedEngines.map { engine -> String in
+      if engine == .cloud {
+        return "在线（优先）"
       }
-    }
+      return engine.displayName
+    }.joined(separator: " + ")
+    let asrHint = "ASR 引擎：\(engineText)。"
 
     if !llmSettingsStore.isLLMEnabled() {
       return "\(asrHint) AI 预设整理已关闭，完成后仅使用本地文本清洗规则。"

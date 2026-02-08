@@ -1199,10 +1199,10 @@ final class VoiceModelManagementViewController: NibLessViewController {
   private let modelView = VoiceModelManagementRootView()
   private let modelStore: VoiceWhisperModelStore = .shared
   private let asrSettingsStore: VoiceASRSettingsStore = .shared
-  private lazy var asrSettingsController = VoiceASRSettingsViewController()
+  private lazy var whisperSettingsController = VoiceWhisperSettingsViewController()
+  private lazy var cloudSettingsController = VoiceCloudASRSettingsViewController()
   private let engineOptions: [VoiceASREnginePreference] = VoiceASREnginePreference.allCases
   private var models: [VoiceWhisperModelStatus] = []
-  private var downloadingModelID: String?
 
   override func loadView() {
     title = "语音模型"
@@ -1214,7 +1214,6 @@ final class VoiceModelManagementViewController: NibLessViewController {
     modelView.tableView.dataSource = self
     modelView.tableView.delegate = self
     modelView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceModelEntryCell")
-    modelView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
     refreshModels()
   }
 
@@ -1225,9 +1224,207 @@ final class VoiceModelManagementViewController: NibLessViewController {
 
   private func refreshModels() {
     models = modelStore.availableModelStatuses()
+    sanitizeSelectedEngines()
     let isAppleOnly = !models.contains(where: { $0.isDownloaded })
     modelView.updateSummary(isAppleOnly: isAppleOnly)
     modelView.tableView.reloadData()
+  }
+
+  private func sanitizeSelectedEngines() {
+    let hasWhisperModel = models.contains(where: { $0.isDownloaded })
+    let provider = asrSettingsStore.provider()
+    let hasOnlineAPIKey = !(asrSettingsStore.apiKey(for: provider) ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .isEmpty
+
+    var selected = asrSettingsStore.selectedEngines()
+    selected.removeAll { engine in
+      (engine == .whisper && !hasWhisperModel) || (engine == .cloud && !hasOnlineAPIKey)
+    }
+    if selected.isEmpty {
+      selected = [.apple]
+    }
+    asrSettingsStore.setSelectedEngines(selected)
+  }
+
+  private func presentErrorAlert(message: String) {
+    let controller = UIAlertController(title: "操作失败", message: message, preferredStyle: .alert)
+    controller.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(controller, animated: true)
+  }
+}
+
+extension VoiceModelManagementViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    engineOptions.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceModelEntryCell", for: indexPath)
+    let option = engineOptions[indexPath.row]
+    let selectedEngines = asrSettingsStore.selectedEngines()
+    let selected = selectedEngines.contains(option)
+    var config = cell.defaultContentConfiguration()
+    if option == .cloud {
+      config.text = selected ? "在线（优先）" : "在线"
+    } else {
+      config.text = option.displayName
+    }
+    config.secondaryText = engineSummary(for: option, selected: selected)
+    config.image = engineIcon(for: option)
+    config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
+    config.secondaryTextProperties.color = .secondaryLabel
+    cell.contentConfiguration = config
+    if option == .apple {
+      cell.accessoryType = selected ? .checkmark : .none
+    } else {
+      cell.accessoryType = .disclosureIndicator
+    }
+    cell.selectionStyle = .default
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    "识别引擎"
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    "你可以勾选多个引擎；若勾选“在线”，系统会优先使用在线 ASR。点击 Whisper 或 在线 可进入独立设置页面。"
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    let tapped = engineOptions[indexPath.row]
+    if tapped == .whisper {
+      navigationController?.pushViewController(whisperSettingsController, animated: true)
+      return
+    }
+    if tapped == .cloud {
+      navigationController?.pushViewController(cloudSettingsController, animated: true)
+      return
+    }
+    var selectedEngines = asrSettingsStore.selectedEngines()
+    if let existingIndex = selectedEngines.firstIndex(of: tapped) {
+      selectedEngines.remove(at: existingIndex)
+      if selectedEngines.isEmpty {
+        presentErrorAlert(message: "至少需要勾选一个识别引擎。")
+        return
+      }
+    } else {
+      selectedEngines.append(tapped)
+    }
+    asrSettingsStore.setSelectedEngines(selectedEngines)
+    tableView.reloadSections(IndexSet(integer: 0), with: .none)
+  }
+
+  private func engineSummary(for option: VoiceASREnginePreference, selected: Bool) -> String {
+    switch option {
+    case .apple:
+      return selected ? "已启用" : "点击勾选"
+    case .whisper:
+      return selected ? "已启用" : "需要已下载模型"
+    case .cloud:
+      return selected ? "已启用 · 优先" : "需要 API Key，勾选后优先"
+    }
+  }
+
+  private func engineIcon(for option: VoiceASREnginePreference) -> UIImage? {
+    switch option {
+    case .apple:
+      return UIImage(systemName: "apple.logo")
+    case .whisper:
+      return UIImage(systemName: "waveform")
+    case .cloud:
+      return UIImage(systemName: "cloud")
+    }
+  }
+}
+
+final class VoiceWhisperSettingsViewController: NibLessViewController {
+  private let settingsView = VoiceModelManagementRootView()
+  private let modelStore: VoiceWhisperModelStore = .shared
+  private let asrSettingsStore: VoiceASRSettingsStore = .shared
+  private var models: [VoiceWhisperModelStatus] = []
+  private var downloadingModelID: String?
+
+  private lazy var whisperEnabledSwitch: UISwitch = {
+    let control = UISwitch(frame: .zero)
+    control.addTarget(self, action: #selector(handleWhisperSwitchChanged(_:)), for: .valueChanged)
+    return control
+  }()
+
+  override func loadView() {
+    title = "Whisper 设置"
+    view = settingsView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    settingsView.tableView.dataSource = self
+    settingsView.tableView.delegate = self
+    settingsView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWhisperToggleCell")
+    settingsView.tableView.register(VoiceModelCell.self, forCellReuseIdentifier: VoiceModelCell.identifier)
+    refreshModels()
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    refreshModels()
+  }
+
+  private func refreshModels() {
+    models = modelStore.availableModelStatuses()
+    syncWhisperSelectionWithAvailability()
+    let isAppleOnly = !models.contains(where: { $0.isDownloaded })
+    settingsView.updateSummary(isAppleOnly: isAppleOnly)
+    settingsView.tableView.reloadData()
+  }
+
+  private func syncWhisperSelectionWithAvailability() {
+    let hasDownloadedModel = models.contains(where: { $0.isDownloaded })
+    var selectedEngines = asrSettingsStore.selectedEngines()
+    if !hasDownloadedModel, let index = selectedEngines.firstIndex(of: .whisper) {
+      selectedEngines.remove(at: index)
+      if selectedEngines.isEmpty {
+        selectedEngines = [.apple]
+      }
+      asrSettingsStore.setSelectedEngines(selectedEngines)
+    }
+  }
+
+  private func isWhisperEnabled() -> Bool {
+    asrSettingsStore.selectedEngines().contains(.whisper)
+  }
+
+  private func setWhisperEnabled(_ enabled: Bool) {
+    var selectedEngines = asrSettingsStore.selectedEngines()
+    let hasWhisper = selectedEngines.contains(.whisper)
+    if enabled {
+      if !hasWhisper {
+        selectedEngines.append(.whisper)
+      }
+    } else if let index = selectedEngines.firstIndex(of: .whisper) {
+      selectedEngines.remove(at: index)
+      if selectedEngines.isEmpty {
+        selectedEngines = [.apple]
+      }
+    }
+    asrSettingsStore.setSelectedEngines(selectedEngines)
+  }
+
+  @objc private func handleWhisperSwitchChanged(_ sender: UISwitch) {
+    let hasDownloadedModel = models.contains(where: { $0.isDownloaded })
+    if sender.isOn, !hasDownloadedModel {
+      sender.setOn(false, animated: true)
+      presentErrorAlert(message: "请先下载至少一个 Whisper 模型，然后再启用 Whisper 引擎。")
+      return
+    }
+    setWhisperEnabled(sender.isOn)
+    settingsView.tableView.reloadSections(IndexSet(integer: 0), with: .none)
   }
 
   private func handleAction(at indexPath: IndexPath) {
@@ -1239,7 +1436,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
     }
 
     downloadingModelID = model.option.id
-    modelView.tableView.reloadRows(at: [indexPath], with: .none)
+    settingsView.tableView.reloadRows(at: [indexPath], with: .none)
     Task { [weak self] in
       guard let self else { return }
       do {
@@ -1277,59 +1474,34 @@ final class VoiceModelManagementViewController: NibLessViewController {
   }
 }
 
-extension VoiceModelManagementViewController: UITableViewDataSource, UITableViewDelegate {
-  private func showsOnlineSection(for engine: VoiceASREnginePreference) -> Bool {
-    engine == .cloud || engine == .auto
-  }
-
-  private func showsWhisperSection(for engine: VoiceASREnginePreference) -> Bool {
-    engine == .whisper || engine == .auto
-  }
-
+extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    3
+    2
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    let selectedEngine = asrSettingsStore.enginePreference()
     if section == 0 {
-      return engineOptions.count
-    }
-    if section == 1 {
-      guard showsOnlineSection(for: selectedEngine) else { return 0 }
       return 1
     }
-    guard showsWhisperSection(for: selectedEngine) else { return 0 }
     return models.count
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if indexPath.section == 0 {
-      let option = engineOptions[indexPath.row]
-      let selected = asrSettingsStore.enginePreference() == option
-      let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceModelEntryCell", for: indexPath)
+      let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceWhisperToggleCell", for: indexPath)
       var config = cell.defaultContentConfiguration()
-      config.text = option.displayName
-      config.secondaryText = engineSummary(for: option)
-      config.image = engineIcon(for: option)
+      config.text = "启用 Whisper 引擎"
+      if models.contains(where: { $0.isDownloaded }) {
+        config.secondaryText = isWhisperEnabled() ? "已启用 Whisper；听写时可与其他引擎并行配置。" : "未启用；打开后可在听写链路中使用 Whisper。"
+      } else {
+        config.secondaryText = "当前没有已下载模型，请先在下方下载模型。"
+      }
       config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
       config.secondaryTextProperties.color = .secondaryLabel
       cell.contentConfiguration = config
-      cell.accessoryType = selected ? .checkmark : .none
-      cell.selectionStyle = .default
-      return cell
-    }
-
-    if indexPath.section == 1 {
-      let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceModelEntryCell", for: indexPath)
-      var config = cell.defaultContentConfiguration()
-      config.text = "在线 ASR 配置"
-      config.secondaryText = "配置云端语音识别 Provider、模型、API Key"
-      config.image = UIImage(systemName: "cloud.mic")
-      config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
-      config.secondaryTextProperties.color = .secondaryLabel
-      cell.contentConfiguration = config
-      cell.accessoryType = .disclosureIndicator
+      whisperEnabledSwitch.isOn = isWhisperEnabled()
+      whisperEnabledSwitch.isEnabled = models.contains(where: { $0.isDownloaded })
+      cell.accessoryView = whisperEnabledSwitch
       cell.selectionStyle = .default
       return cell
     }
@@ -1346,50 +1518,32 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    let selectedEngine = asrSettingsStore.enginePreference()
     if section == 0 {
-      return "识别引擎"
+      return "Whisper 开关"
     }
-    if section == 1 {
-      guard showsOnlineSection(for: selectedEngine) else { return nil }
-      return "在线语音识别"
-    }
-    guard showsWhisperSection(for: selectedEngine) else { return nil }
     return "Whisper 离线模型"
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    let selectedEngine = asrSettingsStore.enginePreference()
     if section == 0 {
-      return "你在这里选择听写时实际使用的 ASR 引擎。固定引擎不会自动切换。"
+      return "启用后，Whisper 会作为你勾选的识别引擎之一参与听写；关闭后将不再使用 Whisper。"
     }
-    if section == 1 {
-      guard showsOnlineSection(for: selectedEngine) else { return nil }
-      return "仅当你选择“在线”或“自动+在线策略”时会用到这里的配置。"
-    }
-    guard showsWhisperSection(for: selectedEngine) else { return nil }
-    return "点击“下载”后才会拉取模型。左滑可删除模型；当模型全部删除后，系统将仅使用 Apple Speech。"
+    return "点击“下载”后才会拉取模型；左滑可删除模型。你可以下载多个模型并切换默认模型。"
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     if indexPath.section == 0 {
-      let selected = engineOptions[indexPath.row]
-      asrSettingsStore.setEnginePreference(selected)
-      if selected == .cloud, asrSettingsStore.mode() == .disabled {
-        // 固定在线引擎时强制开启在线模式，避免“已选在线但模式关闭”。
-        asrSettingsStore.setMode(.preferred)
-      }
-      tableView.reloadSections(IndexSet([0, 1, 2]), with: .none)
+      let targetState = !whisperEnabledSwitch.isOn
+      whisperEnabledSwitch.setOn(targetState, animated: true)
+      handleWhisperSwitchChanged(whisperEnabledSwitch)
       return
     }
-    if indexPath.section == 1 {
-      navigationController?.pushViewController(asrSettingsController, animated: true)
-    }
+    handleAction(at: indexPath)
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    guard indexPath.section == 2 else { return nil }
+    guard indexPath.section == 1 else { return nil }
     let status = models[indexPath.row]
     guard status.isDownloaded else { return nil }
     let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
@@ -1397,31 +1551,195 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
     }
     return UISwipeActionsConfiguration(actions: [deleteAction])
   }
+}
 
-  private func engineSummary(for option: VoiceASREnginePreference) -> String {
-    switch option {
-    case .auto:
-      return "按策略自动选择 Apple / Whisper / 在线"
-    case .apple:
-      return "固定使用 Apple Speech"
-    case .whisper:
-      return "固定使用 Whisper 离线模型"
-    case .cloud:
-      return "固定使用在线 ASR"
+final class VoiceCloudASRSettingsViewController: NibLessViewController {
+  private let settingsStore: VoiceASRSettingsStore = .shared
+  private lazy var asrSettingsController = VoiceASRSettingsViewController()
+
+  private let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }()
+
+  override func loadView() {
+    title = "在线设置"
+    let rootView = UIView(frame: .zero)
+    rootView.backgroundColor = .systemBackground
+    rootView.addSubview(tableView)
+    NSLayoutConstraint.activate([
+      tableView.topAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.topAnchor),
+      tableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+    ])
+    view = rootView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    tableView.dataSource = self
+    tableView.delegate = self
+    tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceCloudCell")
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    sanitizeCloudSelectionWithConfiguration()
+    tableView.reloadData()
+  }
+
+  private func isCloudEnabled() -> Bool {
+    settingsStore.selectedEngines().contains(.cloud)
+  }
+
+  private func hasSavedOnlineConfiguration() -> Bool {
+    let provider = settingsStore.provider()
+    let apiKey = (settingsStore.apiKey(for: provider) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return !apiKey.isEmpty
+  }
+
+  private func sanitizeCloudSelectionWithConfiguration() {
+    guard !hasSavedOnlineConfiguration() else { return }
+    var selectedEngines = settingsStore.selectedEngines()
+    if let index = selectedEngines.firstIndex(of: .cloud) {
+      selectedEngines.remove(at: index)
+      if selectedEngines.isEmpty {
+        selectedEngines = [.apple]
+      }
+      settingsStore.setSelectedEngines(selectedEngines)
     }
   }
 
-  private func engineIcon(for option: VoiceASREnginePreference) -> UIImage? {
-    switch option {
-    case .auto:
-      return UIImage(systemName: "arrow.triangle.2.circlepath")
-    case .apple:
-      return UIImage(systemName: "apple.logo")
-    case .whisper:
-      return UIImage(systemName: "waveform")
-    case .cloud:
-      return UIImage(systemName: "cloud")
+  private func setCloudEnabled(_ enabled: Bool) -> Bool {
+    var selectedEngines = settingsStore.selectedEngines()
+    let hasCloud = selectedEngines.contains(.cloud)
+    if enabled {
+      let provider = settingsStore.provider()
+      let apiKey = (settingsStore.apiKey(for: provider) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !apiKey.isEmpty else {
+        presentMissingAPIKeyAlert()
+        return false
+      }
+      if !hasCloud {
+        selectedEngines.append(.cloud)
+      }
+    } else if let index = selectedEngines.firstIndex(of: .cloud) {
+      selectedEngines.remove(at: index)
+      if selectedEngines.isEmpty {
+        selectedEngines = [.apple]
+      }
     }
+    settingsStore.setSelectedEngines(selectedEngines)
+    return true
+  }
+
+  @objc private func handleCloudSwitchChanged(_ sender: UISwitch) {
+    guard hasSavedOnlineConfiguration() else {
+      sender.setOn(false, animated: true)
+      presentMissingAPIKeyAlert()
+      return
+    }
+    let success = setCloudEnabled(sender.isOn)
+    if !success {
+      sender.setOn(false, animated: true)
+    }
+    DispatchQueue.main.async { [weak self] in
+      self?.tableView.reloadSections(IndexSet(integer: 0), with: .none)
+    }
+  }
+
+  private func presentMissingAPIKeyAlert() {
+    let alert = UIAlertController(
+      title: "无法启用在线引擎",
+      message: "当前 Provider 还没有 API Key。请先进入在线 ASR 配置填写 API Key。",
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "去配置", style: .default) { [weak self] _ in
+      guard let self else { return }
+      self.navigationController?.pushViewController(self.asrSettingsController, animated: true)
+    })
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    present(alert, animated: true)
+  }
+}
+
+extension VoiceCloudASRSettingsViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    2
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceCloudCell", for: indexPath)
+    var config = cell.defaultContentConfiguration()
+    if indexPath.section == 0 {
+      config.text = "启用在线引擎（优先）"
+      let savedConfig = hasSavedOnlineConfiguration()
+      if !savedConfig {
+        config.secondaryText = "未配置可用 API Key，开关已禁用。请先完成在线 ASR 配置并保存。"
+      } else {
+        config.secondaryText = isCloudEnabled() ? "已启用；听写时会优先走在线 ASR。" : "未启用；启用后会在听写中优先于本地引擎。"
+      }
+      config.image = UIImage(systemName: "cloud.fill")
+      config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
+      config.secondaryTextProperties.color = .secondaryLabel
+      cell.contentConfiguration = config
+      let switchView = UISwitch(frame: .zero)
+      switchView.isOn = isCloudEnabled()
+      switchView.isEnabled = savedConfig
+      switchView.addTarget(self, action: #selector(handleCloudSwitchChanged(_:)), for: .valueChanged)
+      cell.accessoryView = switchView
+      cell.accessoryType = .none
+      cell.selectionStyle = .default
+      return cell
+    }
+
+    let provider = settingsStore.provider()
+    let model = settingsStore.byokModel(for: provider)
+    let modelText = model.isEmpty ? "未设置模型" : model
+    config.text = "在线 ASR 配置"
+    config.secondaryText = "\(provider.displayName) · \(modelText)"
+    config.image = UIImage(systemName: "slider.horizontal.3")
+    config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
+    config.secondaryTextProperties.color = .secondaryLabel
+    cell.contentConfiguration = config
+    cell.accessoryView = nil
+    cell.accessoryType = .disclosureIndicator
+    cell.selectionStyle = .default
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    if section == 0 {
+      return "在线开关"
+    }
+    return "在线 ASR 参数"
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    if section == 0 {
+      return "你必须先在“在线 ASR 配置”里保存有效 API Key，才能开启在线引擎。"
+    }
+    return "你可以在这里配置 Provider、Base URL、模型和 API Key。"
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    if indexPath.section == 0 {
+      guard hasSavedOnlineConfiguration() else {
+        presentMissingAPIKeyAlert()
+        return
+      }
+      _ = setCloudEnabled(!isCloudEnabled())
+      tableView.reloadSections(IndexSet(integer: 0), with: .none)
+      return
+    }
+    navigationController?.pushViewController(asrSettingsController, animated: true)
   }
 }
 
@@ -1823,18 +2141,17 @@ final class VoiceASRSettingsViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    settingsView.modeControl.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
     settingsView.providerButton.addTarget(self, action: #selector(handleProviderTap), for: .touchUpInside)
     settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
     settingsView.saveButton.addTarget(self, action: #selector(handleSaveTap), for: .touchUpInside)
+    settingsView.apiKeyField.addTarget(self, action: #selector(handleAPIKeyEditingChanged), for: .editingChanged)
     loadSettings()
   }
 
   private func loadSettings() {
-    let mode = settingsStore.mode()
+    let cloudEnabled = settingsStore.selectedEngines().contains(.cloud)
     let provider = settingsStore.provider()
     currentProviderSelection = provider
-    settingsView.modeControl.selectedSegmentIndex = Self.segmentIndex(for: mode)
     settingsView.updateProviderSelection(provider: provider)
     settingsView.updateProviderPlaceholders(provider: provider)
     settingsView.updateProviderHint(provider: provider)
@@ -1842,11 +2159,12 @@ final class VoiceASRSettingsViewController: NibLessViewController {
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
     settingsView.modelField.text = settingsStore.byokModel(for: provider)
     settingsView.apiKeyField.text = settingsStore.apiKey(for: provider)
-    settingsView.updateVisibleSections(engine: settingsStore.enginePreference(), mode: mode)
+    settingsView.updateVisibleSections(cloudEnabled: cloudEnabled)
+    refreshSaveButtonState()
   }
 
-  @objc private func handleModeChanged() {
-    settingsView.updateVisibleSections(engine: settingsStore.enginePreference(), mode: selectedMode())
+  @objc private func handleAPIKeyEditingChanged() {
+    refreshSaveButtonState()
   }
 
   @objc private func handleProviderTap() {
@@ -1886,18 +2204,19 @@ final class VoiceASRSettingsViewController: NibLessViewController {
   }
 
   @objc private func handleSaveTap() {
+    let apiKeyInput = (settingsView.apiKeyField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !apiKeyInput.isEmpty else {
+      presentHintAlert(title: "无法保存", message: "请先填写 API Key，然后再保存在线 ASR 配置。")
+      return
+    }
     persistSettings()
-    let engine = settingsStore.enginePreference()
-    let mode = selectedMode()
-    settingsView.updateVisibleSections(engine: engine, mode: mode)
+    let cloudEnabled = settingsStore.selectedEngines().contains(.cloud)
+    settingsView.updateVisibleSections(cloudEnabled: cloudEnabled)
     let message: String
-    switch mode {
-    case .disabled:
-      message = "已保存在线 ASR 模式：关闭。"
-    case .fallback:
-      message = "已保存在线 ASR 模式：兜底。"
-    case .preferred:
-      message = "已保存在线 ASR 模式：优先。"
+    if !cloudEnabled {
+      message = "当前未勾选在线引擎，在线配置已保存（暂不生效）。"
+    } else {
+      message = "已保存在线 ASR 配置。在线引擎在听写中始终为优先。"
     }
     presentHintAlert(title: "保存成功", message: message)
   }
@@ -1917,19 +2236,11 @@ final class VoiceASRSettingsViewController: NibLessViewController {
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
     settingsView.modelField.text = settingsStore.byokModel(for: provider)
     settingsView.apiKeyField.text = settingsStore.apiKey(for: provider)
+    refreshSaveButtonState()
   }
 
   private func persistSettings() {
-    let engine = settingsStore.enginePreference()
-    let mode = selectedMode()
-    let effectiveMode: VoiceASRMode
-    switch engine {
-    case .cloud:
-      // 固定在线引擎时不允许 disabled，避免运行时出现“已选在线但模式关闭”的冲突状态。
-      effectiveMode = (mode == .disabled) ? .preferred : mode
-    default:
-      effectiveMode = mode
-    }
+    let cloudEnabled = settingsStore.selectedEngines().contains(.cloud)
     let provider = currentProviderSelection
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
     let baseURLInput = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1939,7 +2250,7 @@ final class VoiceASRSettingsViewController: NibLessViewController {
     let baseURL = baseURLInput.isEmpty ? provider.defaultBaseURL : baseURLInput
     let model = modelInput.isEmpty ? provider.defaultModel : modelInput
 
-    settingsStore.setMode(effectiveMode)
+    settingsStore.setMode(cloudEnabled ? .preferred : .disabled)
     settingsStore.setProvider(provider)
     settingsStore.setProxyEndpoint(proxyEndpoint)
     settingsStore.setByokBaseURL(baseURL, for: provider)
@@ -1948,29 +2259,6 @@ final class VoiceASRSettingsViewController: NibLessViewController {
 
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
-    settingsView.modeControl.selectedSegmentIndex = Self.segmentIndex(for: effectiveMode)
-  }
-
-  private func selectedMode() -> VoiceASRMode {
-    switch settingsView.modeControl.selectedSegmentIndex {
-    case 1:
-      return .fallback
-    case 2:
-      return .preferred
-    default:
-      return .disabled
-    }
-  }
-
-  private static func segmentIndex(for mode: VoiceASRMode) -> Int {
-    switch mode {
-    case .disabled:
-      return 0
-    case .fallback:
-      return 1
-    case .preferred:
-      return 2
-    }
   }
 
   private func presentHintAlert(title: String, message: String) {
@@ -1978,16 +2266,14 @@ final class VoiceASRSettingsViewController: NibLessViewController {
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)
   }
+
+  private func refreshSaveButtonState() {
+    let apiKeyInput = (settingsView.apiKeyField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    settingsView.setSaveButtonEnabled(!apiKeyInput.isEmpty)
+  }
 }
 
 final class VoiceASRSettingsRootView: NibLessView {
-  let modeControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["关闭", "兜底", "优先"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 0
-    return control
-  }()
-
   let providerButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
@@ -2074,7 +2360,6 @@ final class VoiceASRSettingsRootView: NibLessView {
     return stack
   }()
 
-  private lazy var modeSection = makeControlSection(title: "在线 ASR 模式", control: modeControl)
   private lazy var providerSection = makeControlSection(title: "Provider", control: providerButton)
 
   private lazy var proxySection = makeSection(
@@ -2121,7 +2406,6 @@ final class VoiceASRSettingsRootView: NibLessView {
     addSubview(scrollView)
     scrollView.addSubview(contentStack)
 
-    contentStack.addArrangedSubview(modeSection)
     contentStack.addArrangedSubview(modeHintLabel)
     contentStack.addArrangedSubview(providerSection)
     contentStack.addArrangedSubview(providerHintLabel)
@@ -2155,45 +2439,17 @@ final class VoiceASRSettingsRootView: NibLessView {
     updateProviderSelection(provider: .openAI)
     updateProviderPlaceholders(provider: .openAI)
     updateProviderHint(provider: .openAI)
-    updateVisibleSections(engine: .auto, mode: .disabled)
+    updateVisibleSections(cloudEnabled: false)
+    setSaveButtonEnabled(false)
   }
 
-  func updateVisibleSections(engine: VoiceASREnginePreference, mode: VoiceASRMode) {
-    let usesCloudConfig: Bool
-    switch engine {
-    case .cloud:
-      usesCloudConfig = true
-    case .auto:
-      usesCloudConfig = mode != .disabled
-    case .apple, .whisper:
-      usesCloudConfig = false
+  func updateVisibleSections(cloudEnabled: Bool) {
+    if !cloudEnabled {
+      modeHintLabel.text = "当前在线引擎未启用。你可以先填写配置，返回“在线设置”后再开启。"
+      return
     }
 
-    modeSection.isHidden = engine != .auto
-    providerSection.isHidden = !usesCloudConfig
-    providerHintLabel.isHidden = !usesCloudConfig
-    proxySection.isHidden = !usesCloudConfig
-    byokBaseURLSection.isHidden = !usesCloudConfig
-    modelSection.isHidden = !usesCloudConfig
-    apiKeySection.isHidden = !usesCloudConfig
-
-    switch engine {
-    case .auto:
-      switch mode {
-      case .disabled:
-        modeHintLabel.text = "当前是自动引擎：仅使用本地 Apple Speech / Whisper。"
-      case .fallback:
-        modeHintLabel.text = "当前是自动引擎：本地识别失败时回退在线 ASR。"
-      case .preferred:
-        modeHintLabel.text = "当前是自动引擎：优先在线 ASR，失败后回退本地。"
-      }
-    case .apple:
-      modeHintLabel.text = "当前固定使用 Apple Speech。系统会优先离线，必要时联网。"
-    case .whisper:
-      modeHintLabel.text = "当前固定使用 Whisper 离线模型。若未下载模型则无法启动。"
-    case .cloud:
-      modeHintLabel.text = "当前固定使用在线 ASR。请确保 Provider、地址与密钥配置有效。"
-    }
+    modeHintLabel.text = "在线引擎已启用；在听写链路中，在线 ASR 始终优先。"
   }
 
   func updateProviderSelection(provider: VoiceASRProvider) {
@@ -2208,6 +2464,12 @@ final class VoiceASRSettingsRootView: NibLessView {
   func updateProviderHint(provider: VoiceASRProvider) {
     let baseURL = provider.defaultBaseURL.isEmpty ? "未预置（请手动填写）" : provider.defaultBaseURL
     providerHintLabel.text = "当前 Provider：\(provider.displayName)。默认 Base URL：\(baseURL)。\(provider.integrationHint)"
+  }
+
+  func setSaveButtonEnabled(_ enabled: Bool) {
+    saveButton.isEnabled = enabled
+    saveButton.backgroundColor = enabled ? .systemBlue : .systemGray3
+    saveButton.setTitleColor(enabled ? .white : .secondaryLabel, for: .normal)
   }
 }
 

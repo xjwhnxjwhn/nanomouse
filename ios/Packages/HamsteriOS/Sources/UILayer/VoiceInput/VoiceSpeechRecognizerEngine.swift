@@ -503,15 +503,12 @@ enum VoiceASRMode: String, Codable, CaseIterable {
 }
 
 enum VoiceASREnginePreference: String, Codable, CaseIterable {
-  case auto
   case apple
   case whisper
   case cloud
 
   var displayName: String {
     switch self {
-    case .auto:
-      return "自动"
     case .apple:
       return "Apple"
     case .whisper:
@@ -700,7 +697,7 @@ enum VoiceASRProvider: String, Codable, CaseIterable {
 }
 
 struct VoiceASRRuntimeConfig {
-  let enginePreference: VoiceASREnginePreference
+  let selectedEngines: [VoiceASREnginePreference]
   let mode: VoiceASRMode
   let provider: VoiceASRProvider
   let proxyEndpoint: String
@@ -713,6 +710,7 @@ final class VoiceASRSettingsStore {
   static let shared = VoiceASRSettingsStore()
 
   private enum Constants {
+    static let selectedEnginesKey = "voice.asr.selected_engines.v1"
     static let enginePreferenceKey = "voice.asr.engine.preference"
     static let modeKey = "voice.asr.mode"
     static let providerKey = "voice.asr.provider"
@@ -734,7 +732,7 @@ final class VoiceASRSettingsStore {
     queue.sync {
       let provider = providerLocked()
       return VoiceASRRuntimeConfig(
-        enginePreference: enginePreferenceLocked(),
+        selectedEngines: selectedEnginesLocked(),
         mode: modeLocked(),
         provider: provider,
         proxyEndpoint: (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
@@ -750,12 +748,22 @@ final class VoiceASRSettingsStore {
   }
 
   func enginePreference() -> VoiceASREnginePreference {
-    queue.sync { enginePreferenceLocked() }
+    queue.sync { selectedEnginesLocked().first ?? .apple }
   }
 
   func setEnginePreference(_ preference: VoiceASREnginePreference) {
     queue.sync {
-      userDefaults.set(preference.rawValue, forKey: Constants.enginePreferenceKey)
+      saveSelectedEnginesLocked([preference])
+    }
+  }
+
+  func selectedEngines() -> [VoiceASREnginePreference] {
+    queue.sync { selectedEnginesLocked() }
+  }
+
+  func setSelectedEngines(_ engines: [VoiceASREnginePreference]) {
+    queue.sync {
+      saveSelectedEnginesLocked(engines)
     }
   }
 
@@ -830,9 +838,50 @@ private extension VoiceASRSettingsStore {
     Constants.byokModelKeyPrefix + provider.rawValue
   }
 
-  func enginePreferenceLocked() -> VoiceASREnginePreference {
-    let raw = userDefaults.string(forKey: Constants.enginePreferenceKey) ?? VoiceASREnginePreference.auto.rawValue
-    return VoiceASREnginePreference(rawValue: raw) ?? .auto
+  func normalizeSelectedEngines(_ engines: [VoiceASREnginePreference]) -> [VoiceASREnginePreference] {
+    var deduplicated: [VoiceASREnginePreference] = []
+    for engine in engines where !deduplicated.contains(engine) {
+      deduplicated.append(engine)
+    }
+    if let cloudIndex = deduplicated.firstIndex(of: .cloud) {
+      deduplicated.remove(at: cloudIndex)
+      deduplicated.insert(.cloud, at: 0)
+    }
+    if deduplicated.isEmpty {
+      deduplicated = [.apple]
+    }
+    return deduplicated
+  }
+
+  func saveSelectedEnginesLocked(_ engines: [VoiceASREnginePreference]) {
+    let normalized = normalizeSelectedEngines(engines)
+    userDefaults.set(normalized.map(\.rawValue), forKey: Constants.selectedEnginesKey)
+  }
+
+  func selectedEnginesLocked() -> [VoiceASREnginePreference] {
+    if let rawValues = userDefaults.array(forKey: Constants.selectedEnginesKey) as? [String] {
+      let parsed = rawValues.compactMap(VoiceASREnginePreference.init(rawValue:))
+      let normalized = normalizeSelectedEngines(parsed)
+      userDefaults.set(normalized.map(\.rawValue), forKey: Constants.selectedEnginesKey)
+      return normalized
+    }
+
+    // 兼容旧版本：从单选 enginePreference 迁移到多选列表。
+    let legacyRaw = userDefaults.string(forKey: Constants.enginePreferenceKey) ?? ""
+    let migrated: [VoiceASREnginePreference]
+    if legacyRaw == "auto" {
+      if modeLocked() == .disabled {
+        migrated = [.apple, .whisper]
+      } else {
+        migrated = [.cloud, .apple, .whisper]
+      }
+    } else if let legacy = VoiceASREnginePreference(rawValue: legacyRaw) {
+      migrated = [legacy]
+    } else {
+      migrated = [.apple]
+    }
+    saveSelectedEnginesLocked(migrated)
+    return normalizeSelectedEngines(migrated)
   }
 
   func modeLocked() -> VoiceASRMode {
@@ -2707,7 +2756,7 @@ final class VoiceSpeechRecognizerEngine {
     let prefersOnDevice: Bool
     let allowNetworkFallback: Bool
     let allowWhisperFallback: Bool
-    let enginePreference: VoiceASREnginePreference
+    let selectedEngines: [VoiceASREnginePreference]
     let cloudMode: VoiceASRMode
     let cloudRuntimeConfig: VoiceASRRuntimeConfig
     let retryCount: Int
@@ -2725,7 +2774,7 @@ final class VoiceSpeechRecognizerEngine {
         prefersOnDevice: prefersOnDevice,
         allowNetworkFallback: true,
         allowWhisperFallback: selectedWhisperModel != nil,
-        enginePreference: cloudRuntimeConfig.enginePreference,
+        selectedEngines: cloudRuntimeConfig.selectedEngines,
         cloudMode: cloudRuntimeConfig.mode,
         cloudRuntimeConfig: cloudRuntimeConfig,
         retryCount: 1,
@@ -2831,15 +2880,8 @@ final class VoiceSpeechRecognizerEngine {
     var startErrors: [EngineError] = []
     var canUseSpeechFramework = false
 
-    let speechRecognitionNeeded: Bool
-    switch resolvedStrategy.enginePreference {
-    case .apple:
-      speechRecognitionNeeded = true
-    case .auto:
-      speechRecognitionNeeded = resolvedStrategy.prefersOnDevice || resolvedStrategy.allowNetworkFallback
-    case .whisper, .cloud:
-      speechRecognitionNeeded = false
-    }
+    let selectedEngines = normalizeStartEngines(resolvedStrategy.selectedEngines)
+    let speechRecognitionNeeded = selectedEngines.contains(.apple)
 
     if speechRecognitionNeeded {
       do {
@@ -2852,54 +2894,9 @@ final class VoiceSpeechRecognizerEngine {
       }
     }
 
-    switch resolvedStrategy.enginePreference {
-    case .cloud:
-      do {
-        try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
-        activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
-        onRouteChanged(.cloudNetwork)
-        return
-      } catch let error as EngineError {
-        startErrors.append(error)
-      } catch {
-        startErrors.append(.runtimeFailure(message: error.localizedDescription))
-      }
-      throw composeStartError(from: startErrors)
-
-    case .whisper:
-      guard let whisperModelID = resolvedStrategy.whisperModelID, !whisperModelID.isEmpty else {
-        throw EngineError.runtimeFailure(message: "当前固定使用 Whisper，但未下载可用 Whisper 模型。")
-      }
-      do {
-        try startWhisperRecording(modelID: whisperModelID)
-        activePipeline = .whisper(model: whisperModelID)
-        onRouteChanged(.whisperOnDevice)
-        return
-      } catch let error as EngineError {
-        startErrors.append(error)
-      } catch {
-        startErrors.append(.runtimeFailure(message: error.localizedDescription))
-      }
-      throw composeStartError(from: startErrors)
-
-    case .apple:
-      guard canUseSpeechFramework else {
-        throw composeStartError(from: startErrors)
-      }
-      if tryStartApplePipelines(
-        strategy: resolvedStrategy,
-        attempts: attempts,
-        onResult: onResult,
-        onRouteChanged: onRouteChanged,
-        onError: onError,
-        startErrors: &startErrors
-      ) {
-        return
-      }
-      throw composeStartError(from: startErrors)
-
-    case .auto:
-      if resolvedStrategy.cloudMode == .preferred {
+    for engine in selectedEngines {
+      switch engine {
+      case .cloud:
         do {
           try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
           activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
@@ -2910,23 +2907,28 @@ final class VoiceSpeechRecognizerEngine {
         } catch {
           startErrors.append(.runtimeFailure(message: error.localizedDescription))
         }
-      }
 
-      // 自动模式：优先离线 Apple，再回退在线 Apple，最后回退 Whisper 离线。
-      if canUseSpeechFramework,
-        tryStartApplePipelines(
+      case .apple:
+        guard canUseSpeechFramework else {
+          startErrors.append(.speechPermissionDenied)
+          continue
+        }
+        if tryStartApplePipelines(
           strategy: resolvedStrategy,
           attempts: attempts,
           onResult: onResult,
           onRouteChanged: onRouteChanged,
           onError: onError,
           startErrors: &startErrors
-        )
-      {
-        return
-      }
+        ) {
+          return
+        }
 
-      if resolvedStrategy.allowWhisperFallback, let whisperModelID = resolvedStrategy.whisperModelID {
+      case .whisper:
+        guard resolvedStrategy.allowWhisperFallback, let whisperModelID = resolvedStrategy.whisperModelID, !whisperModelID.isEmpty else {
+          startErrors.append(.whisperUnavailable)
+          continue
+        }
         do {
           try startWhisperRecording(modelID: whisperModelID)
           activePipeline = .whisper(model: whisperModelID)
@@ -2938,22 +2940,9 @@ final class VoiceSpeechRecognizerEngine {
           startErrors.append(.runtimeFailure(message: error.localizedDescription))
         }
       }
-
-      if resolvedStrategy.cloudMode == .fallback {
-        do {
-          try startCloudRecording(config: resolvedStrategy.cloudRuntimeConfig)
-          activePipeline = .cloud(config: resolvedStrategy.cloudRuntimeConfig)
-          onRouteChanged(.cloudNetwork)
-          return
-        } catch let error as EngineError {
-          startErrors.append(error)
-        } catch {
-          startErrors.append(.runtimeFailure(message: error.localizedDescription))
-        }
-      }
-
-      throw composeStartError(from: startErrors)
     }
+
+    throw composeStartError(from: startErrors)
   }
 
   func stop(cancel: Bool) {
@@ -3000,6 +2989,21 @@ final class VoiceSpeechRecognizerEngine {
     }
 
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+  }
+
+  private func normalizeStartEngines(_ engines: [VoiceASREnginePreference]) -> [VoiceASREnginePreference] {
+    var deduplicated: [VoiceASREnginePreference] = []
+    for engine in engines where !deduplicated.contains(engine) {
+      deduplicated.append(engine)
+    }
+    if let cloudIndex = deduplicated.firstIndex(of: .cloud) {
+      deduplicated.remove(at: cloudIndex)
+      deduplicated.insert(.cloud, at: 0)
+    }
+    if deduplicated.isEmpty {
+      deduplicated = [.apple]
+    }
+    return deduplicated
   }
 
   private func tryStartApplePipelines(
