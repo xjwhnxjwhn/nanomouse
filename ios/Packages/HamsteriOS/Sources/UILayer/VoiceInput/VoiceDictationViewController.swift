@@ -26,6 +26,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var lastStartError: VoiceSpeechRecognizerEngine.EngineError?
   private var llmTransformTask: Task<Void, Never>?
   private var stopTapTranscriptSnapshot = ""
+  private var finishTimeoutWorkItem: DispatchWorkItem?
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -162,6 +163,7 @@ final class VoiceDictationViewController: NibLessViewController {
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    cancelFinishingTimeout()
     llmTransformTask?.cancel()
     llmTransformTask = nil
     speechEngine.stop(cancel: true)
@@ -170,6 +172,7 @@ final class VoiceDictationViewController: NibLessViewController {
   func updateRequestId(_ requestId: String) {
     llmTransformTask?.cancel()
     llmTransformTask = nil
+    cancelFinishingTimeout()
     self.requestId = requestId
     latestTranscript = ""
     latestNonEmptyTranscript = ""
@@ -249,6 +252,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private func startRecognitionIfNeeded(force: Bool = false) {
     if isStarting, !force { return }
     if force {
+      cancelFinishingTimeout()
       speechEngine.stop(cancel: true)
       isRecording = false
       isFinishing = false
@@ -415,6 +419,7 @@ final class VoiceDictationViewController: NibLessViewController {
     guard !isFinishing else { return }
     isFinishing = true
     isRecording = false
+    cancelFinishingTimeout()
     statusLabel.text = "处理中..."
     voiceInputBridge.setState(requestId: requestId, state: .processing)
     stopButton.isEnabled = false
@@ -436,25 +441,19 @@ final class VoiceDictationViewController: NibLessViewController {
 
     if activeRoute == .whisperOnDevice {
       tipLabel.text = "Whisper 正在本地转写，请稍候..."
-      DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-        guard let self, self.isFinishing else { return }
-        let candidate = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          ? self.stopTapTranscriptSnapshot
-          : self.latestTranscript
-        self.completeFinishingFlow(rawText: candidate)
-      }
+      scheduleFinishingTimeout(
+        after: 90,
+        timeoutMessage: "Whisper 转写超时，请重试"
+      )
       return
     }
 
     if activeRoute == .cloudNetwork {
       tipLabel.text = "云端 ASR 正在处理，请稍候..."
-      DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-        guard let self, self.isFinishing else { return }
-        let candidate = self.latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          ? self.stopTapTranscriptSnapshot
-          : self.latestTranscript
-        self.completeFinishingFlow(rawText: candidate)
-      }
+      scheduleFinishingTimeout(
+        after: 60,
+        timeoutMessage: "在线 ASR 处理超时，请重试"
+      )
       return
     }
 
@@ -469,6 +468,7 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   @objc private func handleCancelTap() {
+    cancelFinishingTimeout()
     llmTransformTask?.cancel()
     llmTransformTask = nil
     speechEngine.stop(cancel: true)
@@ -510,6 +510,7 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   private func handleStartFailure(_ error: VoiceSpeechRecognizerEngine.EngineError) {
+    cancelFinishingTimeout()
     statusLabel.text = "无法开始录音：\(error.localizedDescription)"
     tipLabel.text = makeHintText(for: error)
     voiceInputBridge.setState(
@@ -526,6 +527,7 @@ final class VoiceDictationViewController: NibLessViewController {
   }
 
   private func handleRuntimeError(_ error: VoiceSpeechRecognizerEngine.EngineError) {
+    cancelFinishingTimeout()
     if isFinishing {
       isFinishing = false
     }
@@ -555,7 +557,7 @@ final class VoiceDictationViewController: NibLessViewController {
     case .networkUnavailable:
       return "当前网络不可用。请连接网络后重试，或者切换到可离线识别的设备。"
     case .whisperUnavailable:
-      return "当前版本未启用 Whisper 引擎，请检查依赖配置后重试。"
+      return "Whisper 当前不可用。请确认已启用 WhisperKit，并下载可运行模型（建议 tiny/small）后重试。"
     case .emptyAudio:
       return "没有捕获到有效语音，请贴近麦克风并重试。"
     case .recognizerUnavailable:
@@ -751,6 +753,7 @@ final class VoiceDictationViewController: NibLessViewController {
       return
     }
     guard isFinishing else { return }
+    cancelFinishingTimeout()
     // 先将 finishing 置为 false，避免 stop 回调和延迟兜底同时触发重复落盘。
     isFinishing = false
     let localeIdentifier = Locale.preferredLanguages.first
@@ -827,6 +830,7 @@ final class VoiceDictationViewController: NibLessViewController {
     }
     let normalizedFinalText = finalText.trimmingCharacters(in: .whitespacesAndNewlines)
     if normalizedFinalText.isEmpty {
+      cancelFinishingTimeout()
       statusLabel.text = "未识别到语音，请重试"
       tipLabel.text = "请保持环境安静并清晰说话，然后点击“重试”。"
       voiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "empty transcript")
@@ -870,5 +874,47 @@ final class VoiceDictationViewController: NibLessViewController {
     latestTranscript = normalizedFinalText
     latestNonEmptyTranscript = normalizedFinalText
     stopTapTranscriptSnapshot = ""
+  }
+
+  private func bestAvailableTranscriptCandidate() -> String {
+    let latest = latestTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !latest.isEmpty { return latestTranscript }
+    let nonEmpty = latestNonEmptyTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !nonEmpty.isEmpty { return latestNonEmptyTranscript }
+    let snapshot = stopTapTranscriptSnapshot.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !snapshot.isEmpty { return stopTapTranscriptSnapshot }
+    let uiText = transcriptView.text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !uiText.isEmpty && uiText != "请开始说话" { return transcriptView.text }
+    return ""
+  }
+
+  private func scheduleFinishingTimeout(after seconds: TimeInterval, timeoutMessage: String) {
+    cancelFinishingTimeout()
+    // Whisper/在线 ASR 的最终结果是异步回调；超时只做最后兜底，不应提前覆盖成功结果。
+    let workItem = DispatchWorkItem { [weak self] in
+      guard let self, self.isFinishing else { return }
+      let candidate = self.bestAvailableTranscriptCandidate()
+      if !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        self.completeFinishingFlow(rawText: candidate)
+        return
+      }
+      self.speechEngine.stop(cancel: true)
+      self.isFinishing = false
+      self.isRecording = false
+      self.statusLabel.text = timeoutMessage
+      self.tipLabel.text = "请点击“重试”，或切换到 Apple Speech / 在线 ASR 后再试。"
+      self.voiceInputBridge.setState(requestId: self.requestId, state: .failed, errorMessage: "transcription timeout")
+      self.configureStopButtonForRetry()
+      self.lastStartError = .runtimeFailure(message: timeoutMessage)
+      self.hideLLMIndicator()
+      self.finishTimeoutWorkItem = nil
+    }
+    finishTimeoutWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: workItem)
+  }
+
+  private func cancelFinishingTimeout() {
+    finishTimeoutWorkItem?.cancel()
+    finishTimeoutWorkItem = nil
   }
 }

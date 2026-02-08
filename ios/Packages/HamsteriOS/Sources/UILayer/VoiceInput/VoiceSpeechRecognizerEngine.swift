@@ -171,6 +171,37 @@ final class VoiceWhisperModelStore {
     }
   }
 
+  /// 在低内存设备上优先回退到更小的本地模型，降低 WhisperKit 初始化和推理峰值内存。
+  func selectedDownloadedModelForCurrentDevice() -> VoiceWhisperModelSelection? {
+    storageQueue.sync {
+      let records = compactManifestLocked()
+      guard !records.isEmpty else { return nil }
+      guard let selectedID = validSelectedModelIDLocked(records: records) else { return nil }
+
+      let downloadedIDs = Set(records.map(\.modelID))
+      let physicalMemory = ProcessInfo.processInfo.physicalMemory
+      let lowMemoryThreshold: UInt64 = 6 * 1024 * 1024 * 1024
+
+      var runtimeModelID = selectedID
+      if physicalMemory < lowMemoryThreshold, selectedID.contains("distil-large") {
+        if downloadedIDs.contains("openai_whisper-small") {
+          runtimeModelID = "openai_whisper-small"
+        } else if downloadedIDs.contains("openai_whisper-tiny") {
+          runtimeModelID = "openai_whisper-tiny"
+        } else {
+          // 低内存设备仅有大模型时，直接返回 nil，避免 Whisper 初始化阶段触发崩溃。
+          return nil
+        }
+      }
+
+      guard let record = records.first(where: { $0.modelID == runtimeModelID }) else { return nil }
+      return VoiceWhisperModelSelection(
+        modelID: runtimeModelID,
+        modelFolderURL: URL(fileURLWithPath: record.modelFolderPath)
+      )
+    }
+  }
+
   func modelFolderURL(for modelID: String) -> URL? {
     storageQueue.sync {
       let records = compactManifestLocked()
@@ -221,7 +252,12 @@ final class VoiceWhisperModelStore {
           )
         }
         saveManifestLocked(records)
-        userDefaults.set(normalizedID, forKey: Constants.selectedModelIDKey)
+        let selectedID = userDefaults.string(forKey: Constants.selectedModelIDKey)
+        let hasValidSelected = selectedID != nil && records.contains(where: { $0.modelID == selectedID })
+        // 下载新模型时保留用户当前选择，避免无感切到大模型导致性能抖动。
+        if !hasValidSelected {
+          userDefaults.set(normalizedID, forKey: Constants.selectedModelIDKey)
+        }
       }
       return modelFolder
     } catch {
@@ -2851,7 +2887,7 @@ final class VoiceSpeechRecognizerEngine {
     static func recommended(for localeIdentifier: String) -> StartStrategy {
       let normalized = localeIdentifier.lowercased()
       let prefersOnDevice = normalized.hasPrefix("zh") || normalized.hasPrefix("en") || normalized.hasPrefix("ja")
-      let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModel()
+      let selectedWhisperModel = VoiceWhisperModelStore.shared.selectedDownloadedModelForCurrentDevice()
       let contextualStrings = VoicePersonalDictionaryStore.shared.hotwords(limit: 40)
       let cloudRuntimeConfig = VoiceASRSettingsStore.shared.runtimeConfig()
       return StartStrategy(
@@ -3462,12 +3498,15 @@ final class VoiceSpeechRecognizerEngine {
 
   private func transcribeWithWhisper(samples: [Float], modelID: String) async throws -> String {
     #if canImport(WhisperKit)
+    let maxAudioSeconds = 8 * 60
+    let sampleRate = 16_000
+    let maxSamples = maxAudioSeconds * sampleRate
+    if samples.count > maxSamples {
+      throw EngineError.runtimeFailure(message: "Whisper 单次识别时长过长，请分段听写后再试")
+    }
+
     let whisper = try await loadWhisperKit(modelID: modelID)
-    let results = try await whisper.transcribe(audioArray: samples)
-    let mergedText = results
-      .map(\.text)
-      .joined(separator: " ")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let mergedText = try await transcribeWhisperInChunks(whisper: whisper, samples: samples)
     guard !mergedText.isEmpty else {
       throw EngineError.emptyAudio
     }
@@ -3495,6 +3534,52 @@ final class VoiceSpeechRecognizerEngine {
     whisperKit = instance
     whisperLoadedModelID = modelID
     return instance
+  }
+  #endif
+
+  #if canImport(WhisperKit)
+  private func transcribeWhisperInChunks(whisper: WhisperKit, samples: [Float]) async throws -> String {
+    let sampleRate = 16_000
+    let chunkSeconds = 24
+    let overlapSeconds = 1
+    let chunkSampleCount = sampleRate * chunkSeconds
+    let overlapSampleCount = sampleRate * overlapSeconds
+
+    if samples.count <= chunkSampleCount {
+      let results = try await whisper.transcribe(audioArray: samples)
+      return results
+        .map(\.text)
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var cursor = 0
+    var mergedSegments: [String] = []
+
+    // 对长音频做分段推理，降低单次推理峰值内存，避免大模型在完成阶段闪退。
+    while cursor < samples.count {
+      let end = min(samples.count, cursor + chunkSampleCount)
+      let chunk = Array(samples[cursor..<end])
+      let results = try await whisper.transcribe(audioArray: chunk)
+      let chunkText = results
+        .map(\.text)
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+      if !chunkText.isEmpty {
+        mergedSegments.append(chunkText)
+      }
+
+      if end >= samples.count {
+        break
+      }
+      let nextCursor = end - overlapSampleCount
+      cursor = max(cursor + 1, nextCursor)
+      try Task.checkCancellation()
+    }
+
+    return mergedSegments
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
   #endif
 

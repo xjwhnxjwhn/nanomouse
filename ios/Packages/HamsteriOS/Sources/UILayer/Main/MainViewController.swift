@@ -1356,6 +1356,7 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   private var remoteModelIDs: [String] = []
   private var downloadingModelID: String?
   private var isFetchingRemoteModelList = false
+  private var isApplyingWhisperToggle = false
 
   private lazy var whisperEnabledSwitch: UISwitch = {
     let control = UISwitch(frame: .zero)
@@ -1426,6 +1427,7 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   }
 
   @objc private func handleWhisperSwitchChanged(_ sender: UISwitch) {
+    guard !isApplyingWhisperToggle else { return }
     guard VoiceWhisperModelStore.isWhisperKitEnabled else {
       sender.setOn(false, animated: true)
       presentWhisperUnavailableAlert()
@@ -1437,8 +1439,22 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
       presentErrorAlert(message: "请先下载至少一个 Whisper 模型，然后再启用 Whisper 引擎。")
       return
     }
-    setWhisperEnabled(sender.isOn)
-    settingsView.tableView.reloadSections(IndexSet(integer: 0), with: .none)
+    let targetEnabled = sender.isOn
+    isApplyingWhisperToggle = true
+    sender.isEnabled = false
+    applyWhisperToggleAsync(targetEnabled: targetEnabled)
+  }
+
+  private func applyWhisperToggleAsync(targetEnabled: Bool) {
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      guard let self else { return }
+      self.setWhisperEnabled(targetEnabled)
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.isApplyingWhisperToggle = false
+        self.refreshModels()
+      }
+    }
   }
 
   private func handleAction(at indexPath: IndexPath) {
@@ -1600,7 +1616,7 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       whisperEnabledSwitch.isOn = isWhisperEnabled()
       whisperEnabledSwitch.isEnabled = VoiceWhisperModelStore.isWhisperKitEnabled && models.contains(where: { $0.isDownloaded })
       cell.accessoryView = whisperEnabledSwitch
-      cell.selectionStyle = .default
+      cell.selectionStyle = .none
       return cell
     }
 
@@ -1672,12 +1688,7 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
-    if indexPath.section == 0 {
-      let targetState = !whisperEnabledSwitch.isOn
-      whisperEnabledSwitch.setOn(targetState, animated: true)
-      handleWhisperSwitchChanged(whisperEnabledSwitch)
-      return
-    }
+    if indexPath.section == 0 { return }
     if indexPath.section == 1 {
       if indexPath.row == 0 {
         refreshRemoteModelList(presentPickerAfterFetch: false)
