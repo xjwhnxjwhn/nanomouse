@@ -2849,6 +2849,133 @@ private extension VoiceASRSettingsRootView {
   }
 }
 
+// MARK: - LLM Lazy Picker
+
+final class VoiceLazyModelPickerViewController: NibLessViewController {
+  private let allItems: [String]
+  private let subtitleText: String
+  private let pageSize: Int
+  private let onSelect: (String) -> Void
+  private var visibleItems: [String] = []
+  private var isLoadingMore = false
+
+  private let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.keyboardDismissMode = .onDrag
+    return view
+  }()
+
+  private let summaryLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 2
+    return label
+  }()
+
+  init(
+    title: String,
+    subtitle: String,
+    items: [String],
+    pageSize: Int = 40,
+    onSelect: @escaping (String) -> Void
+  ) {
+    self.allItems = items
+    self.subtitleText = subtitle
+    self.pageSize = max(20, pageSize)
+    self.onSelect = onSelect
+    super.init()
+    self.title = title
+  }
+
+  override func loadView() {
+    let root = UIView(frame: .zero)
+    root.backgroundColor = .systemBackground
+    root.addSubview(summaryLabel)
+    root.addSubview(tableView)
+    NSLayoutConstraint.activate([
+      summaryLabel.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 8),
+      summaryLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
+      summaryLabel.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -20),
+
+      tableView.topAnchor.constraint(equalTo: summaryLabel.bottomAnchor, constant: 8),
+      tableView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: root.bottomAnchor)
+    ])
+    view = root
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    tableView.dataSource = self
+    tableView.delegate = self
+    tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceLazyModelPickerCell")
+    summaryLabel.text = subtitleText
+    loadNextPageIfNeeded(force: true)
+  }
+
+  private func loadNextPageIfNeeded(force: Bool = false) {
+    guard force || !isLoadingMore else { return }
+    guard visibleItems.count < allItems.count else { return }
+    isLoadingMore = true
+    // 分页懒加载：只在滚动接近底部时追加下一批，避免一次性渲染大量 actionSheet 项目。
+    let start = visibleItems.count
+    let end = min(start + pageSize, allItems.count)
+    visibleItems.append(contentsOf: allItems[start..<end])
+    isLoadingMore = false
+    tableView.reloadData()
+  }
+}
+
+extension VoiceLazyModelPickerViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    visibleItems.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceLazyModelPickerCell", for: indexPath)
+    var config = cell.defaultContentConfiguration()
+    config.text = visibleItems[indexPath.row]
+    config.textProperties.font = .systemFont(ofSize: 14, weight: .regular)
+    cell.contentConfiguration = config
+    cell.accessoryType = .none
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    let selected = visibleItems[indexPath.row]
+    onSelect(selected)
+    if let nav = navigationController {
+      if nav.viewControllers.first != self {
+        nav.popViewController(animated: true)
+        return
+      }
+      if nav.presentingViewController != nil {
+        nav.dismiss(animated: true)
+        return
+      }
+    }
+    if presentingViewController != nil {
+      dismiss(animated: true)
+    }
+  }
+
+  func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+    let preloadThreshold = max(5, pageSize / 3)
+    if indexPath.row >= visibleItems.count - preloadThreshold {
+      loadNextPageIfNeeded()
+    }
+  }
+}
+
 // MARK: - LLM Settings
 
 final class VoiceLLMSettingsViewController: NibLessViewController {
@@ -3174,22 +3301,19 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   }
 
   private func presentModelPicker(_ modelIDs: [String]) {
-    let options = Array(modelIDs.prefix(20))
-    let alert = UIAlertController(title: "选择模型", message: "已读取 \(modelIDs.count) 个可用模型。", preferredStyle: .actionSheet)
-    for modelID in options {
-      alert.addAction(UIAlertAction(title: modelID, style: .default) { [weak self] _ in
-        self?.settingsView.modelField.text = modelID
-      })
+    let picker = VoiceLazyModelPickerViewController(
+      title: "选择模型",
+      subtitle: "已读取 \(modelIDs.count) 个可用模型。下滑到底会自动加载更多。",
+      items: modelIDs
+    ) { [weak self] modelID in
+      self?.settingsView.modelField.text = modelID
     }
-    if modelIDs.count > options.count {
-      alert.addAction(UIAlertAction(title: "模型过多，请手动输入", style: .default))
+    if let nav = navigationController {
+      nav.pushViewController(picker, animated: true)
+    } else {
+      let nav = UINavigationController(rootViewController: picker)
+      present(nav, animated: true)
     }
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = settingsView.chooseModelButton
-      popover.sourceRect = settingsView.chooseModelButton.bounds
-    }
-    present(alert, animated: true)
   }
 
   private func presentErrorAlert(title: String, message: String) {
