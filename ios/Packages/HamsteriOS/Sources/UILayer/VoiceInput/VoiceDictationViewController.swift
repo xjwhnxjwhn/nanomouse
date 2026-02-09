@@ -15,6 +15,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private let speechEngine: VoiceSpeechRecognizerEngine = .shared
   private let llmService: VoiceLLMService = .shared
   private let llmSettingsStore: VoiceLLMSettingsStore = .shared
+  private let historyStore: VoiceDictationHistoryStore = .shared
   private let voiceInputBridge: AppVoiceInputBridge
   private var latestTranscript = ""
   private var latestNonEmptyTranscript = ""
@@ -23,6 +24,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var isFinishing = false
   private var isRecording = false
   private var activeRoute: VoiceSpeechRecognizerEngine.Route = .appleOnDevice
+  private var activeLocaleIdentifier = Locale.preferredLanguages.first ?? "zh-CN"
   private var lastStartError: VoiceSpeechRecognizerEngine.EngineError?
   private var llmTransformTask: Task<Void, Never>?
   private var stopTapTranscriptSnapshot = ""
@@ -269,6 +271,7 @@ final class VoiceDictationViewController: NibLessViewController {
       guard let self else { return }
       do {
         let localeIdentifier = Locale.preferredLanguages.first ?? "zh-CN"
+        self.activeLocaleIdentifier = localeIdentifier
         let strategy = VoiceSpeechRecognizerEngine.StartStrategy.recommended(for: localeIdentifier)
         try await self.speechEngine.start(
           localeIdentifier: localeIdentifier,
@@ -544,6 +547,7 @@ final class VoiceDictationViewController: NibLessViewController {
     lastStartError = error
     configureStopButtonForRetry()
     hideLLMIndicator()
+    appendFailureHistory(errorMessage: error.localizedDescription)
   }
 
   private func makeHintText(for error: VoiceSpeechRecognizerEngine.EngineError) -> String {
@@ -913,8 +917,18 @@ final class VoiceDictationViewController: NibLessViewController {
       configureStopButtonForRetry()
       lastStartError = .emptyAudio
       hideLLMIndicator()
+      appendFailureHistory(errorMessage: "empty transcript")
       return
     }
+
+    let historyRawCandidate = bestAvailableTranscriptCandidate().trimmingCharacters(in: .whitespacesAndNewlines)
+    historyStore.appendSuccess(
+      rawText: historyRawCandidate.isEmpty ? normalizedFinalText : historyRawCandidate,
+      outputText: normalizedFinalText,
+      localeIdentifier: localeIdentifier ?? activeLocaleIdentifier,
+      routeRawValue: activeRoute.rawValue,
+      usedLLM: usedLLM
+    )
 
     voiceInputBridge.writeResult(
       requestId: requestId,
@@ -922,7 +936,6 @@ final class VoiceDictationViewController: NibLessViewController {
       localeIdentifier: localeIdentifier
     )
     latestCommittedText = normalizedFinalText
-    _ = VoicePersonalDictionaryStore.shared.learnWords(from: normalizedFinalText, localeIdentifier: localeIdentifier)
     if transcriptView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       transcriptView.text = latestTranscript.isEmpty ? normalizedFinalText : latestTranscript
     }
@@ -983,6 +996,7 @@ final class VoiceDictationViewController: NibLessViewController {
       self.configureStopButtonForRetry()
       self.lastStartError = .runtimeFailure(message: timeoutMessage)
       self.hideLLMIndicator()
+      self.appendFailureHistory(errorMessage: "transcription timeout")
       self.finishTimeoutWorkItem = nil
     }
     finishTimeoutWorkItem = workItem
@@ -992,5 +1006,15 @@ final class VoiceDictationViewController: NibLessViewController {
   private func cancelFinishingTimeout() {
     finishTimeoutWorkItem?.cancel()
     finishTimeoutWorkItem = nil
+  }
+
+  private func appendFailureHistory(errorMessage: String) {
+    let partial = bestAvailableTranscriptCandidate()
+    historyStore.appendFailure(
+      partialText: partial,
+      errorMessage: errorMessage,
+      localeIdentifier: activeLocaleIdentifier,
+      routeRawValue: activeRoute.rawValue
+    )
   }
 }

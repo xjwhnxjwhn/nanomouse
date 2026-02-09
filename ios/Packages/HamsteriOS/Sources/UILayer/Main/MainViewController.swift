@@ -704,20 +704,14 @@ final class VoiceCardView: UIView {
 
 final class VoiceHistoryViewController: NibLessViewController {
   private let historyView = VoiceHistoryRootView()
-
-  private struct HistoryItem {
-    let time: String
-    let text: String
-    let isError: Bool
-    let canRetry: Bool
-  }
-
-  private let items: [HistoryItem] = [
-    .init(time: "03:49 PM", text: "Audio is silent.", isError: false, canRetry: true),
-    .init(time: "03:49 PM", text: "4. Eggs", isError: false, canRetry: false),
-    .init(time: "03:48 PM", text: "Add eggs.", isError: false, canRetry: false),
-    .init(time: "03:48 PM", text: "Your transcription was interrupted.", isError: true, canRetry: true)
-  ]
+  private let historyStore: VoiceDictationHistoryStore = .shared
+  private var items: [VoiceDictationHistoryEntry] = []
+  private lazy var timeFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter
+  }()
 
   override func loadView() {
     title = "历史记录"
@@ -730,6 +724,82 @@ final class VoiceHistoryViewController: NibLessViewController {
     historyView.tableView.delegate = self
     historyView.tableView.tableHeaderView = historyView.makeHeaderView()
     historyView.tableView.register(VoiceHistoryCell.self, forCellReuseIdentifier: VoiceHistoryCell.identifier)
+    navigationItem.rightBarButtonItem = UIBarButtonItem(
+      title: "清空",
+      style: .plain,
+      target: self,
+      action: #selector(handleClearTap)
+    )
+    refreshItems()
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    refreshItems()
+  }
+
+  @objc private func handleClearTap() {
+    guard !items.isEmpty else { return }
+    let alert = UIAlertController(title: "清空历史记录", message: "该操作仅会删除本机记录，是否继续？", preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "清空", style: .destructive) { [weak self] _ in
+      guard let self else { return }
+      self.historyStore.clearAll()
+      self.refreshItems()
+    })
+    present(alert, animated: true)
+  }
+
+  private func refreshItems() {
+    items = historyStore.entries(limit: 300)
+    historyView.updateEmptyState(isEmpty: items.isEmpty)
+    navigationItem.rightBarButtonItem?.isEnabled = !items.isEmpty
+    historyView.tableView.reloadData()
+  }
+
+  private func displayText(for item: VoiceDictationHistoryEntry) -> String {
+    if item.status == .failed {
+      let errorMessage = (item.errorMessage ?? "识别失败").trimmingCharacters(in: .whitespacesAndNewlines)
+      let partial = item.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+      if partial.isEmpty {
+        return errorMessage
+      }
+      return "\(errorMessage)\n\(partial)"
+    }
+
+    let output = (item.outputText ?? item.rawText).trimmingCharacters(in: .whitespacesAndNewlines)
+    let raw = item.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let routeTag = routeTitle(from: item.routeRawValue)
+    if !raw.isEmpty, !output.isEmpty, raw != output {
+      if let routeTag {
+        return "\(output)\n原文：\(raw)\n来源：\(routeTag)"
+      }
+      return "\(output)\n原文：\(raw)"
+    }
+    if let routeTag, !output.isEmpty {
+      return "\(output)\n来源：\(routeTag)"
+    }
+    return output
+  }
+
+  private func displayTime(for item: VoiceDictationHistoryEntry) -> String {
+    timeFormatter.string(from: Date(timeIntervalSince1970: item.createdAt))
+  }
+
+  private func routeTitle(from rawValue: String?) -> String? {
+    guard let rawValue else { return nil }
+    switch rawValue {
+    case VoiceSpeechRecognizerEngine.Route.appleOnDevice.rawValue:
+      return "Apple 离线"
+    case VoiceSpeechRecognizerEngine.Route.appleNetwork.rawValue:
+      return "Apple 在线"
+    case VoiceSpeechRecognizerEngine.Route.whisperOnDevice.rawValue:
+      return "Whisper 离线"
+    case VoiceSpeechRecognizerEngine.Route.cloudNetwork.rawValue:
+      return "在线 ASR"
+    default:
+      return nil
+    }
   }
 }
 
@@ -742,13 +812,31 @@ extension VoiceHistoryViewController: UITableViewDataSource, UITableViewDelegate
     let cell = tableView.dequeueReusableCell(withIdentifier: VoiceHistoryCell.identifier, for: indexPath)
     let item = items[indexPath.row]
     if let historyCell = cell as? VoiceHistoryCell {
-      historyCell.configure(time: item.time, text: item.text, isError: item.isError, canRetry: item.canRetry)
+      historyCell.configure(
+        time: displayTime(for: item),
+        text: displayText(for: item),
+        isError: item.status == .failed,
+        canRetry: false
+      )
     }
     return cell
   }
 
   func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
     UITableView.automaticDimension
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let delete = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      guard let self else {
+        completion(false)
+        return
+      }
+      self.historyStore.removeEntry(id: self.items[indexPath.row].id)
+      self.refreshItems()
+      completion(true)
+    }
+    return UISwipeActionsConfiguration(actions: [delete])
   }
 }
 
@@ -758,6 +846,28 @@ final class VoiceHistoryRootView: NibLessView {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.separatorStyle = .singleLine
     return view
+  }()
+
+  private lazy var emptyTitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 16, weight: .semibold)
+    label.textColor = .label
+    label.text = "暂无历史记录"
+    label.isHidden = true
+    return label
+  }()
+
+  private lazy var emptySubtitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 14, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    label.textAlignment = .center
+    label.text = "你完成一次语音输入后，历史记录会自动保存在本机。"
+    label.isHidden = true
+    return label
   }()
 
   override init(frame: CGRect) {
@@ -773,6 +883,8 @@ final class VoiceHistoryRootView: NibLessView {
 
   override func constructViewHierarchy() {
     addSubview(tableView)
+    addSubview(emptyTitleLabel)
+    addSubview(emptySubtitleLabel)
   }
 
   override func activateViewConstraints() {
@@ -780,13 +892,25 @@ final class VoiceHistoryRootView: NibLessView {
       tableView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
       tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
       tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
-      tableView.bottomAnchor.constraint(equalTo: bottomAnchor)
+      tableView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
+      emptyTitleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+      emptyTitleLabel.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -24),
+
+      emptySubtitleLabel.topAnchor.constraint(equalTo: emptyTitleLabel.bottomAnchor, constant: 8),
+      emptySubtitleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 40),
+      emptySubtitleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -40),
     ])
   }
 
   override func setupAppearance() {
     backgroundColor = .systemBackground
     tableView.backgroundColor = .systemBackground
+  }
+
+  func updateEmptyState(isEmpty: Bool) {
+    emptyTitleLabel.isHidden = !isEmpty
+    emptySubtitleLabel.isHidden = !isEmpty
   }
 
   func makeHeaderView() -> UIView {
@@ -934,7 +1058,6 @@ final class VoiceHistoryCell: UITableViewCell {
 final class VoiceDictionaryViewController: NibLessViewController {
   private let dictionaryView = VoiceDictionaryRootView()
   private let personalStore: VoicePersonalDictionaryStore = .shared
-  private var filter: VoicePersonalWordSource?
   private var words: [VoicePersonalWord] = []
 
   override func loadView() {
@@ -947,25 +1070,12 @@ final class VoiceDictionaryViewController: NibLessViewController {
     dictionaryView.tableView.dataSource = self
     dictionaryView.tableView.delegate = self
     dictionaryView.tableView.register(VoiceDictionaryCell.self, forCellReuseIdentifier: VoiceDictionaryCell.identifier)
-    dictionaryView.segmentedControl.addTarget(self, action: #selector(handleFilterChanged), for: .valueChanged)
     dictionaryView.addButton.addTarget(self, action: #selector(handleAddWordTap), for: .touchUpInside)
     refreshWords()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    refreshWords()
-  }
-
-  @objc private func handleFilterChanged() {
-    switch dictionaryView.segmentedControl.selectedSegmentIndex {
-    case 1:
-      filter = .auto
-    case 2:
-      filter = .manual
-    default:
-      filter = nil
-    }
     refreshWords()
   }
 
@@ -985,8 +1095,8 @@ final class VoiceDictionaryViewController: NibLessViewController {
   }
 
   private func refreshWords() {
-    words = personalStore.words(filter: filter)
-    dictionaryView.updateEmptyState(isEmpty: words.isEmpty, filter: filter)
+    words = personalStore.words(filter: .manual)
+    dictionaryView.updateEmptyState(isEmpty: words.isEmpty)
     dictionaryView.tableView.reloadData()
   }
 
@@ -1015,7 +1125,7 @@ extension VoiceDictionaryViewController: UITableViewDataSource, UITableViewDeleg
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    "词典会自动注入到语音识别热词，提升专有名词识别稳定性。"
+    "词典仅包含手动词条，这些词会注入 Apple Speech、Whisper 与在线 ASR（按引擎能力）以提升专有名词识别稳定性。"
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
@@ -1069,22 +1179,11 @@ final class VoiceDictionaryCell: UITableViewCell {
 
   func configure(with word: VoicePersonalWord) {
     wordLabel.text = word.word
-    let source = word.source == .manual ? "手动" : "自动"
-    detailLabel.text = "\(source) · 热度 \(word.score)"
+    detailLabel.text = "手动 · 热度 \(word.score)"
   }
 }
 
 final class VoiceDictionaryRootView: NibLessView {
-  let segmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["所有", "自动添加", "手动添加"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 0
-    control.selectedSegmentTintColor = .systemBlue
-    control.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
-    control.setTitleTextAttributes([.foregroundColor: UIColor.label], for: .normal)
-    return control
-  }()
-
   let tableView: UITableView = {
     let view = UITableView(frame: .zero, style: .insetGrouped)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -1137,7 +1236,6 @@ final class VoiceDictionaryRootView: NibLessView {
   }
 
   override func constructViewHierarchy() {
-    addSubview(segmentedControl)
     addSubview(tableView)
     addSubview(emptyTitleLabel)
     addSubview(emptySubtitleLabel)
@@ -1146,11 +1244,7 @@ final class VoiceDictionaryRootView: NibLessView {
 
   override func activateViewConstraints() {
     NSLayoutConstraint.activate([
-      segmentedControl.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 8),
-      segmentedControl.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
-      segmentedControl.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
-
-      tableView.topAnchor.constraint(equalTo: segmentedControl.bottomAnchor, constant: 8),
+      tableView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
       tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
       tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
       tableView.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -1174,21 +1268,12 @@ final class VoiceDictionaryRootView: NibLessView {
     tableView.backgroundColor = .systemBackground
   }
 
-  func updateEmptyState(isEmpty: Bool, filter: VoicePersonalWordSource?) {
+  func updateEmptyState(isEmpty: Bool) {
     emptyTitleLabel.isHidden = !isEmpty
     emptySubtitleLabel.isHidden = !isEmpty
     if isEmpty {
-      switch filter {
-      case .auto:
-        emptyTitleLabel.text = "尚无自动词条"
-        emptySubtitleLabel.text = "系统会从你的语音输入中自动学习高频词。"
-      case .manual:
-        emptyTitleLabel.text = "尚无手动词条"
-        emptySubtitleLabel.text = "点击右下角 + 添加你想优先识别的专有名词。"
-      default:
-        emptyTitleLabel.text = "尚无单词"
-        emptySubtitleLabel.text = "Nanomouse 会记住您独特的名称与单词，您也可以手动添加。"
-      }
+      emptyTitleLabel.text = "尚无手动词条"
+      emptySubtitleLabel.text = "点击右下角 + 添加你想优先识别的专有名词。"
     }
   }
 }

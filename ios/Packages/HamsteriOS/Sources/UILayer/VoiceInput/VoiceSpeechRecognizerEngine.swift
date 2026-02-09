@@ -695,6 +695,7 @@ final class VoicePersonalDictionaryStore {
       let positiveLimit = max(0, limit)
       guard positiveLimit > 0 else { return [] }
       return loadRecordsLocked()
+        .filter { $0.source == .manual }
         .sorted { lhs, rhs in
           if lhs.score == rhs.score {
             return lhs.updatedAt > rhs.updatedAt
@@ -741,36 +742,10 @@ final class VoicePersonalDictionaryStore {
 
   @discardableResult
   func learnWords(from text: String, localeIdentifier: String?) -> [String] {
-    // 自动学习词典：把高频专有词沉淀成热词，供下一次识别注入 contextualStrings。
-    let candidates = extractCandidates(from: text, localeIdentifier: localeIdentifier)
-    guard !candidates.isEmpty else { return [] }
-    return queue.sync {
-      var records = loadRecordsLocked()
-      let now = Date().timeIntervalSince1970
-      var inserted: [String] = []
-      for candidate in candidates {
-        if let index = records.firstIndex(where: { $0.word == candidate }) {
-          if records[index].source == .manual {
-            records[index].score += 1
-          } else {
-            records[index].score = min(99, records[index].score + 2)
-          }
-          records[index].updatedAt = now
-        } else {
-          records.append(
-            StoredWordRecord(
-              word: candidate,
-              source: .auto,
-              score: 3,
-              updatedAt: now
-            )
-          )
-          inserted.append(candidate)
-        }
-      }
-      saveRecordsLocked(trim(records: records))
-      return inserted
-    }
+    _ = text
+    _ = localeIdentifier
+    // 已按产品决策关闭自动词典学习，仅保留手动词典。
+    return []
   }
 }
 
@@ -778,7 +753,13 @@ private extension VoicePersonalDictionaryStore {
   private func loadRecordsLocked() -> [StoredWordRecord] {
     guard let data = userDefaults.data(forKey: Constants.storageKey) else { return [] }
     let decoder = JSONDecoder()
-    return (try? decoder.decode([StoredWordRecord].self, from: data)) ?? []
+    let decoded = (try? decoder.decode([StoredWordRecord].self, from: data)) ?? []
+    let manualOnly = decoded.filter { $0.source == .manual }
+    if manualOnly.count != decoded.count {
+      // 关闭自动词典后，启动时清理历史自动词条，避免 UI 与行为不一致。
+      saveRecordsLocked(manualOnly)
+    }
+    return manualOnly
   }
 
   private func saveRecordsLocked(_ records: [StoredWordRecord]) {
@@ -851,6 +832,152 @@ private extension VoicePersonalDictionaryStore {
       guard let swiftRange = Range(match.range, in: text) else { return nil }
       return String(text[swiftRange])
     }
+  }
+}
+
+enum VoiceDictationHistoryStatus: String, Codable {
+  case success
+  case failed
+}
+
+struct VoiceDictationHistoryEntry: Codable, Hashable {
+  let id: String
+  let createdAt: TimeInterval
+  let localeIdentifier: String?
+  let routeRawValue: String?
+  let rawText: String
+  let outputText: String?
+  let usedLLM: Bool
+  let status: VoiceDictationHistoryStatus
+  let errorMessage: String?
+}
+
+final class VoiceDictationHistoryStore {
+  static let shared = VoiceDictationHistoryStore()
+
+  private enum Constants {
+    static let storageKey = "voice.dictation.history.v1"
+    static let maxEntryCount = 300
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.dictation.history")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func entries(limit: Int) -> [VoiceDictationHistoryEntry] {
+    queue.sync {
+      let positiveLimit = max(0, limit)
+      guard positiveLimit > 0 else { return [] }
+      return loadEntriesLocked()
+        .sorted(by: { $0.createdAt > $1.createdAt })
+        .prefix(positiveLimit)
+        .map { $0 }
+    }
+  }
+
+  func appendSuccess(
+    rawText: String,
+    outputText: String,
+    localeIdentifier: String?,
+    routeRawValue: String?,
+    usedLLM: Bool
+  ) {
+    let normalizedOutput = normalizeText(outputText)
+    guard !normalizedOutput.isEmpty else { return }
+    let normalizedRaw = normalizeText(rawText)
+    queue.sync {
+      var entries = loadEntriesLocked()
+      // 历史记录按倒序插入，保证“最近一次听写”始终在顶部。
+      entries.insert(
+        VoiceDictationHistoryEntry(
+          id: UUID().uuidString,
+          createdAt: Date().timeIntervalSince1970,
+          localeIdentifier: localeIdentifier,
+          routeRawValue: routeRawValue,
+          rawText: normalizedRaw.isEmpty ? normalizedOutput : normalizedRaw,
+          outputText: normalizedOutput,
+          usedLLM: usedLLM,
+          status: .success,
+          errorMessage: nil
+        ),
+        at: 0
+      )
+      saveEntriesLocked(trim(entries: entries))
+    }
+  }
+
+  func appendFailure(
+    partialText: String,
+    errorMessage: String,
+    localeIdentifier: String?,
+    routeRawValue: String?
+  ) {
+    let normalizedError = normalizeText(errorMessage)
+    guard !normalizedError.isEmpty else { return }
+    let normalizedPartial = normalizeText(partialText)
+    queue.sync {
+      var entries = loadEntriesLocked()
+      entries.insert(
+        VoiceDictationHistoryEntry(
+          id: UUID().uuidString,
+          createdAt: Date().timeIntervalSince1970,
+          localeIdentifier: localeIdentifier,
+          routeRawValue: routeRawValue,
+          rawText: normalizedPartial,
+          outputText: nil,
+          usedLLM: false,
+          status: .failed,
+          errorMessage: normalizedError
+        ),
+        at: 0
+      )
+      saveEntriesLocked(trim(entries: entries))
+    }
+  }
+
+  func removeEntry(id: String) {
+    let normalizedID = id.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedID.isEmpty else { return }
+    queue.sync {
+      let filtered = loadEntriesLocked().filter { $0.id != normalizedID }
+      saveEntriesLocked(filtered)
+    }
+  }
+
+  func clearAll() {
+    queue.sync {
+      userDefaults.removeObject(forKey: Constants.storageKey)
+    }
+  }
+}
+
+private extension VoiceDictationHistoryStore {
+  private func loadEntriesLocked() -> [VoiceDictationHistoryEntry] {
+    guard let data = userDefaults.data(forKey: Constants.storageKey) else { return [] }
+    let decoder = JSONDecoder()
+    return (try? decoder.decode([VoiceDictationHistoryEntry].self, from: data)) ?? []
+  }
+
+  private func saveEntriesLocked(_ entries: [VoiceDictationHistoryEntry]) {
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(entries) else { return }
+    userDefaults.set(data, forKey: Constants.storageKey)
+  }
+
+  private func trim(entries: [VoiceDictationHistoryEntry]) -> [VoiceDictationHistoryEntry] {
+    if entries.count <= Constants.maxEntryCount {
+      return entries
+    }
+    return Array(entries.prefix(Constants.maxEntryCount))
+  }
+
+  private func normalizeText(_ raw: String) -> String {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    return trimmed.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression)
   }
 }
 
@@ -1373,14 +1500,20 @@ final class VoiceASRService {
     self.session = session
   }
 
-  func transcribe(audioFileURL: URL, localeIdentifier: String?) async throws -> String {
+  func transcribe(audioFileURL: URL, localeIdentifier: String?, hotwords: [String] = []) async throws -> String {
     let config = settingsStore.runtimeConfig()
-    return try await transcribe(audioFileURL: audioFileURL, localeIdentifier: localeIdentifier, config: config)
+    return try await transcribe(
+      audioFileURL: audioFileURL,
+      localeIdentifier: localeIdentifier,
+      hotwords: hotwords,
+      config: config
+    )
   }
 
   func transcribe(
     audioFileURL: URL,
     localeIdentifier: String?,
+    hotwords: [String] = [],
     config: VoiceASRRuntimeConfig
   ) async throws -> String {
     guard config.mode != .disabled else { throw VoiceASRServiceError.disabled }
@@ -1389,18 +1522,21 @@ final class VoiceASRService {
       return try await transcribeViaOpenAICompatible(
         audioFileURL: audioFileURL,
         localeIdentifier: localeIdentifier,
+        hotwords: hotwords,
         config: config
       )
     case .deepgramListen:
       return try await transcribeViaDeepgram(
         audioFileURL: audioFileURL,
         localeIdentifier: localeIdentifier,
+        hotwords: hotwords,
         config: config
       )
     case .proxyOnly:
       return try await transcribeViaProxy(
         audioFileURL: audioFileURL,
         localeIdentifier: localeIdentifier,
+        hotwords: hotwords,
         config: config
       )
     }
@@ -1436,6 +1572,7 @@ private extension VoiceASRService {
   func transcribeViaProxy(
     audioFileURL: URL,
     localeIdentifier: String?,
+    hotwords: [String],
     config: VoiceASRRuntimeConfig
   ) async throws -> String {
     let endpoint = config.proxyEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1456,11 +1593,15 @@ private extension VoiceASRService {
     let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       ? config.provider.defaultModel
       : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
-    let fields = [
+    var fields = [
       "provider": config.provider.rawValue,
       "model": model,
       "locale": normalizedLanguageCode(from: localeIdentifier)
     ]
+    if let prompt = hintPrompt(from: hotwords) {
+      fields["prompt"] = prompt
+      fields["hints"] = normalizedHintTerms(from: hotwords).joined(separator: ", ")
+    }
     request.httpBody = buildMultipartBody(
       boundary: boundary,
       fields: fields,
@@ -1487,6 +1628,7 @@ private extension VoiceASRService {
   func transcribeViaOpenAICompatible(
     audioFileURL: URL,
     localeIdentifier: String?,
+    hotwords: [String],
     config: VoiceASRRuntimeConfig
   ) async throws -> String {
     let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1513,11 +1655,14 @@ private extension VoiceASRService {
     let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       ? config.provider.defaultModel
       : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
-    let fields = [
+    var fields = [
       "model": model,
       "response_format": "json",
       "language": normalizedLanguageCode(from: localeIdentifier)
     ]
+    if let prompt = hintPrompt(from: hotwords) {
+      fields["prompt"] = prompt
+    }
     request.httpBody = buildMultipartBody(
       boundary: boundary,
       fields: fields,
@@ -1545,6 +1690,7 @@ private extension VoiceASRService {
   func transcribeViaDeepgram(
     audioFileURL: URL,
     localeIdentifier: String?,
+    hotwords: [String],
     config: VoiceASRRuntimeConfig
   ) async throws -> String {
     let baseURL = config.byokBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1559,8 +1705,20 @@ private extension VoiceASRService {
       ? config.provider.defaultModel
       : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
     let language = normalizedLanguageCode(from: localeIdentifier)
-    let endpointString = "\(baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL)/listen?model=\(model)&smart_format=true&punctuate=true&language=\(language)"
-    guard let endpointURL = URL(string: endpointString) else {
+    let normalizedBaseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+    guard var endpointComponents = URLComponents(string: "\(normalizedBaseURL)/listen") else {
+      throw VoiceASRServiceError.requestFailed(message: "Deepgram 地址无效")
+    }
+    var queryItems: [URLQueryItem] = [
+      URLQueryItem(name: "model", value: model),
+      URLQueryItem(name: "smart_format", value: "true"),
+      URLQueryItem(name: "punctuate", value: "true"),
+      URLQueryItem(name: "language", value: language),
+    ]
+    let hintTerms = normalizedHintTerms(from: hotwords, maxCount: 12)
+    queryItems.append(contentsOf: hintTerms.map { URLQueryItem(name: "keywords", value: $0) })
+    endpointComponents.queryItems = queryItems
+    guard let endpointURL = endpointComponents.url else {
       throw VoiceASRServiceError.requestFailed(message: "Deepgram 地址无效")
     }
 
@@ -1626,6 +1784,29 @@ private extension VoiceASRService {
       return "en"
     }
     return "auto"
+  }
+
+  func normalizedHintTerms(from hotwords: [String], maxCount: Int = 24) -> [String] {
+    var normalized: [String] = []
+    var seen: Set<String> = []
+    for raw in hotwords {
+      let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !term.isEmpty else { continue }
+      let key = term.lowercased()
+      guard !seen.contains(key) else { continue }
+      seen.insert(key)
+      normalized.append(String(term.prefix(40)))
+      if normalized.count >= maxCount {
+        break
+      }
+    }
+    return normalized
+  }
+
+  func hintPrompt(from hotwords: [String]) -> String? {
+    let terms = normalizedHintTerms(from: hotwords)
+    guard !terms.isEmpty else { return nil }
+    return "Priority terms: \(terms.joined(separator: ", "))"
   }
 
   func decodeErrorMessage(data: Data) -> String? {
@@ -3246,6 +3427,7 @@ final class VoiceSpeechRecognizerEngine {
   private let cloudASRService: VoiceASRService
   private var isNetworkAvailable = true
   private var activeLocaleIdentifier = "zh-CN"
+  private var activeContextualStrings: [String] = []
 
   init(cloudASRService: VoiceASRService = .shared) {
     self.cloudASRService = cloudASRService
@@ -3319,6 +3501,7 @@ final class VoiceSpeechRecognizerEngine {
 
     let resolvedStrategy = strategy ?? .recommended(for: localeIdentifier)
     activeLocaleIdentifier = resolvedStrategy.localeIdentifier
+    activeContextualStrings = resolvedStrategy.contextualStrings
     let attempts = max(1, resolvedStrategy.retryCount + 1)
     var startErrors: [EngineError] = []
     var canUseSpeechFramework = false
@@ -3943,6 +4126,7 @@ final class VoiceSpeechRecognizerEngine {
         let text = try await self.cloudASRService.transcribe(
           audioFileURL: audioFileURL,
           localeIdentifier: self.activeLocaleIdentifier,
+          hotwords: self.activeContextualStrings,
           config: config
         )
         try Task.checkCancellation()
@@ -3994,7 +4178,11 @@ final class VoiceSpeechRecognizerEngine {
     }
 
     let whisper = try await loadWhisperKit(modelID: modelID)
-    let decodeOptions = makeWhisperDecodingOptions(localeIdentifier: activeLocaleIdentifier)
+    let decodeOptions = makeWhisperDecodingOptions(
+      localeIdentifier: activeLocaleIdentifier,
+      whisper: whisper,
+      hotwords: activeContextualStrings
+    )
     let mergedText = try await transcribeWhisperInChunks(
       whisper: whisper,
       samples: samples,
@@ -4242,8 +4430,14 @@ final class VoiceSpeechRecognizerEngine {
   }
 
   #if canImport(WhisperKit)
-  private func makeWhisperDecodingOptions(localeIdentifier: String, isRealtimePreview: Bool = false) -> DecodingOptions {
+  private func makeWhisperDecodingOptions(
+    localeIdentifier: String,
+    whisper: WhisperKit,
+    hotwords: [String],
+    isRealtimePreview: Bool = false
+  ) -> DecodingOptions {
     let language = whisperLanguageCode(from: localeIdentifier)
+    let promptTokens = whisperPromptTokens(from: hotwords, whisper: whisper)
     if isRealtimePreview {
       return DecodingOptions(
         verbose: false,
@@ -4257,6 +4451,7 @@ final class VoiceSpeechRecognizerEngine {
         detectLanguage: language == nil,
         withoutTimestamps: true,
         wordTimestamps: false,
+        promptTokens: promptTokens,
         compressionRatioThreshold: nil,
         logProbThreshold: nil,
         firstTokenLogProbThreshold: nil,
@@ -4273,10 +4468,42 @@ final class VoiceSpeechRecognizerEngine {
       detectLanguage: language == nil,
       withoutTimestamps: true,
       wordTimestamps: false,
+      promptTokens: promptTokens,
       // 大模型在移动端多 worker 容易抬高峰值内存，这里优先稳定性。
       concurrentWorkerCount: 1,
       chunkingStrategy: .vad
     )
+  }
+
+  private func whisperPromptTokens(from hotwords: [String], whisper: WhisperKit) -> [Int]? {
+    let terms = normalizedWhisperHintTerms(from: hotwords)
+    guard !terms.isEmpty, let tokenizer = whisper.tokenizer else {
+      return nil
+    }
+    let promptText = " " + terms.joined(separator: ", ")
+    let encoded = tokenizer.encode(text: promptText)
+      .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+    guard !encoded.isEmpty else {
+      return nil
+    }
+    return Array(encoded.suffix(64))
+  }
+
+  private func normalizedWhisperHintTerms(from hotwords: [String], maxCount: Int = 16) -> [String] {
+    var normalized: [String] = []
+    var seen: Set<String> = []
+    for raw in hotwords {
+      let term = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !term.isEmpty else { continue }
+      let key = term.lowercased()
+      guard !seen.contains(key) else { continue }
+      seen.insert(key)
+      normalized.append(String(term.prefix(40)))
+      if normalized.count >= maxCount {
+        break
+      }
+    }
+    return normalized
   }
 
   private func whisperLanguageCode(from localeIdentifier: String) -> String? {
@@ -4300,7 +4527,12 @@ final class VoiceSpeechRecognizerEngine {
   private func transcribeWithWhisperRealtimePreview(samples: [Float], modelID: String) async throws -> String {
     #if canImport(WhisperKit)
     let whisper = try await loadWhisperKit(modelID: modelID)
-    let decodeOptions = makeWhisperDecodingOptions(localeIdentifier: activeLocaleIdentifier, isRealtimePreview: true)
+    let decodeOptions = makeWhisperDecodingOptions(
+      localeIdentifier: activeLocaleIdentifier,
+      whisper: whisper,
+      hotwords: activeContextualStrings,
+      isRealtimePreview: true
+    )
     let results = try await whisper.transcribe(audioArray: samples, decodeOptions: decodeOptions)
     let mergedText = results
       .map(\.text)
