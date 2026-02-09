@@ -2124,28 +2124,37 @@ final class VoiceModelCell: UITableViewCell {
   func configure(status: VoiceWhisperModelStatus, isDownloading: Bool) {
     titleLabel.text = status.option.displayName
     subtitleLabel.text = "\(status.sizeText) · \(status.option.summary)"
+    stateLabel.textColor = .secondaryLabel
+    actionButton.layer.borderWidth = 1
+    actionButton.layer.borderColor = UIColor.clear.cgColor
     if isDownloading {
       stateLabel.text = "状态：下载中..."
+      stateLabel.textColor = .systemOrange
       actionButton.setTitle("下载中", for: .normal)
       actionButton.isEnabled = false
-      actionButton.backgroundColor = .systemGray5
-      actionButton.setTitleColor(.secondaryLabel, for: .normal)
+      actionButton.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.18)
+      actionButton.setTitleColor(.systemOrange, for: .normal)
+      actionButton.layer.borderColor = UIColor.systemOrange.withAlphaComponent(0.35).cgColor
       return
     }
 
     if status.isDownloaded {
       if status.isSelected {
         stateLabel.text = "状态：已下载 · 当前使用"
+        stateLabel.textColor = .systemRed
         actionButton.setTitle("使用中", for: .normal)
         actionButton.isEnabled = false
-        actionButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.15)
-        actionButton.setTitleColor(.systemBlue, for: .normal)
+        actionButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.18)
+        actionButton.setTitleColor(.systemRed, for: .normal)
+        actionButton.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
       } else {
         stateLabel.text = "状态：已下载"
-        actionButton.setTitle("设为默认", for: .normal)
+        stateLabel.textColor = .systemGreen
+        actionButton.setTitle("使用", for: .normal)
         actionButton.isEnabled = true
-        actionButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.12)
+        actionButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.18)
         actionButton.setTitleColor(.systemGreen, for: .normal)
+        actionButton.layer.borderColor = UIColor.systemGreen.withAlphaComponent(0.35).cgColor
       }
     } else {
       stateLabel.text = "状态：未下载"
@@ -2153,6 +2162,7 @@ final class VoiceModelCell: UITableViewCell {
       actionButton.isEnabled = true
       actionButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
       actionButton.setTitleColor(.systemBlue, for: .normal)
+      actionButton.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.28).cgColor
     }
   }
 
