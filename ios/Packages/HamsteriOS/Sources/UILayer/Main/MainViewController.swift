@@ -2256,6 +2256,13 @@ final class VoiceAccountViewController: NibLessViewController {
   private let accountView = VoiceAccountRootView()
   private lazy var modelManagementController = VoiceModelManagementViewController()
   private lazy var llmSettingsController = VoiceLLMSettingsViewController()
+  private lazy var accountProfileController: VoiceAccountProfileViewController = {
+    let controller = VoiceAccountProfileViewController()
+    controller.onAccountUpdated = { [weak self] in
+      self?.accountView.tableView.reloadData()
+    }
+    return controller
+  }()
 
   override func loadView() {
     title = "账户"
@@ -2269,19 +2276,24 @@ final class VoiceAccountViewController: NibLessViewController {
     accountView.tableView.register(AccountNotificationCell.self, forCellReuseIdentifier: AccountNotificationCell.identifier)
     accountView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "AccountCell")
   }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    accountView.tableView.reloadData()
+  }
 }
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    4
+    3
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     switch section {
     case 0: return 1
     case 1: return 1
-    case 2: return 4
-    default: return 2
+    case 2: return 2
+    default: return 0
     }
   }
 
@@ -2298,7 +2310,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
 
     switch (indexPath.section, indexPath.row) {
     case (1, 0):
-      cell.textLabel?.text = "choushoukei@gmail.com"
+      cell.textLabel?.text = "账号与订阅（开发中）"
       cell.imageView?.image = UIImage(systemName: "person.crop.circle")
     case (2, 0):
       cell.textLabel?.text = "语音模型"
@@ -2306,18 +2318,6 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case (2, 1):
       cell.textLabel?.text = "AI 处理配置"
       cell.imageView?.image = UIImage(systemName: "brain.head.profile")
-    case (2, 2):
-      cell.textLabel?.text = "设置"
-      cell.imageView?.image = UIImage(systemName: "gearshape")
-    case (2, 3):
-      cell.textLabel?.text = "关于"
-      cell.imageView?.image = UIImage(systemName: "info.circle")
-    case (3, 0):
-      cell.textLabel?.text = "帮助中心"
-      cell.imageView?.image = UIImage(systemName: "questionmark.circle")
-    case (3, 1):
-      cell.textLabel?.text = "版本说明"
-      cell.imageView?.image = UIImage(systemName: "book")
     default:
       cell.textLabel?.text = nil
     }
@@ -2330,6 +2330,10 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
+    if indexPath.section == 1, indexPath.row == 0 {
+      navigationController?.pushViewController(accountProfileController, animated: true)
+      return
+    }
     if indexPath.section == 2, indexPath.row == 0 {
       navigationController?.pushViewController(modelManagementController, animated: true)
       return
@@ -2345,6 +2349,330 @@ final class VoiceAccountRootView: NibLessView {
     let view = UITableView(frame: .zero, style: .insetGrouped)
     view.translatesAutoresizingMaskIntoConstraints = false
     view.separatorInset = UIEdgeInsets(top: 0, left: 20, bottom: 0, right: 20)
+    return view
+  }()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    setupView()
+  }
+
+  private func setupView() {
+    constructViewHierarchy()
+    activateViewConstraints()
+    setupAppearance()
+  }
+
+  override func constructViewHierarchy() {
+    addSubview(tableView)
+  }
+
+  override func activateViewConstraints() {
+    NSLayoutConstraint.activate([
+      tableView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+      tableView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: bottomAnchor)
+    ])
+  }
+
+  override func setupAppearance() {
+    backgroundColor = .systemBackground
+    tableView.backgroundColor = .systemBackground
+  }
+}
+
+final class VoiceAccountProfileViewController: NibLessViewController {
+  var onAccountUpdated: (() -> Void)?
+  private let rootView = VoiceAccountProfileRootView()
+  private let gitHubStarsService = VoiceGitHubStarsService.shared
+  private var isLoadingGitHubStars = false
+  private var gitHubStarsCount: Int?
+  private var gitHubStarsErrorMessage: String?
+
+  override func loadView() {
+    title = "账号与订阅"
+    view = rootView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    rootView.tableView.dataSource = self
+    rootView.tableView.delegate = self
+    rootView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "ProfileCell")
+    refreshGitHubStars(force: false)
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    rootView.tableView.reloadData()
+  }
+
+  private func openSubscriptionManagement() {
+    guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else {
+      return
+    }
+    UIApplication.shared.open(url)
+  }
+
+  private func openGitHubRepository() {
+    guard let url = gitHubStarsService.repositoryWebURL() else {
+      presentSimpleAlert(title: "打开失败", message: "GitHub 仓库地址无效。")
+      return
+    }
+    UIApplication.shared.open(url)
+  }
+
+  private func presentAccountComingSoonAlert() {
+    presentSimpleAlert(
+      title: "功能开发中",
+      message: "账号登录与订阅绑定正在开发中，请暂时不要输入任何账号信息。"
+    )
+  }
+
+  private func presentSimpleAlert(title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
+
+  private func reloadCommunitySection() {
+    guard rootView.tableView.numberOfSections > 2 else {
+      rootView.tableView.reloadData()
+      return
+    }
+    rootView.tableView.reloadSections(IndexSet(integer: 2), with: .none)
+  }
+
+  private func refreshGitHubStars(force: Bool) {
+    if isLoadingGitHubStars {
+      return
+    }
+    if !force, let cachedCount = gitHubStarsService.cachedStarsCount(maxAge: 3600) {
+      gitHubStarsCount = cachedCount
+      gitHubStarsErrorMessage = nil
+      reloadCommunitySection()
+      return
+    }
+
+    isLoadingGitHubStars = true
+    reloadCommunitySection()
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let stars = try await gitHubStarsService.fetchStars(force: force)
+        await MainActor.run {
+          self.isLoadingGitHubStars = false
+          self.gitHubStarsCount = stars
+          self.gitHubStarsErrorMessage = nil
+          self.reloadCommunitySection()
+        }
+      } catch let error as VoiceGitHubStarsError {
+        await MainActor.run {
+          self.isLoadingGitHubStars = false
+          self.gitHubStarsErrorMessage = error.localizedDescription
+          self.reloadCommunitySection()
+        }
+      } catch {
+        await MainActor.run {
+          self.isLoadingGitHubStars = false
+          self.gitHubStarsErrorMessage = error.localizedDescription
+          self.reloadCommunitySection()
+        }
+      }
+    }
+  }
+}
+
+extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    3
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    switch section {
+    case 0:
+      return "账号"
+    case 1:
+      return "订阅"
+    default:
+      return "社区支持"
+    }
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    guard section == 2 else {
+      return nil
+    }
+    return "如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。"
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "ProfileCell", for: indexPath)
+    cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
+    cell.textLabel?.textColor = .label
+    cell.selectionStyle = .default
+    cell.accessoryType = .none
+
+    switch indexPath.section {
+    case 0:
+      cell.textLabel?.text = "账号系统开发中（暂不开放登录）"
+      cell.imageView?.image = UIImage(systemName: "hourglass")
+    case 1:
+      cell.textLabel?.text = "管理订阅"
+      cell.imageView?.image = UIImage(systemName: "creditcard")
+      cell.accessoryType = .disclosureIndicator
+    default:
+      if isLoadingGitHubStars {
+        cell.textLabel?.text = "GitHub Stars 读取中..."
+        cell.textLabel?.textColor = .secondaryLabel
+      } else if let stars = gitHubStarsCount {
+        cell.textLabel?.text = "GitHub Star 支持我们 ⭐（\(stars)）"
+        cell.textLabel?.textColor = .systemGreen
+      } else {
+        cell.textLabel?.text = "GitHub Star 支持我们 ⭐（点击查看）"
+        cell.textLabel?.textColor = gitHubStarsErrorMessage == nil ? .label : .systemOrange
+      }
+      cell.imageView?.image = UIImage(systemName: "star.fill")
+      cell.accessoryType = .disclosureIndicator
+    }
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    switch indexPath.section {
+    case 0:
+      presentAccountComingSoonAlert()
+    case 1:
+      openSubscriptionManagement()
+    default:
+      openGitHubRepository()
+      refreshGitHubStars(force: true)
+    }
+  }
+}
+
+enum VoiceGitHubStarsError: LocalizedError {
+  case invalidURL
+  case invalidResponse
+  case requestFailed(statusCode: Int)
+  case transport(message: String)
+  case decoding(message: String)
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidURL:
+      return "GitHub 地址无效。"
+    case .invalidResponse:
+      return "GitHub 响应格式无效。"
+    case .requestFailed(let statusCode):
+      return "GitHub 请求失败（\(statusCode)）。"
+    case .transport(let message):
+      return "网络请求失败：\(message)"
+    case .decoding(let message):
+      return "数据解析失败：\(message)"
+    }
+  }
+}
+
+final class VoiceGitHubStarsService {
+  static let shared = VoiceGitHubStarsService()
+
+  private let session: URLSession
+  private let userDefaults: UserDefaults
+
+  private enum Constants {
+    static let repositoryOwner = "xjwhnxjwhn"
+    static let repositoryName = "nanomouse"
+    static let cachedStarsCountKey = "voice.github.stars.count.v1"
+    static let cachedStarsUpdatedAtKey = "voice.github.stars.updated_at.v1"
+  }
+
+  init(
+    session: URLSession = .shared,
+    userDefaults: UserDefaults = .standard
+  ) {
+    self.session = session
+    self.userDefaults = userDefaults
+  }
+
+  func repositoryWebURL() -> URL? {
+    URL(string: "https://github.com/\(Constants.repositoryOwner)/\(Constants.repositoryName)")
+  }
+
+  func cachedStarsCount(maxAge: TimeInterval) -> Int? {
+    let count = userDefaults.object(forKey: Constants.cachedStarsCountKey) as? Int
+    let updatedAt = userDefaults.double(forKey: Constants.cachedStarsUpdatedAtKey)
+    guard let count, updatedAt > 0 else {
+      return nil
+    }
+    guard Date().timeIntervalSince1970 - updatedAt <= maxAge else {
+      return nil
+    }
+    return count
+  }
+
+  func fetchStars(force: Bool) async throws -> Int {
+    if !force, let cached = cachedStarsCount(maxAge: 3600) {
+      return cached
+    }
+    let apiURLString = "https://api.github.com/repos/\(Constants.repositoryOwner)/\(Constants.repositoryName)"
+    guard let apiURL = URL(string: apiURLString) else {
+      throw VoiceGitHubStarsError.invalidURL
+    }
+
+    var request = URLRequest(url: apiURL)
+    request.httpMethod = "GET"
+    request.timeoutInterval = 15
+    request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+    request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+    request.setValue("nanomouse-ios-app", forHTTPHeaderField: "User-Agent")
+
+    let data: Data
+    let response: URLResponse
+    do {
+      (data, response) = try await session.data(for: request)
+    } catch {
+      throw VoiceGitHubStarsError.transport(message: error.localizedDescription)
+    }
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceGitHubStarsError.invalidResponse
+    }
+    guard (200..<300).contains(httpResponse.statusCode) else {
+      throw VoiceGitHubStarsError.requestFailed(statusCode: httpResponse.statusCode)
+    }
+
+    let payload: VoiceGitHubRepositoryPayload
+    do {
+      payload = try JSONDecoder().decode(VoiceGitHubRepositoryPayload.self, from: data)
+    } catch {
+      throw VoiceGitHubStarsError.decoding(message: error.localizedDescription)
+    }
+
+    userDefaults.set(payload.stargazersCount, forKey: Constants.cachedStarsCountKey)
+    userDefaults.set(Date().timeIntervalSince1970, forKey: Constants.cachedStarsUpdatedAtKey)
+    return payload.stargazersCount
+  }
+}
+
+private struct VoiceGitHubRepositoryPayload: Decodable {
+  let stargazersCount: Int
+
+  private enum CodingKeys: String, CodingKey {
+    case stargazersCount = "stargazers_count"
+  }
+}
+
+final class VoiceAccountProfileRootView: NibLessView {
+  let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
     return view
   }()
 
