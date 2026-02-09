@@ -1212,14 +1212,15 @@ private extension VoiceASRSettingsStore {
     for engine in engines where !deduplicated.contains(engine) {
       deduplicated.append(engine)
     }
-    if let cloudIndex = deduplicated.firstIndex(of: .cloud) {
-      deduplicated.remove(at: cloudIndex)
-      deduplicated.insert(.cloud, at: 0)
+
+    // 互斥策略：ASR 只允许一个主引擎。Whisper 预热时的 Apple 兜底由运行时注入，不写入设置。
+    if deduplicated.contains(.cloud) {
+      return [.cloud]
     }
-    if deduplicated.isEmpty {
-      deduplicated = [.apple]
+    if deduplicated.contains(.whisper) {
+      return [.whisper]
     }
-    return deduplicated
+    return [.apple]
   }
 
   func saveSelectedEnginesLocked(_ engines: [VoiceASREnginePreference]) {
@@ -1235,22 +1236,18 @@ private extension VoiceASRSettingsStore {
       return normalized
     }
 
-    // 兼容旧版本：从单选 enginePreference 迁移到多选列表。
+    // 兼容旧版本：从旧设置迁移到单选主引擎。
     let legacyRaw = userDefaults.string(forKey: Constants.enginePreferenceKey) ?? ""
-    let migrated: [VoiceASREnginePreference]
+    let migrated: VoiceASREnginePreference
     if legacyRaw == "auto" {
-      if modeLocked() == .disabled {
-        migrated = [.apple, .whisper]
-      } else {
-        migrated = [.cloud, .apple, .whisper]
-      }
+      migrated = (modeLocked() == .disabled) ? .apple : .cloud
     } else if let legacy = VoiceASREnginePreference(rawValue: legacyRaw) {
-      migrated = [legacy]
+      migrated = legacy
     } else {
-      migrated = [.apple]
+      migrated = .apple
     }
-    saveSelectedEnginesLocked(migrated)
-    return normalizeSelectedEngines(migrated)
+    saveSelectedEnginesLocked([migrated])
+    return [migrated]
   }
 
   func modeLocked() -> VoiceASRMode {

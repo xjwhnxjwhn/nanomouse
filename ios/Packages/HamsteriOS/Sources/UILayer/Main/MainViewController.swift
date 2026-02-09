@@ -1246,6 +1246,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
       selected = [.apple]
     }
     asrSettingsStore.setSelectedEngines(selected)
+    asrSettingsStore.setMode(selected.first == .cloud ? .preferred : .disabled)
   }
 
   private func presentErrorAlert(message: String) {
@@ -1270,20 +1271,18 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
     let selectedEngines = asrSettingsStore.selectedEngines()
     let selected = selectedEngines.contains(option)
     var config = cell.defaultContentConfiguration()
-    if option == .cloud {
-      config.text = selected ? "在线（优先）" : "在线"
-    } else {
-      config.text = option.displayName
-    }
+    config.text = option.displayName
     config.secondaryText = engineSummary(for: option, selected: selected)
     config.image = engineIcon(for: option)
     config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
     config.secondaryTextProperties.color = .secondaryLabel
     cell.contentConfiguration = config
-    if option == .apple {
-      cell.accessoryType = selected ? .checkmark : .none
-    } else {
-      cell.accessoryType = .disclosureIndicator
+    cell.accessoryType = .none
+    switch option {
+    case .apple:
+      cell.accessoryView = makeTrailingAccessory(showCheckmark: selected, showsChevron: false)
+    case .whisper, .cloud:
+      cell.accessoryView = makeTrailingAccessory(showCheckmark: selected, showsChevron: true)
     }
     cell.selectionStyle = .default
     return cell
@@ -1294,7 +1293,7 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    "你可以勾选多个引擎；若勾选“在线”，系统会优先使用在线 ASR。点击 Whisper 或 在线 可进入独立设置页面。"
+    "识别引擎是互斥单选：Apple / Whisper / 在线。若选择 Whisper，模型预热期间会临时使用 Apple，不改变你的勾选。点击 Whisper 或 在线可进入独立设置页面。"
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -1308,31 +1307,21 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
       navigationController?.pushViewController(cloudSettingsController, animated: true)
       return
     }
-    var selectedEngines = asrSettingsStore.selectedEngines()
-    if let existingIndex = selectedEngines.firstIndex(of: tapped) {
-      selectedEngines.remove(at: existingIndex)
-      if selectedEngines.isEmpty {
-        presentErrorAlert(message: "至少需要勾选一个识别引擎。")
-        return
-      }
-    } else {
-      selectedEngines.append(tapped)
-    }
-    asrSettingsStore.setSelectedEngines(selectedEngines)
+    asrSettingsStore.setSelectedEngines([tapped])
     tableView.reloadSections(IndexSet(integer: 0), with: .none)
   }
 
   private func engineSummary(for option: VoiceASREnginePreference, selected: Bool) -> String {
     switch option {
     case .apple:
-      return selected ? "已启用" : "点击勾选"
+      return selected ? "已启用（仅 Apple）" : "点击启用 Apple 识别"
     case .whisper:
       guard VoiceWhisperModelStore.isWhisperKitEnabled else {
         return "当前构建未启用 WhisperKit"
       }
-      return selected ? "已启用" : "需要已下载模型"
+      return selected ? "已启用（预热中会临时使用 Apple）" : "需要已下载模型，点击进入设置"
     case .cloud:
-      return selected ? "已启用 · 优先" : "需要 API Key，勾选后优先"
+      return selected ? "已启用（仅在线）" : "需要 API Key，点击进入设置"
     }
   }
 
@@ -1345,6 +1334,47 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
     case .cloud:
       return UIImage(systemName: "cloud")
     }
+  }
+
+  private func makeTrailingAccessory(showCheckmark: Bool, showsChevron: Bool) -> UIView {
+    let width: CGFloat
+    switch (showCheckmark, showsChevron) {
+    case (true, true):
+      width = 42
+    case (true, false):
+      width = 18
+    case (false, true):
+      width = 18
+    case (false, false):
+      width = 1
+    }
+    let container = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 22))
+    if showCheckmark {
+      let check = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
+      check.translatesAutoresizingMaskIntoConstraints = false
+      check.tintColor = .systemGreen
+      container.addSubview(check)
+      NSLayoutConstraint.activate([
+        check.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+        check.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        check.widthAnchor.constraint(equalToConstant: 18),
+        check.heightAnchor.constraint(equalToConstant: 18)
+      ])
+    }
+
+    if showsChevron {
+      let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
+      chevron.translatesAutoresizingMaskIntoConstraints = false
+      chevron.tintColor = .tertiaryLabel
+      container.addSubview(chevron)
+      NSLayoutConstraint.activate([
+        chevron.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+        chevron.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        chevron.widthAnchor.constraint(equalToConstant: 8),
+        chevron.heightAnchor.constraint(equalToConstant: 14)
+      ])
+    }
+    return container
   }
 }
 
@@ -1555,19 +1585,12 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
   }
 
   private func setWhisperEnabled(_ enabled: Bool) {
-    var selectedEngines = asrSettingsStore.selectedEngines()
-    let hasWhisper = selectedEngines.contains(.whisper)
     if enabled {
-      if !hasWhisper {
-        selectedEngines.append(.whisper)
-      }
-    } else if let index = selectedEngines.firstIndex(of: .whisper) {
-      selectedEngines.remove(at: index)
-      if selectedEngines.isEmpty {
-        selectedEngines = [.apple]
-      }
+      asrSettingsStore.setSelectedEngines([.whisper])
+    } else {
+      // Whisper 关闭后，主引擎回到 Apple。
+      asrSettingsStore.setSelectedEngines([.apple])
     }
-    asrSettingsStore.setSelectedEngines(selectedEngines)
   }
 
   @objc private func handleWhisperSwitchChanged(_ sender: UISwitch) {
@@ -1754,7 +1777,7 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       var config = cell.defaultContentConfiguration()
       config.text = "启用 Whisper 引擎"
       if models.contains(where: { $0.isDownloaded }) {
-        config.secondaryText = isWhisperEnabled() ? "已启用 Whisper；听写时可与其他引擎并行配置。" : "未启用；打开后可在听写链路中使用 Whisper。"
+        config.secondaryText = isWhisperEnabled() ? "已启用 Whisper（互斥单选）；预热期间会临时回退 Apple。" : "未启用；打开后将切换到 Whisper 作为主引擎。"
       } else {
         config.secondaryText = "当前没有已下载模型，请先在下方下载模型。"
       }
@@ -1825,7 +1848,7 @@ extension VoiceWhisperSettingsViewController: UITableViewDataSource, UITableView
       guard VoiceWhisperModelStore.isWhisperKitEnabled else {
         return "当前构建未启用 WhisperKit，暂时无法下载或启用 Whisper 离线识别。"
       }
-      return "启用后，Whisper 会作为你勾选的识别引擎之一参与听写；关闭后将不再使用 Whisper。"
+      return "识别引擎为互斥单选。启用后将切换到 Whisper；关闭后主引擎会回到 Apple。Whisper 预热期间会临时使用 Apple。"
     }
     if section == 1 {
       return "你可以先读取可下载模型列表，再像在线模型那样从列表选择并下载。"
@@ -1921,12 +1944,11 @@ final class VoiceCloudASRSettingsViewController: NibLessViewController {
         selectedEngines = [.apple]
       }
       settingsStore.setSelectedEngines(selectedEngines)
+      settingsStore.setMode(.disabled)
     }
   }
 
   private func setCloudEnabled(_ enabled: Bool) -> Bool {
-    var selectedEngines = settingsStore.selectedEngines()
-    let hasCloud = selectedEngines.contains(.cloud)
     if enabled {
       let provider = settingsStore.provider()
       let apiKey = (settingsStore.apiKey(for: provider) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1934,16 +1956,12 @@ final class VoiceCloudASRSettingsViewController: NibLessViewController {
         presentMissingAPIKeyAlert()
         return false
       }
-      if !hasCloud {
-        selectedEngines.append(.cloud)
-      }
-    } else if let index = selectedEngines.firstIndex(of: .cloud) {
-      selectedEngines.remove(at: index)
-      if selectedEngines.isEmpty {
-        selectedEngines = [.apple]
-      }
+      settingsStore.setSelectedEngines([.cloud])
+      settingsStore.setMode(.preferred)
+    } else {
+      settingsStore.setSelectedEngines([.apple])
+      settingsStore.setMode(.disabled)
     }
-    settingsStore.setSelectedEngines(selectedEngines)
     return true
   }
 
@@ -1990,12 +2008,12 @@ extension VoiceCloudASRSettingsViewController: UITableViewDataSource, UITableVie
     let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceCloudCell", for: indexPath)
     var config = cell.defaultContentConfiguration()
     if indexPath.section == 0 {
-      config.text = "启用在线引擎（优先）"
+      config.text = "启用在线引擎（仅在线）"
       let savedConfig = hasSavedOnlineConfiguration()
       if !savedConfig {
         config.secondaryText = "未配置可用 API Key，开关已禁用。请先完成在线 ASR 配置并保存。"
       } else {
-        config.secondaryText = isCloudEnabled() ? "已启用；听写时会优先走在线 ASR。" : "未启用；启用后会在听写中优先于本地引擎。"
+        config.secondaryText = isCloudEnabled() ? "已启用；当前只使用在线 ASR。" : "未启用；开启后将切换为在线 ASR 主引擎。"
       }
       config.image = UIImage(systemName: "cloud.fill")
       config.textProperties.font = .systemFont(ofSize: 15, weight: .semibold)
@@ -2035,7 +2053,7 @@ extension VoiceCloudASRSettingsViewController: UITableViewDataSource, UITableVie
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
     if section == 0 {
-      return "你必须先在“在线 ASR 配置”里保存有效 API Key，才能开启在线引擎。"
+      return "识别引擎是互斥单选。你必须先在“在线 ASR 配置”里保存有效 API Key，才能切换到在线引擎。"
     }
     return "你可以在这里配置 Provider、Base URL、模型和 API Key。"
   }
@@ -2538,7 +2556,7 @@ final class VoiceASRSettingsViewController: NibLessViewController {
     if !cloudEnabled {
       message = "当前未勾选在线引擎，在线配置已保存（暂不生效）。"
     } else {
-      message = "已保存在线 ASR 配置。在线引擎在听写中始终为优先。"
+      message = "已保存在线 ASR 配置。当前主引擎为在线 ASR。"
     }
     presentHintAlert(title: "保存成功", message: message)
   }
@@ -2771,7 +2789,7 @@ final class VoiceASRSettingsRootView: NibLessView {
       return
     }
 
-    modeHintLabel.text = "在线引擎已启用；在听写链路中，在线 ASR 始终优先。"
+    modeHintLabel.text = "在线引擎已启用；当前听写只使用在线 ASR（互斥单选）。"
   }
 
   func updateProviderSelection(provider: VoiceASRProvider) {
