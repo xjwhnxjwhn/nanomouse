@@ -2567,6 +2567,8 @@ final class VoiceModelCell: UITableViewCell {
   }
 
   func configure(status: VoiceWhisperModelStatus, isDownloading: Bool) {
+    let actionBlue = UIColor.systemBlue
+    let themeColor = UIColor(named: "AccentColor") ?? actionBlue
     titleLabel.text = status.option.displayName
     subtitleLabel.text = "\(status.sizeText) · \(status.option.summary)"
     stateLabel.textColor = .secondaryLabel
@@ -2586,28 +2588,28 @@ final class VoiceModelCell: UITableViewCell {
     if status.isDownloaded {
       if status.isSelected {
         stateLabel.text = "状态：已下载 · 当前使用"
-        stateLabel.textColor = .systemRed
+        stateLabel.textColor = .systemGreen
         actionButton.setTitle("使用中", for: .normal)
         actionButton.isEnabled = false
-        actionButton.backgroundColor = UIColor.systemRed.withAlphaComponent(0.18)
-        actionButton.setTitleColor(.systemRed, for: .normal)
-        actionButton.layer.borderColor = UIColor.systemRed.withAlphaComponent(0.35).cgColor
-      } else {
-        stateLabel.text = "状态：已下载"
-        stateLabel.textColor = .systemGreen
-        actionButton.setTitle("使用", for: .normal)
-        actionButton.isEnabled = true
         actionButton.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.18)
         actionButton.setTitleColor(.systemGreen, for: .normal)
         actionButton.layer.borderColor = UIColor.systemGreen.withAlphaComponent(0.35).cgColor
+      } else {
+        stateLabel.text = "状态：已下载"
+        stateLabel.textColor = actionBlue
+        actionButton.setTitle("使用", for: .normal)
+        actionButton.isEnabled = true
+        actionButton.backgroundColor = actionBlue.withAlphaComponent(0.18)
+        actionButton.setTitleColor(actionBlue, for: .normal)
+        actionButton.layer.borderColor = actionBlue.withAlphaComponent(0.35).cgColor
       }
     } else {
       stateLabel.text = "状态：未下载"
       actionButton.setTitle("下载", for: .normal)
       actionButton.isEnabled = true
-      actionButton.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
-      actionButton.setTitleColor(.systemBlue, for: .normal)
-      actionButton.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.28).cgColor
+      actionButton.backgroundColor = themeColor.withAlphaComponent(0.12)
+      actionButton.setTitleColor(themeColor, for: .normal)
+      actionButton.layer.borderColor = themeColor.withAlphaComponent(0.28).cgColor
     }
   }
 
