@@ -1507,10 +1507,16 @@ final class VoiceASRService {
 
   private let settingsStore: VoiceASRSettingsStore
   private let session: URLSession
+  private let backendAuthService: VoiceBackendAuthService
 
-  init(settingsStore: VoiceASRSettingsStore = .shared, session: URLSession = .shared) {
+  init(
+    settingsStore: VoiceASRSettingsStore = .shared,
+    session: URLSession = .shared,
+    backendAuthService: VoiceBackendAuthService = .shared
+  ) {
     self.settingsStore = settingsStore
     self.session = session
+    self.backendAuthService = backendAuthService
   }
 
   func transcribe(audioFileURL: URL, localeIdentifier: String?, hotwords: [String] = []) async throws -> String {
@@ -1624,10 +1630,7 @@ private extension VoiceASRService {
       fileData: audioData
     )
 
-    let (data, response) = try await session.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw VoiceASRServiceError.invalidResponse
-    }
+    let (data, httpResponse) = try await executeProxyRequest(request)
     guard (200...299).contains(httpResponse.statusCode) else {
       let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
       throw VoiceASRServiceError.requestFailed(message: message)
@@ -1839,6 +1842,34 @@ private extension VoiceASRService {
       }
     }
     return nil
+  }
+
+  func executeProxyRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    var preparedRequest = request
+    let hadAuthorization = try await backendAuthService.applyAuthorizationHeader(to: &preparedRequest)
+
+    let firstAttempt = try await session.data(for: preparedRequest)
+    guard let firstResponse = firstAttempt.1 as? HTTPURLResponse else {
+      throw VoiceASRServiceError.invalidResponse
+    }
+    if firstResponse.statusCode != 401 || !hadAuthorization {
+      return (firstAttempt.0, firstResponse)
+    }
+
+    var retryRequest = request
+    let refreshed = try await backendAuthService.applyAuthorizationHeader(
+      to: &retryRequest,
+      forceRefresh: true
+    )
+    guard refreshed else {
+      return (firstAttempt.0, firstResponse)
+    }
+
+    let secondAttempt = try await session.data(for: retryRequest)
+    guard let secondResponse = secondAttempt.1 as? HTTPURLResponse else {
+      throw VoiceASRServiceError.invalidResponse
+    }
+    return (secondAttempt.0, secondResponse)
   }
 }
 
@@ -2598,6 +2629,517 @@ private extension VoiceLLMSettingsStore {
   }
 }
 
+struct VoiceBackendAuthSessionState {
+  let loginEndpoint: String
+  let email: String
+  let accessToken: String?
+  let refreshToken: String?
+  let accessTokenExpiresAt: Date?
+  let refreshTokenExpiresAt: Date?
+
+  var hasAccessToken: Bool {
+    guard let accessToken else { return false }
+    return !accessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var hasRefreshToken: Bool {
+    guard let refreshToken else { return false }
+    return !refreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+final class VoiceBackendAuthStore {
+  static let shared = VoiceBackendAuthStore()
+
+  private enum Constants {
+    static let loginEndpointKey = "voice.backend.auth.login.endpoint"
+    static let emailKey = "voice.backend.auth.email"
+    static let accessTokenExpiresAtKey = "voice.backend.auth.access.expires_at"
+    static let refreshTokenExpiresAtKey = "voice.backend.auth.refresh.expires_at"
+    static let keychainService = "com.XiangqingZHANG.nanomouse.voice.backend.auth"
+    static let accessTokenAccount = "backend_access_token"
+    static let refreshTokenAccount = "backend_refresh_token"
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.backend.auth.store")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func sessionState() -> VoiceBackendAuthSessionState {
+    queue.sync { sessionStateLocked() }
+  }
+
+  func loginEndpoint() -> String {
+    queue.sync { loginEndpointLocked() }
+  }
+
+  func setLoginEndpoint(_ endpoint: String) {
+    queue.sync {
+      userDefaults.set(endpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.loginEndpointKey)
+    }
+  }
+
+  func email() -> String {
+    queue.sync { emailLocked() }
+  }
+
+  func setEmail(_ email: String) {
+    queue.sync {
+      userDefaults.set(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), forKey: Constants.emailKey)
+    }
+  }
+
+  func saveSession(
+    accessToken: String,
+    refreshToken: String,
+    accessTokenExpiresAt: Date?,
+    refreshTokenExpiresAt: Date?,
+    email: String,
+    loginEndpoint: String
+  ) {
+    queue.sync {
+      userDefaults.set(loginEndpoint.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Constants.loginEndpointKey)
+      userDefaults.set(email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), forKey: Constants.emailKey)
+      saveRawTokenLocked(accessToken, account: Constants.accessTokenAccount)
+      saveRawTokenLocked(refreshToken, account: Constants.refreshTokenAccount)
+      saveDateLocked(accessTokenExpiresAt, forKey: Constants.accessTokenExpiresAtKey)
+      saveDateLocked(refreshTokenExpiresAt, forKey: Constants.refreshTokenExpiresAtKey)
+    }
+  }
+
+  func updateTokens(
+    accessToken: String,
+    refreshToken: String,
+    accessTokenExpiresAt: Date?,
+    refreshTokenExpiresAt: Date?
+  ) {
+    queue.sync {
+      saveRawTokenLocked(accessToken, account: Constants.accessTokenAccount)
+      saveRawTokenLocked(refreshToken, account: Constants.refreshTokenAccount)
+      saveDateLocked(accessTokenExpiresAt, forKey: Constants.accessTokenExpiresAtKey)
+      saveDateLocked(refreshTokenExpiresAt, forKey: Constants.refreshTokenExpiresAtKey)
+    }
+  }
+
+  func clearSession(keepIdentity: Bool = true) {
+    queue.sync {
+      saveRawTokenLocked(nil, account: Constants.accessTokenAccount)
+      saveRawTokenLocked(nil, account: Constants.refreshTokenAccount)
+      saveDateLocked(nil, forKey: Constants.accessTokenExpiresAtKey)
+      saveDateLocked(nil, forKey: Constants.refreshTokenExpiresAtKey)
+      guard !keepIdentity else { return }
+      userDefaults.removeObject(forKey: Constants.loginEndpointKey)
+      userDefaults.removeObject(forKey: Constants.emailKey)
+    }
+  }
+}
+
+private extension VoiceBackendAuthStore {
+  func sessionStateLocked() -> VoiceBackendAuthSessionState {
+    VoiceBackendAuthSessionState(
+      loginEndpoint: loginEndpointLocked(),
+      email: emailLocked(),
+      accessToken: readRawTokenLocked(account: Constants.accessTokenAccount),
+      refreshToken: readRawTokenLocked(account: Constants.refreshTokenAccount),
+      accessTokenExpiresAt: loadDateLocked(forKey: Constants.accessTokenExpiresAtKey),
+      refreshTokenExpiresAt: loadDateLocked(forKey: Constants.refreshTokenExpiresAtKey)
+    )
+  }
+
+  func loginEndpointLocked() -> String {
+    (userDefaults.string(forKey: Constants.loginEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  func emailLocked() -> String {
+    (userDefaults.string(forKey: Constants.emailKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  func saveDateLocked(_ date: Date?, forKey key: String) {
+    guard let date else {
+      userDefaults.removeObject(forKey: key)
+      return
+    }
+    userDefaults.set(date.timeIntervalSince1970, forKey: key)
+  }
+
+  func loadDateLocked(forKey key: String) -> Date? {
+    guard let value = userDefaults.object(forKey: key) as? TimeInterval else { return nil }
+    return Date(timeIntervalSince1970: value)
+  }
+
+  func keychainQueryLocked(account: String) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: Constants.keychainService,
+      kSecAttrAccount as String: account
+    ]
+  }
+
+  func readRawTokenLocked(account: String) -> String? {
+    var query = keychainQueryLocked(account: account)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    guard status == errSecSuccess, let data = result as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  func saveRawTokenLocked(_ token: String?, account: String) {
+    let query = keychainQueryLocked(account: account)
+    SecItemDelete(query as CFDictionary)
+    guard let token, !token.isEmpty else { return }
+    var insert = query
+    insert[kSecValueData as String] = token.data(using: .utf8)
+    SecItemAdd(insert as CFDictionary, nil)
+  }
+}
+
+enum VoiceBackendAuthError: LocalizedError {
+  case loginEndpointMissing
+  case loginEndpointInvalid
+  case credentialsMissing
+  case invalidResponse
+  case requestFailed(message: String)
+
+  var errorDescription: String? {
+    switch self {
+    case .loginEndpointMissing:
+      return "后端登录地址未配置"
+    case .loginEndpointInvalid:
+      return "后端登录地址无效"
+    case .credentialsMissing:
+      return "邮箱或密码未填写"
+    case .invalidResponse:
+      return "后端认证返回格式异常"
+    case .requestFailed(let message):
+      return "后端认证失败：\(message)"
+    }
+  }
+}
+
+final class VoiceBackendAuthService {
+  static let shared = VoiceBackendAuthService()
+
+  private struct AuthRequestBody: Codable {
+    let email: String
+    let password: String
+  }
+
+  private struct RefreshRequestBody: Codable {
+    let refreshToken: String
+  }
+
+  private struct LogoutRequestBody: Codable {
+    let refreshToken: String
+  }
+
+  private struct AuthResponseBody: Decodable {
+    struct User: Decodable {
+      let email: String?
+    }
+
+    let accessToken: String
+    let refreshToken: String
+    let accessTokenExpiresAt: String?
+    let refreshTokenExpiresAt: String?
+    let user: User?
+  }
+
+  private struct ErrorResponseBody: Decodable {
+    struct ErrorPayload: Decodable {
+      let message: String?
+    }
+
+    let error: ErrorPayload?
+    let message: String?
+  }
+
+  private static let isoFormatterWithFractional: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
+  }()
+
+  private static let isoFormatter: ISO8601DateFormatter = {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter
+  }()
+
+  private let store: VoiceBackendAuthStore
+  private let session: URLSession
+  private let tokenLeewaySeconds: TimeInterval = 30
+
+  init(store: VoiceBackendAuthStore = .shared, session: URLSession = .shared) {
+    self.store = store
+    self.session = session
+  }
+
+  @discardableResult
+  func login(email: String, password: String, loginEndpoint: String) async throws -> VoiceBackendAuthSessionState {
+    let normalizedEndpoint = loginEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedEndpoint.isEmpty else {
+      throw VoiceBackendAuthError.loginEndpointMissing
+    }
+    guard let endpointURL = URL(string: normalizedEndpoint) else {
+      throw VoiceBackendAuthError.loginEndpointInvalid
+    }
+
+    let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let normalizedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedEmail.isEmpty, !normalizedPassword.isEmpty else {
+      throw VoiceBackendAuthError.credentialsMissing
+    }
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 20
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(
+      AuthRequestBody(email: normalizedEmail, password: normalizedPassword)
+    )
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceBackendAuthError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceBackendAuthError.requestFailed(message: message)
+    }
+
+    let payload = try JSONDecoder().decode(AuthResponseBody.self, from: data)
+    let accessToken = payload.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    let refreshToken = payload.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !accessToken.isEmpty, !refreshToken.isEmpty else {
+      throw VoiceBackendAuthError.invalidResponse
+    }
+
+    store.saveSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      accessTokenExpiresAt: parseISO8601(payload.accessTokenExpiresAt),
+      refreshTokenExpiresAt: parseISO8601(payload.refreshTokenExpiresAt),
+      email: payload.user?.email ?? normalizedEmail,
+      loginEndpoint: normalizedEndpoint
+    )
+    return store.sessionState()
+  }
+
+  @discardableResult
+  func applyAuthorizationHeader(to request: inout URLRequest, forceRefresh: Bool = false) async throws -> Bool {
+    guard let token = try await resolveAccessToken(forceRefresh: forceRefresh) else {
+      return false
+    }
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    return true
+  }
+
+  func logoutCurrentSession() async {
+    let snapshot = store.sessionState()
+    defer { store.clearSession(keepIdentity: true) }
+    guard let accessToken = snapshot.accessToken, !accessToken.isEmpty else { return }
+
+    let endpoint = Self.inferLogoutEndpoint(fromLoginEndpoint: snapshot.loginEndpoint)
+    guard !endpoint.isEmpty, let endpointURL = URL(string: endpoint) else { return }
+
+    var request = URLRequest(url: endpointURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 15
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    if let refreshToken = snapshot.refreshToken, !refreshToken.isEmpty {
+      request.httpBody = try? JSONEncoder().encode(LogoutRequestBody(refreshToken: refreshToken))
+    }
+    _ = try? await session.data(for: request)
+  }
+
+  static func inferLoginEndpoint(fromProxyEndpoint proxyEndpoint: String) -> String {
+    let trimmed = proxyEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, var components = URLComponents(string: trimmed) else { return "" }
+
+    var path = normalizedPath(components.path)
+    let suffixes = [
+      "/api/voice/transform",
+      "/api/voice/models",
+      "/api/asr/transcribe"
+    ]
+    for suffix in suffixes where path.hasSuffix(suffix) {
+      path = String(path.dropLast(suffix.count))
+      components.path = mergedPath(basePath: path, childPath: "/auth/login")
+      components.query = nil
+      components.fragment = nil
+      return components.url?.absoluteString ?? ""
+    }
+    if let apiRange = path.range(of: "/api/") {
+      path = String(path[..<apiRange.lowerBound])
+      components.path = mergedPath(basePath: path, childPath: "/auth/login")
+      components.query = nil
+      components.fragment = nil
+      return components.url?.absoluteString ?? ""
+    }
+    if path.hasSuffix("/auth/login") {
+      components.path = path
+    } else {
+      components.path = mergedPath(basePath: path, childPath: "/auth/login")
+    }
+    components.query = nil
+    components.fragment = nil
+    return components.url?.absoluteString ?? ""
+  }
+
+  static func inferRefreshEndpoint(fromLoginEndpoint loginEndpoint: String) -> String {
+    inferAuthSiblingEndpoint(fromLoginEndpoint: loginEndpoint, leaf: "refresh")
+  }
+
+  static func inferLogoutEndpoint(fromLoginEndpoint loginEndpoint: String) -> String {
+    inferAuthSiblingEndpoint(fromLoginEndpoint: loginEndpoint, leaf: "logout")
+  }
+}
+
+private extension VoiceBackendAuthService {
+  func resolveAccessToken(forceRefresh: Bool) async throws -> String? {
+    let snapshot = store.sessionState()
+    if !forceRefresh, let accessToken = usableAccessToken(from: snapshot) {
+      return accessToken
+    }
+
+    guard snapshot.hasRefreshToken else {
+      return nil
+    }
+
+    let refreshed = try await refreshSession(snapshot: snapshot)
+    return refreshed?.accessToken
+  }
+
+  func usableAccessToken(from snapshot: VoiceBackendAuthSessionState) -> String? {
+    guard let token = snapshot.accessToken?.trimmingCharacters(in: .whitespacesAndNewlines), !token.isEmpty else {
+      return nil
+    }
+    guard let expiresAt = snapshot.accessTokenExpiresAt else {
+      return token
+    }
+    return expiresAt.timeIntervalSinceNow > tokenLeewaySeconds ? token : nil
+  }
+
+  private func refreshSession(snapshot: VoiceBackendAuthSessionState) async throws -> AuthResponseBody? {
+    guard
+      let refreshToken = snapshot.refreshToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+      !refreshToken.isEmpty
+    else {
+      return nil
+    }
+
+    let refreshEndpoint = Self.inferRefreshEndpoint(fromLoginEndpoint: snapshot.loginEndpoint)
+    guard !refreshEndpoint.isEmpty, let refreshURL = URL(string: refreshEndpoint) else {
+      return nil
+    }
+
+    var request = URLRequest(url: refreshURL)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 15
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(RefreshRequestBody(refreshToken: refreshToken))
+
+    let (data, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw VoiceBackendAuthError.invalidResponse
+    }
+    guard (200...299).contains(httpResponse.statusCode) else {
+      if httpResponse.statusCode == 401 {
+        store.clearSession(keepIdentity: true)
+      }
+      let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
+      throw VoiceBackendAuthError.requestFailed(message: message)
+    }
+
+    let payload = try JSONDecoder().decode(AuthResponseBody.self, from: data)
+    let accessToken = payload.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    let nextRefreshToken = payload.refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !accessToken.isEmpty, !nextRefreshToken.isEmpty else {
+      throw VoiceBackendAuthError.invalidResponse
+    }
+
+    store.saveSession(
+      accessToken: accessToken,
+      refreshToken: nextRefreshToken,
+      accessTokenExpiresAt: parseISO8601(payload.accessTokenExpiresAt),
+      refreshTokenExpiresAt: parseISO8601(payload.refreshTokenExpiresAt),
+      email: payload.user?.email ?? snapshot.email,
+      loginEndpoint: snapshot.loginEndpoint
+    )
+    return payload
+  }
+
+  func parseISO8601(_ value: String?) -> Date? {
+    guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+      return nil
+    }
+    if let date = Self.isoFormatterWithFractional.date(from: value) {
+      return date
+    }
+    return Self.isoFormatter.date(from: value)
+  }
+
+  func decodeErrorMessage(data: Data) -> String? {
+    if let payload = try? JSONDecoder().decode(ErrorResponseBody.self, from: data) {
+      let message = payload.error?.message ?? payload.message
+      if let message {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+          return trimmed
+        }
+      }
+    }
+    if let raw = String(data: data, encoding: .utf8) {
+      let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return trimmed
+      }
+    }
+    return nil
+  }
+
+  static func inferAuthSiblingEndpoint(fromLoginEndpoint loginEndpoint: String, leaf: String) -> String {
+    let trimmed = loginEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, var components = URLComponents(string: trimmed) else { return "" }
+
+    var path = normalizedPath(components.path)
+    if path.hasSuffix("/auth/login") {
+      path = String(path.dropLast("login".count)) + leaf
+    } else if path.hasSuffix("/auth") {
+      path = path + "/\(leaf)"
+    } else {
+      path = mergedPath(basePath: path, childPath: "/auth/\(leaf)")
+    }
+    components.path = path
+    components.query = nil
+    components.fragment = nil
+    return components.url?.absoluteString ?? ""
+  }
+
+  static func normalizedPath(_ path: String) -> String {
+    guard !path.isEmpty else { return "/" }
+    var value = path
+    while value.count > 1, value.hasSuffix("/") {
+      value.removeLast()
+    }
+    return value
+  }
+
+  static func mergedPath(basePath: String, childPath: String) -> String {
+    let base = normalizedPath(basePath)
+    if base == "/" {
+      return childPath
+    }
+    return base + childPath
+  }
+}
+
 enum VoiceLLMTask: String {
   case speakToEdit = "speak_to_edit"
   case translation = "translation"
@@ -2640,10 +3182,16 @@ final class VoiceLLMService {
 
   private let settingsStore: VoiceLLMSettingsStore
   private let session: URLSession
+  private let backendAuthService: VoiceBackendAuthService
 
-  init(settingsStore: VoiceLLMSettingsStore = .shared, session: URLSession = .shared) {
+  init(
+    settingsStore: VoiceLLMSettingsStore = .shared,
+    session: URLSession = .shared,
+    backendAuthService: VoiceBackendAuthService = .shared
+  ) {
     self.settingsStore = settingsStore
     self.session = session
+    self.backendAuthService = backendAuthService
   }
 
   func transform(
@@ -2830,10 +3378,7 @@ private extension VoiceLLMService {
     )
     request.httpBody = try JSONEncoder().encode(body)
 
-    let (data, response) = try await session.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw VoiceLLMServiceError.invalidResponse
-    }
+    let (data, httpResponse) = try await executeProxyRequest(request)
     guard (200...299).contains(httpResponse.statusCode) else {
       let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
       throw VoiceLLMServiceError.requestFailed(message: message)
@@ -2891,10 +3436,7 @@ private extension VoiceLLMService {
     request.timeoutInterval = 25
     request.httpBody = try JSONEncoder().encode(requestBody)
 
-    let (data, response) = try await session.data(for: request)
-    guard let httpResponse = response as? HTTPURLResponse else {
-      throw VoiceLLMServiceError.invalidResponse
-    }
+    let (data, httpResponse) = try await executeProxyRequest(request)
     guard (200...299).contains(httpResponse.statusCode) else {
       let message = decodeErrorMessage(data: data) ?? "HTTP \(httpResponse.statusCode)"
       throw VoiceLLMServiceError.requestFailed(message: message)
@@ -3202,6 +3744,34 @@ private extension VoiceLLMService {
       return message
     }
     return nil
+  }
+
+  func executeProxyRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    var preparedRequest = request
+    let hadAuthorization = try await backendAuthService.applyAuthorizationHeader(to: &preparedRequest)
+
+    let firstAttempt = try await session.data(for: preparedRequest)
+    guard let firstResponse = firstAttempt.1 as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    if firstResponse.statusCode != 401 || !hadAuthorization {
+      return (firstAttempt.0, firstResponse)
+    }
+
+    var retryRequest = request
+    let refreshed = try await backendAuthService.applyAuthorizationHeader(
+      to: &retryRequest,
+      forceRefresh: true
+    )
+    guard refreshed else {
+      return (firstAttempt.0, firstResponse)
+    }
+
+    let secondAttempt = try await session.data(for: retryRequest)
+    guard let secondResponse = secondAttempt.1 as? HTTPURLResponse else {
+      throw VoiceLLMServiceError.invalidResponse
+    }
+    return (secondAttempt.0, secondResponse)
   }
 
   func normalizeUserInstruction(_ instruction: String?) -> String? {

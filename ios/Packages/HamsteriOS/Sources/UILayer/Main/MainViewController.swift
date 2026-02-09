@@ -3765,7 +3765,9 @@ extension VoiceLazyModelPickerViewController: UITableViewDataSource, UITableView
 
 final class VoiceLLMSettingsViewController: NibLessViewController {
   private let settingsStore: VoiceLLMSettingsStore = .shared
+  private let backendAuthStore: VoiceBackendAuthStore = .shared
   private let llmService: VoiceLLMService = .shared
+  private let backendAuthService: VoiceBackendAuthService = .shared
   private let settingsView = VoiceLLMSettingsRootView()
   private var cachedModelIDs: [String] = []
   private var promptPresets: [VoiceLLMPromptPreset] = []
@@ -3784,6 +3786,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.providerButton.addTarget(self, action: #selector(handleProviderTap), for: .touchUpInside)
     settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
     settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
+    settingsView.backendLoginButton.addTarget(self, action: #selector(handleBackendLoginTap), for: .touchUpInside)
+    settingsView.backendLogoutButton.addTarget(self, action: #selector(handleBackendLogoutTap), for: .touchUpInside)
     settingsView.choosePresetButton.addTarget(self, action: #selector(handleChoosePresetTap), for: .touchUpInside)
     settingsView.savePresetButton.addTarget(self, action: #selector(handleSavePresetTap), for: .touchUpInside)
     settingsView.resetPresetsButton.addTarget(self, action: #selector(handleResetPresetsTap), for: .touchUpInside)
@@ -3805,6 +3809,9 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.byokBaseURLField.text = settingsStore.byokBaseURL(for: provider)
     settingsView.modelField.text = settingsStore.byokModel(for: provider)
     settingsView.apiKeyField.text = settingsStore.apiKey(for: provider)
+    settingsView.backendLoginEndpointField.text = backendAuthStore.loginEndpoint()
+    settingsView.backendEmailField.text = backendAuthStore.email()
+    settingsView.backendPasswordField.text = ""
     cachedModelIDs = settingsStore.cachedModelIDs()
     promptPresets = settingsStore.promptPresets()
     let selectedPreset = settingsStore.selectedPromptPreset()
@@ -3813,6 +3820,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabled)
     settingsView.updateProviderHint(provider: provider)
     settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
+    refreshBackendAuthStatusHint()
   }
 
   private func authModeForSelectedIndex() -> VoiceLLMAuthMode {
@@ -3963,6 +3971,69 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     presentModelPicker(cachedModelIDs)
   }
 
+  @objc private func handleBackendLoginTap() {
+    let loginEndpoint = resolvedBackendLoginEndpoint()
+    let email = (settingsView.backendEmailField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let password = (settingsView.backendPasswordField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !loginEndpoint.isEmpty else {
+      presentErrorAlert(
+        title: "登录失败",
+        message: "请先填写代理地址，或直接填写后端登录地址（/auth/login）。"
+      )
+      return
+    }
+    guard !email.isEmpty, !password.isEmpty else {
+      presentErrorAlert(title: "登录失败", message: "请填写邮箱和密码。")
+      return
+    }
+
+    backendAuthStore.setLoginEndpoint(loginEndpoint)
+    backendAuthStore.setEmail(email)
+    settingsView.backendLoginEndpointField.text = loginEndpoint
+    settingsView.backendEmailField.text = email
+    settingsView.setBackendAuthLoading(isLoading: true)
+
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        _ = try await backendAuthService.login(
+          email: email,
+          password: password,
+          loginEndpoint: loginEndpoint
+        )
+        await MainActor.run {
+          self.settingsView.backendPasswordField.text = ""
+          self.settingsView.setBackendAuthLoading(isLoading: false)
+          self.refreshBackendAuthStatusHint()
+          self.presentHintAlert(title: "登录成功", message: "后续代理请求将自动携带后端 Bearer Token。")
+        }
+      } catch {
+        await MainActor.run {
+          self.settingsView.setBackendAuthLoading(isLoading: false)
+          self.refreshBackendAuthStatusHint()
+          self.presentErrorAlert(title: "登录失败", message: error.localizedDescription)
+        }
+      }
+    }
+  }
+
+  @objc private func handleBackendLogoutTap() {
+    settingsView.backendLogoutButton.isEnabled = false
+    settingsView.backendLogoutButton.setTitle("退出中...", for: .normal)
+
+    Task { [weak self] in
+      guard let self else { return }
+      await backendAuthService.logoutCurrentSession()
+      await MainActor.run {
+        self.settingsView.backendPasswordField.text = ""
+        self.settingsView.backendLogoutButton.setTitle("退出登录", for: .normal)
+        self.refreshBackendAuthStatusHint()
+        self.presentHintAlert(title: "已退出登录", message: "后端会话已清理。")
+      }
+    }
+  }
+
   @objc private func handleChoosePresetTap() {
     // 切换预设前先保存当前草稿，避免用户来回切换时丢失手动修改。
     persistCurrentPresetDraft()
@@ -4077,12 +4148,52 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     settingsStore.setByokBaseURL(baseURL, for: provider)
     settingsStore.setByokModel(model, for: provider)
     settingsStore.setAPIKey(apiKeyInput, for: provider)
+    persistBackendAuthDraft(proxyEndpoint: proxyEndpoint)
 
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
     currentProviderSelection = provider
     settingsView.updateProviderSelection(provider: provider)
     settingsView.updateProviderPlaceholders(provider: provider)
+    refreshBackendAuthStatusHint()
+  }
+
+  private func persistBackendAuthDraft(proxyEndpoint: String? = nil) {
+    let endpoint = resolvedBackendLoginEndpoint(proxyEndpoint: proxyEndpoint)
+    let email = (settingsView.backendEmailField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    backendAuthStore.setLoginEndpoint(endpoint)
+    backendAuthStore.setEmail(email)
+    settingsView.backendLoginEndpointField.text = endpoint
+    settingsView.backendEmailField.text = email
+  }
+
+  private func resolvedBackendLoginEndpoint(proxyEndpoint: String? = nil) -> String {
+    let configured = (settingsView.backendLoginEndpointField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !configured.isEmpty {
+      return configured
+    }
+    let proxy = (proxyEndpoint ?? settingsView.proxyEndpointField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return VoiceBackendAuthService.inferLoginEndpoint(fromProxyEndpoint: proxy)
+  }
+
+  private func refreshBackendAuthStatusHint() {
+    let session = backendAuthStore.sessionState()
+    let statusText: String
+    if session.hasAccessToken {
+      let account = session.email.isEmpty ? "已登录后端账号" : "已登录：\(session.email)"
+      if let expiresAt = session.accessTokenExpiresAt {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        statusText = "\(account)（Token 到期：\(formatter.string(from: expiresAt))）"
+      } else {
+        statusText = "\(account)（Token 已就绪）"
+      }
+    } else {
+      statusText = session.email.isEmpty
+        ? "未登录后端账号。若代理接口需要鉴权，请先登录。"
+        : "账号 \(session.email) 未登录，或会话已过期。"
+    }
+    settingsView.updateBackendAuthStatus(text: statusText, isLoggedIn: session.hasAccessToken)
   }
 
   private func presentModelPicker(_ modelIDs: [String]) {
@@ -4148,6 +4259,41 @@ final class VoiceLLMSettingsRootView: NibLessView {
   let proxyModelsEndpointField = VoiceLLMSettingsRootView.makeTextField(
     placeholder: "https://your-server.example.com/api/voice/models（可选）"
   )
+
+  let backendLoginEndpointField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "http://127.0.0.1:8080/auth/login"
+  )
+
+  let backendEmailField = VoiceLLMSettingsRootView.makeTextField(
+    placeholder: "you@example.com"
+  )
+
+  let backendPasswordField: UITextField = {
+    let field = VoiceLLMSettingsRootView.makeTextField(placeholder: "输入账号密码")
+    field.isSecureTextEntry = true
+    field.textContentType = .oneTimeCode
+    return field
+  }()
+
+  let backendLoginButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("登录后端", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
+    button.layer.cornerRadius = 10
+    return button
+  }()
+
+  let backendLogoutButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("退出登录", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.backgroundColor = UIColor.systemGray5
+    button.layer.cornerRadius = 10
+    return button
+  }()
 
   let byokBaseURLField = VoiceLLMSettingsRootView.makeTextField(
     placeholder: "https://api.openai.com/v1"
@@ -4285,6 +4431,15 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return label
   }()
 
+  private let backendAuthStatusLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.numberOfLines = 0
+    return label
+  }()
+
   private let scrollView: UIScrollView = {
     let view = UIScrollView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -4310,6 +4465,30 @@ final class VoiceLLMSettingsRootView: NibLessView {
     description: "可选。未填写时，默认从代理地址自动推断 /models。",
     field: proxyModelsEndpointField
   )
+
+  private lazy var backendAuthSection: UIView = {
+    let actionRow = UIStackView(arrangedSubviews: [self.backendLoginButton, self.backendLogoutButton])
+    actionRow.axis = .horizontal
+    actionRow.spacing = 8
+    actionRow.distribution = .fillEqually
+
+    let stack = UIStackView(
+      arrangedSubviews: [
+        self.backendLoginEndpointField,
+        self.backendEmailField,
+        self.backendPasswordField,
+        actionRow,
+        self.backendAuthStatusLabel
+      ]
+    )
+    stack.axis = .vertical
+    stack.spacing = 8
+    return self.makeSection(
+      title: "代理鉴权（后端账号）",
+      description: "登录后端账号后，代理请求会自动携带 Bearer Token，并在过期时自动刷新。",
+      content: stack
+    )
+  }()
 
   private lazy var byokBaseSection = makeSection(
     title: "BYOK Base URL",
@@ -4371,6 +4550,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     updateVisibleSections(authMode: .proxy, isLLMEnabled: true)
+    updateBackendAuthStatus(text: "未登录后端账号。若代理接口需要鉴权，请先登录。", isLoggedIn: false)
     updateProviderSelection(provider: .openAI)
     updateProviderPlaceholders(provider: .openAI)
     updateProviderHint(provider: .openAI)
@@ -4387,6 +4567,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     contentStack.addArrangedSubview(providerHintLabel)
     contentStack.addArrangedSubview(proxySection)
     contentStack.addArrangedSubview(proxyModelsSection)
+    contentStack.addArrangedSubview(backendAuthSection)
     contentStack.addArrangedSubview(byokBaseSection)
     contentStack.addArrangedSubview(modelSection)
     contentStack.addArrangedSubview(apiKeySection)
@@ -4419,6 +4600,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     let isProxy = authMode == .proxy
     proxySection.isHidden = !isLLMEnabled || !isProxy
     proxyModelsSection.isHidden = !isLLMEnabled || !isProxy
+    backendAuthSection.isHidden = !isLLMEnabled || !isProxy
     byokBaseSection.isHidden = !isLLMEnabled || isProxy
     modelSection.isHidden = !isLLMEnabled
     apiKeySection.isHidden = !isLLMEnabled || isProxy
@@ -4451,6 +4633,22 @@ final class VoiceLLMSettingsRootView: NibLessView {
       cachedModelHintLabel.text = "已缓存 \(modelCount) 个模型，最近更新：\(timeText)"
     } else {
       cachedModelHintLabel.text = "已缓存 \(modelCount) 个模型。"
+    }
+  }
+
+  func updateBackendAuthStatus(text: String, isLoggedIn: Bool) {
+    backendAuthStatusLabel.text = text
+    backendAuthStatusLabel.textColor = isLoggedIn ? .systemGreen : .secondaryLabel
+    backendLogoutButton.isEnabled = isLoggedIn
+    backendLogoutButton.alpha = isLoggedIn ? 1 : 0.55
+  }
+
+  func setBackendAuthLoading(isLoading: Bool) {
+    backendLoginButton.isEnabled = !isLoading
+    backendLoginButton.setTitle(isLoading ? "登录中..." : "登录后端", for: .normal)
+    if isLoading {
+      backendLogoutButton.isEnabled = false
+      backendLogoutButton.alpha = 0.55
     }
   }
 
