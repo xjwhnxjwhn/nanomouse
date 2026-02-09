@@ -1657,10 +1657,11 @@ final class VoiceWhisperSettingsViewController: NibLessViewController {
         await MainActor.run {
           self.isFetchingRemoteModelList = false
           self.refreshModels()
+          let sizedCount = self.modelStore.remoteModelSizeCount()
           if ids.isEmpty {
             self.presentHintAlert(title: "读取完成", message: "本次未发现可下载模型。")
           } else {
-            self.presentHintAlert(title: "读取完成", message: "已读取 \(ids.count) 个可下载模型。")
+            self.presentHintAlert(title: "读取完成", message: "已读取 \(ids.count) 个可下载模型，其中 \(sizedCount) 个包含大小信息。")
             if presentPickerAfterFetch {
               self.presentRemoteModelPicker()
             }
@@ -2122,7 +2123,7 @@ final class VoiceModelCell: UITableViewCell {
 
   func configure(status: VoiceWhisperModelStatus, isDownloading: Bool) {
     titleLabel.text = status.option.displayName
-    subtitleLabel.text = "\(status.option.sizeText) · \(status.option.summary)"
+    subtitleLabel.text = "\(status.sizeText) · \(status.option.summary)"
     if isDownloading {
       stateLabel.text = "状态：下载中..."
       actionButton.setTitle("下载中", for: .normal)

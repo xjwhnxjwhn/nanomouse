@@ -57,6 +57,7 @@ struct VoiceWhisperModelOption: Hashable {
 
 struct VoiceWhisperModelStatus: Hashable {
   let option: VoiceWhisperModelOption
+  let sizeText: String
   let isDownloaded: Bool
   let isSelected: Bool
 }
@@ -103,8 +104,11 @@ final class VoiceWhisperModelStore {
     static let manifestKey = "voice.whisper.manifest.v1"
     static let selectedModelIDKey = "voice.whisper.selected_model_id"
     static let remoteModelIDsKey = "voice.whisper.remote_model_ids.v1"
+    static let remoteModelSizesKey = "voice.whisper.remote_model_sizes.v1"
     static let rootDirectoryName = "VoiceInput"
     static let modelsDirectoryName = "WhisperModels"
+    static let modelRepo = "argmaxinc/whisperkit-coreml"
+    static let modelTreeEndpoint = "https://huggingface.co/api/models/\(modelRepo)/tree/main?recursive=1&expand=1"
   }
 
   private struct StoredModelRecord: Codable, Equatable {
@@ -129,6 +133,7 @@ final class VoiceWhisperModelStore {
       let selectedID = validSelectedModelIDLocked(records: records)
       let downloadedIDs = Set(records.map(\.modelID))
       let remoteModelIDs = remoteModelIDsLocked()
+      let remoteModelSizes = remoteModelSizesLocked()
       let orderedModelIDs = mergeOrderedModelIDs(
         knownIDs: VoiceWhisperModelOption.supported.map(\.id),
         remoteIDs: remoteModelIDs,
@@ -138,6 +143,7 @@ final class VoiceWhisperModelStore {
         let option = VoiceWhisperModelOption.option(for: modelID)
         return VoiceWhisperModelStatus(
           option: option,
+          sizeText: resolvedSizeText(for: modelID, fallback: option.sizeText, remoteModelSizes: remoteModelSizes),
           isDownloaded: downloadedIDs.contains(option.id),
           isSelected: selectedID == option.id
         )
@@ -149,13 +155,19 @@ final class VoiceWhisperModelStore {
     storageQueue.sync { remoteModelIDsLocked() }
   }
 
+  func remoteModelSizeCount() -> Int {
+    storageQueue.sync { remoteModelSizesLocked().count }
+  }
+
   @discardableResult
   func refreshRemoteModelIDs() async throws -> [String] {
     #if canImport(WhisperKit)
     let fetched = try await WhisperKit.fetchAvailableModels()
     let sanitized = sanitizeModelIDs(fetched)
+    let sizeMap = await resolveRemoteModelSizes(for: sanitized)
     storageQueue.sync {
       saveRemoteModelIDsLocked(sanitized)
+      saveRemoteModelSizesLocked(sizeMap, validModelIDs: sanitized)
     }
     return sanitized
     #else
@@ -447,6 +459,110 @@ private extension VoiceWhisperModelStore {
     return unique
   }
 
+  /// 优先使用线上接口获得字节数；如果缺失，再从模型名中的 `_XXXMB` 规则和已知变体做推断。
+  func resolveRemoteModelSizes(for modelIDs: [String]) async -> [String: Int64] {
+    guard !modelIDs.isEmpty else { return [:] }
+
+    let hubSizes = (try? await fetchHubModelFolderSizes()) ?? [:]
+    var resolved: [String: Int64] = [:]
+
+    for modelID in modelIDs {
+      if let bytes = hubSizes[modelID], bytes > 0 {
+        resolved[modelID] = bytes
+      }
+    }
+
+    var explicitByBaseID: [String: Int64] = [:]
+    for modelID in modelIDs {
+      guard let explicitMB = parseMegabytesFromModelID(modelID) else { continue }
+      let bytes = explicitMB * 1024 * 1024
+      let baseID = removingMegabyteSuffix(from: modelID)
+      if let existing = explicitByBaseID[baseID] {
+        explicitByBaseID[baseID] = max(existing, bytes)
+      } else {
+        explicitByBaseID[baseID] = bytes
+      }
+      if resolved[modelID] == nil {
+        resolved[modelID] = bytes
+      }
+    }
+
+    for modelID in modelIDs where resolved[modelID] == nil {
+      let baseID = removingMegabyteSuffix(from: modelID)
+      if let bytes = explicitByBaseID[baseID] {
+        resolved[modelID] = bytes
+        continue
+      }
+      if let inferredMB = inferMegabytesForKnownModel(modelID) {
+        resolved[modelID] = inferredMB * 1024 * 1024
+      }
+    }
+
+    return resolved
+  }
+
+  func fetchHubModelFolderSizes() async throws -> [String: Int64] {
+    guard let url = URL(string: Constants.modelTreeEndpoint) else { return [:] }
+    let (data, _) = try await URLSession.shared.data(from: url)
+    let decoder = JSONDecoder()
+    let entries = try decoder.decode([VoiceWhisperHubTreeEntry].self, from: data)
+
+    var folderSizes: [String: Int64] = [:]
+    for entry in entries where entry.type == "file" {
+      guard let bytes = entry.size, bytes > 0 else { continue }
+      let components = entry.path.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: true)
+      guard let folder = components.first else { continue }
+      folderSizes[String(folder), default: 0] += bytes
+    }
+    return folderSizes
+  }
+
+  func parseMegabytesFromModelID(_ modelID: String) -> Int64? {
+    guard let regex = try? NSRegularExpression(pattern: "_([0-9]{2,4})MB$", options: [.caseInsensitive]) else {
+      return nil
+    }
+    let range = NSRange(modelID.startIndex..<modelID.endIndex, in: modelID)
+    guard let match = regex.firstMatch(in: modelID, options: [], range: range) else { return nil }
+    guard let captureRange = Range(match.range(at: 1), in: modelID) else { return nil }
+    return Int64(modelID[captureRange])
+  }
+
+  func removingMegabyteSuffix(from modelID: String) -> String {
+    guard let regex = try? NSRegularExpression(pattern: "_[0-9]{2,4}MB$", options: [.caseInsensitive]) else {
+      return modelID
+    }
+    let range = NSRange(modelID.startIndex..<modelID.endIndex, in: modelID)
+    return regex.stringByReplacingMatches(in: modelID, options: [], range: range, withTemplate: "")
+  }
+
+  func inferMegabytesForKnownModel(_ modelID: String) -> Int64? {
+    let lowercased = modelID.lowercased()
+    if lowercased.contains("distil-large-v3_turbo") { return 600 }
+    if lowercased.contains("distil-large-v3") { return 594 }
+    if lowercased.contains("large-v3-v20240930_turbo") { return 632 }
+    if lowercased.contains("large-v3-v20240930") { return 626 }
+    if lowercased.contains("large-v3_turbo") { return 954 }
+    if lowercased.contains("large-v3") { return 947 }
+    if lowercased.contains("large-v2_turbo") { return 955 }
+    if lowercased.contains("large-v2") { return 949 }
+    if lowercased.contains("whisper-small") { return 216 }
+    if lowercased.contains("whisper-base") { return 145 }
+    if lowercased.contains("whisper-tiny") { return 75 }
+    return nil
+  }
+
+  func resolvedSizeText(for modelID: String, fallback: String, remoteModelSizes: [String: Int64]) -> String {
+    guard let bytes = remoteModelSizes[modelID], bytes > 0 else { return fallback }
+    let mb = Double(bytes) / 1024.0 / 1024.0
+    if mb >= 1024 {
+      return String(format: "约 %.2fGB", mb / 1024.0)
+    }
+    if mb >= 100 {
+      return String(format: "约 %.0fMB", mb)
+    }
+    return String(format: "约 %.1fMB", mb)
+  }
+
   func remoteModelIDsLocked() -> [String] {
     let raw = userDefaults.array(forKey: Constants.remoteModelIDsKey) as? [String] ?? []
     return sanitizeModelIDs(raw)
@@ -455,6 +571,20 @@ private extension VoiceWhisperModelStore {
   func saveRemoteModelIDsLocked(_ ids: [String]) {
     let sanitized = sanitizeModelIDs(ids)
     userDefaults.set(sanitized, forKey: Constants.remoteModelIDsKey)
+  }
+
+  func remoteModelSizesLocked() -> [String: Int64] {
+    guard let data = userDefaults.data(forKey: Constants.remoteModelSizesKey) else { return [:] }
+    let decoder = JSONDecoder()
+    return (try? decoder.decode([String: Int64].self, from: data)) ?? [:]
+  }
+
+  func saveRemoteModelSizesLocked(_ sizeMap: [String: Int64], validModelIDs: [String]) {
+    let validSet = Set(validModelIDs)
+    let filtered = sizeMap.filter { validSet.contains($0.key) && $0.value > 0 }
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(filtered) else { return }
+    userDefaults.set(data, forKey: Constants.remoteModelSizesKey)
   }
 
   private func loadManifestLocked() -> [StoredModelRecord] {
@@ -496,6 +626,12 @@ private extension VoiceWhisperModelStore {
     }
     return fallbackID
   }
+}
+
+private struct VoiceWhisperHubTreeEntry: Decodable {
+  let type: String
+  let path: String
+  let size: Int64?
 }
 
 enum VoicePersonalWordSource: String, Codable, CaseIterable {
