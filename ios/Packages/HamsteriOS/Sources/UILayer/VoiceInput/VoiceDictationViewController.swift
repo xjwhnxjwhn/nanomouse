@@ -669,7 +669,12 @@ final class VoiceDictationViewController: NibLessViewController {
       return mergeRealtimeTranscript(previous: previousRaw, addition: addition)
     }
 
-    // 无重叠的新片段通常是噪声或短时幻觉，保留已识别内容更稳。
+    // 无重叠时可能是“停顿后重启片段”，满足条件则追加，避免后续语音被吞掉。
+    if canAutoAppendAsNewSegment(previous: previous, candidate: trimmedNew) {
+      return mergeRealtimeTranscript(previous: previousRaw, addition: trimmedNew)
+    }
+
+    // 其余无重叠片段按噪声处理，保留已识别内容。
     return previousRaw
   }
 
@@ -697,6 +702,32 @@ final class VoiceDictationViewController: NibLessViewController {
       }
     }
     return 0
+  }
+
+  private func canAutoAppendAsNewSegment(previous: String, candidate: String) -> Bool {
+    let normalizedPrevious = normalizeTranscriptForComparison(previous)
+    let normalizedCandidate = normalizeTranscriptForComparison(candidate)
+    guard normalizedCandidate.count >= 4 else { return false }
+    guard !normalizedPrevious.isEmpty else { return true }
+    if normalizedPrevious.contains(normalizedCandidate) {
+      return false
+    }
+    if normalizedPrevious.hasSuffix(normalizedCandidate) {
+      return false
+    }
+    return true
+  }
+
+  private func normalizeTranscriptForComparison(_ text: String) -> String {
+    let lowered = text.lowercased()
+    return lowered.filter { character in
+      if character.isLetter || character.isNumber {
+        return true
+      }
+      let scalar = character.unicodeScalars.first?.value ?? 0
+      // 保留 CJK 统一汉字区间，兼容中文比较。
+      return (0x4E00...0x9FFF).contains(scalar)
+    }
   }
 
   private struct OutputResolution {

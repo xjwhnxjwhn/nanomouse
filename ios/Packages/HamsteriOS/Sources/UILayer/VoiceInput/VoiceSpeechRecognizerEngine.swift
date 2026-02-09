@@ -3103,6 +3103,7 @@ final class VoiceSpeechRecognizerEngine {
   private var whisperRealtimeSessionID = UUID().uuidString
   private var whisperDecodeInFlight = false
   private var cloudTranscribeTask: Task<Void, Never>?
+  private var lastAppleSegmentRestartAt: TimeInterval = 0
   #if canImport(WhisperKit)
   private var whisperKit: WhisperKit?
   private var whisperLoadedModelID: String?
@@ -3439,11 +3440,8 @@ final class VoiceSpeechRecognizerEngine {
     self.recognizer = recognizer
 
     clearWhisperState()
-    let request = SFSpeechAudioBufferRecognitionRequest()
-    request.shouldReportPartialResults = true
-    request.requiresOnDeviceRecognition = requiresOnDevice
-    request.contextualStrings = contextualStrings
-    self.recognitionRequest = request
+    recognitionTask = nil
+    recognitionRequest = nil
 
     let session = AVAudioSession.sharedInstance()
     try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
@@ -3462,30 +3460,127 @@ final class VoiceSpeechRecognizerEngine {
 
     audioEngine.prepare()
     try audioEngine.start()
+    beginAppleRecognitionTask(
+      recognizer: recognizer,
+      localeIdentifier: localeIdentifier,
+      requiresOnDevice: requiresOnDevice,
+      contextualStrings: contextualStrings,
+      onResult: onResult,
+      onError: onError
+    )
+  }
 
+  private func beginAppleRecognitionTask(
+    recognizer: SFSpeechRecognizer,
+    localeIdentifier: String,
+    requiresOnDevice: Bool,
+    contextualStrings: [String],
+    onResult: @escaping (String, Bool) -> Void,
+    onError: @escaping (EngineError) -> Void
+  ) {
+    let request = makeSpeechRecognitionRequest(
+      requiresOnDevice: requiresOnDevice,
+      contextualStrings: contextualStrings
+    )
+    recognitionRequest = request
     recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+      guard let self else { return }
       if let result {
         let text = result.bestTranscription.formattedString
-        DispatchQueue.main.async {
-          onResult(text, result.isFinal)
-        }
         if result.isFinal {
-          self?.recognitionTask = nil
-          self?.recognitionRequest = nil
-          self?.activePipeline = .none
+          self.recognitionTask = nil
+          self.recognitionRequest = nil
+          let restarted = self.restartAppleRecognitionIfNeeded(
+            localeIdentifier: localeIdentifier,
+            requiresOnDevice: requiresOnDevice,
+            contextualStrings: contextualStrings,
+            onResult: onResult,
+            onError: onError
+          )
+          DispatchQueue.main.async {
+            // 分段重启时把本段 final 当作增量片段，避免 UI 误以为整次识别已结束。
+            onResult(text, !restarted)
+          }
+          if !restarted {
+            self.activePipeline = .none
+          }
+          return
+        }
+        DispatchQueue.main.async {
+          onResult(text, false)
         }
       }
+
       if let error {
-        let mappedError = self?.mapRuntimeError(error, requiresOnDevice: requiresOnDevice)
-          ?? EngineError.runtimeFailure(message: error.localizedDescription)
+        self.recognitionTask = nil
+        self.recognitionRequest = nil
+
+        let restarted = self.restartAppleRecognitionIfNeeded(
+          localeIdentifier: localeIdentifier,
+          requiresOnDevice: requiresOnDevice,
+          contextualStrings: contextualStrings,
+          onResult: onResult,
+          onError: onError
+        )
+
+        if restarted {
+          return
+        }
+
+        let mappedError = self.mapRuntimeError(error, requiresOnDevice: requiresOnDevice)
         DispatchQueue.main.async {
           onError(mappedError)
         }
-        self?.recognitionTask = nil
-        self?.recognitionRequest = nil
-        self?.activePipeline = .none
+        self.activePipeline = .none
       }
     }
+  }
+
+  private func makeSpeechRecognitionRequest(
+    requiresOnDevice: Bool,
+    contextualStrings: [String]
+  ) -> SFSpeechAudioBufferRecognitionRequest {
+    let request = SFSpeechAudioBufferRecognitionRequest()
+    request.shouldReportPartialResults = true
+    request.requiresOnDeviceRecognition = requiresOnDevice
+    request.contextualStrings = contextualStrings
+    return request
+  }
+
+  private func restartAppleRecognitionIfNeeded(
+    localeIdentifier: String,
+    requiresOnDevice: Bool,
+    contextualStrings: [String],
+    onResult: @escaping (String, Bool) -> Void,
+    onError: @escaping (EngineError) -> Void
+  ) -> Bool {
+    guard audioEngine.isRunning else { return false }
+    guard case .apple(let activeRequiresOnDevice) = activePipeline else { return false }
+    guard activeRequiresOnDevice == requiresOnDevice else { return false }
+    guard let recognizer, recognizer.isAvailable else { return false }
+    if requiresOnDevice && !recognizer.supportsOnDeviceRecognition {
+      return false
+    }
+    if !requiresOnDevice && !isNetworkAvailable {
+      return false
+    }
+    guard recognitionTask == nil, recognitionRequest == nil else { return false }
+
+    let now = Date().timeIntervalSince1970
+    if now - lastAppleSegmentRestartAt < 0.25 {
+      return false
+    }
+    lastAppleSegmentRestartAt = now
+
+    beginAppleRecognitionTask(
+      recognizer: recognizer,
+      localeIdentifier: localeIdentifier,
+      requiresOnDevice: requiresOnDevice,
+      contextualStrings: contextualStrings,
+      onResult: onResult,
+      onError: onError
+    )
+    return true
   }
 
   private func startWhisperRecording(modelID: String) throws {
