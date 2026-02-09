@@ -29,6 +29,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var llmTransformTask: Task<Void, Never>?
   private var stopTapTranscriptSnapshot = ""
   private var finishTimeoutWorkItem: DispatchWorkItem?
+  private var recordingStartedAt: TimeInterval?
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -186,6 +187,7 @@ final class VoiceDictationViewController: NibLessViewController {
     isRecording = false
     isFinishing = false
     isStarting = false
+    recordingStartedAt = nil
     lastStartError = nil
     configureStopButtonForFinish()
     voiceInputBridge.setState(requestId: requestId, state: .launching)
@@ -342,6 +344,7 @@ final class VoiceDictationViewController: NibLessViewController {
           self.tipLabel.text = self.makeModeHintText()
           self.isStarting = false
           self.isRecording = true
+          self.recordingStartedAt = Date().timeIntervalSince1970
           self.lastStartError = nil
         }
       } catch let error as VoiceSpeechRecognizerEngine.EngineError {
@@ -925,6 +928,7 @@ final class VoiceDictationViewController: NibLessViewController {
     historyStore.appendSuccess(
       rawText: historyRawCandidate.isEmpty ? normalizedFinalText : historyRawCandidate,
       outputText: normalizedFinalText,
+      durationSeconds: currentRecordingDurationSeconds(),
       localeIdentifier: localeIdentifier ?? activeLocaleIdentifier,
       routeRawValue: activeRoute.rawValue,
       usedLLM: usedLLM
@@ -963,6 +967,7 @@ final class VoiceDictationViewController: NibLessViewController {
     latestTranscript = normalizedFinalText
     latestNonEmptyTranscript = normalizedFinalText
     stopTapTranscriptSnapshot = ""
+    recordingStartedAt = nil
   }
 
   private func bestAvailableTranscriptCandidate() -> String {
@@ -1013,8 +1018,19 @@ final class VoiceDictationViewController: NibLessViewController {
     historyStore.appendFailure(
       partialText: partial,
       errorMessage: errorMessage,
+      durationSeconds: currentRecordingDurationSeconds(),
       localeIdentifier: activeLocaleIdentifier,
       routeRawValue: activeRoute.rawValue
     )
+    recordingStartedAt = nil
+  }
+
+  private func currentRecordingDurationSeconds() -> Double? {
+    guard let recordingStartedAt else { return nil }
+    let elapsed = Date().timeIntervalSince1970 - recordingStartedAt
+    if !elapsed.isFinite || elapsed <= 0 {
+      return nil
+    }
+    return elapsed
   }
 }

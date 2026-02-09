@@ -843,6 +843,7 @@ enum VoiceDictationHistoryStatus: String, Codable {
 struct VoiceDictationHistoryEntry: Codable, Hashable {
   let id: String
   let createdAt: TimeInterval
+  let durationSeconds: Double?
   let localeIdentifier: String?
   let routeRawValue: String?
   let rawText: String
@@ -881,6 +882,7 @@ final class VoiceDictationHistoryStore {
   func appendSuccess(
     rawText: String,
     outputText: String,
+    durationSeconds: Double?,
     localeIdentifier: String?,
     routeRawValue: String?,
     usedLLM: Bool
@@ -895,6 +897,7 @@ final class VoiceDictationHistoryStore {
         VoiceDictationHistoryEntry(
           id: UUID().uuidString,
           createdAt: Date().timeIntervalSince1970,
+          durationSeconds: sanitizeDuration(durationSeconds),
           localeIdentifier: localeIdentifier,
           routeRawValue: routeRawValue,
           rawText: normalizedRaw.isEmpty ? normalizedOutput : normalizedRaw,
@@ -912,6 +915,7 @@ final class VoiceDictationHistoryStore {
   func appendFailure(
     partialText: String,
     errorMessage: String,
+    durationSeconds: Double?,
     localeIdentifier: String?,
     routeRawValue: String?
   ) {
@@ -924,6 +928,7 @@ final class VoiceDictationHistoryStore {
         VoiceDictationHistoryEntry(
           id: UUID().uuidString,
           createdAt: Date().timeIntervalSince1970,
+          durationSeconds: sanitizeDuration(durationSeconds),
           localeIdentifier: localeIdentifier,
           routeRawValue: routeRawValue,
           rawText: normalizedPartial,
@@ -978,6 +983,14 @@ private extension VoiceDictationHistoryStore {
     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return "" }
     return trimmed.replacingOccurrences(of: "\\s{2,}", with: " ", options: .regularExpression)
+  }
+
+  private func sanitizeDuration(_ value: Double?) -> Double? {
+    guard let value else { return nil }
+    if !value.isFinite || value <= 0 {
+      return nil
+    }
+    return min(value, 8 * 60 * 60)
   }
 }
 

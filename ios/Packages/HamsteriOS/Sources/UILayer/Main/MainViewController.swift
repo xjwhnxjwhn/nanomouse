@@ -353,17 +353,60 @@ open class MainTabBarController: UITabBarController {
 final class VoiceHomeViewController: NibLessViewController {
   private lazy var homeRootView = VoiceHomeRootView()
   private let voiceInputBridge: AppVoiceInputBridge = .shared
+  private let historyStore: VoiceDictationHistoryStore = .shared
+  private let homeSettingsStore: VoiceHomeSettingsStore = .shared
+  private let gitHubStarsService: VoiceGitHubStarsService = .shared
+  private let statsNumberFormatter: NumberFormatter = {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.maximumFractionDigits = 0
+    return formatter
+  }()
+
+  private struct HomeMetrics {
+    let totalDictationMinutes: Double
+    let totalCharacters: Int
+    let estimatedSavedMinutes: Double
+    let averageCharsPerMinute: Int
+  }
 
   override func loadView() {
     homeRootView.onStartDictation = { [weak self] in
-      guard let self = self else { return }
-      let requestId = self.voiceInputBridge.makeRequestId()
-      self.startDictation(requestId: requestId)
+      self?.handleStartDictationTap()
+    }
+    homeRootView.onToggleVoiceEnabled = { [weak self] enabled in
+      self?.handleVoiceEnabledChanged(enabled)
+    }
+    homeRootView.onTapStatusInfo = { [weak self] in
+      self?.presentStatusInfoAlert()
+    }
+    homeRootView.onTapAutoClose = { [weak self] in
+      self?.presentAutoCloseOptions()
+    }
+    homeRootView.onTapDesktopLink = { [weak self] in
+      self?.copyDesktopDownloadLink()
     }
     view = homeRootView
   }
 
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    refreshHomeDashboard()
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    refreshHomeDashboard()
+  }
+
   func startDictation(requestId: String) {
+    guard homeSettingsStore.isVoiceEnabled() else {
+      presentSimpleAlert(
+        title: "语音输入已暂停",
+        message: "你当前关闭了语音输入，请先在首页开启后再继续听写。"
+      )
+      return
+    }
     if let dictationController = presentedViewController as? VoiceDictationViewController {
       dictationController.updateRequestId(requestId)
       return
@@ -372,10 +415,151 @@ final class VoiceHomeViewController: NibLessViewController {
     controller.modalPresentationStyle = .fullScreen
     present(controller, animated: true)
   }
+
+  private func handleStartDictationTap() {
+    let requestId = voiceInputBridge.makeRequestId()
+    startDictation(requestId: requestId)
+  }
+
+  private func handleVoiceEnabledChanged(_ enabled: Bool) {
+    homeSettingsStore.setVoiceEnabled(enabled)
+    refreshHomeDashboard()
+  }
+
+  private func presentStatusInfoAlert() {
+    presentSimpleAlert(
+      title: "语音输入状态",
+      message: "你关闭开关后，首页与键盘跳转入口都会阻止新的听写会话。"
+    )
+  }
+
+  private func presentAutoCloseOptions() {
+    let current = homeSettingsStore.inactiveAutoCloseMinutes()
+    let alert = UIAlertController(title: "不活动自动关闭", message: "选择超过多久未使用后自动关闭语音输入。", preferredStyle: .actionSheet)
+    for option in VoiceHomeSettingsStore.inactiveMinuteOptions {
+      let optionText = VoiceHomeSettingsStore.displayText(forInactiveMinutes: option)
+      let title = option == current ? "\(optionText)（当前）" : optionText
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        guard let self else { return }
+        self.homeSettingsStore.setInactiveAutoCloseMinutes(option)
+        self.refreshHomeDashboard()
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = view
+      popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 40, width: 1, height: 1)
+      popover.permittedArrowDirections = []
+    }
+    present(alert, animated: true)
+  }
+
+  private func copyDesktopDownloadLink() {
+    guard let repositoryURL = gitHubStarsService.repositoryWebURL() else {
+      presentSimpleAlert(title: "复制失败", message: "桌面版链接暂不可用，请稍后重试。")
+      return
+    }
+    let desktopURL = repositoryURL.appendingPathComponent("releases").absoluteString
+    UIPasteboard.general.string = desktopURL
+    presentSimpleAlert(title: "已复制", message: "桌面版下载链接已复制到剪贴板。")
+  }
+
+  private func refreshHomeDashboard() {
+    let entries = historyStore.entries(limit: 300)
+    applyAutoPauseIfNeeded(entries: entries)
+
+    let isEnabled = homeSettingsStore.isVoiceEnabled()
+    let inactiveMinutes = homeSettingsStore.inactiveAutoCloseMinutes()
+    let metrics = computeMetrics(from: entries)
+
+    homeRootView.updateVoiceStatus(isEnabled: isEnabled, inactiveMinutes: inactiveMinutes)
+    homeRootView.updateStats(
+      totalMinutes: formatMinutes(metrics.totalDictationMinutes),
+      totalCharacters: formatCount(metrics.totalCharacters),
+      savedMinutes: formatMinutes(metrics.estimatedSavedMinutes),
+      averageCharsPerMinute: formatCount(metrics.averageCharsPerMinute)
+    )
+  }
+
+  private func applyAutoPauseIfNeeded(entries: [VoiceDictationHistoryEntry]) {
+    guard homeSettingsStore.isVoiceEnabled() else { return }
+    guard let latestActivity = entries.first?.createdAt else { return }
+    let threshold = TimeInterval(homeSettingsStore.inactiveAutoCloseMinutes() * 60)
+    guard threshold > 0 else { return }
+    if Date().timeIntervalSince1970 - latestActivity >= threshold {
+      homeSettingsStore.setVoiceEnabled(false)
+    }
+  }
+
+  private func computeMetrics(from entries: [VoiceDictationHistoryEntry]) -> HomeMetrics {
+    let successful = entries.filter { $0.status == .success }
+    var totalCharacters = 0
+    var totalDictationSeconds: Double = 0
+
+    for entry in successful {
+      let text = (entry.outputText ?? entry.rawText).trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !text.isEmpty else { continue }
+      let characters = countContentCharacters(in: text)
+      guard characters > 0 else { continue }
+      totalCharacters += characters
+
+      if let duration = entry.durationSeconds, duration > 0 {
+        totalDictationSeconds += duration
+      } else {
+        // 兼容旧历史记录：旧记录没有时长时，用保守语速估算，避免首页统计长期显示 0。
+        totalDictationSeconds += Double(characters) / 110.0 * 60.0
+      }
+    }
+
+    let totalDictationMinutes = totalDictationSeconds / 60.0
+    let averageCharsPerMinute: Int
+    if totalDictationSeconds > 0 {
+      averageCharsPerMinute = Int((Double(totalCharacters) / totalDictationSeconds * 60.0).rounded())
+    } else {
+      averageCharsPerMinute = 0
+    }
+
+    // 以 60 字/分钟作为手动输入基线，用于估算节省时间。
+    let estimatedTypingMinutes = Double(totalCharacters) / 60.0
+    let estimatedSavedMinutes = max(0, estimatedTypingMinutes - totalDictationMinutes)
+    return HomeMetrics(
+      totalDictationMinutes: totalDictationMinutes,
+      totalCharacters: totalCharacters,
+      estimatedSavedMinutes: estimatedSavedMinutes,
+      averageCharsPerMinute: max(0, averageCharsPerMinute)
+    )
+  }
+
+  private func countContentCharacters(in text: String) -> Int {
+    text.unicodeScalars.filter { !CharacterSet.whitespacesAndNewlines.contains($0) }.count
+  }
+
+  private func formatCount(_ value: Int) -> String {
+    let number = NSNumber(value: max(0, value))
+    return statsNumberFormatter.string(from: number) ?? "\(max(0, value))"
+  }
+
+  private func formatMinutes(_ value: Double) -> String {
+    let safe = max(0, value)
+    if safe < 10 {
+      return String(format: "%.1f", safe)
+    }
+    return "\(Int(safe.rounded()))"
+  }
+
+  private func presentSimpleAlert(title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    present(alert, animated: true)
+  }
 }
 
 final class VoiceHomeRootView: NibLessView {
   var onStartDictation: (() -> Void)?
+  var onToggleVoiceEnabled: ((Bool) -> Void)?
+  var onTapStatusInfo: (() -> Void)?
+  var onTapAutoClose: (() -> Void)?
+  var onTapDesktopLink: (() -> Void)?
   private let statsCard = VoiceCardView(style: .standard)
   private let desktopCard = VoiceCardView(style: .standard)
   private let statusCard = VoiceCardView(style: .accent)
@@ -418,18 +602,50 @@ final class VoiceHomeRootView: NibLessView {
     return stack
   }()
 
+  private lazy var totalTimeValueLabel = makeStatValueLabel(text: "0.0")
+  private lazy var totalTimeUnitLabel = makeStatUnitLabel(text: "min")
+  private lazy var totalTimeTitleLabel = makeStatTitleLabel(text: "总听写时间")
+
+  private lazy var totalCharactersValueLabel = makeStatValueLabel(text: "0")
+  private lazy var totalCharactersUnitLabel = makeStatUnitLabel(text: "字")
+  private lazy var totalCharactersTitleLabel = makeStatTitleLabel(text: "听写字数")
+
+  private lazy var savedTimeValueLabel = makeStatValueLabel(text: "0.0")
+  private lazy var savedTimeUnitLabel = makeStatUnitLabel(text: "min")
+  private lazy var savedTimeTitleLabel = makeStatTitleLabel(text: "节省的时间")
+
+  private lazy var speedValueLabel = makeStatValueLabel(text: "0")
+  private lazy var speedUnitLabel = makeStatUnitLabel(text: "每分钟字数")
+  private lazy var speedTitleLabel = makeStatTitleLabel(text: "平均听写速度")
+
   private lazy var statsGrid: UIStackView = {
     let topRow = UIStackView(arrangedSubviews: [
-      makeStatItem(value: "0", unit: "min", title: "总听写时间"),
-      makeStatItem(value: "25", unit: "字", title: "听写的单词")
+      makeStatItem(
+        valueLabel: totalTimeValueLabel,
+        unitLabel: totalTimeUnitLabel,
+        titleLabel: totalTimeTitleLabel
+      ),
+      makeStatItem(
+        valueLabel: totalCharactersValueLabel,
+        unitLabel: totalCharactersUnitLabel,
+        titleLabel: totalCharactersTitleLabel
+      ),
     ])
     topRow.axis = .horizontal
     topRow.distribution = .fillEqually
     topRow.spacing = 8
 
     let bottomRow = UIStackView(arrangedSubviews: [
-      makeStatItem(value: "0", unit: "min", title: "节省的时间"),
-      makeStatItem(value: "120", unit: "每分钟字数", title: "平均听写速度")
+      makeStatItem(
+        valueLabel: savedTimeValueLabel,
+        unitLabel: savedTimeUnitLabel,
+        titleLabel: savedTimeTitleLabel
+      ),
+      makeStatItem(
+        valueLabel: speedValueLabel,
+        unitLabel: speedUnitLabel,
+        titleLabel: speedTitleLabel
+      ),
     ])
     bottomRow.axis = .horizontal
     bottomRow.distribution = .fillEqually
@@ -466,6 +682,7 @@ final class VoiceHomeRootView: NibLessView {
     button.layer.cornerRadius = 12
     button.layer.borderWidth = 1
     button.layer.borderColor = UIColor.systemGray5.cgColor
+    button.addTarget(self, action: #selector(handleDesktopTap), for: .touchUpInside)
     return button
   }()
 
@@ -482,6 +699,7 @@ final class VoiceHomeRootView: NibLessView {
     button.translatesAutoresizingMaskIntoConstraints = false
     button.setImage(UIImage(systemName: "info.circle"), for: .normal)
     button.tintColor = .secondaryLabel
+    button.addTarget(self, action: #selector(handleStatusInfoTap), for: .touchUpInside)
     return button
   }()
 
@@ -490,23 +708,19 @@ final class VoiceHomeRootView: NibLessView {
     control.isOn = true
     control.onTintColor = .systemBlue
     control.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
+    control.addTarget(self, action: #selector(handleStatusSwitchChanged(_:)), for: .valueChanged)
     return control
   }()
 
-  private lazy var statusFooterLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 13, weight: .regular)
-    label.textColor = .secondaryLabel
-    label.text = "在不活动时关闭：12 小时"
-    return label
-  }()
-
-  private lazy var statusFooterChevron: UIImageView = {
-    let view = UIImageView(image: UIImage(systemName: "chevron.down"))
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.tintColor = .secondaryLabel
-    return view
+  private lazy var statusFooterButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.contentHorizontalAlignment = .left
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .regular)
+    button.setTitleColor(.secondaryLabel, for: .normal)
+    button.setTitle("在不活动时关闭：12 小时 ▾", for: .normal)
+    button.addTarget(self, action: #selector(handleAutoCloseTap), for: .touchUpInside)
+    return button
   }()
 
   private lazy var startDictationButton: UIButton = {
@@ -573,12 +787,7 @@ final class VoiceHomeRootView: NibLessView {
     statusHeader.alignment = .center
     statusHeader.distribution = .equalSpacing
 
-    let statusFooter = UIStackView(arrangedSubviews: [statusFooterLabel, statusFooterChevron])
-    statusFooter.axis = .horizontal
-    statusFooter.spacing = 6
-    statusFooter.alignment = .center
-
-    let statusStack = UIStackView(arrangedSubviews: [statusHeader, statusSubtitleLabel, statusFooter, startDictationButton])
+    let statusStack = UIStackView(arrangedSubviews: [statusHeader, statusSubtitleLabel, statusFooterButton, startDictationButton])
     statusStack.axis = .vertical
     statusStack.spacing = 10
     statusCard.addContentView(statusStack)
@@ -611,30 +820,163 @@ final class VoiceHomeRootView: NibLessView {
     onStartDictation?()
   }
 
-  private func makeStatItem(value: String, unit: String, title: String) -> UIStackView {
-    let valueLabel = UILabel()
-    valueLabel.font = .systemFont(ofSize: 22, weight: .bold)
-    valueLabel.text = value
+  @objc private func handleDesktopTap() {
+    onTapDesktopLink?()
+  }
 
-    let unitLabel = UILabel()
-    unitLabel.font = .systemFont(ofSize: 13, weight: .regular)
-    unitLabel.textColor = .secondaryLabel
-    unitLabel.text = unit
+  @objc private func handleStatusSwitchChanged(_ sender: UISwitch) {
+    onToggleVoiceEnabled?(sender.isOn)
+  }
 
+  @objc private func handleStatusInfoTap() {
+    onTapStatusInfo?()
+  }
+
+  @objc private func handleAutoCloseTap() {
+    onTapAutoClose?()
+  }
+
+  private func makeStatValueLabel(text: String) -> UILabel {
+    let label = UILabel()
+    label.font = .systemFont(ofSize: 22, weight: .bold)
+    label.text = text
+    return label
+  }
+
+  private func makeStatUnitLabel(text: String) -> UILabel {
+    let label = UILabel()
+    label.font = .systemFont(ofSize: 13, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.text = text
+    return label
+  }
+
+  private func makeStatTitleLabel(text: String) -> UILabel {
+    let label = UILabel()
+    label.font = .systemFont(ofSize: 12, weight: .regular)
+    label.textColor = .secondaryLabel
+    label.text = text
+    return label
+  }
+
+  private func makeStatItem(valueLabel: UILabel, unitLabel: UILabel, titleLabel: UILabel) -> UIStackView {
     let topRow = UIStackView(arrangedSubviews: [valueLabel, unitLabel])
     topRow.axis = .horizontal
     topRow.spacing = 4
     topRow.alignment = .firstBaseline
 
-    let titleLabel = UILabel()
-    titleLabel.font = .systemFont(ofSize: 12, weight: .regular)
-    titleLabel.textColor = .secondaryLabel
-    titleLabel.text = title
-
     let stack = UIStackView(arrangedSubviews: [topRow, titleLabel])
     stack.axis = .vertical
     stack.spacing = 6
     return stack
+  }
+
+  func updateStats(totalMinutes: String, totalCharacters: String, savedMinutes: String, averageCharsPerMinute: String) {
+    totalTimeValueLabel.text = totalMinutes
+    totalCharactersValueLabel.text = totalCharacters
+    savedTimeValueLabel.text = savedMinutes
+    speedValueLabel.text = averageCharsPerMinute
+  }
+
+  func updateVoiceStatus(isEnabled: Bool, inactiveMinutes: Int) {
+    statusSwitch.setOn(isEnabled, animated: false)
+    statusTitleLabel.text = isEnabled ? "Nanomouse 已开启" : "Nanomouse 已暂停"
+    statusSubtitleLabel.text = isEnabled ? "轻触开关可暂停语音输入" : "语音输入已暂停，请先开启后再继续听写。"
+    statusFooterButton.setTitle("在不活动时关闭：\(VoiceHomeSettingsStore.displayText(forInactiveMinutes: inactiveMinutes)) ▾", for: .normal)
+    startDictationButton.isEnabled = isEnabled
+    startDictationButton.alpha = isEnabled ? 1 : 0.45
+    startDictationButton.backgroundColor = isEnabled ? .systemBlue : .systemGray
+  }
+}
+
+final class VoiceHomeSettingsStore {
+  static let shared = VoiceHomeSettingsStore()
+  static let inactiveMinuteOptions: [Int] = [5, 60, 180, 360, 720, 1440, 2880]
+
+  private enum Constants {
+    static let voiceEnabledKey = "voice.home.enabled.v1"
+    static let inactiveAutoCloseMinutesKey = "voice.home.inactive_minutes.v2"
+    static let legacyInactiveAutoCloseHoursKey = "voice.home.inactive_hours.v1"
+    static let defaultInactiveMinutes = 12 * 60
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.home.settings")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func isVoiceEnabled() -> Bool {
+    queue.sync {
+      if userDefaults.object(forKey: Constants.voiceEnabledKey) == nil {
+        userDefaults.set(true, forKey: Constants.voiceEnabledKey)
+        return true
+      }
+      return userDefaults.bool(forKey: Constants.voiceEnabledKey)
+    }
+  }
+
+  func setVoiceEnabled(_ enabled: Bool) {
+    queue.sync {
+      userDefaults.set(enabled, forKey: Constants.voiceEnabledKey)
+    }
+  }
+
+  func inactiveAutoCloseMinutes() -> Int {
+    queue.sync {
+      let value = resolveInactiveAutoCloseMinutes()
+      let normalized = normalizeInactiveMinutes(value)
+      userDefaults.set(normalized, forKey: Constants.inactiveAutoCloseMinutesKey)
+      return normalized
+    }
+  }
+
+  func setInactiveAutoCloseMinutes(_ minutes: Int) {
+    queue.sync {
+      userDefaults.set(normalizeInactiveMinutes(minutes), forKey: Constants.inactiveAutoCloseMinutesKey)
+    }
+  }
+
+  static func displayText(forInactiveMinutes minutes: Int) -> String {
+    if minutes < 60 {
+      return "\(minutes) 分钟"
+    }
+    if minutes % 60 == 0 {
+      return "\(minutes / 60) 小时"
+    }
+    return "\(minutes) 分钟"
+  }
+}
+
+private extension VoiceHomeSettingsStore {
+  func resolveInactiveAutoCloseMinutes() -> Int {
+    if userDefaults.object(forKey: Constants.inactiveAutoCloseMinutesKey) != nil {
+      return userDefaults.integer(forKey: Constants.inactiveAutoCloseMinutesKey)
+    }
+    // 兼容旧版本配置：首次读取 v2 时自动从 v1 小时单位迁移。
+    if userDefaults.object(forKey: Constants.legacyInactiveAutoCloseHoursKey) != nil {
+      let legacyHours = userDefaults.integer(forKey: Constants.legacyInactiveAutoCloseHoursKey)
+      if legacyHours > 0 {
+        let migrated = legacyHours * 60
+        userDefaults.set(migrated, forKey: Constants.inactiveAutoCloseMinutesKey)
+        return migrated
+      }
+    }
+    return Constants.defaultInactiveMinutes
+  }
+
+  func normalizeInactiveMinutes(_ value: Int) -> Int {
+    if Self.inactiveMinuteOptions.contains(value) {
+      return value
+    }
+    if value <= 0 {
+      return Constants.defaultInactiveMinutes
+    }
+    if let nearest = Self.inactiveMinuteOptions.min(by: { abs($0 - value) < abs($1 - value) }) {
+      return nearest
+    }
+    return Constants.defaultInactiveMinutes
   }
 }
 
