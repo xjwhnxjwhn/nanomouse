@@ -1862,7 +1862,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         mixedInputSelectedNumericPrefix = nil
       }
       let prefixCandidateSeed = hasNumericPrefix ? prefixLiteral : ""
-      let includePrefixLiteral = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
+      let configuredPrefixCount = rimeContext.mixedInputManager.literalPrefixSegmentCount
+      let leadingPrefixCount = rimeContext.mixedInputManager.leadingLiteralSegmentCount
+      let hasCommittedPrefixSegments = configuredPrefixCount > 0
+        && leadingPrefixCount > 0
+        && configuredPrefixCount >= leadingPrefixCount
+      let includePrefixLiteral = hasNumericPrefix
+        && mixedInputSelectedNumericPrefix == nil
+        && !hasCommittedPrefixSegments
       let shouldInjectPrefixCandidates = hasNumericPrefix && mixedInputSelectedNumericPrefix == nil
       let maxCandidates = max(1, rimeContext.maximumNumberOfCandidateWords)
       let limited = Array(baseCandidates.prefix(maxCandidates))
@@ -2263,6 +2270,85 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return sawDigit ? (digits: digits, suffix: suffix) : nil
   }
 
+  private func splitNumericLiteralWithNonASCIISuffix(_ literal: String) -> (digits: String, suffix: String)? {
+    var digits = ""
+    var suffix = ""
+    var sawDigit = false
+    var inSuffix = false
+    for char in literal {
+      if !inSuffix {
+        if let value = char.wholeNumberValue, (0...9).contains(value) {
+          digits.append(String(value))
+          sawDigit = true
+          continue
+        }
+        if isNumericSeparator(char) {
+          digits.append(char)
+          continue
+        }
+        inSuffix = true
+      }
+
+      guard let scalar = char.unicodeScalars.first else { return nil }
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) { return nil }
+      // 只接受非 ASCII 后缀（如“个/位/天”），避免把英文输入误判为数字后缀。
+      if scalar.isASCII { return nil }
+      suffix.append(char)
+    }
+    return sawDigit && !suffix.isEmpty ? (digits: digits, suffix: suffix) : nil
+  }
+
+  private func splitNumericPrefixCandidate(
+    candidate: String,
+    prefixLiteral: String
+  ) -> (digits: String, suffix: String)? {
+    let trimmedCandidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trimmedPrefix = prefixLiteral.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedCandidate.isEmpty, !trimmedPrefix.isEmpty else { return nil }
+
+    if let split = splitNumericLiteralWithNonASCIISuffix(trimmedCandidate) {
+      return split
+    }
+
+    let normalizedCandidate = trimmedCandidate.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? trimmedCandidate
+    let normalizedPrefix = trimmedPrefix.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? trimmedPrefix
+    guard normalizedCandidate.hasPrefix(normalizedPrefix) else { return nil }
+
+    var suffix = String(trimmedCandidate.dropFirst(min(trimmedPrefix.count, trimmedCandidate.count)))
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    if suffix.isEmpty {
+      var digits = ""
+      var suffixChars = ""
+      var sawDigit = false
+      var inSuffix = false
+      for char in trimmedCandidate {
+        if !inSuffix {
+          if let value = char.wholeNumberValue, (0...9).contains(value) {
+            digits.append(String(value))
+            sawDigit = true
+            continue
+          }
+          if isNumericSeparator(char) {
+            digits.append(char)
+            continue
+          }
+          if CharacterSet.whitespacesAndNewlines.contains(char.unicodeScalars.first ?? " ") {
+            continue
+          }
+          inSuffix = true
+        }
+        suffixChars.append(char)
+      }
+      suffix = suffixChars.trimmingCharacters(in: .whitespacesAndNewlines)
+      let resolvedDigits = digits.isEmpty ? trimmedPrefix : digits
+      guard sawDigit, !suffix.isEmpty, !mixedInputCandidateContainsLetters(suffix) else { return nil }
+      return (digits: resolvedDigits, suffix: suffix)
+    }
+
+    guard !mixedInputCandidateContainsLetters(suffix) else { return nil }
+    return (digits: trimmedPrefix, suffix: suffix)
+  }
+
   private func prefixLengthForDigits(in text: String, digitCount: Int) -> Int? {
     guard digitCount > 0 else { return nil }
     var remaining = digitCount
@@ -2398,17 +2484,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func mixedInputLeadingLiteralSegmentCountBeforeSelectableLiteral() -> Int {
-    var count = 0
-    for segment in rimeContext.mixedInputManager.segments {
-      guard segment.isLiteral else { break }
-      let commit = segment.commitText
-      if commit.isEmpty { break }
-      if isNumericLiteralText(commit) || isSymbolLiteralText(commit) {
-        break
-      }
-      count += 1
-    }
-    return count
+    // 选择了前缀候选（如“个”）后，前导 literal（例如“3”“个”）都应被视为固定前缀，
+    // 后续候选不应再次拼回这些前缀，避免出现“3个的/个小的”重复显示。
+    return rimeContext.mixedInputManager.leadingLiteralSegmentCount
   }
 
   private func syncRimeInputWithMixedPinyinIfNeeded() {
@@ -2449,14 +2527,41 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let prefixLiteral = rimeContext.mixedInputManager.literalPrefixText
     if !prefixLiteral.isEmpty, isNumericLiteralText(prefixLiteral) {
       let prefixCandidates = numericCandidates(for: prefixLiteral)
-      if prefixCandidates.contains(trimmed) {
+      let normalizedTrimmed = trimmed.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? trimmed
+      let normalizedPrefixLiteral = prefixLiteral.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? prefixLiteral
+      let looksLikeCombinedPrefixCandidate = normalizedTrimmed.hasPrefix(normalizedPrefixLiteral)
+        && !mixedInputCandidateContainsLetters(trimmed)
+      if prefixCandidates.contains(trimmed) || looksLikeCombinedPrefixCandidate {
+        if let split = splitNumericPrefixCandidate(candidate: trimmed, prefixLiteral: prefixLiteral),
+           rimeContext.mixedInputManager.replaceLeadingLiteral(with: split.digits)
+        {
+          let committedCount = mixedInputCommittedPinyinCountBySyllables(targetSyllables: split.suffix.count)
+          if committedCount > 0, !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+            rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
+              committedCount: committedCount,
+              commitText: split.suffix
+            )
+          } else {
+            rimeContext.mixedInputManager.insertLiteralSegment(
+              split.suffix,
+              at: 1,
+              mergeWithPreviousNonDigit: false
+            )
+          }
+          mixedInputSelectedNumericPrefix = split.digits
+          syncRimeInputWithMixedPinyinIfNeeded()
+          rimeContext.mixedInputManager.literalPrefixSegmentCount =
+            rimeContext.mixedInputManager.leadingLiteralSegmentCount
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+          rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+          updateMixedInputSuggestions()
+          return true
+        }
         if rimeContext.mixedInputManager.replaceLeadingLiteral(with: trimmed) {
           mixedInputSelectedNumericPrefix = trimmed
           syncRimeInputWithMixedPinyinIfNeeded()
-          if !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
-            rimeContext.mixedInputManager.literalPrefixSegmentCount =
-              rimeContext.mixedInputManager.leadingLiteralSegmentCount
-          }
+          rimeContext.mixedInputManager.literalPrefixSegmentCount =
+            rimeContext.mixedInputManager.leadingLiteralSegmentCount
           rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
           rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
           updateMixedInputSuggestions()
@@ -2781,20 +2886,65 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private func mixedInputPinyinPrefixLength(_ text: String, syllableCount: Int) -> Int {
     guard syllableCount > 0 else { return 0 }
     let vowels = Set("aeiouüAEIOUÜ")
+    let initials = Set([
+      "b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h",
+      "j", "q", "x", "r", "z", "c", "s", "y", "w", "zh", "ch", "sh"
+    ])
+    let chars = Array(text)
     var consumed = 0
     var syllables = 0
     var prevWasVowel = false
     var reachedTarget = false
-    for char in text {
-      let isVowel = vowels.contains(char)
-      if reachedTarget {
-        if isVowel && !prevWasVowel {
-          break
-        }
+    var index = 0
+
+    while index < chars.count {
+      let char = chars[index]
+      if char == " " || char == "'" {
+        if reachedTarget { break }
         consumed += 1
-        prevWasVowel = isVowel
+        prevWasVowel = false
+        index += 1
         continue
       }
+
+      let isVowel = vowels.contains(char)
+      if reachedTarget {
+        if isVowel {
+          consumed += 1
+          prevWasVowel = true
+          index += 1
+          continue
+        }
+
+        // 已到目标音节后，避免吃掉下一音节声母（如 gexiaode 中的 x / d）
+        var clusterEnd = index
+        while clusterEnd < chars.count {
+          let c = chars[clusterEnd]
+          if c == " " || c == "'" || vowels.contains(c) { break }
+          clusterEnd += 1
+        }
+        let hasFutureVowel = clusterEnd < chars.count && vowels.contains(chars[clusterEnd])
+        if !hasFutureVowel {
+          consumed += (chars.count - index)
+          break
+        }
+
+        let cluster = String(chars[index..<clusterEnd]).lowercased()
+        var codaLength = 0
+        if cluster.hasPrefix("ng") {
+          codaLength = 2
+        } else if cluster.hasPrefix("n") || cluster.hasPrefix("r") {
+          codaLength = 1
+        }
+        // 如果整个 cluster 更像合法声母（含 zh/ch/sh），则不吞并到上一音节
+        if initials.contains(cluster) {
+          codaLength = 0
+        }
+
+        consumed += min(codaLength, max(0, clusterEnd - index))
+        break
+      }
+
       consumed += 1
       if isVowel && !prevWasVowel {
         syllables += 1
@@ -2803,12 +2953,35 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         }
       }
       prevWasVowel = isVowel
+      index += 1
     }
+
     return consumed
+  }
+
+  private func mixedInputCommittedPinyinCountFromPreedit(
+    preedit: String,
+    targetSyllables: Int
+  ) -> Int {
+    guard targetSyllables > 0, !preedit.isEmpty else { return 0 }
+    let tokens = preedit.split { $0 == " " || $0 == "'" }
+    guard !tokens.isEmpty else { return 0 }
+    let consumeSyllables = min(targetSyllables, tokens.count)
+    let total = tokens.prefix(consumeSyllables).reduce(0) {
+      $0 + mixedInputLetterCount(String($1))
+    }
+    return total
   }
 
   private func mixedInputCommittedPinyinCountBySyllables(targetSyllables: Int) -> Int {
     guard targetSyllables > 0 else { return 0 }
+    let preeditCount = mixedInputCommittedPinyinCountFromPreedit(
+      preedit: currentRimePreeditText(),
+      targetSyllables: targetSyllables
+    )
+    if preeditCount > 0 {
+      return preeditCount
+    }
     var remaining = targetSyllables
     var total = 0
     func countLetters(_ text: Substring) -> Int {
@@ -2965,6 +3138,69 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
     if isCombinedCandidate, !shouldSegmentCombinedCandidate {
+      let normalizedCandidate = candidateText.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? candidateText
+      let normalizedPrefixLiteral = prefixLiteral.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? prefixLiteral
+      let canPromoteToLiteralPrefix = !normalizedPrefixLiteral.isEmpty
+        && isNumericLiteralText(prefixLiteral)
+        && normalizedCandidate.hasPrefix(normalizedPrefixLiteral)
+        && !mixedInputCandidateContainsLetters(candidateText)
+      if canPromoteToLiteralPrefix {
+        // “3个”直接选中时，沿用“3”->“个”的增量更新路径，避免状态机分叉。
+        if let split = splitNumericPrefixCandidate(candidate: candidateText, prefixLiteral: prefixLiteral),
+           rimeContext.mixedInputManager.replaceLeadingLiteral(with: split.digits)
+        {
+          let committedCount = mixedInputCommittedPinyinCountBySyllables(targetSyllables: split.suffix.count)
+          if committedCount > 0, !rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+            rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
+              committedCount: committedCount,
+              commitText: split.suffix
+            )
+          } else {
+            let segments = rimeContext.mixedInputManager.segments
+            let shouldInsertSuffix: Bool
+            if segments.count > 1,
+               case .literal(_, let commit) = segments[1].type,
+               commit == split.suffix
+            {
+              shouldInsertSuffix = false
+            } else {
+              shouldInsertSuffix = true
+            }
+            if shouldInsertSuffix {
+              rimeContext.mixedInputManager.insertLiteralSegment(
+                split.suffix,
+                at: 1,
+                mergeWithPreviousNonDigit: false
+              )
+            }
+          }
+          mixedInputSelectedNumericPrefix = split.digits
+          mixedInputSelectedPinyinPrefix = nil
+          mixedInputPrefixCandidates.removeAll()
+          mixedInputPrefixPinyinLetterCount = 0
+          syncRimeInputWithMixedPinyinIfNeeded()
+          rimeContext.mixedInputManager.literalPrefixSegmentCount =
+            rimeContext.mixedInputManager.leadingLiteralSegmentCount
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+          rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+          updateMixedInputSuggestions()
+          return
+        }
+
+        if rimeContext.mixedInputManager.replaceLeadingLiteral(with: candidateText) {
+          mixedInputSelectedNumericPrefix = candidateText
+          mixedInputSelectedPinyinPrefix = nil
+          mixedInputPrefixCandidates.removeAll()
+          mixedInputPrefixPinyinLetterCount = 0
+          syncRimeInputWithMixedPinyinIfNeeded()
+          rimeContext.mixedInputManager.literalPrefixSegmentCount =
+            rimeContext.mixedInputManager.leadingLiteralSegmentCount
+          rimeContext.userInputKey = rimeContext.compositionPrefix + rimeContext.mixedInputManager.displayText
+          rimeContext.mixedInputLastDisplayText = rimeContext.mixedInputManager.displayText
+          updateMixedInputSuggestions()
+          return
+        }
+      }
       commitMixedInputCandidateDirectly(candidateText)
       return
     }
@@ -3079,17 +3315,25 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     var committedCount = mixedInputCommittedPinyinCount(from: subtitle)
     if committedCount == 0 {
+      let fromPreedit = mixedInputCommittedPinyinCountFromPreedit(
+        preedit: preedit,
+        targetSyllables: candidateText.count
+      )
+      if fromPreedit > 0 {
+        committedCount = fromPreedit
+      }
+    }
+    if committedCount == 0 {
       let estimated = mixedInputCommittedPinyinCountBySyllables(targetSyllables: candidateText.count)
       if estimated > 0 {
         committedCount = estimated
       }
     }
     if committedCount == 0, !preedit.isEmpty {
-      let syllables = preedit.split(separator: " ")
-      if !syllables.isEmpty {
-        let consumeSyllables = min(candidateText.count, syllables.count)
-        committedCount = syllables.prefix(consumeSyllables).reduce(0) { $0 + $1.count }
-      }
+      committedCount = mixedInputCommittedPinyinCountFromPreedit(
+        preedit: preedit,
+        targetSyllables: candidateText.count
+      )
     }
     if committedCount == 0, !preedit.isEmpty {
       let fallback = mixedInputPinyinLetterCount(preedit)
@@ -3215,6 +3459,17 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
     if committedCount > 0 {
+      // 直接选中“3个”这类带数字前缀的候选时，也需要标记前缀已确认，
+      // 否则后续候选会继续重复拼回前缀，表现为“看起来没有变化”。
+      let currentPrefixLiteral = rimeContext.mixedInputManager.literalPrefixText
+      if !currentPrefixLiteral.isEmpty,
+         isNumericLiteralText(currentPrefixLiteral),
+         candidateText.hasPrefix(currentPrefixLiteral),
+         !mixedInputCandidateContainsLetters(candidateText)
+      {
+        mixedInputSelectedNumericPrefix = currentPrefixLiteral
+      }
+
       rimeContext.mixedInputManager.commitLeadingPinyinAsLiteral(
         committedCount: committedCount,
         commitText: candidateText
@@ -3230,8 +3485,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           mixedInputPrefixPinyinLetterCount = 0
         }
       } else {
+        // 无中间数字时，前导 literal（如“3”“个”）都应固定为前缀，
+        // 以免后续候选再次重复拼接这些前缀。
         rimeContext.mixedInputManager.literalPrefixSegmentCount =
-          rimeContext.mixedInputManager.segments.first?.isLiteral == true ? 1 : 0
+          rimeContext.mixedInputManager.leadingLiteralSegmentCount
       }
 
       if rimeContext.mixedInputManager.pinyinOnly.isEmpty {

@@ -194,9 +194,28 @@ public class MixedInputManager {
     }
 
     private var effectiveLiteralPrefixCount: Int {
-        if literalPrefixSegmentCount > 0 { return literalPrefixSegmentCount }
+        if literalPrefixSegmentCount > 0 {
+            let clamped = min(literalPrefixSegmentCount, leadingLiteralSegmentCount)
+            if clamped == 1,
+               leadingLiteralSegmentCount > 1,
+               let first = segments.first,
+               case .literal(_, let commit) = first.type,
+               !commit.isEmpty,
+               isNumericLiteralText(commit) {
+                // 数字前缀 + 量词（如“3 个”）场景下，前导 literal 都应视为前缀，
+                // 避免候选重复出现“个小的”“3个的”。
+                return leadingLiteralSegmentCount
+            }
+            return clamped
+        }
         if !segments.contains(where: { $0.isPinyin }) { return 0 }
         if segments.count < 2 { return 0 }
+        if let first = segments.first,
+           case .literal(_, let commit) = first.type,
+           !commit.isEmpty,
+           isNumericLiteralText(commit) {
+            return leadingLiteralSegmentCount
+        }
         return segments.first?.isLiteral == true ? 1 : 0
     }
 
