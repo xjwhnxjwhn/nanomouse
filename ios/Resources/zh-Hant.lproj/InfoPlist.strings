@@ -6,3 +6,5 @@
   
 */
 "CFBundleDisplayName" = "鼠輸入法";
+"NSMicrophoneUsageDescription" = "Nanomouse 需要使用麥克風進行語音聽寫。若你啟用線上 ASR，音訊會傳送到你設定的服務商。";
+"NSSpeechRecognitionUsageDescription" = "Nanomouse 需要語音辨識權限將口述轉換為文字。";

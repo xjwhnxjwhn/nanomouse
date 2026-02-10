@@ -530,6 +530,7 @@ final class VoiceDictationViewController: NibLessViewController {
     lastStartError = error
     configureStopButtonForRetry()
     hideLLMIndicator()
+    presentPermissionSettingsAlertIfNeeded(for: error)
   }
 
   private func handleRuntimeError(_ error: VoiceSpeechRecognizerEngine.EngineError) {
@@ -551,6 +552,7 @@ final class VoiceDictationViewController: NibLessViewController {
     configureStopButtonForRetry()
     hideLLMIndicator()
     appendFailureHistory(errorMessage: error.localizedDescription)
+    presentPermissionSettingsAlertIfNeeded(for: error)
   }
 
   private func makeHintText(for error: VoiceSpeechRecognizerEngine.EngineError) -> String {
@@ -574,6 +576,41 @@ final class VoiceDictationViewController: NibLessViewController {
     case .runtimeFailure(let message):
       return "详细错误：\(message)"
     }
+  }
+
+  private func presentPermissionSettingsAlertIfNeeded(for error: VoiceSpeechRecognizerEngine.EngineError) {
+    guard isPermissionDeniedError(error) else { return }
+    guard presentedViewController == nil else { return }
+    let message: String
+    switch error {
+    case .microphonePermissionDenied:
+      message = "请在系统设置中为 Nanomouse 开启“麦克风”，然后返回此页面点击“重试”。"
+    case .speechPermissionDenied:
+      message = "请在系统设置中为 Nanomouse 开启“语音识别”，然后返回此页面点击“重试”。"
+    default:
+      return
+    }
+    let alert = UIAlertController(title: "需要系统权限", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "前往系统设置", style: .default) { _ in
+      self.openSystemSettings()
+    })
+    present(alert, animated: true)
+  }
+
+  private func isPermissionDeniedError(_ error: VoiceSpeechRecognizerEngine.EngineError) -> Bool {
+    switch error {
+    case .microphonePermissionDenied, .speechPermissionDenied:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private func openSystemSettings() {
+    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+    guard UIApplication.shared.canOpenURL(url) else { return }
+    UIApplication.shared.open(url)
   }
 
   private func postProcessTranscript(_ rawText: String, localeIdentifier: String?) -> String {

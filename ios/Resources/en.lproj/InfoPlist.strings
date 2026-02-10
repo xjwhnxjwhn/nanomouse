@@ -6,3 +6,5 @@
   
 */
 "CFBundleDisplayName" = "NanoMouse";
+"NSMicrophoneUsageDescription" = "Nanomouse uses the microphone for voice dictation. If you enable online ASR, audio may be sent to your configured provider.";
+"NSSpeechRecognitionUsageDescription" = "Nanomouse uses Speech Recognition to convert your voice into text.";

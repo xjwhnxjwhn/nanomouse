@@ -1,78 +1,111 @@
 # Privacy Policy
 
-**Last Updated: January 7, 2026**
+**Last Updated: February 9, 2026**
 
 ## Overview
 
-NanoMouse (鼠输入法) (hereinafter referred to as "the App") is an open-source,
-cross-platform input method application. We highly value your privacy and are
-committed to protecting your personal information. This Privacy Policy explains
-how the App handles your data.
+NanoMouse is an open-source, cross-platform input method application. We take
+privacy seriously, and we keep processing on-device whenever possible. This
+policy explains how data is handled under different feature modes.
 
-## Data Collection
+## Data Processing Principles
 
-**The App does not collect any user data.**
+- The App uses local processing by default.
+- The App does not upload your data to NanoMouse-operated servers for ads or
+  analytics.
+- If you explicitly enable online ASR or online LLM features, your audio or
+  text will be sent to the third-party provider you choose.
 
-Specifically:
+## What Data Is Processed
 
-- **Input Content**: All text you type on the keyboard is processed locally on
-  your device and is never sent to any server.
-- **Usage Data**: The App does not track your usage habits, typing frequency, or
-  any behavioral data.
-- **Personal Information**: The App does not collect, store, or process any
-  personally identifiable information.
+### 1) Keyboard Input Content
+
+- Regular text input is processed locally by default.
+- The App does not include third-party ad SDKs.
+- The App does not include third-party analytics SDKs.
+
+### 2) Voice Dictation (ASR)
+
+The App supports multiple speech recognition routes. The actual data flow is
+based on your settings:
+
+- **Apple Speech**: Processed by Apple system speech capabilities.
+- **Whisper (offline)**: Processed on-device with local models.
+- **Online ASR**: If you enable online engine mode, audio is sent to the ASR
+  provider (or proxy endpoint) you configure.
+
+### 3) AI Text Editing (LLM)
+
+- If you enable AI processing, recognized text is sent to the LLM provider (or
+  proxy endpoint) you configure for structuring, rewriting, or translation.
+- If this feature is disabled, text is not sent to online LLM processing.
+
+### 4) API Keys and Configuration
+
+- Online ASR/LLM API keys are stored in iOS Keychain (per-provider buckets).
+- Model name, Base URL, and feature toggles are stored in local app settings.
+- By default, the App does not upload your API keys to NanoMouse-operated
+  servers.
+
+### 5) Voice History and Manual Dictionary
+
+- Voice history and manual dictionary entries are stored locally on your device.
+- You can clear history and dictionary entries in the app.
 
 ## iCloud Sync
 
 If you enable iCloud sync:
 
-- Your input method configuration files and user dictionaries will be synced
-  between your devices via Apple's iCloud service.
-- This data is managed by Apple in accordance with their
-  [iCloud Terms](https://www.apple.com/legal/internet-services/icloud/).
-- The App does not access, read, or store your iCloud account information.
-- You can disable iCloud sync at any time in the App settings.
+- Keyboard configs and dictionary data can sync across your devices via Apple
+  iCloud.
+- Related data is managed by Apple under its own terms:
+  [iCloud Terms](https://www.apple.com/legal/internet-services/icloud/)
+- You can disable iCloud sync at any time.
 
 ## Full Access Permission
 
-The App requests "Full Access" permission to provide the following features:
+The App requests "Full Access" for keyboard capabilities, including:
 
-- **iCloud Sync**: To sync configurations and dictionaries between devices.
-- **Haptic Feedback**: To provide vibration feedback when keys are pressed.
-- **System Text Replacement**: To read text replacement shortcuts configured in
-  iOS Settings.
+- iCloud sync for configs and dictionary
+- Haptic feedback
+- Reading iOS system text replacement shortcuts
 
-**Even if you grant Full Access, the App will NOT:**
-
-- Send your input content to any server
-- Collect or store your passwords or sensitive information
-- Share any data with third parties
+Even with Full Access enabled, the App does not upload your data to
+NanoMouse-operated servers for ads or analytics.
 
 ## Third-Party Services
 
-The App does not use any third-party analytics, advertising, or data collection
-services.
+When corresponding features are enabled, the App may interact with:
 
-## Open Source
+- Apple services (Speech, iCloud)
+- Online ASR/LLM providers that you select and configure
 
-The App is open-source software, with its source code publicly available on
-[GitHub](https://github.com/xjwhnxjwhn/nanomouse). You can review the code
-yourself to verify the claims made in this Privacy Policy.
+Data handling by those providers is governed by their own privacy policies.
+
+## Your Controls
+
+You can, at any time:
+
+- Disable online ASR engine
+- Disable AI processing (LLM)
+- Remove or replace API keys
+- Clear voice history
+- Manage manual dictionary entries
+- Disable iCloud sync
 
 ## Children's Privacy
 
-The App is not directed at children under the age of 13, and we do not knowingly
+The App is not directed to children under 13, and the App does not knowingly
 collect personal information from children.
 
-## Contact Us
+## Contact
 
-If you have any questions about this Privacy Policy, please contact us:
+If you have questions about this policy, please contact us:
 
 - Email: nanomouse.official@gmail.com
 - GitHub Issues: https://github.com/xjwhnxjwhn/nanomouse/issues
 
-## Policy Changes
+## Policy Updates
 
-We may update this Privacy Policy from time to time. Any changes will be posted
-on this page with an updated "Last Updated" date. We encourage you to review
-this policy periodically to stay informed.
+We may update this policy from time to time. Any changes will be posted on this
+page with an updated "Last Updated" date.

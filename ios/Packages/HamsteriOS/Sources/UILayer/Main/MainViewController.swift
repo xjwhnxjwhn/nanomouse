@@ -1667,7 +1667,8 @@ final class VoiceModelManagementViewController: NibLessViewController {
 
     var selected = asrSettingsStore.selectedEngines()
     selected.removeAll { engine in
-      (engine == .whisper && (!whisperAvailable || !hasWhisperModel)) || (engine == .cloud && !hasOnlineAPIKey)
+      (engine == .whisper && (!whisperAvailable || !hasWhisperModel)) ||
+        (engine == .cloud && !hasOnlineAPIKey)
     }
     if selected.isEmpty {
       selected = [.apple]
@@ -2859,6 +2860,26 @@ final class VoiceAccountProfileViewController: NibLessViewController {
     )
   }
 
+  private func presentPrivacyPermissionGuide() {
+    let message = "Nanomouse 仅在你点击“开始口述”后请求麦克风与语音识别权限。键盘扩展本身不直接录音。若你启用在线 ASR 或在线 LLM，文本或音频会按你的配置发送到对应服务商。你可以随时在系统设置中关闭权限。"
+    let alert = UIAlertController(title: "隐私与权限说明", message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "前往系统设置", style: .default) { _ in
+      self.openSystemSettings()
+    })
+    alert.addAction(UIAlertAction(title: "知道了", style: .cancel))
+    present(alert, animated: true)
+  }
+
+  private func openSystemSettings() {
+    guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+      return
+    }
+    guard UIApplication.shared.canOpenURL(settingsURL) else {
+      return
+    }
+    UIApplication.shared.open(settingsURL)
+  }
+
   private func presentSimpleAlert(title: String, message: String) {
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
@@ -2915,7 +2936,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
 extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    3
+    4
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -2928,16 +2949,21 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
       return "账号"
     case 1:
       return "订阅"
-    default:
+    case 2:
       return "社区支持"
+    default:
+      return "隐私与权限"
     }
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    guard section == 2 else {
-      return nil
+    if section == 2 {
+      return "如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。"
     }
-    return "如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。"
+    if section == 3 {
+      return "上架审核提示：语音权限仅用于听写；你不使用语音输入时，应用不会主动录音。"
+    }
+    return nil
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -2955,7 +2981,7 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
       cell.textLabel?.text = "管理订阅"
       cell.imageView?.image = UIImage(systemName: "creditcard")
       cell.accessoryType = .disclosureIndicator
-    default:
+    case 2:
       if isLoadingGitHubStars {
         cell.textLabel?.text = "GitHub Stars 读取中..."
         cell.textLabel?.textColor = .secondaryLabel
@@ -2968,6 +2994,11 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
       }
       cell.imageView?.image = UIImage(systemName: "star.fill")
       cell.accessoryType = .disclosureIndicator
+    default:
+      cell.textLabel?.text = "查看隐私与权限说明"
+      cell.textLabel?.textColor = .label
+      cell.imageView?.image = UIImage(systemName: "lock.shield")
+      cell.accessoryType = .disclosureIndicator
     }
     return cell
   }
@@ -2979,9 +3010,11 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
       presentAccountComingSoonAlert()
     case 1:
       openSubscriptionManagement()
-    default:
+    case 2:
       openGitHubRepository()
       refreshGitHubStars(force: true)
+    default:
+      presentPrivacyPermissionGuide()
     }
   }
 }
@@ -4098,6 +4131,10 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
   @objc private func handleSaveTap() {
     persistCurrentPresetDraft()
+    persistAndPresentSaveResult()
+  }
+
+  private func persistAndPresentSaveResult() {
     persistFormSettings()
     let authMode = authModeForSelectedIndex()
     let llmEnabled = llmEnabledForSelectedIndex()
