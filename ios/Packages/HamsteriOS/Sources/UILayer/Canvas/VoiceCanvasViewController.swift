@@ -270,10 +270,14 @@ final class VoiceCanvasViewController: NibLessViewController {
     super.viewDidAppear(animated)
     setupToolPickerIfNeeded()
     if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
+      setToolPickerVisible(true)
       canvasBridge.setState(requestId: requestId, state: .drawing)
       if statusLabel.text?.isEmpty ?? true {
         statusLabel.text = "已从键盘进入画布。画完后点击“完成”，然后返回上一应用并粘贴。"
       }
+    } else {
+      // 普通切换到画布页时默认收起工具栏，避免遮挡底部 Tab。
+      setToolPickerVisible(false)
     }
   }
 
@@ -288,6 +292,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasBridge.setState(requestId: requestId, state: .drawing)
     if isViewLoaded {
       canvasView.drawing = PKDrawing()
+      setToolPickerVisible(true)
       statusLabel.text = "已从键盘进入画布。画完后点击“完成”，然后返回上一应用并粘贴。"
       tipLabel.text = "图片会导出为低质量 JPG，并自动复制到系统剪贴板。"
     }
@@ -349,11 +354,10 @@ final class VoiceCanvasViewController: NibLessViewController {
   private func setupToolPickerIfNeeded() {
     guard toolPicker == nil else { return }
     let picker = PKToolPicker()
-    picker.setVisible(true, forFirstResponder: canvasView)
     picker.addObserver(canvasView)
-    canvasView.becomeFirstResponder()
     toolPicker = picker
-    isToolPickerVisible = true
+    isToolPickerVisible = false
+    canvasWakeOverlayView.isHidden = false
     updateHistoryButtonsState()
   }
 

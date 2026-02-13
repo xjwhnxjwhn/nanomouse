@@ -20,6 +20,7 @@ public class SettingsViewController: NibLessViewController {
   private var settingsViewModel: SettingsViewModel
   private var rimeViewModel: RimeViewModel
   private var backupViewModel: BackupViewModel
+  private var shouldShowMainTitle = true
 
   init(settingsViewModel: SettingsViewModel, rimeViewModel: RimeViewModel, backupViewModel: BackupViewModel) {
     self.settingsViewModel = settingsViewModel
@@ -27,14 +28,27 @@ public class SettingsViewController: NibLessViewController {
     self.backupViewModel = backupViewModel
     super.init()
   }
+
+  func setMainTitleVisible(_ visible: Bool) {
+    shouldShowMainTitle = visible
+    let title = visible ? "输入法设置" : ""
+    self.title = title
+    navigationItem.title = title
+    navigationItem.largeTitleDisplayMode = visible ? .automatic : .never
+  }
 }
 
 // MARK: override UIViewController
 
 public extension SettingsViewController {
   override func loadView() {
-    title = "输入法设置"
+    title = shouldShowMainTitle ? "输入法设置" : ""
     view = SettingsRootView(settingsViewModel: settingsViewModel, rimeViewModel: rimeViewModel, backupViewModel: backupViewModel)
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    setMainTitleVisible(shouldShowMainTitle)
   }
 
   override func viewDidAppear(_ animated: Bool) {

@@ -31,6 +31,9 @@ open class MainViewController: UISplitViewController {
   private let mainViewModel: MainViewModel
   private let subViewControllerFactory: SubViewControllerFactory
   private let settingsViewController: SettingsViewController
+  private var hideMainScreenTitle = false
+  private var mainScreenTitleOverride: String?
+  private var embeddedBackAction: (() -> Void)?
 
   private lazy var inputSchemaViewController: InputSchemaSelectViewController
     = subViewControllerFactory.makeInputSchemaViewController()
@@ -108,6 +111,7 @@ open class MainViewController: UISplitViewController {
 extension MainViewController {
   override open func viewDidLoad() {
     super.viewDidLoad()
+    applyMainScreenTitleVisibility()
 
     /// 动态控制导航
     mainViewModel.subViewPublished
@@ -147,6 +151,45 @@ extension MainViewController: UISplitViewControllerDelegate {
 // MARK: - custom method
 
 extension MainViewController {
+  func setMainScreenTitleHidden(_ hidden: Bool) {
+    hideMainScreenTitle = hidden
+    applyMainScreenTitleVisibility()
+  }
+
+  func setMainScreenTitleOverride(_ title: String?) {
+    mainScreenTitleOverride = title
+    applyMainScreenTitleVisibility()
+  }
+
+  func setEmbeddedBackButton(title: String, action: @escaping () -> Void) {
+    embeddedBackAction = action
+    settingsViewController.navigationItem.leftBarButtonItem = UIBarButtonItem(
+      title: title,
+      style: .plain,
+      target: self,
+      action: #selector(handleEmbeddedBackButtonTap)
+    )
+  }
+
+  func clearEmbeddedBackButton() {
+    embeddedBackAction = nil
+    settingsViewController.navigationItem.leftBarButtonItem = nil
+  }
+
+  private func applyMainScreenTitleVisibility() {
+    let title = mainScreenTitleOverride ?? (hideMainScreenTitle ? "" : "输入法设置")
+    settingsViewController.setMainTitleVisible(!hideMainScreenTitle)
+    settingsViewController.title = title
+    settingsViewController.navigationItem.title = title
+    settingsViewController.navigationItem.largeTitleDisplayMode = hideMainScreenTitle ? .never : .automatic
+    primaryNavigationViewController.navigationBar.topItem?.title = title
+    primaryNavigationViewController.navigationBar.prefersLargeTitles = !hideMainScreenTitle
+  }
+
+  @objc private func handleEmbeddedBackButtonTap() {
+    embeddedBackAction?()
+  }
+
   func navigationResponse(to subView: SettingsSubView) {
     switch subView {
     case .inputSchema:
@@ -250,15 +293,12 @@ open class MainTabBarController: UITabBarController {
   private var pendingVoiceRequestId: String?
   private var pendingCanvasRequestId: String?
 
-  private lazy var settingsController = MainViewController(
+  private lazy var canvasController = VoiceCanvasViewController()
+  private lazy var homeController = VoiceHomeViewController()
+  private lazy var accountController = VoiceAccountViewController(
     mainViewModel: mainViewModel,
     subViewControllerFactory: subViewControllerFactory
   )
-
-  private lazy var canvasController = VoiceCanvasViewController()
-  private lazy var homeController = VoiceHomeViewController()
-  private lazy var historyController = VoiceHistoryViewController()
-  private lazy var accountController = VoiceAccountViewController()
 
   init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
     self.mainViewModel = mainViewModel
@@ -282,13 +322,6 @@ open class MainTabBarController: UITabBarController {
     tabBar.tintColor = .label
     tabBar.unselectedItemTintColor = .secondaryLabel
 
-    // 以设置为最左侧入口，其余四栏用于语音相关功能占位
-    settingsController.tabBarItem = UITabBarItem(
-      title: "设置",
-      image: UIImage(systemName: "gearshape"),
-      selectedImage: UIImage(systemName: "gearshape.fill")
-    )
-
     let canvasNavigationController = UINavigationController(rootViewController: canvasController)
     canvasNavigationController.navigationBar.prefersLargeTitles = false
     canvasNavigationController.tabBarItem = UITabBarItem(
@@ -300,50 +333,39 @@ open class MainTabBarController: UITabBarController {
     let homeNavigationController = UINavigationController(rootViewController: homeController)
     homeNavigationController.navigationBar.isHidden = true
     homeNavigationController.tabBarItem = UITabBarItem(
-      title: "首页",
-      image: UIImage(systemName: "house"),
-      selectedImage: UIImage(systemName: "house.fill")
-    )
-
-    let historyNavigationController = UINavigationController(rootViewController: historyController)
-    historyNavigationController.navigationBar.prefersLargeTitles = true
-    historyNavigationController.tabBarItem = UITabBarItem(
-      title: "历史记录",
-      image: UIImage(systemName: "clock"),
-      selectedImage: UIImage(systemName: "clock.fill")
+      title: "语音",
+      image: UIImage(systemName: "waveform"),
+      selectedImage: UIImage(systemName: "waveform")
     )
 
     let accountNavigationController = UINavigationController(rootViewController: accountController)
     accountNavigationController.navigationBar.prefersLargeTitles = true
     accountNavigationController.tabBarItem = UITabBarItem(
-      title: "账户",
-      image: UIImage(systemName: "person"),
-      selectedImage: UIImage(systemName: "person.fill")
+      title: "设置",
+      image: UIImage(systemName: "gearshape"),
+      selectedImage: UIImage(systemName: "gearshape.fill")
     )
 
     viewControllers = [
-      settingsController,
       canvasNavigationController,
       homeNavigationController,
-      historyNavigationController,
       accountNavigationController
     ]
   }
 
   open func activateSettingsTab() {
-    selectedIndex = 0
-    settingsController.presentMainViewController()
+    selectedIndex = 2
   }
 
   open func activateVoiceDictation(requestId: String) {
     pendingVoiceRequestId = requestId
-    selectedIndex = 2
+    selectedIndex = 1
     deliverPendingRequestsIfNeeded()
   }
 
   open func activateCanvas(requestId: String) {
     pendingCanvasRequestId = requestId
-    selectedIndex = 1
+    selectedIndex = 0
     deliverPendingRequestsIfNeeded()
   }
 
@@ -2694,11 +2716,97 @@ final class VoiceModelManagementRootView: NibLessView {
 
 // MARK: - Account
 
+final class KeyboardModuleHostViewController: NibLessViewController {
+  private let keyboardController: MainViewController
+  private var previousNavigationBarHidden = false
+  private lazy var edgeBackGestureRecognizer: UIScreenEdgePanGestureRecognizer = {
+    let gesture = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgeBackGesture(_:)))
+    gesture.edges = .left
+    gesture.delegate = self
+    return gesture
+  }()
+
+  init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
+    self.keyboardController = MainViewController(
+      mainViewModel: mainViewModel,
+      subViewControllerFactory: subViewControllerFactory
+    )
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func loadView() {
+    view = NibLessView()
+    title = ""
+    navigationItem.title = ""
+    navigationItem.largeTitleDisplayMode = .never
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    keyboardController.setMainScreenTitleHidden(false)
+    keyboardController.setMainScreenTitleOverride("键盘")
+    keyboardController.setEmbeddedBackButton(title: "<账户") { [weak self] in
+      self?.navigationController?.popViewController(animated: true)
+    }
+    addChild(keyboardController)
+    keyboardController.view.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(keyboardController.view)
+    NSLayoutConstraint.activate([
+      keyboardController.view.topAnchor.constraint(equalTo: view.topAnchor),
+      keyboardController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      keyboardController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      keyboardController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+    ])
+    keyboardController.didMove(toParent: self)
+    view.addGestureRecognizer(edgeBackGestureRecognizer)
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    if let navigationController {
+      previousNavigationBarHidden = navigationController.isNavigationBarHidden
+      navigationController.setNavigationBarHidden(true, animated: animated)
+    }
+    navigationItem.title = ""
+    navigationItem.largeTitleDisplayMode = .never
+    keyboardController.presentMainViewController()
+    keyboardController.setMainScreenTitleHidden(false)
+    keyboardController.setMainScreenTitleOverride("键盘")
+  }
+
+  override func viewWillDisappear(_ animated: Bool) {
+    super.viewWillDisappear(animated)
+    navigationController?.setNavigationBarHidden(previousNavigationBarHidden, animated: animated)
+  }
+
+  @objc private func handleEdgeBackGesture(_ gesture: UIScreenEdgePanGestureRecognizer) {
+    guard gesture.state == .ended || gesture.state == .recognized else { return }
+    let translationX = gesture.translation(in: view).x
+    if translationX > 45 {
+      navigationController?.popViewController(animated: true)
+    }
+  }
+}
+
+extension KeyboardModuleHostViewController: UIGestureRecognizerDelegate {
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    true
+  }
+}
+
 final class VoiceAccountViewController: NibLessViewController {
+  private let mainViewModel: MainViewModel
+  private let subViewControllerFactory: SubViewControllerFactory
   private let accountView = VoiceAccountRootView()
   private lazy var modelManagementController = VoiceModelManagementViewController()
   private lazy var llmSettingsController = VoiceLLMSettingsViewController()
   private lazy var dictionaryController = VoiceDictionaryViewController()
+  private lazy var historyController = VoiceHistoryViewController()
   private lazy var canvasStorageController = VoiceCanvasStorageViewController()
   private lazy var accountProfileController: VoiceAccountProfileViewController = {
     let controller = VoiceAccountProfileViewController()
@@ -2707,6 +2815,17 @@ final class VoiceAccountViewController: NibLessViewController {
     }
     return controller
   }()
+
+  init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
+    self.mainViewModel = mainViewModel
+    self.subViewControllerFactory = subViewControllerFactory
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
   override func loadView() {
     title = "账户"
@@ -2725,18 +2844,27 @@ final class VoiceAccountViewController: NibLessViewController {
     super.viewWillAppear(animated)
     accountView.tableView.reloadData()
   }
+
+  private func makeKeyboardHostController() -> KeyboardModuleHostViewController {
+    KeyboardModuleHostViewController(
+      mainViewModel: mainViewModel,
+      subViewControllerFactory: subViewControllerFactory
+    )
+  }
 }
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    3
+    5
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     switch section {
     case 0: return 1
     case 1: return 1
-    case 2: return 4
+    case 2: return 1
+    case 3: return 4
+    case 4: return 1
     default: return 0
     }
   }
@@ -2757,15 +2885,21 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       cell.textLabel?.text = "账号与订阅（开发中）"
       cell.imageView?.image = UIImage(systemName: "person.crop.circle")
     case (2, 0):
+      cell.textLabel?.text = "键盘"
+      cell.imageView?.image = UIImage(systemName: "keyboard")
+    case (3, 0):
       cell.textLabel?.text = "语音模型"
       cell.imageView?.image = UIImage(systemName: "waveform.badge.mic")
-    case (2, 1):
+    case (3, 1):
       cell.textLabel?.text = "AI 处理配置"
       cell.imageView?.image = UIImage(systemName: "brain.head.profile")
-    case (2, 2):
+    case (3, 2):
       cell.textLabel?.text = "词典"
       cell.imageView?.image = UIImage(systemName: "book")
-    case (2, 3):
+    case (3, 3):
+      cell.textLabel?.text = "历史记录"
+      cell.imageView?.image = UIImage(systemName: "clock")
+    case (4, 0):
       cell.textLabel?.text = "画布保存位置"
       cell.imageView?.image = UIImage(systemName: "folder")
     default:
@@ -2785,18 +2919,26 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       return
     }
     if indexPath.section == 2, indexPath.row == 0 {
+      navigationController?.pushViewController(makeKeyboardHostController(), animated: true)
+      return
+    }
+    if indexPath.section == 3, indexPath.row == 0 {
       navigationController?.pushViewController(modelManagementController, animated: true)
       return
     }
-    if indexPath.section == 2, indexPath.row == 1 {
+    if indexPath.section == 3, indexPath.row == 1 {
       navigationController?.pushViewController(llmSettingsController, animated: true)
       return
     }
-    if indexPath.section == 2, indexPath.row == 2 {
+    if indexPath.section == 3, indexPath.row == 2 {
       navigationController?.pushViewController(dictionaryController, animated: true)
       return
     }
-    if indexPath.section == 2, indexPath.row == 3 {
+    if indexPath.section == 3, indexPath.row == 3 {
+      navigationController?.pushViewController(historyController, animated: true)
+      return
+    }
+    if indexPath.section == 4, indexPath.row == 0 {
       navigationController?.pushViewController(canvasStorageController, animated: true)
     }
   }
