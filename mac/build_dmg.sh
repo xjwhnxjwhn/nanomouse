@@ -53,6 +53,8 @@ XCODEBUILD_ARGS=(
     -scheme SCT
     -configuration Release
     -derivedDataPath "$BUILD_DIR/SCT-Build"
+    ARCHS="arm64 x86_64"
+    ONLY_ACTIVE_ARCH=NO
     -quiet
 )
 
@@ -67,6 +69,20 @@ xcodebuild "${XCODEBUILD_ARGS[@]}" clean build
 GUI_APP_PATH="$BUILD_DIR/SCT-Build/Build/Products/Release/SCT.app"
 if [ ! -d "$GUI_APP_PATH" ]; then
     echo "❌ GUI Build Failed!"
+    exit 1
+fi
+
+GUI_BINARY_PATH="$GUI_APP_PATH/Contents/MacOS/SCT"
+if [ ! -f "$GUI_BINARY_PATH" ]; then
+    echo "❌ GUI binary not found at $GUI_BINARY_PATH"
+    exit 1
+fi
+
+ARCH_INFO="$(lipo -info "$GUI_BINARY_PATH" 2>/dev/null || true)"
+echo "🧩 GUI binary architectures: $ARCH_INFO"
+if [[ "$ARCH_INFO" != *"arm64"* ]] || [[ "$ARCH_INFO" != *"x86_64"* ]]; then
+    echo "❌ GUI binary is not universal (arm64 + x86_64)."
+    echo "   Please ensure all dependencies support both architectures."
     exit 1
 fi
 

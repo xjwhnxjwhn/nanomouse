@@ -128,32 +128,57 @@ public class HamsterConfigurationRepositories {
   public func loadConfiguration() throws -> HamsterConfiguration {
     var configuration = HamsterConfiguration()
 
-    // 读取 SharedSupport/hamster.yaml 配置文件，如果存在
+    // 读取 SharedSupport/hamster.yaml 配置文件，如果存在。
+    // 注意：这里采用容错模式，单个文件解析失败不应阻断部署流程。
     if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnAppGroupSharedSupport.path) {
-      configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
+      do {
+        configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupSharedSupport)
+      } catch {
+        Logger.statistics.error("load appGroup SharedSupport hamster.yaml failed: \(error.localizedDescription)")
+      }
     } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnSandboxSharedSupport.path) {
-      configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
+      do {
+        configuration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnSandboxSharedSupport)
+      } catch {
+        Logger.statistics.error("load sandbox SharedSupport hamster.yaml failed: \(error.localizedDescription)")
+      }
     }
 
     // 读取 Rime/hamster.yaml 配置文件，如果存在，则 merge 不同属性，已 Rime/hamster.yaml 内容为主
     if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnAppGroupUserData.path) {
-      let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupUserData)
-      configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
+      do {
+        let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnAppGroupUserData)
+        configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
+      } catch {
+        Logger.statistics.error("load appGroup Rime/hamster.yaml failed: \(error.localizedDescription)")
+      }
     } else if FileManager.default.fileExists(atPath: FileManager.hamsterConfigFileOnUserData.path) {
-      let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnUserData)
-      configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
+      do {
+        let hamsterConfiguration = try HamsterConfigurationRepositories.shared.loadFromYAML(FileManager.hamsterConfigFileOnUserData)
+        configuration = try configuration.merge(with: hamsterConfiguration, uniquingKeysWith: { _, configValue in configValue })
+      } catch {
+        Logger.statistics.error("load sandbox Rime/hamster.yaml failed: \(error.localizedDescription)")
+      }
     }
 
     // 读取 Rime/hamster.custom.yaml 配置文件，如果存在，并对相异的配置做 merge 合并，已 Rime/hamster.custom.yaml 文件为主
     if FileManager.default.fileExists(atPath: FileManager.hamsterPatchConfigFileOnAppGroupUserData.path) {
-      let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnAppGroupUserData)
-      if let patch = patchConfiguration.patch {
-        configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })
+      do {
+        let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnAppGroupUserData)
+        if let patch = patchConfiguration.patch {
+          configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })
+        }
+      } catch {
+        Logger.statistics.error("load appGroup Rime/hamster.custom.yaml failed: \(error.localizedDescription)")
       }
     } else if FileManager.default.fileExists(atPath: FileManager.hamsterPatchConfigFileOnUserData.path) {
-      let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnUserData)
-      if let patch = patchConfiguration.patch {
-        configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })
+      do {
+        let patchConfiguration = try HamsterConfigurationRepositories.shared.loadPatchFromYAML(yamlPath: FileManager.hamsterPatchConfigFileOnUserData)
+        if let patch = patchConfiguration.patch {
+          configuration = try configuration.merge(with: patch, uniquingKeysWith: { _, patchValue in patchValue })
+        }
+      } catch {
+        Logger.statistics.error("load sandbox Rime/hamster.custom.yaml failed: \(error.localizedDescription)")
       }
     }
 

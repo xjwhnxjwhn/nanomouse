@@ -55,6 +55,13 @@ public extension URL {
 // MARK: iCloud 相关地址
 
 public extension URL {
+  private static var iCloudDocumentURLOrFallback: URL {
+    if let iCloudDocumentURL {
+      return iCloudDocumentURL
+    }
+    return FileManager.sandboxDirectory
+  }
+
   // 应用iCloud文件夹
   // 注意：appendingPathComponent("Documents")是非常重要的一点，如果没有它，你的文件夹将不会显示在iCloud Drive里面。
   static var iCloudDocumentURL: URL? = {
@@ -64,10 +71,20 @@ public extension URL {
     return nil
   }()
 
-  // TODO: 这里需要重写
-  // iCloud中RIME使用文件路径
+  // iCloud 中 Rime 使用文件路径
+  // 兼容目录命名差异：优先 Rime，其次旧版 RIME。
   static var iCloudRimeURL: URL {
-    iCloudDocumentURL!.appendingPathComponent("RIME")
+    let root = iCloudDocumentURLOrFallback
+    let preferred = root.appendingPathComponent(HamsterConstants.rimeUserPathName, isDirectory: true) // Rime
+    let legacy = root.appendingPathComponent("RIME", isDirectory: true)
+    let fm = FileManager.default
+    if fm.fileExists(atPath: preferred.path) {
+      return preferred
+    }
+    if fm.fileExists(atPath: legacy.path) {
+      return legacy
+    }
+    return preferred
   }
 
   // iCloud中 RIME sharedSupport 路径
@@ -87,6 +104,6 @@ public extension URL {
 
   // iCloud 中 软件备份路径
   static var iCloudBackupsURL: URL {
-    iCloudDocumentURL!.appendingPathComponent("backups")
+    iCloudDocumentURLOrFallback.appendingPathComponent("backups", isDirectory: true)
   }
 }

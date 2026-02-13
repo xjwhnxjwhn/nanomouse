@@ -13,10 +13,17 @@ import OSLog
 import UIKit
 
 class UploadInputSchemaViewModel {
+  /// 局域网上传根目录（AppGroup/InputSchema）
+  /// 说明：这样可直接看到并上传到 Rime 目录，避免用户手工新建目录。
+  private let uploadRootDirectory = FileManager.shareURL
+
+  /// 局域网上传的 Rime 用户目录（AppGroup/InputSchema/Rime）
+  private let uploadRimeDirectory = FileManager.appGroupUserDataDirectoryURL
+
   private lazy var fileServer: FileServer = {
     let server = FileServer(
       port: 80,
-      publicDirectory: FileManager.sandboxDirectory
+      publicDirectory: uploadRootDirectory
     )
     return server
   }()
@@ -25,9 +32,25 @@ class UploadInputSchemaViewModel {
   public private(set) var fileServerRunning = false
 
   private var wifiEnable = false
+
+  init() {
+    prepareUploadDirectories()
+  }
 }
 
 extension UploadInputSchemaViewModel {
+  /// 确保上传目录结构存在：
+  /// - InputSchema/
+  /// - InputSchema/Rime/
+  private func prepareUploadDirectories() {
+    do {
+      try FileManager.createDirectory(override: false, dst: uploadRootDirectory)
+      try FileManager.createDirectory(override: false, dst: uploadRimeDirectory)
+    } catch {
+      Logger.statistics.error("prepare upload directories failed: \(error.localizedDescription)")
+    }
+  }
+
   func startWiFiMonitor() {
     let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
     monitor.pathUpdateHandler = { [unowned self] path in
@@ -49,6 +72,7 @@ extension UploadInputSchemaViewModel {
       fileServerRunning = false
     } else {
       Logger.statistics.debug("start file server")
+      prepareUploadDirectories()
       self.fileServer.start()
       fileServerRunning = true
     }

@@ -63,9 +63,19 @@ public extension FileManager {
     override: Bool = true
   ) throws {
     let fm = FileManager.default
+    guard fm.fileExists(atPath: src.path) else {
+      throw StringError("源目录不存在：\(src.path)")
+    }
+    if !fm.fileExists(atPath: dst.path) {
+      try fm.createDirectory(at: dst, withIntermediateDirectories: true, attributes: nil)
+    }
     // 递归获取全部文件
-    guard let srcFiles = fm.enumerator(at: src, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
-    guard let dstFiles = fm.enumerator(at: dst, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+    guard let srcFiles = fm.enumerator(at: src, includingPropertiesForKeys: [.isDirectoryKey]) else {
+      throw StringError("无法读取源目录：\(src.path)")
+    }
+    guard let dstFiles = fm.enumerator(at: dst, includingPropertiesForKeys: [.isDirectoryKey]) else {
+      throw StringError("无法读取目标目录：\(dst.path)")
+    }
 
     let dstFilesMapping = dstFiles.allObjects.compactMap { $0 as? URL }.reduce(into: [String: URL]()) { $0[$1.path.replacingOccurrences(of: dst.path, with: "")] = $1 }
     let srcPrefix = src.path

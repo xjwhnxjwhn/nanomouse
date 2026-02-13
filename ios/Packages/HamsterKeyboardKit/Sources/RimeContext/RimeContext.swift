@@ -392,6 +392,17 @@ public extension RimeContext {
       do {
         try FileManager.copyAppleCloudSharedSupportDirectoryToAppGroup(regex)
         try FileManager.copyAppleCloudUserDataDirectoryToAppGroup(regex)
+
+        // iCloud 跨设备同步补偿：
+        // 若 iCloud 中存在 build/hamster.plist，则优先恢复该配置，
+        // 避免“部署成功但仍是默认配置”。
+        let iCloudBuildPlist = FileManager.appGroupUserDataDirectoryURL
+          .appendingPathComponent("build")
+          .appendingPathComponent("hamster.plist")
+        if FileManager.default.fileExists(atPath: iCloudBuildPlist.path) {
+          let data = try Data(contentsOf: iCloudBuildPlist, options: [])
+          configuration = try PropertyListDecoder().decode(HamsterConfiguration.self, from: data)
+        }
       } catch {
         Logger.statistics.error("RIME deploy error \(error.localizedDescription)")
         throw error
@@ -496,7 +507,11 @@ public extension RimeContext {
     resetCurrentSchema()
     resetLatestSchema()
 
-    configuration = try HamsterConfigurationRepositories.shared.loadConfiguration()
+    do {
+      configuration = try HamsterConfigurationRepositories.shared.loadConfiguration()
+    } catch {
+      Logger.statistics.error("load configuration after deploy failed: \(error.localizedDescription)")
+    }
 
     // 键盘重新同步文件标志
     UserDefaults.hamster.overrideRimeDirectory = true
