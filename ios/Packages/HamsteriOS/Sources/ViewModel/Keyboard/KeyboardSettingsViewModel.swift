@@ -776,6 +776,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]
     ),
     .init(
+      footer: "实验功能开发中",
       items: {
         var items: [SettingItemModel] = [
           .init(
