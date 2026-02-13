@@ -248,15 +248,16 @@ open class MainTabBarController: UITabBarController {
   private let mainViewModel: MainViewModel
   private let subViewControllerFactory: SubViewControllerFactory
   private var pendingVoiceRequestId: String?
+  private var pendingCanvasRequestId: String?
 
   private lazy var settingsController = MainViewController(
     mainViewModel: mainViewModel,
     subViewControllerFactory: subViewControllerFactory
   )
 
+  private lazy var canvasController = VoiceCanvasViewController()
   private lazy var homeController = VoiceHomeViewController()
   private lazy var historyController = VoiceHistoryViewController()
-  private lazy var dictionaryController = VoiceDictionaryViewController()
   private lazy var accountController = VoiceAccountViewController()
 
   init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
@@ -273,7 +274,7 @@ open class MainTabBarController: UITabBarController {
   override open func viewDidLoad() {
     super.viewDidLoad()
     setupTabs()
-    deliverPendingVoiceRequestIfNeeded()
+    deliverPendingRequestsIfNeeded()
   }
 
   private func setupTabs() {
@@ -286,6 +287,14 @@ open class MainTabBarController: UITabBarController {
       title: "设置",
       image: UIImage(systemName: "gearshape"),
       selectedImage: UIImage(systemName: "gearshape.fill")
+    )
+
+    let canvasNavigationController = UINavigationController(rootViewController: canvasController)
+    canvasNavigationController.navigationBar.prefersLargeTitles = false
+    canvasNavigationController.tabBarItem = UITabBarItem(
+      title: "画布",
+      image: UIImage(systemName: "scribble.variable"),
+      selectedImage: UIImage(systemName: "scribble.variable")
     )
 
     let homeNavigationController = UINavigationController(rootViewController: homeController)
@@ -304,14 +313,6 @@ open class MainTabBarController: UITabBarController {
       selectedImage: UIImage(systemName: "clock.fill")
     )
 
-    let dictionaryNavigationController = UINavigationController(rootViewController: dictionaryController)
-    dictionaryNavigationController.navigationBar.prefersLargeTitles = true
-    dictionaryNavigationController.tabBarItem = UITabBarItem(
-      title: "词典",
-      image: UIImage(systemName: "book"),
-      selectedImage: UIImage(systemName: "book.fill")
-    )
-
     let accountNavigationController = UINavigationController(rootViewController: accountController)
     accountNavigationController.navigationBar.prefersLargeTitles = true
     accountNavigationController.tabBarItem = UITabBarItem(
@@ -322,9 +323,9 @@ open class MainTabBarController: UITabBarController {
 
     viewControllers = [
       settingsController,
+      canvasNavigationController,
       homeNavigationController,
       historyNavigationController,
-      dictionaryNavigationController,
       accountNavigationController
     ]
   }
@@ -336,15 +337,26 @@ open class MainTabBarController: UITabBarController {
 
   open func activateVoiceDictation(requestId: String) {
     pendingVoiceRequestId = requestId
-    selectedIndex = 1
-    deliverPendingVoiceRequestIfNeeded()
+    selectedIndex = 2
+    deliverPendingRequestsIfNeeded()
   }
 
-  private func deliverPendingVoiceRequestIfNeeded() {
-    guard let requestId = pendingVoiceRequestId else { return }
+  open func activateCanvas(requestId: String) {
+    pendingCanvasRequestId = requestId
+    selectedIndex = 1
+    deliverPendingRequestsIfNeeded()
+  }
+
+  private func deliverPendingRequestsIfNeeded() {
     guard isViewLoaded else { return }
-    pendingVoiceRequestId = nil
-    homeController.startDictation(requestId: requestId)
+    if let requestId = pendingCanvasRequestId {
+      pendingCanvasRequestId = nil
+      canvasController.startCanvasSession(requestId: requestId)
+    }
+    if let requestId = pendingVoiceRequestId {
+      pendingVoiceRequestId = nil
+      homeController.startDictation(requestId: requestId)
+    }
   }
 }
 
@@ -2686,6 +2698,8 @@ final class VoiceAccountViewController: NibLessViewController {
   private let accountView = VoiceAccountRootView()
   private lazy var modelManagementController = VoiceModelManagementViewController()
   private lazy var llmSettingsController = VoiceLLMSettingsViewController()
+  private lazy var dictionaryController = VoiceDictionaryViewController()
+  private lazy var canvasStorageController = VoiceCanvasStorageViewController()
   private lazy var accountProfileController: VoiceAccountProfileViewController = {
     let controller = VoiceAccountProfileViewController()
     controller.onAccountUpdated = { [weak self] in
@@ -2722,7 +2736,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     switch section {
     case 0: return 1
     case 1: return 1
-    case 2: return 2
+    case 2: return 4
     default: return 0
     }
   }
@@ -2748,6 +2762,12 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case (2, 1):
       cell.textLabel?.text = "AI 处理配置"
       cell.imageView?.image = UIImage(systemName: "brain.head.profile")
+    case (2, 2):
+      cell.textLabel?.text = "词典"
+      cell.imageView?.image = UIImage(systemName: "book")
+    case (2, 3):
+      cell.textLabel?.text = "画布保存位置"
+      cell.imageView?.image = UIImage(systemName: "folder")
     default:
       cell.textLabel?.text = nil
     }
@@ -2770,6 +2790,14 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     }
     if indexPath.section == 2, indexPath.row == 1 {
       navigationController?.pushViewController(llmSettingsController, animated: true)
+      return
+    }
+    if indexPath.section == 2, indexPath.row == 2 {
+      navigationController?.pushViewController(dictionaryController, animated: true)
+      return
+    }
+    if indexPath.section == 2, indexPath.row == 3 {
+      navigationController?.pushViewController(canvasStorageController, animated: true)
     }
   }
 }

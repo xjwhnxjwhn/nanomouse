@@ -11,6 +11,7 @@ import HamsterKit
 import KanaKanjiConverterModule
 import OSLog
 import UIKit
+import UniformTypeIdentifiers
 
 /**
  This class extends `UIInputViewController` with KeyboardKit
@@ -52,6 +53,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputSuffixMode = false
   private var mixedInputResyncing = false
   private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
+  private let canvasInputBridge: KeyboardCanvasBridge = .shared
   private var lastVoiceInsertedCharacterCount = 0
   private var lastVoiceInsertedRequestId: String?
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
@@ -126,7 +128,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     startVoiceResultPollingIfNeeded()
-    _ = viewWillHandleVoiceInputResult()
+    _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
   }
 
   override open func viewWillDisappear(_ animated: Bool) {
@@ -1020,7 +1022,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     
     // 更新文本替换建议
     updateTextReplacementSuggestion()
-    if viewWillHandleVoiceInputResult() {
+    if viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult() {
       stopVoiceResultPolling()
     }
   }
@@ -4282,6 +4284,32 @@ private extension KeyboardInputViewController {
     return true
   }
 
+  /// 键盘回到前台后，尝试读取主 App 写入的画布结果并复制到剪贴板。
+  @discardableResult
+  func viewWillHandleCanvasInputResult() -> Bool {
+    canvasInputBridge.cleanupExpiredData()
+    guard let payload = canvasInputBridge.readLatestUnconsumedResult() else { return false }
+    let relativePath = payload.imageRelativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !relativePath.isEmpty else {
+      canvasInputBridge.markResultConsumed(requestId: payload.requestId)
+      return false
+    }
+
+    let imageURL = canvasInputBridge.resolveImageURL(relativePath: relativePath)
+    guard let data = try? Data(contentsOf: imageURL), let image = UIImage(data: data) else {
+      canvasInputBridge.markResultConsumed(requestId: payload.requestId)
+      canvasInputBridge.setState(requestId: payload.requestId, state: .failed, errorMessage: "invalid canvas image")
+      return false
+    }
+
+    UIPasteboard.general.setData(data, forPasteboardType: UTType.jpeg.identifier)
+    UIPasteboard.general.image = image
+    canvasInputBridge.markResultConsumed(requestId: payload.requestId)
+    canvasInputBridge.setState(requestId: payload.requestId, state: .inserted)
+    showTransientHint("画布已复制，可粘贴发送")
+    return true
+  }
+
   /// 语音回填轮询兜底：解决“先返回键盘、后写入结果”时的一次性漏插入问题。
   func startVoiceResultPollingIfNeeded() {
     voiceResultPollingDeadline = Date().addingTimeInterval(20)
@@ -4291,7 +4319,7 @@ private extension KeyboardInputViewController {
 
     let timer = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
       guard let self else { return }
-      if self.viewWillHandleVoiceInputResult() {
+      if self.viewWillHandleVoiceInputResult() || self.viewWillHandleCanvasInputResult() {
         self.stopVoiceResultPolling()
         return
       }
@@ -4312,6 +4340,7 @@ private extension KeyboardInputViewController {
   func showVoiceUndoButton(requestId: String, insertedTextCount: Int) {
     guard insertedTextCount > 0 else { return }
     ensureVoiceUndoButton()
+    voiceUndoButton.setTitle("已插入，撤销", for: .normal)
     lastVoiceInsertedCharacterCount = insertedTextCount
     lastVoiceInsertedRequestId = requestId
     voiceInputBridge.setState(requestId: requestId, state: KeyboardVoiceInputState.undoWindow)
@@ -4344,6 +4373,27 @@ private extension KeyboardInputViewController {
       hideView()
       voiceUndoButton.isHidden = true
     }
+  }
+
+  func showTransientHint(_ text: String) {
+    ensureVoiceUndoButton()
+    lastVoiceInsertedCharacterCount = 0
+    lastVoiceInsertedRequestId = nil
+    voiceUndoButton.setTitle(text, for: .normal)
+
+    hideVoiceUndoWorkItem?.cancel()
+    voiceUndoButton.isHidden = false
+    UIView.animate(withDuration: 0.18) {
+      self.voiceUndoButton.alpha = 1
+    }
+
+    let workItem = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      self.hideVoiceUndoButton(animated: true)
+      self.voiceUndoButton.setTitle("已插入，撤销", for: .normal)
+    }
+    hideVoiceUndoWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: workItem)
   }
 
   func ensureVoiceUndoButton() {

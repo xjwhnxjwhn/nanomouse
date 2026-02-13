@@ -14,6 +14,7 @@ import UIKit
 class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   var window: UIWindow?
   private let voiceInputBridge: AppVoiceInputBridge = .shared
+  private let canvasInputBridge: AppCanvasBridge = .shared
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -50,6 +51,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       }
 
       if handleVoiceDictationURL(url) {
+        return
+      }
+      if handleCanvasURL(url) {
         return
       }
 
@@ -100,6 +104,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       if handleVoiceDictationURL(url) {
         return
       }
+      if handleCanvasURL(url) {
+        return
+      }
 
       // url.query(): 获取 `URL` 查询参数
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
@@ -145,6 +152,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       return true
     }
     rootController.activateVoiceDictation(requestId: requestId)
+    return true
+  }
+
+  private func handleCanvasURL(_ url: URL) -> Bool {
+    guard canvasInputBridge.isCanvasURL(url) else { return false }
+    let requestId = canvasInputBridge.parseRequestId(from: url) ?? canvasInputBridge.makeRequestId()
+    canvasInputBridge.setState(requestId: requestId, state: .launching)
+
+    guard let rootController = window?.rootViewController as? MainTabBarController else {
+      return true
+    }
+    rootController.activateCanvas(requestId: requestId)
     return true
   }
 

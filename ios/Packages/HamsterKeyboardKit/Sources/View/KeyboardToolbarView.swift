@@ -23,6 +23,7 @@ class KeyboardToolbarView: NibLessView {
   private let actionHandler: KeyboardActionHandler
   private let keyboardContext: KeyboardContext
   private var rimeContext: RimeContext
+  private let canvasInputBridge: KeyboardCanvasBridge = .shared
   private var style: CandidateBarStyle
   private var userInterfaceStyle: UIUserInterfaceStyle
   private var oldBounds: CGRect = .zero
@@ -150,6 +151,21 @@ class KeyboardToolbarView: NibLessView {
     return button
   }()
 
+  /// 画布按钮
+  private lazy var canvasButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.setImage(UIImage(systemName: "square.and.pencil"), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.tintColor = style.toolbarButtonFrontColor
+    button.addTarget(self, action: #selector(canvasTouchDownAction), for: .touchDown)
+    button.addTarget(self, action: #selector(canvasTouchUpAction), for: .touchUpInside)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
+    return button
+  }()
+
   // TODO: 常用功能栏
   lazy var commonFunctionBar: UIView = {
     let view = UIView(frame: .zero)
@@ -218,6 +234,7 @@ class KeyboardToolbarView: NibLessView {
       logoContainer.addSubview(iconButton)
     }
     commonFunctionBar.addSubview(rightButtonsStack)
+    rightButtonsStack.addArrangedSubview(canvasButton)
     rightButtonsStack.addArrangedSubview(voiceModeButton)
     if keyboardContext.displayKeyboardDismissButton {
       rightButtonsStack.addArrangedSubview(dismissKeyboardButton)
@@ -268,11 +285,15 @@ class KeyboardToolbarView: NibLessView {
         dismissKeyboardButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
         voiceModeButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
         voiceModeButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
+        canvasButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
+        canvasButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
       ])
     } else {
       constraints.append(contentsOf: [
         voiceModeButton.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
         voiceModeButton.widthAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
+        canvasButton.heightAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
+        canvasButton.widthAnchor.constraint(equalTo: voiceModeButton.widthAnchor),
       ])
     }
 
@@ -305,6 +326,8 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
     }
+    canvasButton.tintColor = style.toolbarButtonFrontColor
+    canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
     voiceModeIconView.applyColor(style.toolbarButtonFrontColor)
     let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
@@ -404,6 +427,21 @@ class KeyboardToolbarView: NibLessView {
     NotificationCenter.default.post(name: .hamsterVoiceModeToggle, object: nil)
   }
 
+  @objc func canvasTouchDownAction() {
+    canvasButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+  }
+
+  @objc func canvasTouchUpAction() {
+    canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
+    let requestId = canvasInputBridge.makeRequestId()
+    canvasInputBridge.setState(requestId: requestId, state: .launching)
+    guard let openURL = canvasInputBridge.makeCanvasURL(requestId: requestId) else {
+      canvasInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid canvas url")
+      return
+    }
+    actionHandler.handle(.release, on: .url(openURL, id: "canvasInput"))
+  }
+
   @objc func openHamsterAppTouchDownAction() {
     logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
   }
@@ -416,6 +454,7 @@ class KeyboardToolbarView: NibLessView {
   @objc func touchCancel() {
     dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
+    canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
   }
 
