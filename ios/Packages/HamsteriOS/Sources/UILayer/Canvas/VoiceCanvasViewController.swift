@@ -159,6 +159,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.backgroundColor = .clear
     view.drawingPolicy = .anyInput
+    view.isScrollEnabled = false
     view.alwaysBounceVertical = false
     view.alwaysBounceHorizontal = false
     view.isOpaque = false
@@ -216,6 +217,11 @@ final class VoiceCanvasViewController: NibLessViewController {
         statusLabel.text = "已从键盘进入画布。画完后点击“完成”，然后返回上一应用并粘贴。"
       }
     }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    lockCanvasToVisibleBounds()
   }
 
   func startCanvasSession(requestId: String) {
@@ -279,6 +285,20 @@ final class VoiceCanvasViewController: NibLessViewController {
     toolPicker = picker
   }
 
+  private func lockCanvasToVisibleBounds() {
+    let size = canvasView.bounds.size
+    guard size.width > 0, size.height > 0 else { return }
+    if canvasView.contentSize != size {
+      canvasView.contentSize = size
+    }
+    if canvasView.contentOffset != .zero {
+      canvasView.contentOffset = .zero
+    }
+    if canvasView.contentInset != .zero {
+      canvasView.contentInset = .zero
+    }
+  }
+
   @objc private func handleClearTap() {
     canvasView.drawing = PKDrawing()
     if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
@@ -296,7 +316,23 @@ final class VoiceCanvasViewController: NibLessViewController {
       return
     }
 
-    let paddedBounds = drawingBounds.insetBy(dx: -12, dy: -12)
+    let visibleRect = CGRect(origin: canvasView.contentOffset, size: canvasView.bounds.size)
+    guard !visibleRect.isEmpty else {
+      statusLabel.text = "画布还没准备好，请稍后再试。"
+      return
+    }
+    let visibleDrawingBounds = drawingBounds.intersection(visibleRect)
+    guard !visibleDrawingBounds.isEmpty else {
+      statusLabel.text = "请在画布区域内绘制后再完成。"
+      return
+    }
+
+    // 仅导出可见画布区域内的笔迹，避免画布外误触也被保存。
+    let paddedBounds = visibleDrawingBounds.insetBy(dx: -12, dy: -12).intersection(visibleRect)
+    guard !paddedBounds.isEmpty else {
+      statusLabel.text = "可导出的绘制区域为空，请重试。"
+      return
+    }
     let image = canvasView.drawing.image(from: paddedBounds, scale: UIScreen.main.scale)
 
     do {

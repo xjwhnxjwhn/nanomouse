@@ -4302,8 +4302,7 @@ private extension KeyboardInputViewController {
       return false
     }
 
-    UIPasteboard.general.setData(data, forPasteboardType: UTType.jpeg.identifier)
-    UIPasteboard.general.image = image
+    copyCanvasImageToPasteboard(image, originalJPEGData: data)
     canvasInputBridge.markResultConsumed(requestId: payload.requestId)
     canvasInputBridge.setState(requestId: payload.requestId, state: .inserted)
     showTransientHint("画布已复制，可粘贴发送")
@@ -4394,6 +4393,19 @@ private extension KeyboardInputViewController {
     }
     hideVoiceUndoWorkItem = workItem
     DispatchQueue.main.asyncAfter(deadline: .now() + 2.4, execute: workItem)
+  }
+
+  func copyCanvasImageToPasteboard(_ image: UIImage, originalJPEGData: Data) {
+    let jpeg = originalJPEGData.isEmpty ? (image.jpegData(compressionQuality: 0.88) ?? Data()) : originalJPEGData
+    guard !jpeg.isEmpty else {
+      UIPasteboard.general.image = image
+      return
+    }
+    // 部分应用（微信）优先读取 JPEG + public.image。
+    UIPasteboard.general.items = [[
+      UTType.jpeg.identifier: jpeg,
+      UTType.image.identifier: image
+    ]]
   }
 
   func ensureVoiceUndoButton() {
