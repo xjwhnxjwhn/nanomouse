@@ -191,6 +191,48 @@ final class VoiceCanvasViewController: NibLessViewController {
     return button
   }()
 
+  private lazy var undoButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(systemName: "arrow.uturn.backward"), for: .normal)
+    button.tintColor = .label
+    button.backgroundColor = .tertiarySystemFill
+    button.layer.cornerRadius = 16
+    button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+    button.widthAnchor.constraint(equalToConstant: 32).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    button.addTarget(self, action: #selector(handleUndoTap), for: .touchUpInside)
+    button.isEnabled = false
+    button.alpha = 0.4
+    return button
+  }()
+
+  private lazy var redoButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setImage(UIImage(systemName: "arrow.uturn.forward"), for: .normal)
+    button.tintColor = .label
+    button.backgroundColor = .tertiarySystemFill
+    button.layer.cornerRadius = 16
+    button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+    button.widthAnchor.constraint(equalToConstant: 32).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+    button.addTarget(self, action: #selector(handleRedoTap), for: .touchUpInside)
+    button.isEnabled = false
+    button.alpha = 0.4
+    return button
+  }()
+
+  private lazy var historyButtonStackView: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [undoButton, redoButton])
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.distribution = .fill
+    stack.spacing = 8
+    return stack
+  }()
+
   private lazy var doneButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
@@ -260,8 +302,10 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasContainerView.addSubview(canvasView)
     canvasContainerView.addSubview(canvasWakeOverlayView)
     view.addSubview(clearButton)
+    view.addSubview(historyButtonStackView)
     view.addSubview(doneButton)
     view.addSubview(tipLabel)
+    canvasView.delegate = self
 
     NSLayoutConstraint.activate([
       titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
@@ -290,6 +334,9 @@ final class VoiceCanvasViewController: NibLessViewController {
       clearButton.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
       clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
 
+      historyButtonStackView.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      historyButtonStackView.centerYAnchor.constraint(equalTo: clearButton.centerYAnchor),
+
       doneButton.bottomAnchor.constraint(equalTo: tipLabel.topAnchor, constant: -10),
       doneButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
@@ -307,6 +354,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasView.becomeFirstResponder()
     toolPicker = picker
     isToolPickerVisible = true
+    updateHistoryButtonsState()
   }
 
   private func lockCanvasToVisibleBounds() {
@@ -346,7 +394,10 @@ final class VoiceCanvasViewController: NibLessViewController {
       return
     }
 
-    let tappedButtonArea = clearButton.frame.contains(point) || doneButton.frame.contains(point)
+    let tappedButtonArea = clearButton.frame.contains(point)
+      || doneButton.frame.contains(point)
+      || undoButton.frame.contains(point)
+      || redoButton.frame.contains(point)
     if !tappedButtonArea {
       setToolPickerVisible(false)
     }
@@ -359,12 +410,33 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   @objc private func handleClearTap() {
     canvasView.drawing = PKDrawing()
+    canvasView.undoManager?.removeAllActions()
+    updateHistoryButtonsState()
     if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
       canvasBridge.setState(requestId: requestId, state: .drawing)
     }
     statusLabel.text = activeRequestId == nil
       ? "画布已清空，你可以继续绘制。"
       : "画布已清空，请重新绘制后点击“完成”。"
+  }
+
+  @objc private func handleUndoTap() {
+    canvasView.undoManager?.undo()
+    updateHistoryButtonsState()
+  }
+
+  @objc private func handleRedoTap() {
+    canvasView.undoManager?.redo()
+    updateHistoryButtonsState()
+  }
+
+  private func updateHistoryButtonsState() {
+    let canUndo = canvasView.undoManager?.canUndo ?? false
+    let canRedo = canvasView.undoManager?.canRedo ?? false
+    undoButton.isEnabled = canUndo
+    redoButton.isEnabled = canRedo
+    undoButton.alpha = canUndo ? 1.0 : 0.4
+    redoButton.alpha = canRedo ? 1.0 : 0.4
   }
 
   @objc private func handleDoneTap() {
@@ -415,6 +487,12 @@ final class VoiceCanvasViewController: NibLessViewController {
       }
       statusLabel.text = "导出失败：\(error.localizedDescription)"
     }
+  }
+}
+
+extension VoiceCanvasViewController: PKCanvasViewDelegate {
+  func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+    updateHistoryButtonsState()
   }
 }
 
