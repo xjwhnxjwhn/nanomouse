@@ -126,6 +126,22 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var activeRequestId: String?
   private var hasCompletedCurrentKeyboardSession = false
   private var toolPicker: PKToolPicker?
+  private var isToolPickerVisible = true
+
+  private lazy var screenTapGestureRecognizer: UITapGestureRecognizer = {
+    let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleScreenTap(_:)))
+    recognizer.cancelsTouchesInView = false
+    return recognizer
+  }()
+
+  private lazy var canvasWakeOverlayView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.isHidden = true
+    view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleCanvasWakeTap)))
+    return view
+  }()
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -237,10 +253,12 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func setupView() {
     view.backgroundColor = .systemBackground
+    view.addGestureRecognizer(screenTapGestureRecognizer)
     view.addSubview(titleLabel)
     view.addSubview(statusLabel)
     view.addSubview(canvasContainerView)
     canvasContainerView.addSubview(canvasView)
+    canvasContainerView.addSubview(canvasWakeOverlayView)
     view.addSubview(clearButton)
     view.addSubview(doneButton)
     view.addSubview(tipLabel)
@@ -264,6 +282,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
       canvasView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
 
+      canvasWakeOverlayView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
+      canvasWakeOverlayView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
+      canvasWakeOverlayView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
+      canvasWakeOverlayView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
+
       clearButton.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
       clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
 
@@ -283,6 +306,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     picker.addObserver(canvasView)
     canvasView.becomeFirstResponder()
     toolPicker = picker
+    isToolPickerVisible = true
   }
 
   private func lockCanvasToVisibleBounds() {
@@ -297,6 +321,40 @@ final class VoiceCanvasViewController: NibLessViewController {
     if canvasView.contentInset != .zero {
       canvasView.contentInset = .zero
     }
+  }
+
+  private func setToolPickerVisible(_ visible: Bool) {
+    guard let picker = toolPicker else { return }
+    if visible {
+      canvasView.becomeFirstResponder()
+      picker.setVisible(true, forFirstResponder: canvasView)
+      canvasWakeOverlayView.isHidden = true
+    } else {
+      picker.setVisible(false, forFirstResponder: canvasView)
+      canvasView.resignFirstResponder()
+      canvasWakeOverlayView.isHidden = false
+    }
+    isToolPickerVisible = visible
+  }
+
+  @objc private func handleScreenTap(_ recognizer: UITapGestureRecognizer) {
+    let point = recognizer.location(in: view)
+    if canvasContainerView.frame.contains(point) {
+      if !isToolPickerVisible {
+        setToolPickerVisible(true)
+      }
+      return
+    }
+
+    let tappedButtonArea = clearButton.frame.contains(point) || doneButton.frame.contains(point)
+    if !tappedButtonArea {
+      setToolPickerVisible(false)
+    }
+  }
+
+  @objc private func handleCanvasWakeTap() {
+    guard !isToolPickerVisible else { return }
+    setToolPickerVisible(true)
   }
 
   @objc private func handleClearTap() {
