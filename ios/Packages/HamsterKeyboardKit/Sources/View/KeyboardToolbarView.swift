@@ -425,6 +425,10 @@ class KeyboardToolbarView: NibLessView {
 
   @objc func voiceModeTouchUpAction() {
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
+    if UserDefaults.hamster.enableKeyboardExtensionVoiceModeView {
+      NotificationCenter.default.post(name: .hamsterVoiceModeToggle, object: nil)
+      return
+    }
     let requestId = voiceInputBridge.makeRequestId()
     voiceInputBridge.setState(requestId: requestId, state: .launching)
     guard let openURL = voiceInputBridge.makeDictationURL(requestId: requestId) else {

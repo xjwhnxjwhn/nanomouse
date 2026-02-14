@@ -2877,6 +2877,39 @@ final class VoiceAccountViewController: NibLessViewController {
       subViewControllerFactory: subViewControllerFactory
     )
   }
+
+  private func makeVoiceModeCoinIcon() -> UIImage {
+    let size = CGSize(width: 28, height: 28)
+    let ringColor = UIColor.black
+    let renderer = UIGraphicsImageRenderer(size: size)
+    let image = renderer.image { context in
+      let rect = CGRect(origin: .zero, size: size)
+      let ringInset = min(size.width, size.height) * 0.12
+      let ringRect = rect.insetBy(dx: ringInset, dy: ringInset)
+      let ringPath = UIBezierPath(ovalIn: ringRect)
+      ringColor.setStroke()
+      ringPath.lineWidth = 2.0
+      ringPath.stroke()
+
+      let coreSize = min(size.width, size.height) * 0.34
+      let coreRect = CGRect(
+        x: (size.width - coreSize) / 2,
+        y: (size.height - coreSize) / 2,
+        width: coreSize,
+        height: coreSize
+      )
+      let coreRadius = coreSize * 0.22
+      let corePath = UIBezierPath(roundedRect: coreRect, cornerRadius: coreRadius)
+      corePath.lineWidth = 1.8
+      corePath.stroke()
+      context.cgContext.flush()
+    }
+    return image.withRenderingMode(.alwaysTemplate)
+  }
+
+  @objc private func handleKeyboardVoiceModeSwitchChanged(_ sender: UISwitch) {
+    UserDefaults.hamster.enableKeyboardExtensionVoiceModeView = sender.isOn
+  }
 }
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
@@ -2889,7 +2922,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case 0: return 1
     case 1: return 1
     case 2: return 1
-    case 3: return 4
+    case 3: return 5
     case 4: return 1
     default: return 0
     }
@@ -2904,6 +2937,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     let cell = tableView.dequeueReusableCell(withIdentifier: "AccountCell", for: indexPath)
     cell.selectionStyle = .default
     cell.accessoryType = .disclosureIndicator
+    cell.accessoryView = nil
     cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
 
     switch (indexPath.section, indexPath.row) {
@@ -2920,9 +2954,19 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       cell.textLabel?.text = "AI 处理配置"
       cell.imageView?.image = UIImage(systemName: "brain.head.profile")
     case (3, 2):
+      cell.textLabel?.text = "启用键盘扩展语音界面"
+      cell.imageView?.image = makeVoiceModeCoinIcon()
+      cell.imageView?.tintColor = .secondaryLabel
+      cell.accessoryType = .none
+      cell.selectionStyle = .none
+      let toggle = UISwitch(frame: .zero)
+      toggle.isOn = UserDefaults.hamster.enableKeyboardExtensionVoiceModeView
+      toggle.addTarget(self, action: #selector(handleKeyboardVoiceModeSwitchChanged(_:)), for: .valueChanged)
+      cell.accessoryView = toggle
+    case (3, 3):
       cell.textLabel?.text = "词典"
       cell.imageView?.image = UIImage(systemName: "book")
-    case (3, 3):
+    case (3, 4):
       cell.textLabel?.text = "历史记录"
       cell.imageView?.image = UIImage(systemName: "clock")
     case (4, 0):
@@ -2957,10 +3001,13 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       return
     }
     if indexPath.section == 3, indexPath.row == 2 {
-      navigationController?.pushViewController(dictionaryController, animated: true)
       return
     }
     if indexPath.section == 3, indexPath.row == 3 {
+      navigationController?.pushViewController(dictionaryController, animated: true)
+      return
+    }
+    if indexPath.section == 3, indexPath.row == 4 {
       navigationController?.pushViewController(historyController, animated: true)
       return
     }

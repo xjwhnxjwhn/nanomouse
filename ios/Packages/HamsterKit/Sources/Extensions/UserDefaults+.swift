@@ -383,6 +383,20 @@ public extension UserDefaults {
       Logger.statistics.debug("save azooKeyTypographyLetter: \(newValue)")
     }
   }
+
+  /// 是否启用键盘扩展内置语音界面（关闭时，铜钱按钮将直接跳转主 App 口述）
+  var enableKeyboardExtensionVoiceModeView: Bool {
+    get {
+      if object(forKey: Self.enableKeyboardExtensionVoiceModeViewKey) != nil {
+        return bool(forKey: Self.enableKeyboardExtensionVoiceModeViewKey)
+      }
+      return false  // 默认关闭，使用“直接跳主 App”模式
+    }
+    set {
+      setValue(newValue, forKey: Self.enableKeyboardExtensionVoiceModeViewKey)
+      Logger.statistics.debug("save enableKeyboardExtensionVoiceModeView: \(newValue)")
+    }
+  }
 }
 
 extension UserDefaults {
@@ -444,6 +458,7 @@ extension UserDefaults {
   private static let azooKeyModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyMode"
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"
   private static let azooKeyTypographyLetterKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyTypographyLetter"
+  private static let enableKeyboardExtensionVoiceModeViewKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.enableKeyboardExtensionVoiceModeView"
 
   // MARK: - 补丁
 
