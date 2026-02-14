@@ -4048,6 +4048,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   private var cachedModelIDs: [String] = []
   private var promptPresets: [VoiceLLMPromptPreset] = []
   private var selectedPromptPresetID: String = ""
+  private var currentAuthModeSelection: VoiceLLMAuthMode = .proxy
   private var currentProviderSelection: VoiceLLMProvider = .openAI
 
   override func loadView() {
@@ -4057,8 +4058,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    settingsView.llmEnabledControl.addTarget(self, action: #selector(handleLLMEnabledChanged), for: .valueChanged)
-    settingsView.authModeControl.addTarget(self, action: #selector(handleAuthModeChanged), for: .valueChanged)
+    settingsView.llmEnabledSwitch.addTarget(self, action: #selector(handleLLMEnabledChanged), for: .valueChanged)
+    settingsView.authModeButton.addTarget(self, action: #selector(handleAuthModeTap), for: .touchUpInside)
     settingsView.providerButton.addTarget(self, action: #selector(handleProviderTap), for: .touchUpInside)
     settingsView.refreshModelsButton.addTarget(self, action: #selector(handleRefreshModelsTap), for: .touchUpInside)
     settingsView.chooseModelButton.addTarget(self, action: #selector(handleChooseModelTap), for: .touchUpInside)
@@ -4075,8 +4076,9 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let llmEnabled = settingsStore.isLLMEnabled()
     let mode = settingsStore.authMode()
     let provider = settingsStore.provider()
-    settingsView.llmEnabledControl.selectedSegmentIndex = llmEnabled ? 1 : 0
-    settingsView.authModeControl.selectedSegmentIndex = (mode == .proxy) ? 0 : 1
+    settingsView.llmEnabledSwitch.isOn = llmEnabled
+    currentAuthModeSelection = mode
+    settingsView.updateAuthModeSelection(mode: mode)
     currentProviderSelection = provider
     settingsView.updateProviderSelection(provider: provider)
     settingsView.updateProviderPlaceholders(provider: provider)
@@ -4099,22 +4101,35 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     refreshBackendAuthStatusHint()
   }
 
-  private func authModeForSelectedIndex() -> VoiceLLMAuthMode {
-    settingsView.authModeControl.selectedSegmentIndex == 1 ? .byok : .proxy
-  }
-
   private func llmEnabledForSelectedIndex() -> Bool {
-    settingsView.llmEnabledControl.selectedSegmentIndex == 1
+    settingsView.llmEnabledSwitch.isOn
   }
 
   @objc private func handleLLMEnabledChanged() {
-    let mode = authModeForSelectedIndex()
-    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabledForSelectedIndex())
+    let enabled = llmEnabledForSelectedIndex()
+    // 开关状态即时落盘：关闭时不需要再点“保存设置”。
+    settingsStore.setLLMEnabled(enabled)
+    settingsView.updateVisibleSections(authMode: currentAuthModeSelection, isLLMEnabled: enabled)
   }
 
-  @objc private func handleAuthModeChanged() {
-    let mode = authModeForSelectedIndex()
-    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabledForSelectedIndex())
+  @objc private func handleAuthModeTap() {
+    let alert = UIAlertController(title: "选择认证模式", message: nil, preferredStyle: .actionSheet)
+    let modes: [VoiceLLMAuthMode] = [.proxy, .byok]
+    for mode in modes {
+      let title = mode == currentAuthModeSelection ? "✓ \(mode.uiDisplayName)" : mode.uiDisplayName
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        guard let self else { return }
+        self.currentAuthModeSelection = mode
+        self.settingsView.updateAuthModeSelection(mode: mode)
+        self.settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: self.llmEnabledForSelectedIndex())
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = settingsView.authModeButton
+      popover.sourceRect = settingsView.authModeButton.bounds
+    }
+    present(alert, animated: true)
   }
 
   @objc private func handleProviderTap() {
@@ -4379,7 +4394,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
   private func persistAndPresentSaveResult() {
     persistFormSettings()
-    let authMode = authModeForSelectedIndex()
+    let authMode = currentAuthModeSelection
     let llmEnabled = llmEnabledForSelectedIndex()
     settingsView.updateVisibleSections(authMode: authMode, isLLMEnabled: llmEnabled)
 
@@ -4411,7 +4426,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   private func persistFormSettings() {
     let llmEnabled = llmEnabledForSelectedIndex()
     let provider = currentProviderSelection
-    let authMode = authModeForSelectedIndex()
+    let authMode = currentAuthModeSelection
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
     let baseURLInput = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let modelInput = (settingsView.modelField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -4506,18 +4521,23 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 }
 
 final class VoiceLLMSettingsRootView: NibLessView {
-  let llmEnabledControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["关闭", "开启"])
+  let llmEnabledSwitch: UISwitch = {
+    let control = UISwitch(frame: .zero)
     control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 1
+    control.isOn = true
     return control
   }()
 
-  let authModeControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["服务端代理", "BYOK"])
-    control.translatesAutoresizingMaskIntoConstraints = false
-    control.selectedSegmentIndex = 0
-    return control
+  let authModeButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("服务端代理  ▾", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.contentHorizontalAlignment = .left
+    button.backgroundColor = .secondarySystemBackground
+    button.layer.cornerRadius = 10
+    button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+    return button
   }()
 
   let providerButton: UIButton = {
@@ -4734,6 +4754,10 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return stack
   }()
 
+  private lazy var llmEnabledSection = makeSwitchSection(title: "AI 编辑", toggle: llmEnabledSwitch)
+  private lazy var authModeControlSection = makeControlSection(title: "认证模式", control: authModeButton)
+  private lazy var providerControlSection = makeControlSection(title: "Provider", control: providerButton)
+
   private lazy var proxySection = makeSection(
     title: "代理地址",
     description: "代理模式下，客户端只请求你自己的服务端。",
@@ -4830,6 +4854,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     updateVisibleSections(authMode: .proxy, isLLMEnabled: true)
+    updateAuthModeSelection(mode: .proxy)
     updateBackendAuthStatus(text: "未登录后端账号。若代理接口需要鉴权，请先登录。", isLoggedIn: false)
     updateProviderSelection(provider: .openAI)
     updateProviderPlaceholders(provider: .openAI)
@@ -4841,9 +4866,9 @@ final class VoiceLLMSettingsRootView: NibLessView {
     addSubview(scrollView)
     scrollView.addSubview(contentStack)
     contentStack.addArrangedSubview(descriptionLabel)
-    contentStack.addArrangedSubview(makeControlSection(title: "AI 编辑", control: llmEnabledControl))
-    contentStack.addArrangedSubview(makeControlSection(title: "认证模式", control: authModeControl))
-    contentStack.addArrangedSubview(makeControlSection(title: "Provider", control: providerButton))
+    contentStack.addArrangedSubview(llmEnabledSection)
+    contentStack.addArrangedSubview(authModeControlSection)
+    contentStack.addArrangedSubview(providerControlSection)
     contentStack.addArrangedSubview(providerHintLabel)
     contentStack.addArrangedSubview(proxySection)
     contentStack.addArrangedSubview(proxyModelsSection)
@@ -4878,6 +4903,9 @@ final class VoiceLLMSettingsRootView: NibLessView {
 
   func updateVisibleSections(authMode: VoiceLLMAuthMode, isLLMEnabled: Bool) {
     let isProxy = authMode == .proxy
+    authModeControlSection.isHidden = !isLLMEnabled
+    providerControlSection.isHidden = !isLLMEnabled
+    providerHintLabel.isHidden = !isLLMEnabled
     proxySection.isHidden = !isLLMEnabled || !isProxy
     proxyModelsSection.isHidden = !isLLMEnabled || !isProxy
     backendAuthSection.isHidden = !isLLMEnabled || !isProxy
@@ -4885,6 +4913,11 @@ final class VoiceLLMSettingsRootView: NibLessView {
     modelSection.isHidden = !isLLMEnabled
     apiKeySection.isHidden = !isLLMEnabled || isProxy
     presetSection.isHidden = !isLLMEnabled
+    saveButton.isHidden = !isLLMEnabled
+  }
+
+  func updateAuthModeSelection(mode: VoiceLLMAuthMode) {
+    authModeButton.setTitle("\(mode.uiDisplayName)  ▾", for: .normal)
   }
 
   func updateProviderHint(provider: VoiceLLMProvider) {
@@ -4950,6 +4983,34 @@ final class VoiceLLMSettingsRootView: NibLessView {
     return stack
   }
 
+  private func makeSwitchSection(title: String, toggle: UISwitch) -> UIView {
+    let titleLabel = UILabel(frame: .zero)
+    titleLabel.font = .systemFont(ofSize: 15, weight: .regular)
+    titleLabel.textColor = .label
+    titleLabel.text = title
+
+    let row = UIStackView(arrangedSubviews: [titleLabel, toggle])
+    row.axis = .horizontal
+    row.alignment = .center
+    row.distribution = .equalSpacing
+    row.spacing = 12
+
+    let container = UIView(frame: .zero)
+    container.translatesAutoresizingMaskIntoConstraints = false
+    container.backgroundColor = .secondarySystemBackground
+    container.layer.cornerRadius = 10
+    container.layoutMargins = UIEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
+    row.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(row)
+    NSLayoutConstraint.activate([
+      row.topAnchor.constraint(equalTo: container.layoutMarginsGuide.topAnchor),
+      row.leadingAnchor.constraint(equalTo: container.layoutMarginsGuide.leadingAnchor),
+      row.trailingAnchor.constraint(equalTo: container.layoutMarginsGuide.trailingAnchor),
+      row.bottomAnchor.constraint(equalTo: container.layoutMarginsGuide.bottomAnchor)
+    ])
+    return container
+  }
+
   private func makeSection(title: String, description: String, field: UITextField) -> UIView {
     makeSection(title: title, description: description, content: field)
   }
@@ -4985,5 +5046,16 @@ final class VoiceLLMSettingsRootView: NibLessView {
     field.autocapitalizationType = .none
     field.spellCheckingType = .no
     return field
+  }
+}
+
+private extension VoiceLLMAuthMode {
+  var uiDisplayName: String {
+    switch self {
+    case .proxy:
+      return "服务端代理"
+    case .byok:
+      return "BYOK"
+    }
   }
 }
