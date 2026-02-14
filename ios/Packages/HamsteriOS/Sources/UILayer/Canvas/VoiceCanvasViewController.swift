@@ -143,10 +143,22 @@ final class VoiceCanvasViewController: NibLessViewController {
     return view
   }()
 
+  private lazy var canvasWakeHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 15, weight: .medium)
+    label.textColor = .tertiaryLabel
+    label.textAlignment = .center
+    label.numberOfLines = 0
+    label.text = "轻点此处以开始"
+    return label
+  }()
+
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 30, weight: .bold)
+    label.font = .systemFont(ofSize: 34, weight: .bold)
+    label.textColor = .label
     label.text = "画布"
     return label
   }()
@@ -157,7 +169,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     label.font = .systemFont(ofSize: 14, weight: .medium)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "你可以手绘示意图，并导出低质量 JPG。"
+    label.text = "你可以手绘示意图。画完后返回宿主 App，即可粘贴图片。"
     return label
   }()
 
@@ -258,7 +270,7 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   override func loadView() {
     view = NibLessView()
-    title = "画布"
+    title = nil
   }
 
   override func viewDidLoad() {
@@ -273,7 +285,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       setToolPickerVisible(true)
       canvasBridge.setState(requestId: requestId, state: .drawing)
       if statusLabel.text?.isEmpty ?? true {
-        statusLabel.text = "已从键盘进入画布。画完后点击“完成”，然后返回上一应用并粘贴。"
+        statusLabel.text = "已从键盘进入画布。画完后点击“完成”，返回宿主 App 即可粘贴图片。"
       }
     } else {
       // 普通切换到画布页时默认收起工具栏，避免遮挡底部 Tab。
@@ -293,7 +305,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     if isViewLoaded {
       canvasView.drawing = PKDrawing()
       setToolPickerVisible(true)
-      statusLabel.text = "已从键盘进入画布。画完后点击“完成”，然后返回上一应用并粘贴。"
+      statusLabel.text = "已从键盘进入画布。画完后点击“完成”，返回宿主 App 即可粘贴图片。"
       tipLabel.text = "图片会导出为低质量 JPG，并自动复制到系统剪贴板。"
     }
   }
@@ -306,6 +318,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     view.addSubview(canvasContainerView)
     canvasContainerView.addSubview(canvasView)
     canvasContainerView.addSubview(canvasWakeOverlayView)
+    canvasWakeOverlayView.addSubview(canvasWakeHintLabel)
     view.addSubview(clearButton)
     view.addSubview(historyButtonStackView)
     view.addSubview(doneButton)
@@ -313,17 +326,17 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasView.delegate = self
 
     NSLayoutConstraint.activate([
-      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
       titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
       statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-      statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      statusLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
       canvasContainerView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 14),
-      canvasContainerView.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      canvasContainerView.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      canvasContainerView.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
+      canvasContainerView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
       canvasContainerView.bottomAnchor.constraint(equalTo: doneButton.topAnchor, constant: -18),
 
       canvasView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
@@ -336,17 +349,22 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasWakeOverlayView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
       canvasWakeOverlayView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
 
-      clearButton.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      canvasWakeHintLabel.centerXAnchor.constraint(equalTo: canvasWakeOverlayView.centerXAnchor),
+      canvasWakeHintLabel.centerYAnchor.constraint(equalTo: canvasWakeOverlayView.centerYAnchor),
+      canvasWakeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: canvasWakeOverlayView.leadingAnchor, constant: 20),
+      canvasWakeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: canvasWakeOverlayView.trailingAnchor, constant: -20),
+
+      clearButton.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
 
-      historyButtonStackView.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      historyButtonStackView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
       historyButtonStackView.centerYAnchor.constraint(equalTo: clearButton.centerYAnchor),
 
       doneButton.bottomAnchor.constraint(equalTo: tipLabel.topAnchor, constant: -10),
       doneButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
 
-      tipLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-      tipLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      tipLabel.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
+      tipLabel.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
       tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -14),
     ])
   }
@@ -381,10 +399,12 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.becomeFirstResponder()
       picker.setVisible(true, forFirstResponder: canvasView)
       canvasWakeOverlayView.isHidden = true
+      canvasWakeHintLabel.isHidden = true
     } else {
       picker.setVisible(false, forFirstResponder: canvasView)
       canvasView.resignFirstResponder()
       canvasWakeOverlayView.isHidden = false
+      canvasWakeHintLabel.isHidden = false
     }
     isToolPickerVisible = visible
   }
@@ -479,7 +499,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         canvasBridge.setState(requestId: requestId, state: .ready)
         activeRequestId = nil
         hasCompletedCurrentKeyboardSession = true
-        statusLabel.text = "已完成并复制 JPG。请点击系统左上角返回上一应用后粘贴。"
+        statusLabel.text = "已完成并复制 JPG。请返回宿主 App 后直接粘贴图片。"
         tipLabel.text = "已导出：\(item.fileName)（低质量 JPG）。"
       } else {
         statusLabel.text = "已导出并复制 JPG。"

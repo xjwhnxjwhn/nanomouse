@@ -323,7 +323,7 @@ open class MainTabBarController: UITabBarController {
     tabBar.unselectedItemTintColor = .secondaryLabel
 
     let canvasNavigationController = UINavigationController(rootViewController: canvasController)
-    canvasNavigationController.navigationBar.prefersLargeTitles = false
+    canvasNavigationController.navigationBar.isHidden = true
     canvasNavigationController.tabBarItem = UITabBarItem(
       title: "画布",
       image: UIImage(systemName: "scribble.variable"),
@@ -616,7 +616,7 @@ final class VoiceHomeRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 26, weight: .semibold)
-    label.text = "Nanomouse"
+    label.text = "语音"
     return label
   }()
 
