@@ -291,6 +291,7 @@ open class MainTabBarController: UITabBarController {
   private let mainViewModel: MainViewModel
   private let subViewControllerFactory: SubViewControllerFactory
   private var pendingVoiceRequestId: String?
+  private var pendingVoiceLaunchedFromKeyboard = false
   private var pendingCanvasRequestId: String?
 
   private lazy var canvasController = VoiceCanvasViewController()
@@ -357,8 +358,9 @@ open class MainTabBarController: UITabBarController {
     selectedIndex = 2
   }
 
-  open func activateVoiceDictation(requestId: String) {
+  open func activateVoiceDictation(requestId: String, launchedFromKeyboard: Bool = false) {
     pendingVoiceRequestId = requestId
+    pendingVoiceLaunchedFromKeyboard = launchedFromKeyboard
     selectedIndex = 1
     deliverPendingRequestsIfNeeded()
   }
@@ -377,7 +379,9 @@ open class MainTabBarController: UITabBarController {
     }
     if let requestId = pendingVoiceRequestId {
       pendingVoiceRequestId = nil
-      homeController.startDictation(requestId: requestId)
+      let launchedFromKeyboard = pendingVoiceLaunchedFromKeyboard
+      pendingVoiceLaunchedFromKeyboard = false
+      homeController.startDictation(requestId: requestId, launchedFromKeyboard: launchedFromKeyboard)
     }
   }
 }
@@ -433,13 +437,19 @@ final class VoiceHomeViewController: NibLessViewController {
     refreshHomeDashboard()
   }
 
-  func startDictation(requestId: String) {
-    guard homeSettingsStore.isVoiceEnabled() else {
-      presentSimpleAlert(
-        title: "语音输入已暂停",
-        message: "你当前关闭了语音输入，请先在首页开启后再继续听写。"
-      )
-      return
+  func startDictation(requestId: String, launchedFromKeyboard: Bool = false) {
+    if !homeSettingsStore.isVoiceEnabled() {
+      if launchedFromKeyboard {
+        // 键盘入口是高频主路径，若用户此前被自动暂停，直接恢复并继续，避免误判造成“无法口述”。
+        homeSettingsStore.setVoiceEnabled(true)
+        refreshHomeDashboard()
+      } else {
+        presentSimpleAlert(
+          title: "语音输入已暂停",
+          message: "你当前关闭了语音输入，请先在首页开启后再继续听写。"
+        )
+        return
+      }
     }
     if let dictationController = presentedViewController as? VoiceDictationViewController {
       dictationController.updateRequestId(requestId)
@@ -463,7 +473,7 @@ final class VoiceHomeViewController: NibLessViewController {
   private func presentStatusInfoAlert() {
     presentSimpleAlert(
       title: "语音输入状态",
-      message: "你关闭开关后，首页与键盘跳转入口都会阻止新的听写会话。"
+      message: "你关闭开关后，首页入口会阻止新的听写会话；键盘入口会在启动时自动恢复语音状态。"
     )
   }
 
@@ -517,7 +527,10 @@ final class VoiceHomeViewController: NibLessViewController {
 
   private func applyAutoPauseIfNeeded(entries: [VoiceDictationHistoryEntry]) {
     guard homeSettingsStore.isVoiceEnabled() else { return }
-    guard let latestActivity = entries.first?.createdAt else { return }
+    let latestEntryActivity = entries.first?.createdAt ?? 0
+    let latestManualEnableAt = homeSettingsStore.lastEnabledAt() ?? 0
+    let latestActivity = max(latestEntryActivity, latestManualEnableAt)
+    guard latestActivity > 0 else { return }
     let threshold = TimeInterval(homeSettingsStore.inactiveAutoCloseMinutes() * 60)
     guard threshold > 0 else { return }
     if Date().timeIntervalSince1970 - latestActivity >= threshold {
@@ -929,6 +942,7 @@ final class VoiceHomeSettingsStore {
 
   private enum Constants {
     static let voiceEnabledKey = "voice.home.enabled.v1"
+    static let lastEnabledAtKey = "voice.home.last_enabled_at.v1"
     static let inactiveAutoCloseMinutesKey = "voice.home.inactive_minutes.v2"
     static let legacyInactiveAutoCloseHoursKey = "voice.home.inactive_hours.v1"
     static let defaultInactiveMinutes = 12 * 60
@@ -945,6 +959,7 @@ final class VoiceHomeSettingsStore {
     queue.sync {
       if userDefaults.object(forKey: Constants.voiceEnabledKey) == nil {
         userDefaults.set(true, forKey: Constants.voiceEnabledKey)
+        userDefaults.set(Date().timeIntervalSince1970, forKey: Constants.lastEnabledAtKey)
         return true
       }
       return userDefaults.bool(forKey: Constants.voiceEnabledKey)
@@ -954,6 +969,17 @@ final class VoiceHomeSettingsStore {
   func setVoiceEnabled(_ enabled: Bool) {
     queue.sync {
       userDefaults.set(enabled, forKey: Constants.voiceEnabledKey)
+      if enabled {
+        userDefaults.set(Date().timeIntervalSince1970, forKey: Constants.lastEnabledAtKey)
+      }
+    }
+  }
+
+  func lastEnabledAt() -> TimeInterval? {
+    queue.sync {
+      guard userDefaults.object(forKey: Constants.lastEnabledAtKey) != nil else { return nil }
+      let value = userDefaults.double(forKey: Constants.lastEnabledAtKey)
+      return value > 0 ? value : nil
     }
   }
 

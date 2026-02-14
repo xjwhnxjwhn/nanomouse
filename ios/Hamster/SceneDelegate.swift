@@ -146,12 +146,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   private func handleVoiceDictationURL(_ url: URL) -> Bool {
     guard voiceInputBridge.isDictationURL(url) else { return false }
     let requestId = voiceInputBridge.parseRequestId(from: url) ?? voiceInputBridge.makeRequestId()
+    let source = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+      .queryItems?
+      .first(where: { $0.name == "source" })?
+      .value?
+      .lowercased()
+    let launchedFromKeyboard = source == "keyboard"
     voiceInputBridge.setState(requestId: requestId, state: .launching)
 
     guard let rootController = window?.rootViewController as? MainTabBarController else {
       return true
     }
-    rootController.activateVoiceDictation(requestId: requestId)
+    rootController.activateVoiceDictation(requestId: requestId, launchedFromKeyboard: launchedFromKeyboard)
     return true
   }
 

@@ -24,6 +24,7 @@ class KeyboardToolbarView: NibLessView {
   private let keyboardContext: KeyboardContext
   private var rimeContext: RimeContext
   private let canvasInputBridge: KeyboardCanvasBridge = .shared
+  private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
   private var style: CandidateBarStyle
   private var userInterfaceStyle: UIUserInterfaceStyle
   private var oldBounds: CGRect = .zero
@@ -424,7 +425,13 @@ class KeyboardToolbarView: NibLessView {
 
   @objc func voiceModeTouchUpAction() {
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
-    NotificationCenter.default.post(name: .hamsterVoiceModeToggle, object: nil)
+    let requestId = voiceInputBridge.makeRequestId()
+    voiceInputBridge.setState(requestId: requestId, state: .launching)
+    guard let openURL = voiceInputBridge.makeDictationURL(requestId: requestId) else {
+      voiceInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid dictation url")
+      return
+    }
+    actionHandler.handle(.release, on: .url(openURL, id: "voiceDictation"))
   }
 
   @objc func canvasTouchDownAction() {
