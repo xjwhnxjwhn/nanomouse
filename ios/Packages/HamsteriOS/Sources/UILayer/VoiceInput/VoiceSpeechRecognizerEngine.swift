@@ -2210,7 +2210,9 @@ final class VoiceLLMSettingsStore {
   func runtimeConfig() -> VoiceLLMRuntimeConfig {
     queue.sync {
       let provider = self.providerLocked()
-      let authMode = self.authModeLocked()
+      let storedAuthMode = self.authModeLocked()
+      let hasSubscription = VoiceSubscriptionStore.shared.hasActiveSubscription()
+      let authMode: VoiceLLMAuthMode = (storedAuthMode == .proxy && !hasSubscription) ? .byok : storedAuthMode
       let proxyEndpoint = (userDefaults.string(forKey: Constants.proxyEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let proxyModelsEndpoint = (userDefaults.string(forKey: Constants.proxyModelsEndpointKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let byokBaseURL = loadByokBaseURLLocked(for: provider)
@@ -2627,6 +2629,53 @@ private extension VoiceLLMSettingsStore {
     // 清理旧账户，避免未来再次误读。
     saveRawAPIKeyLocked(nil, account: Constants.keychainAccountLegacy)
   }
+}
+
+final class VoiceSubscriptionStore {
+  static let shared = VoiceSubscriptionStore()
+
+  private enum Constants {
+    static let activeSubscriptionKey = "voice.subscription.active"
+    static let debugOverrideKey = "voice.subscription.debug.override"
+  }
+
+  private let queue = DispatchQueue(label: "nanomouse.voice.subscription.store")
+  private let userDefaults: UserDefaults
+
+  init(userDefaults: UserDefaults = .hamster) {
+    self.userDefaults = userDefaults
+  }
+
+  func hasActiveSubscription() -> Bool {
+    queue.sync {
+#if DEBUG
+      if userDefaults.object(forKey: Constants.debugOverrideKey) != nil {
+        return userDefaults.bool(forKey: Constants.debugOverrideKey)
+      }
+#endif
+      return userDefaults.bool(forKey: Constants.activeSubscriptionKey)
+    }
+  }
+
+  func setActiveSubscription(_ active: Bool) {
+    queue.sync {
+      userDefaults.set(active, forKey: Constants.activeSubscriptionKey)
+    }
+  }
+
+#if DEBUG
+  func debugSubscriptionOverrideEnabled() -> Bool {
+    queue.sync {
+      userDefaults.bool(forKey: Constants.debugOverrideKey)
+    }
+  }
+
+  func setDebugSubscriptionOverrideEnabled(_ enabled: Bool) {
+    queue.sync {
+      userDefaults.set(enabled, forKey: Constants.debugOverrideKey)
+    }
+  }
+#endif
 }
 
 struct VoiceBackendAuthSessionState {

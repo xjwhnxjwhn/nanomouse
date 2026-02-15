@@ -3059,6 +3059,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
   var onAccountUpdated: (() -> Void)?
   private let rootView = VoiceAccountProfileRootView()
   private let gitHubStarsService = VoiceGitHubStarsService.shared
+  private let subscriptionStore = VoiceSubscriptionStore.shared
   private var isLoadingGitHubStars = false
   private var gitHubStarsCount: Int?
   private var gitHubStarsErrorMessage: String?
@@ -3129,6 +3130,14 @@ final class VoiceAccountProfileViewController: NibLessViewController {
     present(alert, animated: true)
   }
 
+#if DEBUG
+  @objc private func handleDebugSubscriptionSwitchChanged(_ sender: UISwitch) {
+    subscriptionStore.setDebugSubscriptionOverrideEnabled(sender.isOn)
+    rootView.tableView.reloadData()
+    onAccountUpdated?()
+  }
+#endif
+
   private func reloadCommunitySection() {
     guard rootView.tableView.numberOfSections > 2 else {
       rootView.tableView.reloadData()
@@ -3183,7 +3192,16 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    1
+    switch section {
+    case 1:
+#if DEBUG
+      return 2
+#else
+      return 1
+#endif
+    default:
+      return 1
+    }
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -3200,6 +3218,13 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    if section == 1 {
+#if DEBUG
+      return "Debug 构建支持“模拟已订阅”开关，便于验证 AI 认证模式显示逻辑。"
+#else
+      return nil
+#endif
+    }
     if section == 2 {
       return "如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。"
     }
@@ -3215,15 +3240,29 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
     cell.textLabel?.textColor = .label
     cell.selectionStyle = .default
     cell.accessoryType = .none
+    cell.accessoryView = nil
 
     switch indexPath.section {
     case 0:
       cell.textLabel?.text = "账号系统开发中（暂不开放登录）"
       cell.imageView?.image = UIImage(systemName: "hourglass")
     case 1:
-      cell.textLabel?.text = "管理订阅"
-      cell.imageView?.image = UIImage(systemName: "creditcard")
-      cell.accessoryType = .disclosureIndicator
+      if indexPath.row == 0 {
+        cell.textLabel?.text = "管理订阅"
+        cell.imageView?.image = UIImage(systemName: "creditcard")
+        cell.accessoryType = .disclosureIndicator
+      } else {
+#if DEBUG
+        let isSubscribed = subscriptionStore.hasActiveSubscription()
+        cell.textLabel?.text = isSubscribed ? "Debug：模拟已订阅（已开启）" : "Debug：模拟已订阅（已关闭）"
+        cell.imageView?.image = UIImage(systemName: "wrench.and.screwdriver")
+        cell.selectionStyle = .none
+        let toggle = UISwitch(frame: .zero)
+        toggle.isOn = isSubscribed
+        toggle.addTarget(self, action: #selector(handleDebugSubscriptionSwitchChanged(_:)), for: .valueChanged)
+        cell.accessoryView = toggle
+#endif
+      }
     case 2:
       if isLoadingGitHubStars {
         cell.textLabel?.text = "GitHub Stars 读取中..."
@@ -3252,7 +3291,9 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
     case 0:
       presentAccountComingSoonAlert()
     case 1:
-      openSubscriptionManagement()
+      if indexPath.row == 0 {
+        openSubscriptionManagement()
+      }
     case 2:
       openGitHubRepository()
       refreshGitHubStars(force: true)
@@ -4042,6 +4083,7 @@ extension VoiceLazyModelPickerViewController: UITableViewDataSource, UITableView
 final class VoiceLLMSettingsViewController: NibLessViewController {
   private let settingsStore: VoiceLLMSettingsStore = .shared
   private let backendAuthStore: VoiceBackendAuthStore = .shared
+  private let subscriptionStore: VoiceSubscriptionStore = .shared
   private let llmService: VoiceLLMService = .shared
   private let backendAuthService: VoiceBackendAuthService = .shared
   private let settingsView = VoiceLLMSettingsRootView()
@@ -4072,13 +4114,18 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     loadSettings()
   }
 
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    syncAuthModeAvailability(shouldPersist: true)
+  }
+
   private func loadSettings() {
     let llmEnabled = settingsStore.isLLMEnabled()
     let mode = settingsStore.authMode()
     let provider = settingsStore.provider()
     settingsView.llmEnabledSwitch.isOn = llmEnabled
     currentAuthModeSelection = mode
-    settingsView.updateAuthModeSelection(mode: mode)
+    syncAuthModeAvailability(shouldPersist: true)
     currentProviderSelection = provider
     settingsView.updateProviderSelection(provider: provider)
     settingsView.updateProviderPlaceholders(provider: provider)
@@ -4095,10 +4142,30 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let selectedPreset = settingsStore.selectedPromptPreset()
     selectedPromptPresetID = selectedPreset.id
     settingsView.updatePresetEditor(preset: selectedPreset, totalCount: promptPresets.count)
-    settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: llmEnabled)
+    settingsView.updateVisibleSections(authMode: currentAuthModeSelection, isLLMEnabled: llmEnabled)
     settingsView.updateProviderHint(provider: provider)
     settingsView.updateCachedModelHint(modelCount: cachedModelIDs.count, updatedAt: settingsStore.cachedModelsUpdatedAt())
     refreshBackendAuthStatusHint()
+  }
+
+  private func availableAuthModes() -> [VoiceLLMAuthMode] {
+    subscriptionStore.hasActiveSubscription() ? [.proxy, .byok] : [.byok]
+  }
+
+  private func syncAuthModeAvailability(shouldPersist: Bool) {
+    let modes = availableAuthModes()
+    let fallback = modes.first ?? .byok
+    if !modes.contains(currentAuthModeSelection) {
+      currentAuthModeSelection = fallback
+      if shouldPersist {
+        settingsStore.setAuthMode(fallback)
+      }
+    }
+    settingsView.updateAuthModeSelection(mode: currentAuthModeSelection, availableModes: modes)
+    settingsView.updateVisibleSections(
+      authMode: currentAuthModeSelection,
+      isLLMEnabled: llmEnabledForSelectedIndex()
+    )
   }
 
   private func llmEnabledForSelectedIndex() -> Bool {
@@ -4113,14 +4180,19 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   }
 
   @objc private func handleAuthModeTap() {
+    let modes = availableAuthModes()
+    guard modes.count > 1 else {
+      syncAuthModeAvailability(shouldPersist: true)
+      presentHintAlert(title: "当前仅支持 BYOK", message: "你尚未开通订阅权限，当前只显示 API Key 认证模式。")
+      return
+    }
     let alert = UIAlertController(title: "选择认证模式", message: nil, preferredStyle: .actionSheet)
-    let modes: [VoiceLLMAuthMode] = [.proxy, .byok]
     for mode in modes {
       let title = mode == currentAuthModeSelection ? "✓ \(mode.uiDisplayName)" : mode.uiDisplayName
       alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
         guard let self else { return }
         self.currentAuthModeSelection = mode
-        self.settingsView.updateAuthModeSelection(mode: mode)
+        self.settingsView.updateAuthModeSelection(mode: mode, availableModes: modes)
         self.settingsView.updateVisibleSections(authMode: mode, isLLMEnabled: self.llmEnabledForSelectedIndex())
       })
     }
@@ -4426,7 +4498,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
   private func persistFormSettings() {
     let llmEnabled = llmEnabledForSelectedIndex()
     let provider = currentProviderSelection
-    let authMode = currentAuthModeSelection
+    let modes = availableAuthModes()
+    let authMode: VoiceLLMAuthMode = modes.contains(currentAuthModeSelection) ? currentAuthModeSelection : .byok
     let proxyEndpoint = settingsView.proxyEndpointField.text ?? ""
     let baseURLInput = (settingsView.byokBaseURLField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     let modelInput = (settingsView.modelField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -4447,6 +4520,8 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
 
     settingsView.byokBaseURLField.text = baseURL
     settingsView.modelField.text = model
+    currentAuthModeSelection = authMode
+    settingsView.updateAuthModeSelection(mode: authMode, availableModes: modes)
     currentProviderSelection = provider
     settingsView.updateProviderSelection(provider: provider)
     settingsView.updateProviderPlaceholders(provider: provider)
@@ -4854,7 +4929,7 @@ final class VoiceLLMSettingsRootView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     updateVisibleSections(authMode: .proxy, isLLMEnabled: true)
-    updateAuthModeSelection(mode: .proxy)
+    updateAuthModeSelection(mode: .proxy, availableModes: VoiceLLMAuthMode.allCases)
     updateBackendAuthStatus(text: "未登录后端账号。若代理接口需要鉴权，请先登录。", isLoggedIn: false)
     updateProviderSelection(provider: .openAI)
     updateProviderPlaceholders(provider: .openAI)
@@ -4916,8 +4991,12 @@ final class VoiceLLMSettingsRootView: NibLessView {
     saveButton.isHidden = !isLLMEnabled
   }
 
-  func updateAuthModeSelection(mode: VoiceLLMAuthMode) {
-    authModeButton.setTitle("\(mode.uiDisplayName)  ▾", for: .normal)
+  func updateAuthModeSelection(mode: VoiceLLMAuthMode, availableModes: [VoiceLLMAuthMode]) {
+    let allowModeSelection = availableModes.count > 1
+    let title = allowModeSelection ? "\(mode.uiDisplayName)  ▾" : mode.uiDisplayName
+    authModeButton.setTitle(title, for: .normal)
+    authModeButton.isEnabled = allowModeSelection
+    authModeButton.alpha = allowModeSelection ? 1.0 : 0.7
   }
 
   func updateProviderHint(provider: VoiceLLMProvider) {
