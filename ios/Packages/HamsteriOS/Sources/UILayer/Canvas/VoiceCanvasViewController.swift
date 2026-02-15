@@ -481,13 +481,13 @@ final class VoiceCanvasViewController: NibLessViewController {
       return
     }
 
-    // 仅导出可见画布区域内的笔迹，避免画布外误触也被保存。
-    let paddedBounds = visibleDrawingBounds.insetBy(dx: -12, dy: -12).intersection(visibleRect)
-    guard !paddedBounds.isEmpty else {
+    // 按当前可见画布区域导出，保证“所见即所得”。
+    let exportBounds = visibleRect
+    guard !exportBounds.isEmpty else {
       statusLabel.text = "可导出的绘制区域为空，请重试。"
       return
     }
-    let image = canvasView.drawing.image(from: paddedBounds, scale: UIScreen.main.scale)
+    let image = renderExportImage(from: exportBounds)
 
     do {
       let item = try canvasStore.saveJPEG(image: image)
@@ -511,6 +511,28 @@ final class VoiceCanvasViewController: NibLessViewController {
       }
       statusLabel.text = "导出失败：\(error.localizedDescription)"
     }
+  }
+
+  private func renderExportImage(from bounds: CGRect) -> UIImage {
+    let scale = UIScreen.main.scale
+    let drawingImage = canvasView.drawing.image(from: bounds, scale: scale)
+    let size = drawingImage.size
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = scale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
+    let backgroundColor = resolvedCanvasExportBackgroundColor()
+    return renderer.image { context in
+      // JPEG 不支持透明通道；先按当前外观填充背景色，再叠加笔迹，避免导出后固定白底。
+      context.cgContext.setFillColor(backgroundColor.cgColor)
+      context.cgContext.fill(CGRect(origin: .zero, size: size))
+      drawingImage.draw(in: CGRect(origin: .zero, size: size))
+    }
+  }
+
+  private func resolvedCanvasExportBackgroundColor() -> UIColor {
+    let baseColor = canvasContainerView.backgroundColor ?? .secondarySystemBackground
+    return baseColor.resolvedColor(with: traitCollection)
   }
 }
 
