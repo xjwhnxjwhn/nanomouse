@@ -26,3 +26,5 @@ AppStore用/
 
 # Private backend lives in separate repo
 backend/
+
+mac/.env
