@@ -59,6 +59,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
   private var voiceResultPollingTimer: Timer?
   private var voiceResultPollingDeadline: Date?
+  private let rimeStartupStateQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.rime.startup.state")
+  private var rimeStartupTask: Task<Void, Never>?
+  private var rimeStartupInProgress = false
+  private var rimeStartupWatchdogTriggered = false
+  private let rimeStartupTimeout: TimeInterval = 2.5
+  private let rimeStartupWatchdogPollNanoseconds: UInt64 = 120_000_000
+
+  private struct RimeStartupConfig {
+    let maximumNumberOfCandidateWords: Int?
+    let useContextPaging: Bool?
+    let simplifiedModeKey: String
+  }
 
   private lazy var voiceUndoButton: UIButton = {
     let button = UIButton(type: .system)
@@ -217,6 +229,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   deinit {
+    rimeStartupTaskSnapshot()?.cancel()
     view.subviews.forEach { $0.removeFromSuperview() }
   }
 
@@ -4092,54 +4105,145 @@ private extension KeyboardInputViewController {
    RIME 引擎设置
    */
   func setupRIME() {
-    // 异步 RIME 引擎启动
-    Task.detached { [weak self] in
-      guard let self else { return }
-//      if await rimeContext.isRunning {
-//        Logger.statistics.debug("shutdown rime engine")
-//        // 这里关闭引擎是为了使 RIME 内存中的自造词落盘。
-//        await shutdownRIME()
-//      }
-
-      // 检测是否需要覆盖 RIME 目录
-      // let overrideRimeDirectory = UserDefaults.hamster.overrideRimeDirectory
-
-      // 检测对 appGroup 路径下是否有写入权限，如果没有写入权限，则需要将 appGroup 下文件复制到键盘的 Sandbox 路径下
-//      if await !self.hasFullAccess {
-//        do {
-//          try FileManager.syncAppGroupUserDataDirectoryToSandbox(override: overrideRimeDirectory)
-//
-//          // 注意：如果没有开启键盘完全访问权限，则无权对 UserDefaults.hamster 写入
-//          UserDefaults.hamster.overrideRimeDirectory = false
-//        } catch {
-//          Logger.statistics.error("FileManager.syncAppGroupUserDataDirectoryToSandbox(override: \(overrideRimeDirectory)) error: \(error.localizedDescription)")
-//        }
-//      }
-
-      if await self.rimeContext.isRunning {
+    if rimeContext.isRunning {
+      Task.detached { [weak self] in
+        guard let self else { return }
         await self.rimeContext.syncAsciiModeFromEngine()
         await MainActor.run { [weak self] in
           self?.applyDefaultLanguageIfNeeded(reason: "alreadyRunning")
         }
+      }
+      return
+    }
+
+    guard beginRimeStartupIfNeeded() else {
+      Logger.statistics.info("RIME startup is already in progress, skip duplicate trigger.")
+      return
+    }
+
+    launchRimeStartupWatchdog()
+    let startupConfig = currentRimeStartupConfig()
+
+    let startupTask = Task.detached(priority: .userInitiated) { [weak self] in
+      guard let self else { return }
+
+      let startupSucceeded = await self.performRimeStartupSequence(config: startupConfig)
+      if startupSucceeded {
+        await self.rimeContext.syncAsciiModeFromEngine()
+        await MainActor.run { [weak self] in
+          self?.applyDefaultLanguageIfNeeded(reason: "startup")
+        }
+      } else {
+        await MainActor.run { [weak self] in
+          self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "startupFailed")
+        }
+      }
+
+      self.finishRimeStartup()
+    }
+    storeRimeStartupTask(startupTask)
+  }
+
+  private func performRimeStartupSequence(config: RimeStartupConfig) async -> Bool {
+    if rimeContext.isRunning { return true }
+
+    if let maximumNumberOfCandidateWords = config.maximumNumberOfCandidateWords {
+      await rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
+    }
+
+    if let useContextPaging = config.useContextPaging {
+      await rimeContext.setUseContextPaging(useContextPaging)
+    }
+
+    await rimeContext.start(hasFullAccess: true)
+
+    await rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: config.simplifiedModeKey)
+    return rimeContext.isRunning
+  }
+
+  private func currentRimeStartupConfig() -> RimeStartupConfig {
+    let maximumNumberOfCandidateWords = keyboardContext.hamsterConfiguration?.rime?.maximumNumberOfCandidateWords
+    let useContextPaging = keyboardContext.hamsterConfiguration?.toolbar?.swipePaging.map { $0 == false }
+    let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
+    return RimeStartupConfig(
+      maximumNumberOfCandidateWords: maximumNumberOfCandidateWords,
+      useContextPaging: useContextPaging,
+      simplifiedModeKey: simplifiedModeKey
+    )
+  }
+
+  private func launchRimeStartupWatchdog() {
+    Task.detached(priority: .utility) { [weak self] in
+      guard let self else { return }
+
+      let deadline = Date().addingTimeInterval(self.rimeStartupTimeout)
+      while Date() < deadline {
+        if !self.isRimeStartupInProgress() { return }
+        try? await Task.sleep(nanoseconds: self.rimeStartupWatchdogPollNanoseconds)
+      }
+
+      guard self.isRimeStartupInProgress(),
+            self.markRimeStartupWatchdogTriggeredIfNeeded() else {
         return
       }
 
-      if let maximumNumberOfCandidateWords = await self.keyboardContext.hamsterConfiguration?.rime?.maximumNumberOfCandidateWords {
-        await self.rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
-      }
-
-      if let swipePaging = await self.keyboardContext.hamsterConfiguration?.toolbar?.swipePaging {
-        await self.rimeContext.setUseContextPaging(swipePaging == false)
-      }
-
-      await self.rimeContext.start(hasFullAccess: true)
-
-      let simplifiedModeKey = await self.keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
-      await self.rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: simplifiedModeKey)
-
+      Logger.statistics.error("RIME startup timeout, fallback to ASCII keyboard mode.")
       await MainActor.run { [weak self] in
-        self?.applyDefaultLanguageIfNeeded(reason: "startup")
+        self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "timeout")
       }
+    }
+  }
+
+  private func beginRimeStartupIfNeeded() -> Bool {
+    rimeStartupStateQueue.sync {
+      if rimeStartupInProgress { return false }
+      rimeStartupInProgress = true
+      rimeStartupWatchdogTriggered = false
+      return true
+    }
+  }
+
+  private func finishRimeStartup() {
+    rimeStartupStateQueue.sync {
+      rimeStartupInProgress = false
+      rimeStartupWatchdogTriggered = false
+      rimeStartupTask = nil
+    }
+  }
+
+  private func isRimeStartupInProgress() -> Bool {
+    rimeStartupStateQueue.sync { rimeStartupInProgress }
+  }
+
+  private func markRimeStartupWatchdogTriggeredIfNeeded() -> Bool {
+    rimeStartupStateQueue.sync {
+      if rimeStartupWatchdogTriggered { return false }
+      rimeStartupWatchdogTriggered = true
+      return true
+    }
+  }
+
+  private func storeRimeStartupTask(_ task: Task<Void, Never>) {
+    rimeStartupStateQueue.sync {
+      rimeStartupTask = task
+    }
+  }
+
+  private func rimeStartupTaskSnapshot() -> Task<Void, Never>? {
+    rimeStartupStateQueue.sync { rimeStartupTask }
+  }
+
+  @MainActor
+  private func enterDegradedKeyboardModeForRimeStartupFailure(reason: String) {
+    Logger.statistics.error("RIME startup failed, using degraded mode. reason: \(reason, privacy: .public)")
+    rimeContext.reset()
+    rimeContext.clearAsciiModeOverride()
+    rimeContext.applyAsciiMode(true)
+    keyboardContext.isAutoCapitalizationEnabled = false
+    keyboardContext.autocapitalizationTypeOverride = .none
+    setKeyboardType(.alphabetic(.lowercased))
+    if !isUnifiedCompositionBufferEnabled {
+      textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
     }
   }
 

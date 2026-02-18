@@ -29,6 +29,11 @@ extension Bundle {
 //#else
   static let HamsterKeyboardBundleName = "HamsterKeyboardKit_HamsterKeyboardKit"
 //#endif
+  private static let fallbackBundleNames = [
+    HamsterKeyboardBundleName,
+    "HamsterKeyboardKit",
+    "KeyboardKit",
+  ]
 
   /**
    This bundle lets us use resources from HamsterKeyboard.
@@ -45,6 +50,9 @@ extension Bundle {
    https://dev.jeremygale.com/swiftui-how-to-use-custom-fonts-and-images-in-a-swift-package-cl0k9bv52013h6bnvhw76alid
    */
   public static let hamsterKeyboard: Bundle = {
+    #if SWIFT_PACKAGE
+    return Bundle.module
+    #else
     let candidates = [
       // Bundle should be present here when the package is linked into an App.
       // 当 bundle 链接到应用程序时，此处应出现 Bundle。
@@ -69,13 +77,23 @@ extension Bundle {
         .deletingLastPathComponent()
     ]
 
-    for candidate in candidates {
-      let bundlePath = candidate?.appendingPathComponent(HamsterKeyboardBundleName + ".bundle")
-      if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-        return bundle
+    for candidate in candidates.compactMap({ $0 }) {
+      for bundleName in fallbackBundleNames {
+        let bundlePath = candidate.appendingPathComponent(bundleName + ".bundle")
+        if let bundle = Bundle(url: bundlePath) {
+          return bundle
+        }
+      }
+      if let discoveredBundle = discoverKeyboardBundle(in: candidate) {
+        return discoveredBundle
       }
     }
-    fatalError("Can't find custom bundle. See Bundle+KeyboardKit.swift")
+
+    // 发行版中这里绝不能崩溃，否则系统会把键盘扩展判定为不可用。
+    NSLog("[HamsterKeyboardKit] Can't find custom keyboard bundle. Fallback to Bundle.main.")
+    assertionFailure("Can't find custom keyboard bundle. Fallback to Bundle.main.")
+    return Bundle.main
+    #endif
   }()
 
   func bundle(for locale: Locale) -> Bundle? {
@@ -93,6 +111,26 @@ extension Bundle {
 
   func bundlePath(named name: String?) -> String? {
     path(forResource: name ?? "", ofType: "lproj")
+  }
+
+  private static func discoverKeyboardBundle(in directory: URL) -> Bundle? {
+    guard let urls = try? FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: nil,
+      options: [.skipsHiddenFiles]
+    ) else {
+      return nil
+    }
+
+    for url in urls where url.pathExtension == "bundle" {
+      let bundleName = url.deletingPathExtension().lastPathComponent.lowercased()
+      if bundleName.contains("hamsterkeyboardkit") || bundleName.contains("keyboardkit"),
+         let bundle = Bundle(url: url)
+      {
+        return bundle
+      }
+    }
+    return nil
   }
 }
 
