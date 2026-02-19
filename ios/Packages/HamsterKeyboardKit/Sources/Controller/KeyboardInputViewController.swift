@@ -111,9 +111,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    setupRIME()
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
+    setupRIME()
     syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
     if shouldPrewarmAzooKeyOnAppear {
       azooKeyEngine.prewarmIfNeeded()
@@ -126,14 +126,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       systemTextReplacementManager.loadLexicon(from: self)
     }
 
-    // fix: 屏幕边缘按键触摸延迟
-    // https://stackoverflow.com/questions/39813245/touchesbeganwithevent-is-delayed-at-left-edge-of-screen
-    // 注意：添加代码日志中会有警告
-    // [Warning] Trying to set delaysTouchesBegan to NO on a system gate gesture recognizer - this is unsupported and will have undesired side effects
-    // 如果后续有更好的解决方案，可以替换此方案
-    view.window?.gestureRecognizers?.forEach {
-      $0.delaysTouchesBegan = false
-    }
+    // 这里不再修改 window 级手势识别器，避免在 Chrome 等宿主中触发系统级副作用。
   }
 
   override open func viewDidAppear(_ animated: Bool) {
@@ -4012,6 +4005,12 @@ private extension KeyboardInputViewController {
   }
 
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
+    // RIME 启动期间只做最小化处理，避免在宿主输入框刚激活时触发 schema/ascii 的重入切换。
+    if isRimeStartupInProgress() {
+      Logger.statistics.info("DBG_LANGSWITCH skip sync while rime startup in progress, reason: \(reason, privacy: .public)")
+      return
+    }
+
     let japaneseActive = (rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true)
       || isAzooKeyInputActive
     let englishActive = rimeContext.asciiModeSnapshot
@@ -4123,33 +4122,22 @@ private extension KeyboardInputViewController {
    RIME 引擎设置
    */
   func setupRIME() {
-    if rimeContext.isRunning {
-      Task.detached { [weak self] in
-        guard let self else { return }
-        await self.rimeContext.syncAsciiModeFromEngine()
-        await MainActor.run { [weak self] in
-          self?.applyDefaultLanguageIfNeeded(reason: "alreadyRunning")
-        }
-      }
-      return
-    }
-
     guard beginRimeStartupIfNeeded() else {
       Logger.statistics.info("RIME startup is already in progress, skip duplicate trigger.")
       return
     }
 
     launchRimeStartupWatchdog()
-    let startupConfig = currentRimeStartupConfig()
 
     let startupTask = Task.detached(priority: .userInitiated) { [weak self] in
       guard let self else { return }
 
+      let startupConfig = await MainActor.run { self.currentRimeStartupConfig() }
       let startupSucceeded = await self.performRimeStartupSequence(config: startupConfig)
       if startupSucceeded {
         await self.rimeContext.syncAsciiModeFromEngine()
         await MainActor.run { [weak self] in
-          self?.applyDefaultLanguageIfNeeded(reason: "startup")
+          self?.applyDefaultLanguageIfNeeded(reason: "startupOrAlreadyRunning")
         }
       } else {
         await MainActor.run { [weak self] in
