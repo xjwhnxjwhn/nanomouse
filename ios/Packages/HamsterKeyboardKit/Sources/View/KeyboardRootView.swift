@@ -471,6 +471,7 @@ class KeyboardRootView: NibLessView {
     }
 
     if keyboardContext.enableToolbar {
+      NSLayoutConstraint.deactivate(toolbarCollapseDynamicConstraints + toolbarExpandDynamicConstraints)
       toolbarCollapseDynamicConstraints.removeAll(keepingCapacity: true)
       toolbarExpandDynamicConstraints.removeAll(keepingCapacity: true)
 
@@ -478,12 +479,16 @@ class KeyboardRootView: NibLessView {
       primaryKeyboardView.removeFromSuperview()
 
       primaryKeyboardView = keyboardView
-      addSubview(primaryKeyboardView)
 
       toolbarCollapseDynamicConstraints = createToolbarCollapseDynamicConstraints()
       toolbarExpandDynamicConstraints = createToolbarExpandDynamicConstraints()
 
-      NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
+      if candidateViewState.isCollapse() {
+        addSubview(primaryKeyboardView)
+        NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
+      } else {
+        NSLayoutConstraint.activate(toolbarExpandDynamicConstraints)
+      }
     } else {
       NSLayoutConstraint.deactivate(constraints)
       primaryKeyboardView.removeFromSuperview()

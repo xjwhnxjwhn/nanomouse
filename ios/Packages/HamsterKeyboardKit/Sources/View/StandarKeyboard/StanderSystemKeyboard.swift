@@ -276,6 +276,18 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     interfaceOrientation = keyboardContext.interfaceOrientation
     isKeyboardFloating = keyboardContext.isKeyboardFloating
 
+    // 当布局行列结构不一致时，直接重建，避免约束错位导致按键错乱
+    if keyboardRows.count != layout.itemRows.count {
+      rebuildKeyboardLayout()
+      return
+    }
+    for (rowIndex, row) in layout.itemRows.enumerated() {
+      if keyboardRows[rowIndex].count != row.count {
+        rebuildKeyboardLayout()
+        return
+      }
+    }
+
     // 是否重新计算自动布局标志
     var resetConstraints = false
 
@@ -285,8 +297,10 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       for (columnIndex, item) in row.enumerated() {
         let oldItem = keyboardRows[rowIndex][columnIndex].item
 
-        // 检测按键宽度或高度是否发生变化, 如果发生变化，则重新计算自动布局
-        resetConstraints = oldItem.size.width != item.size.width || oldItem.size.height != item.size.height
+        // 检测按键宽度或高度是否发生变化, 只要任意一项发生变化就需要重建约束
+        resetConstraints = resetConstraints
+          || oldItem.size.width != item.size.width
+          || oldItem.size.height != item.size.height
 
         keyboardRows[rowIndex][columnIndex].item = item
 
@@ -306,5 +320,18 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       dynamicConstraints.removeAll(keepingCapacity: true)
       activateViewConstraints()
     }
+  }
+
+  private func rebuildKeyboardLayout() {
+    NSLayoutConstraint.deactivate(staticConstraints + dynamicConstraints)
+    staticConstraints.removeAll(keepingCapacity: true)
+    dynamicConstraints.removeAll(keepingCapacity: true)
+
+    keyboardRows.flatMap { $0 }.forEach { $0.removeFromSuperview() }
+    keyboardRows.removeAll(keepingCapacity: true)
+
+    constructViewHierarchy()
+    activateViewConstraints()
+    setNeedsLayout()
   }
 }
