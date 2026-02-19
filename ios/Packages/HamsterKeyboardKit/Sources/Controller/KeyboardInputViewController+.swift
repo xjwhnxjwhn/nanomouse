@@ -99,6 +99,20 @@ public extension KeyboardInputViewController {
     case english
   }
 
+  func resolvedConfiguredLanguageMode() -> LanguageMode? {
+    let configuredMode = keyboardContext.hamsterConfiguration?.keyboard?.defaultLanguageMode ?? .followLast
+    switch configuredMode {
+    case .chinese:
+      return .chinese
+    case .japanese:
+      return .japanese
+    case .english:
+      return .english
+    case .followLast:
+      return persistedLanguageModeForFollowLast()
+    }
+  }
+
   func persistedLanguageModeForFollowLast() -> LanguageMode? {
     guard let rawValue = UserDefaults.standard.string(forKey: Self.lastLanguageModeDefaultsKey) else {
       return nil

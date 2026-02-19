@@ -3996,27 +3996,19 @@ private extension KeyboardInputViewController {
 
   func applyDefaultLanguageIfNeeded(reason: String) {
     guard didApplyDefaultLanguage == false else { return }
-    let configuredMode = keyboardContext.hamsterConfiguration?.keyboard?.defaultLanguageMode ?? .followLast
     didApplyDefaultLanguage = true
 
-    switch configuredMode {
-    case .followLast:
-      if let persistedMode = persistedLanguageModeForFollowLast() {
-        if persistedMode == currentLanguageMode() {
-          syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultFollowLastPersistedNoSwitch-\(reason)")
-        } else {
-          setLanguageMode(persistedMode)
-        }
-        return
+    if let configuredLanguageMode = resolvedConfiguredLanguageMode() {
+      if configuredLanguageMode == currentLanguageMode() {
+        syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultConfiguredNoSwitch-\(reason)")
+      } else {
+        setLanguageMode(configuredLanguageMode)
       }
-      syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultFollowLast-\(reason)")
-    case .chinese:
-      setLanguageMode(.chinese)
-    case .japanese:
-      setLanguageMode(.japanese)
-    case .english:
-      setLanguageMode(.english)
+      return
     }
+
+    // followLast 且无历史记录时，默认回到中文，避免在部分宿主中被 ascii 状态拉到英文
+    setLanguageMode(.chinese)
   }
 
   func syncKeyboardTypeForJapaneseIfNeeded(reason: String) {
@@ -4027,6 +4019,11 @@ private extension KeyboardInputViewController {
     keyboardContext.autocapitalizationTypeOverride = englishActive ? .none : nil
 
     if englishActive {
+      if let configuredLanguageMode = resolvedConfiguredLanguageMode(), configuredLanguageMode != .english {
+        Logger.statistics.info("DBG_LANGSWITCH force restore non-english mode: \(configuredLanguageMode.rawValue, privacy: .public), reason: \(reason, privacy: .public)")
+        setLanguageMode(configuredLanguageMode)
+        return
+      }
       if !keyboardContext.keyboardType.isAlphabetic(.lowercased) {
         Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> alphabetic.lowercased (english, reason: \(reason, privacy: .public))")
         setKeyboardType(.alphabetic(.lowercased))
