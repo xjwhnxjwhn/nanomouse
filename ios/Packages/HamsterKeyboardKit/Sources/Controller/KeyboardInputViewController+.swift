@@ -12,6 +12,8 @@ import UIKit
 // MARK: - 快捷指令处理
 
 public extension KeyboardInputViewController {
+  private static let lastLanguageModeDefaultsKey = "com.XiangqingZHANG.nanomouse.keyboard.lastLanguageMode"
+
   /// 尝试处理键入的快捷指令
   func tryHandleShortcutCommand(_ command: ShortcutCommand) {
     if command == .switchLanguageCycle {
@@ -91,10 +93,23 @@ public extension KeyboardInputViewController {
     }
   }
 
-  enum LanguageMode {
+  enum LanguageMode: String {
     case chinese
     case japanese
     case english
+  }
+
+  func persistedLanguageModeForFollowLast() -> LanguageMode? {
+    guard let rawValue = UserDefaults.standard.string(forKey: Self.lastLanguageModeDefaultsKey) else {
+      return nil
+    }
+    return LanguageMode(rawValue: rawValue)
+  }
+
+  func persistCurrentLanguageModeForFollowLast(source: String) {
+    let mode = currentLanguageMode()
+    UserDefaults.standard.setValue(mode.rawValue, forKey: Self.lastLanguageModeDefaultsKey)
+    Logger.statistics.info("DBG_LANGSWITCH persist language mode: \(mode.rawValue, privacy: .public), source: \(source, privacy: .public)")
   }
 
   private func loadPersistedSchemas() -> (select: [RimeSchema], current: RimeSchema?, latest: RimeSchema?) {
@@ -267,6 +282,8 @@ public extension KeyboardInputViewController {
       setKeyboardType(keyboardContext.selectKeyboard)
     }
 
+    persistCurrentLanguageModeForFollowLast(source: "setLanguageMode")
+
     // 延迟刷新视图，确保语言切换键文字正确显示
     DispatchQueue.main.async { [weak self] in
       self?.view.setNeedsLayout()
@@ -304,6 +321,7 @@ public extension KeyboardInputViewController {
     //    _ = self.candidateTextOnScreen()
 
     rimeContext.switchEnglishChinese()
+    persistCurrentLanguageModeForFollowLast(source: "switchEnglishChinese")
   }
 
   /// 首选候选字上屏

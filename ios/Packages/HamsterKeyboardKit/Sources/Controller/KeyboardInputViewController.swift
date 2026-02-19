@@ -115,7 +115,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
     syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
-    alignAsciiModeWithKeyboardTypeIfNeeded(reason: "willAppear")
     if shouldPrewarmAzooKeyOnAppear {
       azooKeyEngine.prewarmIfNeeded()
     }
@@ -4002,6 +4001,14 @@ private extension KeyboardInputViewController {
 
     switch configuredMode {
     case .followLast:
+      if let persistedMode = persistedLanguageModeForFollowLast() {
+        if persistedMode == currentLanguageMode() {
+          syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultFollowLastPersistedNoSwitch-\(reason)")
+        } else {
+          setLanguageMode(persistedMode)
+        }
+        return
+      }
       syncKeyboardTypeForJapaneseIfNeeded(reason: "defaultFollowLast-\(reason)")
     case .chinese:
       setLanguageMode(.chinese)
@@ -4018,6 +4025,15 @@ private extension KeyboardInputViewController {
     let englishActive = rimeContext.asciiModeSnapshot
     keyboardContext.isAutoCapitalizationEnabled = !(japaneseActive || englishActive)
     keyboardContext.autocapitalizationTypeOverride = englishActive ? .none : nil
+
+    if englishActive {
+      if !keyboardContext.keyboardType.isAlphabetic(.lowercased) {
+        Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> alphabetic.lowercased (english, reason: \(reason, privacy: .public))")
+        setKeyboardType(.alphabetic(.lowercased))
+        return
+      }
+      return
+    }
 
     if japaneseActive {
       wasJapaneseActive = true
@@ -4037,6 +4053,11 @@ private extension KeyboardInputViewController {
         Logger.statistics.info("DBG_LANGSWITCH reload alphabetic keyboard (leave japanese, reason: \(reason, privacy: .public))")
         keyboardRootView?.reloadKeyboardView()
       }
+    }
+
+    if keyboardContext.keyboardType.isAlphabetic && keyboardContext.selectKeyboard.isChinesePrimaryKeyboard {
+      Logger.statistics.info("DBG_LANGSWITCH sync keyboardType -> selectKeyboard (chinese, reason: \(reason, privacy: .public))")
+      setKeyboardType(keyboardContext.selectKeyboard)
     }
   }
 
