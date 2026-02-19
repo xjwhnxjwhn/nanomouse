@@ -4230,6 +4230,8 @@ final class VoiceSpeechRecognizerEngine {
   }
 
   func stop(cancel: Bool) {
+    let resultHandler = onResultHandler
+    let errorHandler = onErrorHandler
     whisperRealtimeTask?.cancel()
     whisperRealtimeTask = nil
     whisperWarmupTask?.cancel()
@@ -4256,13 +4258,13 @@ final class VoiceSpeechRecognizerEngine {
       if cancel {
         clearWhisperState()
       } else {
-        transcribeWhisperResult(using: model)
+        transcribeWhisperResult(using: model, resultHandler: resultHandler, errorHandler: errorHandler)
       }
     case .cloud(let config):
       if cancel {
         clearWhisperState()
       } else {
-        transcribeCloudResult(config: config)
+        transcribeCloudResult(config: config, resultHandler: resultHandler, errorHandler: errorHandler)
       }
     case .none:
       break
@@ -4274,6 +4276,8 @@ final class VoiceSpeechRecognizerEngine {
       recognizer = nil
       activePipeline = .none
       clearWhisperState()
+      onResultHandler = nil
+      onErrorHandler = nil
     }
 
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -4704,9 +4708,13 @@ final class VoiceSpeechRecognizerEngine {
     }
   }
 
-  private func transcribeWhisperResult(using model: String?) {
+  private func transcribeWhisperResult(
+    using model: String?,
+    resultHandler: ((String, Bool) -> Void)?,
+    errorHandler: ((EngineError) -> Void)?
+  ) {
     guard let modelID = model, !modelID.isEmpty else {
-      notifyError(.whisperUnavailable)
+      dispatchError(.whisperUnavailable, using: errorHandler)
       activePipeline = .none
       return
     }
@@ -4714,7 +4722,7 @@ final class VoiceSpeechRecognizerEngine {
     clearWhisperState()
 
     guard !samples.isEmpty else {
-      notifyError(.emptyAudio)
+      dispatchError(.emptyAudio, using: errorHandler)
       activePipeline = .none
       return
     }
@@ -4725,17 +4733,18 @@ final class VoiceSpeechRecognizerEngine {
       do {
         await self.waitForWhisperDecodeAvailability(timeoutSeconds: 30)
         guard self.beginWhisperDecodeSession() else {
+          if Task.isCancelled {
+            return
+          }
           let fallback = self.whisperBufferQueue.sync {
             self.whisperRealtimeState.lastPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
           }
           if !fallback.isEmpty {
-            await MainActor.run {
-              self.onResultHandler?(fallback, true)
-            }
+            await self.dispatchResult(fallback, isFinal: true, using: resultHandler)
             self.activePipeline = .none
             return
           }
-          self.notifyError(.runtimeFailure(message: "Whisper 正在处理中，请稍后重试"))
+          self.dispatchError(.runtimeFailure(message: "Whisper 正在处理中，请稍后重试"), using: errorHandler)
           self.activePipeline = .none
           return
         }
@@ -4744,26 +4753,28 @@ final class VoiceSpeechRecognizerEngine {
         }
         let text = try await self.transcribeWithWhisper(samples: samples, modelID: modelID)
         try Task.checkCancellation()
-        await MainActor.run {
-          self.onResultHandler?(text, true)
-        }
+        await self.dispatchResult(text, isFinal: true, using: resultHandler)
       } catch is CancellationError {
         return
       } catch let error as EngineError {
-        self.notifyError(error)
+        self.dispatchError(error, using: errorHandler)
       } catch {
-        self.notifyError(.runtimeFailure(message: error.localizedDescription))
+        self.dispatchError(.runtimeFailure(message: error.localizedDescription), using: errorHandler)
       }
       self.activePipeline = .none
     }
   }
 
-  private func transcribeCloudResult(config: VoiceASRRuntimeConfig) {
+  private func transcribeCloudResult(
+    config: VoiceASRRuntimeConfig,
+    resultHandler: ((String, Bool) -> Void)?,
+    errorHandler: ((EngineError) -> Void)?
+  ) {
     let samples = whisperBufferQueue.sync { whisperSamples }
     clearWhisperState()
 
     guard !samples.isEmpty else {
-      notifyError(.emptyAudio)
+      dispatchError(.emptyAudio, using: errorHandler)
       activePipeline = .none
       return
     }
@@ -4784,17 +4795,31 @@ final class VoiceSpeechRecognizerEngine {
           config: config
         )
         try Task.checkCancellation()
-        await MainActor.run {
-          self.onResultHandler?(text, true)
-        }
+        await self.dispatchResult(text, isFinal: true, using: resultHandler)
       } catch is CancellationError {
         return
       } catch let error as VoiceASRServiceError {
-        self.notifyError(.runtimeFailure(message: error.localizedDescription))
+        self.dispatchError(.runtimeFailure(message: error.localizedDescription), using: errorHandler)
       } catch {
-        self.notifyError(.runtimeFailure(message: error.localizedDescription))
+        self.dispatchError(.runtimeFailure(message: error.localizedDescription), using: errorHandler)
       }
       self.activePipeline = .none
+    }
+  }
+
+  private func dispatchResult(
+    _ text: String,
+    isFinal: Bool,
+    using handler: ((String, Bool) -> Void)?
+  ) async {
+    await MainActor.run {
+      handler?(text, isFinal)
+    }
+  }
+
+  private func dispatchError(_ error: EngineError, using handler: ((EngineError) -> Void)?) {
+    DispatchQueue.main.async {
+      handler?(error)
     }
   }
 

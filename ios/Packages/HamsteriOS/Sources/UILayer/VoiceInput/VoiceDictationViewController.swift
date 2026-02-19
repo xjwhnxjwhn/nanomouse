@@ -30,6 +30,7 @@ final class VoiceDictationViewController: NibLessViewController {
   private var stopTapTranscriptSnapshot = ""
   private var finishTimeoutWorkItem: DispatchWorkItem?
   private var recordingStartedAt: TimeInterval?
+  private var recognitionSessionID = UUID()
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -169,6 +170,7 @@ final class VoiceDictationViewController: NibLessViewController {
     cancelFinishingTimeout()
     llmTransformTask?.cancel()
     llmTransformTask = nil
+    recognitionSessionID = UUID()
     speechEngine.stop(cancel: true)
   }
 
@@ -176,10 +178,12 @@ final class VoiceDictationViewController: NibLessViewController {
     llmTransformTask?.cancel()
     llmTransformTask = nil
     cancelFinishingTimeout()
+    recognitionSessionID = UUID()
     self.requestId = requestId
     latestTranscript = ""
     latestNonEmptyTranscript = ""
     latestCommittedText = ""
+    stopTapTranscriptSnapshot = ""
     transcriptView.text = "请开始说话"
     editCommandView.text = "完成听写后，系统会按当前预设自动整理，并在这里显示结果。"
     statusLabel.text = "准备中..."
@@ -255,6 +259,8 @@ final class VoiceDictationViewController: NibLessViewController {
 
   private func startRecognitionIfNeeded(force: Bool = false) {
     if isStarting, !force { return }
+    let sessionID = UUID()
+    recognitionSessionID = sessionID
     if force {
       cancelFinishingTimeout()
       speechEngine.stop(cancel: true)
@@ -263,6 +269,7 @@ final class VoiceDictationViewController: NibLessViewController {
       latestTranscript = ""
       latestNonEmptyTranscript = ""
     }
+    stopTapTranscriptSnapshot = ""
     isStarting = true
     lastStartError = nil
     configureStopButtonForFinish()
@@ -272,6 +279,7 @@ final class VoiceDictationViewController: NibLessViewController {
     Task { [weak self] in
       guard let self else { return }
       do {
+        guard self.recognitionSessionID == sessionID else { return }
         let localeIdentifier = Locale.preferredLanguages.first ?? "zh-CN"
         self.activeLocaleIdentifier = localeIdentifier
         let strategy = VoiceSpeechRecognizerEngine.StartStrategy.recommended(for: localeIdentifier)
@@ -281,6 +289,7 @@ final class VoiceDictationViewController: NibLessViewController {
           onResult: { [weak self] text, isFinal in
             Task { @MainActor [weak self] in
               guard let self else { return }
+              guard self.recognitionSessionID == sessionID else { return }
               let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
               if self.isFinishing {
                 // 完成阶段禁止空回调覆盖已有文本，避免“点完成后文本消失”。
@@ -320,6 +329,7 @@ final class VoiceDictationViewController: NibLessViewController {
           onRouteChanged: { [weak self] route in
             Task { @MainActor [weak self] in
               guard let self else { return }
+              guard self.recognitionSessionID == sessionID else { return }
               self.activeRoute = route
               self.statusLabel.text = self.makeRecordingStatusText()
               if route == .whisperOnDevice {
@@ -334,11 +344,13 @@ final class VoiceDictationViewController: NibLessViewController {
           onError: { [weak self] error in
             Task { @MainActor [weak self] in
               guard let self else { return }
+              guard self.recognitionSessionID == sessionID else { return }
               self.handleRuntimeError(error)
             }
           }
         )
         await MainActor.run {
+          guard self.recognitionSessionID == sessionID else { return }
           self.voiceInputBridge.setState(requestId: self.requestId, state: .recording)
           self.statusLabel.text = self.makeRecordingStatusText()
           self.tipLabel.text = self.makeModeHintText()
@@ -349,10 +361,12 @@ final class VoiceDictationViewController: NibLessViewController {
         }
       } catch let error as VoiceSpeechRecognizerEngine.EngineError {
         await MainActor.run {
+          guard self.recognitionSessionID == sessionID else { return }
           self.handleStartFailure(error)
         }
       } catch {
         await MainActor.run {
+          guard self.recognitionSessionID == sessionID else { return }
           self.handleStartFailure(.runtimeFailure(message: error.localizedDescription))
         }
       }
