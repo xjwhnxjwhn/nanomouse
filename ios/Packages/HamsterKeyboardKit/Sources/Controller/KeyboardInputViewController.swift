@@ -63,13 +63,23 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var rimeStartupTask: Task<Void, Never>?
   private var rimeStartupInProgress = false
   private var rimeStartupWatchdogTriggered = false
-  private let rimeStartupTimeout: TimeInterval = 2.5
-  private let rimeStartupWatchdogPollNanoseconds: UInt64 = 120_000_000
+  private var rimeStartupSequenceID: Int = 0
+  private var rimeStartupRetryCount = 0
+  private let rimeStartupMaxRetryCount = 1
+  private let rimeStartupRetryDelay: TimeInterval = 0.35
+  private let rimeStartupTimeout: TimeInterval = 5.0
+  private let rimeStartupWatchdogPollNanoseconds: UInt64 = 150_000_000
 
   private struct RimeStartupConfig {
     let maximumNumberOfCandidateWords: Int?
     let useContextPaging: Bool?
     let simplifiedModeKey: String
+  }
+
+  private enum RimeStartupWatchdogAction {
+    case ignore
+    case retry
+    case degrade
   }
 
   private lazy var voiceUndoButton: UIButton = {
@@ -4122,18 +4132,23 @@ private extension KeyboardInputViewController {
    RIME 引擎设置
    */
   func setupRIME() {
-    guard beginRimeStartupIfNeeded() else {
+    guard let startupID = beginRimeStartupIfNeeded() else {
       Logger.statistics.info("RIME startup is already in progress, skip duplicate trigger.")
       return
     }
 
-    launchRimeStartupWatchdog()
+    launchRimeStartupWatchdog(startupID: startupID)
 
     let startupTask = Task.detached(priority: .userInitiated) { [weak self] in
       guard let self else { return }
 
       let startupConfig = await MainActor.run { self.currentRimeStartupConfig() }
       let startupSucceeded = await self.performRimeStartupSequence(config: startupConfig)
+      guard !Task.isCancelled else {
+        self.finishRimeStartup(startupID: startupID, startupSucceeded: false)
+        return
+      }
+
       if startupSucceeded {
         await self.rimeContext.syncAsciiModeFromEngine()
         await MainActor.run { [weak self] in
@@ -4145,7 +4160,7 @@ private extension KeyboardInputViewController {
         }
       }
 
-      self.finishRimeStartup()
+      self.finishRimeStartup(startupID: startupID, startupSucceeded: startupSucceeded)
     }
     storeRimeStartupTask(startupTask)
   }
@@ -4178,54 +4193,85 @@ private extension KeyboardInputViewController {
     )
   }
 
-  private func launchRimeStartupWatchdog() {
+  private func launchRimeStartupWatchdog(startupID: Int) {
     Task.detached(priority: .utility) { [weak self] in
       guard let self else { return }
 
       let deadline = Date().addingTimeInterval(self.rimeStartupTimeout)
       while Date() < deadline {
-        if !self.isRimeStartupInProgress() { return }
+        if !self.isRimeStartupInProgress(startupID: startupID) { return }
         try? await Task.sleep(nanoseconds: self.rimeStartupWatchdogPollNanoseconds)
       }
 
-      guard self.isRimeStartupInProgress(),
-            self.markRimeStartupWatchdogTriggeredIfNeeded() else {
-        return
-      }
+      let (action, timeoutTask) = self.consumeWatchdogTimeout(startupID: startupID)
+      timeoutTask?.cancel()
 
-      Logger.statistics.error("RIME startup timeout, fallback to ASCII keyboard mode.")
-      await MainActor.run { [weak self] in
-        self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "timeout")
+      switch action {
+      case .ignore:
+        return
+      case .retry:
+        Logger.statistics.error("RIME startup timeout, retry startup once.")
+        await MainActor.run { [weak self] in
+          guard let self else { return }
+          DispatchQueue.main.asyncAfter(deadline: .now() + self.rimeStartupRetryDelay) { [weak self] in
+            self?.setupRIME()
+          }
+        }
+      case .degrade:
+        Logger.statistics.error("RIME startup timeout, fallback to degraded mode.")
+        await MainActor.run { [weak self] in
+          self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "timeout")
+        }
       }
     }
   }
 
-  private func beginRimeStartupIfNeeded() -> Bool {
+  private func beginRimeStartupIfNeeded() -> Int? {
     rimeStartupStateQueue.sync {
-      if rimeStartupInProgress { return false }
+      if rimeStartupInProgress { return nil }
       rimeStartupInProgress = true
       rimeStartupWatchdogTriggered = false
-      return true
+      rimeStartupSequenceID += 1
+      return rimeStartupSequenceID
     }
   }
 
-  private func finishRimeStartup() {
+  private func finishRimeStartup(startupID: Int, startupSucceeded: Bool) {
     rimeStartupStateQueue.sync {
+      guard rimeStartupInProgress, rimeStartupSequenceID == startupID else { return }
       rimeStartupInProgress = false
       rimeStartupWatchdogTriggered = false
       rimeStartupTask = nil
+      if startupSucceeded {
+        rimeStartupRetryCount = 0
+      }
     }
   }
 
-  private func isRimeStartupInProgress() -> Bool {
-    rimeStartupStateQueue.sync { rimeStartupInProgress }
+  private func isRimeStartupInProgress(startupID: Int? = nil) -> Bool {
+    rimeStartupStateQueue.sync {
+      guard let startupID else { return rimeStartupInProgress }
+      return rimeStartupInProgress && rimeStartupSequenceID == startupID
+    }
   }
 
-  private func markRimeStartupWatchdogTriggeredIfNeeded() -> Bool {
+  private func consumeWatchdogTimeout(startupID: Int) -> (action: RimeStartupWatchdogAction, task: Task<Void, Never>?) {
     rimeStartupStateQueue.sync {
-      if rimeStartupWatchdogTriggered { return false }
+      guard rimeStartupInProgress,
+            rimeStartupSequenceID == startupID,
+            !rimeStartupWatchdogTriggered else {
+        return (.ignore, nil)
+      }
       rimeStartupWatchdogTriggered = true
-      return true
+      let task = rimeStartupTask
+      rimeStartupTask = nil
+      rimeStartupInProgress = false
+      if rimeStartupRetryCount < rimeStartupMaxRetryCount {
+        rimeStartupRetryCount += 1
+        rimeStartupWatchdogTriggered = false
+        return (.retry, task)
+      }
+      return (.degrade, task)
     }
   }
 
@@ -4244,10 +4290,25 @@ private extension KeyboardInputViewController {
     Logger.statistics.error("RIME startup failed, using degraded mode. reason: \(reason, privacy: .public)")
     rimeContext.reset()
     rimeContext.clearAsciiModeOverride()
-    rimeContext.applyAsciiMode(true)
-    keyboardContext.isAutoCapitalizationEnabled = false
-    keyboardContext.autocapitalizationTypeOverride = .none
-    setKeyboardType(.alphabetic(.lowercased))
+    // 降级模式优先回到中文主键盘，避免宿主输入框中被永久拉到英语布局。
+    let configuredLanguageMode = resolvedConfiguredLanguageMode()
+    if configuredLanguageMode == .english {
+      rimeContext.applyAsciiMode(true)
+      keyboardContext.isAutoCapitalizationEnabled = false
+      keyboardContext.autocapitalizationTypeOverride = .none
+      setKeyboardType(.alphabetic(.lowercased))
+    } else {
+      rimeContext.applyAsciiMode(false)
+      keyboardContext.isAutoCapitalizationEnabled = true
+      keyboardContext.autocapitalizationTypeOverride = nil
+      if needNumberKeyboard {
+        setKeyboardType(.numericNineGrid)
+      } else if keyboardContext.selectKeyboard.isChinesePrimaryKeyboard {
+        setKeyboardType(keyboardContext.selectKeyboard)
+      } else {
+        setKeyboardType(.chinese(.lowercased))
+      }
+    }
     if !isUnifiedCompositionBufferEnabled {
       textDocumentProxy.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
     }
