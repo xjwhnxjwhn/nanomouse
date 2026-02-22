@@ -9,6 +9,10 @@ dist/
 .tmp/
 package/
 Resources/
+!ios/Packages/HamsteriOS/Sources/Resources/
+!ios/Packages/HamsteriOS/Sources/Resources/Causal/
+!ios/Packages/HamsteriOS/Sources/Resources/Causal/causal_renderer.html
+!ios/Packages/HamsteriOS/Sources/Resources/Causal/mermaid.min.js
 
 # IDE
 .idea/
