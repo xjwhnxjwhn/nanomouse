@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="markdown-it.min.js"></script>
+    <script src="mermaid-markdown.min.js"></script>
+    <style>
+      :root { color-scheme: light dark; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 10px;
+        overflow: auto;
+      }
+      #content {
+        min-height: calc(100% - 4px);
+        font-size: 14px;
+        line-height: 1.55;
+        color: #111827;
+      }
+      #content.dark {
+        color: #e5e7eb;
+      }
+      #content pre {
+        background: rgba(107, 114, 128, 0.15);
+        border-radius: 8px;
+        padding: 10px;
+        overflow-x: auto;
+      }
+      #content code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      #content .placeholder {
+        color: rgba(107, 114, 128, 0.9);
+      }
+      #content .mermaid-wrapper {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 6px 0;
+      }
+      #content .mermaid-wrapper svg {
+        max-width: 100%;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"><div id="content"></div></div>
+    <script>
+      const contentEl = document.getElementById("content");
+      const md = window.markdownit({
+        html: false,
+        linkify: true,
+        breaks: true,
+        typographer: true,
+      });
+      window.__markdownRenderReady = false;
+
+      function normalizeSource(source) {
+        const text = (source || "").trim();
+        if (!text.length) {
+          return "<p class=\"placeholder\">请在上方输入 Markdown。支持 mermaid 代码块。</p>";
+        }
+        return md.render(source);
+      }
+
+      function extractMermaidBlocks() {
+        const selectors = [
+          "pre code.language-mermaid",
+          "pre code.lang-mermaid",
+          "pre code.mermaid",
+        ];
+        return selectors.flatMap((selector) => Array.from(contentEl.querySelectorAll(selector)));
+      }
+
+      async function renderMermaidBlocks(isDark) {
+        if (!window.mermaid) {
+          return;
+        }
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "loose",
+          theme: isDark ? "dark" : "default",
+          flowchart: {
+            useMaxWidth: true,
+            curve: "basis",
+          },
+        });
+
+        const blocks = extractMermaidBlocks();
+        for (let i = 0; i < blocks.length; i += 1) {
+          const block = blocks[i];
+          const raw = block.textContent || "";
+          if (!raw.trim().length) {
+            continue;
+          }
+          try {
+            const id = `markdown_mermaid_${Date.now()}_${i}`;
+            const { svg } = await mermaid.render(id, raw);
+            const wrapper = document.createElement("div");
+            wrapper.className = "mermaid-wrapper";
+            wrapper.innerHTML = svg;
+            const pre = block.closest("pre");
+            if (pre && pre.parentNode) {
+              pre.parentNode.replaceChild(wrapper, pre);
+            }
+          } catch (error) {
+            const pre = block.closest("pre");
+            if (pre) {
+              pre.setAttribute("data-mermaid-error", "1");
+            }
+          }
+        }
+      }
+
+      window.renderMarkdown = async function renderMarkdown(source, isDark) {
+        window.__markdownRenderReady = false;
+        try {
+          contentEl.classList.toggle("dark", Boolean(isDark));
+          contentEl.innerHTML = normalizeSource(source || "");
+          await renderMermaidBlocks(Boolean(isDark));
+        } catch (error) {
+          contentEl.innerHTML = `<pre>${String(error)}</pre>`;
+        } finally {
+          window.__markdownRenderReady = true;
+        }
+      };
+
+      window.isMarkdownReady = function isMarkdownReady() {
+        return window.__markdownRenderReady === true;
+      };
+    </script>
+  </body>
+</html>

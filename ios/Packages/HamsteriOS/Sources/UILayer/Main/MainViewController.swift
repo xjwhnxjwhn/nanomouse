@@ -295,6 +295,7 @@ open class MainTabBarController: UITabBarController {
   private var pendingCanvasRequestId: String?
 
   private lazy var canvasController = VoiceCanvasViewController()
+  private lazy var markdownController = VoiceMarkdownViewController()
   private lazy var homeController = VoiceHomeViewController()
   private lazy var accountController = VoiceAccountViewController(
     mainViewModel: mainViewModel,
@@ -331,6 +332,14 @@ open class MainTabBarController: UITabBarController {
       selectedImage: UIImage(systemName: "scribble.variable")
     )
 
+    let markdownNavigationController = UINavigationController(rootViewController: markdownController)
+    markdownNavigationController.navigationBar.isHidden = true
+    markdownNavigationController.tabBarItem = UITabBarItem(
+      title: "Markdown",
+      image: UIImage(systemName: "text.document"),
+      selectedImage: UIImage(systemName: "text.document.fill")
+    )
+
     let homeNavigationController = UINavigationController(rootViewController: homeController)
     homeNavigationController.navigationBar.isHidden = true
     homeNavigationController.tabBarItem = UITabBarItem(
@@ -349,19 +358,20 @@ open class MainTabBarController: UITabBarController {
 
     viewControllers = [
       canvasNavigationController,
+      markdownNavigationController,
       homeNavigationController,
       accountNavigationController
     ]
   }
 
   open func activateSettingsTab() {
-    selectedIndex = 2
+    selectedIndex = 3
   }
 
   open func activateVoiceDictation(requestId: String, launchedFromKeyboard: Bool = false) {
     pendingVoiceRequestId = requestId
     pendingVoiceLaunchedFromKeyboard = launchedFromKeyboard
-    selectedIndex = 1
+    selectedIndex = 2
     deliverPendingRequestsIfNeeded()
   }
 

@@ -13,6 +13,10 @@ Resources/
 !ios/Packages/HamsteriOS/Sources/Resources/Causal/
 !ios/Packages/HamsteriOS/Sources/Resources/Causal/causal_renderer.html
 !ios/Packages/HamsteriOS/Sources/Resources/Causal/mermaid.min.js
+!ios/Packages/HamsteriOS/Sources/Resources/Markdown/
+!ios/Packages/HamsteriOS/Sources/Resources/Markdown/markdown_renderer.html
+!ios/Packages/HamsteriOS/Sources/Resources/Markdown/markdown-it.min.js
+!ios/Packages/HamsteriOS/Sources/Resources/Markdown/mermaid-markdown.min.js
 
 # IDE
 .idea/
