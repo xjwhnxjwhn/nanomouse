@@ -87,6 +87,43 @@ final class VoiceMarkdownViewController: NibLessViewController {
   private var hasCompletedCurrentKeyboardSession = false
   private var isRendererReady = false
   private var pendingRenderWorkItem: DispatchWorkItem?
+  private var quickActionButtons: [UIButton] = []
+
+  private enum MarkdownQuickAction: CaseIterable {
+    case h1
+    case h2
+    case bold
+    case italic
+    case blockquote
+    case unorderedList
+    case orderedList
+    case todo
+    case inlineCode
+    case codeBlock
+    case link
+    case image
+    case table
+    case mermaid
+
+    var title: String {
+      switch self {
+      case .h1: return "H1"
+      case .h2: return "H2"
+      case .bold: return "B"
+      case .italic: return "I"
+      case .blockquote: return "引"
+      case .unorderedList: return "•"
+      case .orderedList: return "1."
+      case .todo: return "☑"
+      case .inlineCode: return "` `"
+      case .codeBlock: return "```"
+      case .link: return "链"
+      case .image: return "图"
+      case .table: return "表"
+      case .mermaid: return "Mer"
+      }
+    }
+  }
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -113,6 +150,30 @@ final class VoiceMarkdownViewController: NibLessViewController {
     view.backgroundColor = .secondarySystemBackground
     view.layer.cornerRadius = 12
     view.layer.masksToBounds = true
+    return view
+  }()
+
+  private lazy var toolbarScrollView: UIScrollView = {
+    let view = UIScrollView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.showsHorizontalScrollIndicator = false
+    view.alwaysBounceHorizontal = true
+    return view
+  }()
+
+  private lazy var toolbarStackView: UIStackView = {
+    let view = UIStackView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.axis = .horizontal
+    view.alignment = .fill
+    view.spacing = 8
+    return view
+  }()
+
+  private lazy var toolbarDividerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .separator
     return view
   }()
 
@@ -235,6 +296,9 @@ final class VoiceMarkdownViewController: NibLessViewController {
     view.addSubview(titleLabel)
     view.addSubview(statusLabel)
     view.addSubview(editorContainerView)
+    editorContainerView.addSubview(toolbarScrollView)
+    toolbarScrollView.addSubview(toolbarStackView)
+    editorContainerView.addSubview(toolbarDividerView)
     editorContainerView.addSubview(markdownTextView)
     editorContainerView.addSubview(editorPlaceholderLabel)
     view.addSubview(previewTitleLabel)
@@ -256,14 +320,30 @@ final class VoiceMarkdownViewController: NibLessViewController {
       editorContainerView.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 12),
       editorContainerView.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       editorContainerView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      editorContainerView.heightAnchor.constraint(equalToConstant: 170),
+      editorContainerView.heightAnchor.constraint(equalToConstant: 230),
 
-      markdownTextView.topAnchor.constraint(equalTo: editorContainerView.topAnchor),
+      toolbarScrollView.topAnchor.constraint(equalTo: editorContainerView.topAnchor, constant: 8),
+      toolbarScrollView.leadingAnchor.constraint(equalTo: editorContainerView.leadingAnchor, constant: 8),
+      toolbarScrollView.trailingAnchor.constraint(equalTo: editorContainerView.trailingAnchor, constant: -8),
+      toolbarScrollView.heightAnchor.constraint(equalToConstant: 38),
+
+      toolbarStackView.topAnchor.constraint(equalTo: toolbarScrollView.contentLayoutGuide.topAnchor),
+      toolbarStackView.leadingAnchor.constraint(equalTo: toolbarScrollView.contentLayoutGuide.leadingAnchor),
+      toolbarStackView.trailingAnchor.constraint(equalTo: toolbarScrollView.contentLayoutGuide.trailingAnchor),
+      toolbarStackView.bottomAnchor.constraint(equalTo: toolbarScrollView.contentLayoutGuide.bottomAnchor),
+      toolbarStackView.heightAnchor.constraint(equalTo: toolbarScrollView.frameLayoutGuide.heightAnchor),
+
+      toolbarDividerView.topAnchor.constraint(equalTo: toolbarScrollView.bottomAnchor, constant: 6),
+      toolbarDividerView.leadingAnchor.constraint(equalTo: editorContainerView.leadingAnchor),
+      toolbarDividerView.trailingAnchor.constraint(equalTo: editorContainerView.trailingAnchor),
+      toolbarDividerView.heightAnchor.constraint(equalToConstant: 0.5),
+
+      markdownTextView.topAnchor.constraint(equalTo: toolbarDividerView.bottomAnchor, constant: 4),
       markdownTextView.leadingAnchor.constraint(equalTo: editorContainerView.leadingAnchor),
       markdownTextView.trailingAnchor.constraint(equalTo: editorContainerView.trailingAnchor),
       markdownTextView.bottomAnchor.constraint(equalTo: editorContainerView.bottomAnchor),
 
-      editorPlaceholderLabel.topAnchor.constraint(equalTo: editorContainerView.topAnchor, constant: 14),
+      editorPlaceholderLabel.topAnchor.constraint(equalTo: markdownTextView.topAnchor, constant: 12),
       editorPlaceholderLabel.leadingAnchor.constraint(equalTo: editorContainerView.leadingAnchor, constant: 16),
       editorPlaceholderLabel.trailingAnchor.constraint(equalTo: editorContainerView.trailingAnchor, constant: -16),
 
@@ -291,6 +371,33 @@ final class VoiceMarkdownViewController: NibLessViewController {
       tipLabel.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
       tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -14),
     ])
+
+    setupQuickActionButtons()
+  }
+
+  private func setupQuickActionButtons() {
+    for button in quickActionButtons {
+      button.removeFromSuperview()
+    }
+    quickActionButtons.removeAll()
+
+    for (index, action) in MarkdownQuickAction.allCases.enumerated() {
+      let button = UIButton(type: .system)
+      button.translatesAutoresizingMaskIntoConstraints = false
+      button.tag = index
+      button.setTitle(action.title, for: .normal)
+      button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+      button.setTitleColor(.label, for: .normal)
+      button.backgroundColor = .tertiarySystemFill
+      button.layer.cornerRadius = 10
+      button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+      button.addTarget(self, action: #selector(handleQuickActionTap(_:)), for: .touchUpInside)
+      NSLayoutConstraint.activate([
+        button.heightAnchor.constraint(equalToConstant: 34)
+      ])
+      toolbarStackView.addArrangedSubview(button)
+      quickActionButtons.append(button)
+    }
   }
 
   private func setupRendererIfNeeded() {
@@ -366,6 +473,232 @@ final class VoiceMarkdownViewController: NibLessViewController {
       return "\"\""
     }
     return output
+  }
+
+  @objc private func handleQuickActionTap(_ sender: UIButton) {
+    guard sender.tag >= 0, sender.tag < MarkdownQuickAction.allCases.count else { return }
+    if !markdownTextView.isFirstResponder {
+      markdownTextView.becomeFirstResponder()
+    }
+    let action = MarkdownQuickAction.allCases[sender.tag]
+    applyQuickAction(action)
+  }
+
+  private func applyQuickAction(_ action: MarkdownQuickAction) {
+    switch action {
+    case .h1:
+      applyLinePrefixForSelectionOrInsert(prefix: "# ", placeholder: "标题")
+    case .h2:
+      applyLinePrefixForSelectionOrInsert(prefix: "## ", placeholder: "标题")
+    case .bold:
+      wrapSelectedText(prefix: "**", suffix: "**", placeholder: "文本")
+    case .italic:
+      wrapSelectedText(prefix: "*", suffix: "*", placeholder: "文本")
+    case .blockquote:
+      applyLinePrefixForSelectionOrInsert(prefix: "> ", placeholder: "引用")
+    case .unorderedList:
+      applyLinePrefixForSelectionOrInsert(prefix: "- ", placeholder: "项目")
+    case .orderedList:
+      applyOrderedListOrInsert()
+    case .todo:
+      applyLinePrefixForSelectionOrInsert(prefix: "- [ ] ", placeholder: "任务")
+    case .inlineCode:
+      wrapSelectedText(prefix: "`", suffix: "`", placeholder: "code")
+    case .codeBlock:
+      if hasSelectedText {
+        wrapSelectedText(prefix: "```text\n", suffix: "\n```", placeholder: "内容")
+      } else {
+        insertTemplateAndPlaceCursor("```text\n__CURSOR__\n```", cursorToken: "__CURSOR__")
+      }
+    case .link:
+      wrapSelectedText(prefix: "[", suffix: "](https://)", placeholder: "文本")
+    case .image:
+      wrapSelectedText(prefix: "![", suffix: "](https://)", placeholder: "描述")
+    case .table:
+      insertTemplateAndPlaceCursor(
+        "| 列1 | 列2 |\n| --- | --- |\n| __CURSOR__ | 内容 |",
+        cursorToken: "__CURSOR__"
+      )
+    case .mermaid:
+      insertTemplateAndPlaceCursor(
+        "```mermaid\nflowchart TD\n  A[起点] --> B[__CURSOR__]\n```",
+        cursorToken: "__CURSOR__"
+      )
+    }
+
+    markdownTextView.scrollRangeToVisible(markdownTextView.selectedRange)
+  }
+
+  private var hasSelectedText: Bool {
+    selectedRangeInText().length > 0
+  }
+
+  private func selectedRangeInText() -> NSRange {
+    let length = ((markdownTextView.text ?? "") as NSString).length
+    var range = markdownTextView.selectedRange
+    if range.location == NSNotFound {
+      return NSRange(location: length, length: 0)
+    }
+    if range.location > length {
+      range.location = length
+      range.length = 0
+      return range
+    }
+    if range.location + range.length > length {
+      range.length = max(0, length - range.location)
+    }
+    return range
+  }
+
+  private func clampedRange(_ range: NSRange, textLength: Int) -> NSRange {
+    let safeLocation = max(0, min(range.location, textLength))
+    let safeLength = max(0, min(range.length, textLength - safeLocation))
+    return NSRange(location: safeLocation, length: safeLength)
+  }
+
+  private func replaceText(
+    in range: NSRange,
+    with replacement: String,
+    selectedRangeAfter: NSRange
+  ) {
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let safeRange = clampedRange(range, textLength: nsText.length)
+    let updated = nsText.replacingCharacters(in: safeRange, with: replacement)
+    markdownTextView.text = updated
+    let updatedRange = clampedRange(selectedRangeAfter, textLength: (updated as NSString).length)
+    markdownTextView.selectedRange = updatedRange
+    handleProgrammaticTextChange()
+  }
+
+  private func handleProgrammaticTextChange() {
+    let text = markdownTextView.text ?? ""
+    draftStore.saveContent(text)
+    updatePlaceholderState()
+    schedulePreviewRender()
+  }
+
+  private func wrapSelectedText(prefix: String, suffix: String, placeholder: String) {
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let selection = selectedRangeInText()
+
+    if selection.length > 0 {
+      let selected = nsText.substring(with: selection)
+      let replacement = "\(prefix)\(selected)\(suffix)"
+      let cursor = selection.location + (replacement as NSString).length
+      replaceText(
+        in: selection,
+        with: replacement,
+        selectedRangeAfter: NSRange(location: cursor, length: 0)
+      )
+      return
+    }
+
+    let replacement = "\(prefix)\(placeholder)\(suffix)"
+    let selectionAfter = NSRange(
+      location: selection.location + (prefix as NSString).length,
+      length: (placeholder as NSString).length
+    )
+    replaceText(in: selection, with: replacement, selectedRangeAfter: selectionAfter)
+  }
+
+  private func lineRangeCoveringSelection(_ selection: NSRange, in text: NSString) -> NSRange {
+    if text.length == 0 {
+      return NSRange(location: 0, length: 0)
+    }
+
+    let safeSelection = clampedRange(selection, textLength: text.length)
+    let startLine = text.lineRange(for: NSRange(location: safeSelection.location, length: 0))
+    let endAnchor: Int = {
+      let end = safeSelection.location + safeSelection.length
+      if end <= 0 { return 0 }
+      return min(max(0, end - 1), text.length - 1)
+    }()
+    let endLine = text.lineRange(for: NSRange(location: endAnchor, length: 0))
+    return NSRange(
+      location: startLine.location,
+      length: endLine.location + endLine.length - startLine.location
+    )
+  }
+
+  private func applyLinePrefixForSelectionOrInsert(prefix: String, placeholder: String) {
+    let selection = selectedRangeInText()
+    if selection.length == 0 {
+      let template = "\(prefix)\(placeholder)"
+      let selected = NSRange(
+        location: selection.location + (prefix as NSString).length,
+        length: (placeholder as NSString).length
+      )
+      replaceText(in: selection, with: template, selectedRangeAfter: selected)
+      return
+    }
+
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let lineRange = lineRangeCoveringSelection(selection, in: nsText)
+    let block = nsText.substring(with: lineRange)
+    let lines = block.components(separatedBy: "\n")
+    let prefixed = lines.map { line -> String in
+      let content = line.isEmpty ? placeholder : line
+      return "\(prefix)\(content)"
+    }.joined(separator: "\n")
+    let cursor = lineRange.location + (prefixed as NSString).length
+    replaceText(
+      in: lineRange,
+      with: prefixed,
+      selectedRangeAfter: NSRange(location: cursor, length: 0)
+    )
+  }
+
+  private func applyOrderedListOrInsert() {
+    let selection = selectedRangeInText()
+    if selection.length == 0 {
+      let template = "1. 项目"
+      let selected = NSRange(location: selection.location + 3, length: 2)
+      replaceText(in: selection, with: template, selectedRangeAfter: selected)
+      return
+    }
+
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let lineRange = lineRangeCoveringSelection(selection, in: nsText)
+    let block = nsText.substring(with: lineRange)
+    let lines = block.components(separatedBy: "\n")
+    var index = 1
+    let prefixed = lines.map { line -> String in
+      let content = line.isEmpty ? "项目\(index)" : line
+      defer { index += 1 }
+      return "\(index). \(content)"
+    }.joined(separator: "\n")
+    let cursor = lineRange.location + (prefixed as NSString).length
+    replaceText(
+      in: lineRange,
+      with: prefixed,
+      selectedRangeAfter: NSRange(location: cursor, length: 0)
+    )
+  }
+
+  private func insertTemplateAndPlaceCursor(_ template: String, cursorToken: String) {
+    let selection = selectedRangeInText()
+    let nsTemplate = template as NSString
+    let tokenRange = nsTemplate.range(of: cursorToken)
+    let replacement: String
+    let cursorOffset: Int
+
+    if tokenRange.location == NSNotFound {
+      replacement = template
+      cursorOffset = nsTemplate.length
+    } else {
+      replacement = nsTemplate.replacingCharacters(in: tokenRange, with: "")
+      cursorOffset = tokenRange.location
+    }
+
+    replaceText(
+      in: selection,
+      with: replacement,
+      selectedRangeAfter: NSRange(location: selection.location + cursorOffset, length: 0)
+    )
   }
 
   @objc private func handleClearTap() {
