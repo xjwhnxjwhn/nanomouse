@@ -898,7 +898,28 @@ extension InputSchemaViewModel {
         rimeContext.appendSelectSchema(schema)
       }
     }
+
+    if group == .chineseEnglish {
+      syncKeyboardLayoutWithChineseSchema()
+    }
     reloadTableStateSubject.send(true)
+  }
+
+  /// 输入方案与键盘布局联动：
+  /// - 选中中文9键方案 => 布局切到中文9键
+  /// - 选中中文26键方案 => 布局切到中文26键
+  private func syncKeyboardLayoutWithChineseSchema() {
+    guard let selectedChineseSchema = rimeContext.selectSchemas.first(where: {
+      schemaGroup(for: $0) == .chineseEnglish
+    }) else { return }
+
+    let targetKeyboardType: KeyboardType = selectedChineseSchema.isChineseNineGridSchema
+      ? .chineseNineGrid
+      : .chinese(.lowercased)
+
+    let keyboardSettingsViewModel = HamsterAppDependencyContainer.shared.keyboardSettingsViewModel
+    guard keyboardSettingsViewModel.useKeyboardType != targetKeyboardType else { return }
+    keyboardSettingsViewModel.useKeyboardType = targetKeyboardType
   }
 
   /// 导入zip文件

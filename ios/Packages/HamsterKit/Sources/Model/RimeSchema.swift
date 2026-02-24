@@ -57,4 +57,40 @@ public extension RimeSchema {
     let romajiKeywords = ["romaji", "jaroomaji", "jaromaji", "ローマ字"]
     return romajiKeywords.contains(where: { id.contains($0) || name.contains($0) })
   }
+
+  /// 判断是否是中文九键（T9）方案。
+  ///
+  /// 说明：
+  /// 仅用于布局与方案联动时的启发式匹配，避免把中文九宫格布局错误绑定到普通26键方案。
+  var isChineseNineGridSchema: Bool {
+    guard !isJapaneseSchema else { return false }
+
+    let id = schemaId.lowercased()
+    let name = schemaName.lowercased()
+    let englishKeywords = [
+      "t9",
+      "9key",
+      "ninekey",
+      "nine_grid",
+      "nine-grid",
+      "ninegrid",
+      "jiugong",
+      "jiugongge",
+      "jiu_gong",
+      "jiu_gong_ge",
+    ]
+    if englishKeywords.contains(where: { id.contains($0) || name.contains($0) }) {
+      return true
+    }
+
+    let chineseKeywords = ["九键", "九宮", "九宫", "九宮格", "九宫格", "9键"]
+    if chineseKeywords.contains(where: { schemaId.contains($0) || schemaName.contains($0) }) {
+      return true
+    }
+
+    if id.hasSuffix("_9") || id.hasSuffix("-9") || id.contains("_9_") || id.contains("-9-") {
+      return true
+    }
+    return false
+  }
 }

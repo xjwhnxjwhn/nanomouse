@@ -630,6 +630,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return true
   }
 
+  /// 判断是否处于中文九宫格输入上下文。
+  ///
+  /// 说明：
+  /// 某些时机下 `keyboardType` 可能暂时与可见布局不同步，额外参考 `selectKeyboard`
+  /// 可以避免把中文九宫格数字误当作 mixed-input literal 直接上屏。
+  var isChineseNineGridInputContext: Bool {
+    keyboardContext.keyboardType.isChineseNineGrid || keyboardContext.selectKeyboard.isChineseNineGrid
+  }
+
   var isNumericCandidateModeEnabledOnJapaneseAzooKey: Bool {
     guard keyboardContext.enableNumericCandidateModeOnJapaneseAzooKey else { return false }
     return isAzooKeyInputActive
@@ -1472,7 +1481,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入（在 insertSymbol 中也需要拦截）
     let char = adjustedChar
     let isDigit = char.count == 1 && char.first?.isNumber == true
-    if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
+    // 中文九宫格数字必须交给 RIME 进行 T9 编码处理，不能进入 mixed-input literal 分支。
+    let shouldHandleDigitAsMixedInput = !isChineseNineGridInputContext
+    if isDigit && shouldHandleDigitAsMixedInput && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
       rimeContext.mixedInputManager.reset()
       mixedInputSelectedNumericPrefix = nil
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
@@ -1480,7 +1491,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       updateMixedInputSuggestions()
       return
     }
-    if isDigit && !rimeContext.userInputKey.isEmpty {
+    if isDigit && shouldHandleDigitAsMixedInput && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
       // 数字添加到混合输入管理器，不触发顶码上屏
       rimeContext.mixedInputManager.insertAtCursorPosition(char, isLiteral: true)
@@ -1638,7 +1649,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
     // 借鉴 AzooKey：检查是否为数字且当前有 RIME 输入
     let isDigit = adjustedText.count == 1 && adjustedText.first?.isNumber == true
-    if isDigit && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
+    // 中文九宫格数字必须交给 RIME 进行 T9 编码处理，不能进入 mixed-input literal 分支。
+    let shouldHandleDigitAsMixedInput = !isChineseNineGridInputContext
+    if isDigit && shouldHandleDigitAsMixedInput && rimeContext.userInputKey.isEmpty && isNumericCandidateModeEnabledOnChineseKeyboard {
       rimeContext.mixedInputManager.reset()
       mixedInputSelectedNumericPrefix = nil
       rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
@@ -1646,7 +1659,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       updateMixedInputSuggestions()
       return
     }
-    if isDigit && !rimeContext.userInputKey.isEmpty {
+    if isDigit && shouldHandleDigitAsMixedInput && !rimeContext.userInputKey.isEmpty {
       prepareMixedInputForDigitInsertion()
       // 数字添加到混合输入管理器，不发送给 RIME
       rimeContext.mixedInputManager.insertAtCursorPosition(adjustedText, isLiteral: true)
@@ -1695,6 +1708,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let handled = self.rimeContext.tryHandleInputText(adjustedText)
     Logger.statistics.info("DBG_RIMEINPUT tryHandleInputText: \(adjustedText, privacy: .public), handled: \(handled)")
     if !handled {
+      let shouldRejectRawDigitFallback = isDigit
+        && isChineseNineGridInputContext
+        && rimeContext.currentSchema?.isChineseNineGridSchema == true
+      if shouldRejectRawDigitFallback, let scalar = adjustedText.unicodeScalars.first {
+        let codeHandled = self.rimeContext.tryHandleInputCode(Int32(scalar.value))
+        Logger.statistics.info("DBG_RIMEINPUT chineseNineGrid fallback keyCode: \(adjustedText, privacy: .public), handled: \(codeHandled)")
+        if codeHandled { return }
+        Logger.statistics.error("DBG_RIMEINPUT chineseNineGrid reject raw digit fallback: \(adjustedText, privacy: .public)")
+        return
+      }
       Logger.statistics.error("try handle input text: \(adjustedText), handle false")
       Logger.statistics.error("DBG_RIMEINPUT fallback insertTextPatch for: \(adjustedText, privacy: .public)")
       self.insertTextPatch(adjustedText)

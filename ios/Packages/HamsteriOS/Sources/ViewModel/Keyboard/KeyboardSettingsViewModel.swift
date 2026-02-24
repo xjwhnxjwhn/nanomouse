@@ -613,6 +613,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       }
       HamsterAppDependencyContainer.shared.configuration.keyboard?.useKeyboardType = keyboardType.yamlString
       HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.useKeyboardType = keyboardType.yamlString
+      syncChineseSchemaWithKeyboardTypeIfNeeded(keyboardType)
     }
   }
 
@@ -638,6 +639,52 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       .chineseNineGrid
     ]
     return list + (HamsterAppDependencyContainer.shared.configuration.keyboards ?? []).map { $0.type }
+  }
+
+  /// 键盘布局与中英方案联动：
+  /// - 选中中文9键布局 => 选中中文9键方案
+  /// - 选中中文26键布局 => 选中中文26键方案
+  private func syncChineseSchemaWithKeyboardTypeIfNeeded(_ keyboardType: KeyboardType) {
+    let shouldUseNineGrid: Bool
+    if keyboardType.isChineseNineGrid {
+      shouldUseNineGrid = true
+    } else if keyboardType.isChinesePrimaryKeyboard {
+      shouldUseNineGrid = false
+    } else {
+      return
+    }
+
+    let rimeContext = HamsterAppDependencyContainer.shared.rimeContext
+    let selectedChineseSchemas = rimeContext.selectSchemas.filter { !$0.isJapaneseSchema }
+    guard !selectedChineseSchemas.isEmpty else { return }
+
+    if selectedChineseSchemas.count == 1,
+       selectedChineseSchemas[0].isChineseNineGridSchema == shouldUseNineGrid
+    {
+      return
+    }
+
+    guard let targetSchema = preferredChineseSchema(useNineGrid: shouldUseNineGrid) else { return }
+
+    for schema in selectedChineseSchemas where schema != targetSchema {
+      rimeContext.removeSelectSchema(schema)
+    }
+    if !rimeContext.selectSchemas.contains(targetSchema) {
+      rimeContext.appendSelectSchema(targetSchema)
+    }
+  }
+
+  private func preferredChineseSchema(useNineGrid: Bool) -> RimeSchema? {
+    let rimeContext = HamsterAppDependencyContainer.shared.rimeContext
+
+    if let selected = rimeContext.selectSchemas.first(where: {
+      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+    }) {
+      return selected
+    }
+    return rimeContext.schemas.first(where: {
+      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+    })
   }
 
   // MARK: - combine
@@ -1531,7 +1578,7 @@ extension KeyboardSettingsViewModel {
       case .alphabetic: return .alphabetic(.lowercased)
       case .chinese: return .chinese(.lowercased)
       case .classifySymbolic: return .classifySymbolic
-      case .chineseNineGrid: return .chineseNumeric
+      case .chineseNineGrid: return .chineseNineGrid
       case .numericNineGrid: return .numericNineGrid
 //      case .emojis: return .emojis
       default:
