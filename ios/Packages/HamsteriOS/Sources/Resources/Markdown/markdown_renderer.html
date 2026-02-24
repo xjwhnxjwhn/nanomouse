@@ -125,10 +125,15 @@
         }
       }
 
-      window.renderMarkdown = async function renderMarkdown(source, isDark) {
+      window.renderMarkdown = async function renderMarkdown(source, isDark, fontFamily) {
         window.__markdownRenderReady = false;
         try {
           contentEl.classList.toggle("dark", Boolean(isDark));
+          if (fontFamily && typeof fontFamily === "string") {
+            contentEl.style.fontFamily = fontFamily;
+          } else {
+            contentEl.style.fontFamily = "";
+          }
           contentEl.innerHTML = normalizeSource(source || "");
           await renderMermaidBlocks(Boolean(isDark));
         } catch (error) {

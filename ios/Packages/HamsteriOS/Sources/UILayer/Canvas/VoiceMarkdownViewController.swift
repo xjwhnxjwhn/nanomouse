@@ -16,6 +16,7 @@ private final class VoiceMarkdownDraftStore {
 
   private enum Constants {
     static let contentKey = "voice.markdown.draft.content"
+    static let fontKey = "voice.markdown.draft.font"
   }
 
   private let userDefaults: UserDefaults
@@ -30,6 +31,14 @@ private final class VoiceMarkdownDraftStore {
 
   func saveContent(_ content: String) {
     userDefaults.set(content, forKey: Constants.contentKey)
+  }
+
+  func loadFontIdentifier() -> String? {
+    userDefaults.string(forKey: Constants.fontKey)
+  }
+
+  func saveFontIdentifier(_ identifier: String) {
+    userDefaults.set(identifier, forKey: Constants.fontKey)
   }
 }
 
@@ -67,8 +76,11 @@ final class VoiceMarkdownViewController: NibLessViewController {
       <div id="content"></div>
       <script>
         window.__markdownRenderReady = false;
-        window.renderMarkdown = function renderMarkdown(source) {
+        window.renderMarkdown = function renderMarkdown(source, _isDark, fontFamily) {
           const el = document.getElementById("content");
+          if (fontFamily && typeof fontFamily === "string") {
+            el.style.fontFamily = fontFamily;
+          }
           el.textContent = source || "";
           window.__markdownRenderReady = true;
         };
@@ -88,6 +100,8 @@ final class VoiceMarkdownViewController: NibLessViewController {
   private var isRendererReady = false
   private var pendingRenderWorkItem: DispatchWorkItem?
   private var quickActionButtons: [UIButton] = []
+  private var availableFontOptions: [MarkdownFontOption] = []
+  private var selectedFontOption: MarkdownFontOption = .systemDefault
 
   private enum MarkdownQuickAction: CaseIterable {
     case h1
@@ -124,6 +138,45 @@ final class VoiceMarkdownViewController: NibLessViewController {
       }
     }
   }
+
+  private struct MarkdownFontOption: Equatable {
+    static let systemIdentifier = "__system__"
+    static let systemDefault = MarkdownFontOption(
+      identifier: systemIdentifier,
+      displayName: "系统默认",
+      editorFont: .systemFont(ofSize: 15, weight: .regular),
+      cssFontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif"
+    )
+
+    let identifier: String
+    let displayName: String
+    let editorFont: UIFont
+    let cssFontFamily: String
+  }
+
+  private struct MarkdownFontPreset {
+    let displayName: String
+    let candidates: [String]
+    let cssFallback: String
+  }
+
+  private static let markdownFontPresets: [MarkdownFontPreset] = [
+    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "Songti SC", candidates: ["SongtiSC-Regular", "Songti SC"], cssFallback: "'Noto Serif CJK SC', serif"),
+    .init(displayName: "Kaiti SC", candidates: ["KaitiSC-Regular", "Kaiti SC"], cssFallback: "'STKaiti', serif"),
+    .init(displayName: "Heiti SC", candidates: ["STHeitiSC-Light", "Heiti SC"], cssFallback: "'Hiragino Sans GB', sans-serif"),
+    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'PingFang SC', sans-serif"),
+    .init(displayName: "STFangsong", candidates: ["STFangsong", "FangSong"], cssFallback: "'Songti SC', serif"),
+    .init(displayName: "STSong", candidates: ["STSongti-SC-Regular", "STSong"], cssFallback: "'Songti SC', serif"),
+    .init(displayName: "Helvetica Neue", candidates: ["HelveticaNeue", "Helvetica Neue"], cssFallback: "Helvetica, Arial, sans-serif"),
+    .init(displayName: "Avenir Next", candidates: ["AvenirNext-Regular", "Avenir Next"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "Georgia", candidates: ["Georgia"], cssFallback: "'Times New Roman', serif"),
+    .init(displayName: "Times New Roman", candidates: ["TimesNewRomanPSMT", "Times New Roman"], cssFallback: "Times, serif"),
+    .init(displayName: "Menlo", candidates: ["Menlo-Regular", "Menlo"], cssFallback: "ui-monospace, monospace"),
+    .init(displayName: "Courier New", candidates: ["CourierNewPSMT", "Courier New"], cssFallback: "Courier, monospace"),
+    .init(displayName: "SF Mono", candidates: ["SFMono-Regular"], cssFallback: "Menlo, ui-monospace, monospace"),
+  ]
 
   private lazy var titleLabel: UILabel = {
     let label = UILabel(frame: .zero)
@@ -175,6 +228,19 @@ final class VoiceMarkdownViewController: NibLessViewController {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.backgroundColor = .separator
     return view
+  }()
+
+  private lazy var fontPickerButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("字体", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.setTitleColor(.label, for: .normal)
+    button.backgroundColor = .tertiarySystemFill
+    button.layer.cornerRadius = 10
+    button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+    button.addTarget(self, action: #selector(handleFontPickerTap(_:)), for: .touchUpInside)
+    return button
   }()
 
   private lazy var markdownTextView: UITextView = {
@@ -271,6 +337,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    availableFontOptions = buildFontOptions()
     setupView()
     setupRendererIfNeeded()
     restoreDraftIfNeeded()
@@ -380,6 +447,11 @@ final class VoiceMarkdownViewController: NibLessViewController {
       button.removeFromSuperview()
     }
     quickActionButtons.removeAll()
+    fontPickerButton.removeFromSuperview()
+    toolbarStackView.addArrangedSubview(fontPickerButton)
+    NSLayoutConstraint.activate([
+      fontPickerButton.heightAnchor.constraint(equalToConstant: 34)
+    ])
 
     for (index, action) in MarkdownQuickAction.allCases.enumerated() {
       let button = UIButton(type: .system)
@@ -397,6 +469,92 @@ final class VoiceMarkdownViewController: NibLessViewController {
       ])
       toolbarStackView.addArrangedSubview(button)
       quickActionButtons.append(button)
+    }
+  }
+
+  private func cssQuoted(_ value: String) -> String {
+    let escaped = value.replacingOccurrences(of: "'", with: "\\'")
+    return "'\(escaped)'"
+  }
+
+  private func buildFontOptions() -> [MarkdownFontOption] {
+    var options: [MarkdownFontOption] = [.systemDefault]
+    var usedIdentifiers: Set<String> = [MarkdownFontOption.systemIdentifier]
+    var usedDisplayNames: Set<String> = [MarkdownFontOption.systemDefault.displayName]
+
+    func appendOption(displayName: String, fontName: String, fallback: String) {
+      guard let font = UIFont(name: fontName, size: 15) else { return }
+      let identifier = font.fontName
+      guard !usedIdentifiers.contains(identifier) else { return }
+      guard !usedDisplayNames.contains(displayName) else { return }
+      let css = "\(cssQuoted(font.familyName)), \(cssQuoted(font.fontName)), \(fallback)"
+      options.append(
+        MarkdownFontOption(
+          identifier: identifier,
+          displayName: displayName,
+          editorFont: font,
+          cssFontFamily: css
+        )
+      )
+      usedIdentifiers.insert(identifier)
+      usedDisplayNames.insert(displayName)
+    }
+
+    for preset in Self.markdownFontPresets {
+      for candidate in preset.candidates {
+        if UIFont(name: candidate, size: 15) != nil {
+          appendOption(displayName: preset.displayName, fontName: candidate, fallback: preset.cssFallback)
+          break
+        }
+      }
+    }
+
+    let families = UIFont.familyNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    for family in families {
+      guard !family.isEmpty, !family.hasPrefix(".") else { continue }
+      let fontNames = UIFont.fontNames(forFamilyName: family)
+      guard !fontNames.isEmpty else { continue }
+      let preferredName = fontNames.first(where: { $0.localizedCaseInsensitiveContains("regular") }) ?? fontNames.first
+      guard let preferredName else { continue }
+      appendOption(displayName: family, fontName: preferredName, fallback: "-apple-system, sans-serif")
+    }
+
+    return options
+  }
+
+  private func resolveStoredFontOption(_ storedIdentifier: String?) -> MarkdownFontOption {
+    guard let storedIdentifier, !storedIdentifier.isEmpty else {
+      return availableFontOptions.first ?? .systemDefault
+    }
+    if let direct = availableFontOptions.first(where: { $0.identifier == storedIdentifier }) {
+      return direct
+    }
+    if let legacyDisplayName = legacyFontDisplayName(for: storedIdentifier),
+       let mapped = availableFontOptions.first(where: { $0.displayName == legacyDisplayName }) {
+      return mapped
+    }
+    return availableFontOptions.first ?? .systemDefault
+  }
+
+  private func legacyFontDisplayName(for identifier: String) -> String? {
+    switch identifier {
+    case "pingFangSC": return "PingFang SC"
+    case "pingFangTC": return "PingFang TC"
+    case "songtiSC": return "Songti SC"
+    case "kaitiSC": return "Kaiti SC"
+    case "heitiSC": return "Heiti SC"
+    case "hiraginoSansGB": return "Hiragino Sans GB"
+    case "stFangSong": return "STFangsong"
+    case "stSong": return "STSong"
+    case "helveticaNeue": return "Helvetica Neue"
+    case "avenirNext": return "Avenir Next"
+    case "georgia": return "Georgia"
+    case "timesNewRoman": return "Times New Roman"
+    case "menlo": return "Menlo"
+    case "courierNew": return "Courier New"
+    case "sfMono": return "SF Mono"
+    case "system": return "系统默认"
+    default: return nil
     }
   }
 
@@ -434,6 +592,8 @@ final class VoiceMarkdownViewController: NibLessViewController {
   }
 
   private func restoreDraftIfNeeded() {
+    let storedFont = resolveStoredFontOption(draftStore.loadFontIdentifier())
+    applyFontOption(storedFont, persist: false, updateStatus: false)
     let content = draftStore.loadContent()
     markdownTextView.text = content
     updatePlaceholderState()
@@ -458,7 +618,8 @@ final class VoiceMarkdownViewController: NibLessViewController {
     let markdown = markdownTextView.text ?? ""
     let payload = jsonStringLiteral(markdown)
     let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
-    let script = "window.renderMarkdown(\(payload), \(isDark));"
+    let fontFamily = jsonStringLiteral(selectedFontOption.cssFontFamily)
+    let script = "window.renderMarkdown(\(payload), \(isDark), \(fontFamily));"
     previewWebView.evaluateJavaScript(script) { [weak self] _, error in
       guard let self else { return }
       if let error {
@@ -473,6 +634,44 @@ final class VoiceMarkdownViewController: NibLessViewController {
       return "\"\""
     }
     return output
+  }
+
+  @objc private func handleFontPickerTap(_ sender: UIButton) {
+    if availableFontOptions.isEmpty {
+      availableFontOptions = buildFontOptions()
+    }
+    let alert = UIAlertController(title: "选择字体", message: nil, preferredStyle: .actionSheet)
+    for option in availableFontOptions {
+      let title: String
+      if option.identifier == selectedFontOption.identifier {
+        title = "\(option.displayName)（当前）"
+      } else {
+        title = option.displayName
+      }
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        self?.applyFontOption(option, persist: true, updateStatus: true)
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = sender
+      popover.sourceRect = sender.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func applyFontOption(_ option: MarkdownFontOption, persist: Bool, updateStatus: Bool) {
+    selectedFontOption = option
+    markdownTextView.font = option.editorFont
+    editorPlaceholderLabel.font = option.editorFont
+    fontPickerButton.setTitle("字体·\(option.displayName)", for: .normal)
+    if persist {
+      draftStore.saveFontIdentifier(option.identifier)
+    }
+    if updateStatus {
+      statusLabel.text = "字体已切换为：\(option.displayName)。"
+    }
+    schedulePreviewRender()
   }
 
   @objc private func handleQuickActionTap(_ sender: UIButton) {
@@ -808,7 +1007,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
 
       let insetRect = CGRect(x: 14, y: 14, width: size.width - 28, height: size.height - 28)
       let attributes: [NSAttributedString.Key: Any] = [
-        .font: UIFont.systemFont(ofSize: 15, weight: .regular),
+        .font: selectedFontOption.editorFont,
         .foregroundColor: textColor
       ]
       NSString(string: markdown).draw(
