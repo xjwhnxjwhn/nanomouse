@@ -317,6 +317,9 @@ final class VoiceMarkdownViewController: NibLessViewController {
     button.layer.cornerRadius = 22
     button.contentEdgeInsets = UIEdgeInsets(top: 11, left: 24, bottom: 11, right: 24)
     button.addTarget(self, action: #selector(handleDoneTap), for: .touchUpInside)
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDoneLongPress(_:)))
+    longPress.minimumPressDuration = 0.45
+    button.addGestureRecognizer(longPress)
     return button
   }()
 
@@ -326,7 +329,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
     label.font = .systemFont(ofSize: 13, weight: .regular)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "导出默认压缩率：0.28（低质量 JPG），同时复制 Markdown 原文。"
+    label.text = "点击完成导出 JPG；长按完成可仅复制 Markdown 原文。"
     return label
   }()
 
@@ -938,6 +941,22 @@ final class VoiceMarkdownViewController: NibLessViewController {
         self.commitExport(image: image, markdown: markdown)
       }
     }
+  }
+
+  @objc private func handleDoneLongPress(_ recognizer: UILongPressGestureRecognizer) {
+    guard recognizer.state == .began else { return }
+    let markdown = markdownTextView.text ?? ""
+    guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      statusLabel.text = "暂无 Markdown 可复制。"
+      return
+    }
+
+    UIPasteboard.general.setItems(
+      [[UTType.plainText.identifier: markdown]],
+      options: [:]
+    )
+    statusLabel.text = "已复制 Markdown 原文到剪贴板。"
+    tipLabel.text = "你可以直接粘贴 Markdown 文本。"
   }
 
   private func waitForRenderedContent(maxAttempts: Int, interval: TimeInterval, completion: @escaping (Bool) -> Void) {

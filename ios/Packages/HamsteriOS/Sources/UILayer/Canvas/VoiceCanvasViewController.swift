@@ -8,6 +8,7 @@
 import HamsterKit
 import HamsterUIKit
 import PencilKit
+import UniformTypeIdentifiers
 import UIKit
 import WebKit
 
@@ -20,11 +21,14 @@ struct VoiceCanvasFileItem: Hashable {
 
 enum VoiceCanvasStoreError: LocalizedError {
   case imageEncodingFailed
+  case textEncodingFailed
 
   var errorDescription: String? {
     switch self {
     case .imageEncodingFailed:
       return "图片编码失败，请重试。"
+    case .textEncodingFailed:
+      return "文本编码失败，请重试。"
     }
   }
 }
@@ -115,6 +119,20 @@ final class VoiceCanvasStorageStore {
     return try makeFileItem(from: url)
   }
 
+  @discardableResult
+  func saveTextFile(content: String, fileExtension: String = "mmd", prefix: String = "causal_mermaid") throws -> VoiceCanvasFileItem {
+    try ensureDirectory()
+    guard let data = content.data(using: .utf8) else {
+      throw VoiceCanvasStoreError.textEncodingFailed
+    }
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd_HHmmss"
+    let name = "\(prefix)_\(formatter.string(from: Date()))_\(UUID().uuidString.prefix(8)).\(fileExtension)"
+    let url = rootDirectoryURL.appendingPathComponent(name, isDirectory: false)
+    try data.write(to: url, options: .atomic)
+    return try makeFileItem(from: url)
+  }
+
   func relativePath(for item: VoiceCanvasFileItem) -> String {
     "\(Constants.rootDirectoryName)/\(item.fileName)"
   }
@@ -179,6 +197,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var causalRows: [VoiceCausalEdgeRowView] = []
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
+  private var suppressDoneTapOnce = false
 
   private lazy var screenTapGestureRecognizer: UITapGestureRecognizer = {
     let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleScreenTap(_:)))
@@ -397,6 +416,10 @@ final class VoiceCanvasViewController: NibLessViewController {
     button.layer.cornerRadius = 22
     button.contentEdgeInsets = UIEdgeInsets(top: 11, left: 24, bottom: 11, right: 24)
     button.addTarget(self, action: #selector(handleDoneTap), for: .touchUpInside)
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDoneLongPress(_:)))
+    longPress.minimumPressDuration = 0.45
+    longPress.cancelsTouchesInView = true
+    button.addGestureRecognizer(longPress)
     return button
   }()
 
@@ -808,7 +831,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       causalContainerView.isHidden = false
       historyButtonStackView.isHidden = true
       statusLabel.text = "填写因果关系后，系统会自动生成关系图。完成后返回宿主 App 可直接粘贴图片。"
-      tipLabel.text = "导出默认压缩率：0.28（低质量 JPG）。"
+      tipLabel.text = "点击完成导出 JPG；长按完成可导出 Mermaid 源文件。"
       scheduleCausalRender()
     }
     updateHistoryButtonsState()
@@ -927,12 +950,31 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   @objc private func handleDoneTap() {
+    if suppressDoneTapOnce {
+      suppressDoneTapOnce = false
+      return
+    }
     if currentMode == .causal {
       handleCausalDoneTap()
       return
     }
 
     handleDrawDoneTap()
+  }
+
+  private func hasAnyCompleteCausalEdge() -> Bool {
+    causalRows.contains { row in
+      let edge = row.currentEdgeDraft()
+      return !edge.from.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        && !edge.to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+  }
+
+  @objc private func handleDoneLongPress(_ recognizer: UILongPressGestureRecognizer) {
+    guard recognizer.state == .began else { return }
+    guard currentMode == .causal else { return }
+    suppressDoneTapOnce = true
+    handleCausalMermaidExport()
   }
 
   private func handleDrawDoneTap() {
@@ -964,12 +1006,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func handleCausalDoneTap() {
-    let hasCompleteEdge = causalRows.contains { row in
-      let edge = row.currentEdgeDraft()
-      return !edge.from.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        && !edge.to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-    guard hasCompleteEdge else {
+    guard hasAnyCompleteCausalEdge() else {
       statusLabel.text = "请至少填写一条完整因果关系（原因与结果都不能为空）。"
       return
     }
@@ -984,6 +1021,26 @@ final class VoiceCanvasViewController: NibLessViewController {
         return
       }
       self.commitExport(image)
+    }
+  }
+
+  private func handleCausalMermaidExport() {
+    guard hasAnyCompleteCausalEdge() else {
+      statusLabel.text = "请至少填写一条完整因果关系后再导出 Mermaid。"
+      return
+    }
+
+    view.endEditing(true)
+    let mermaidSource = buildMermaidCode()
+    UIPasteboard.general.setItems([[UTType.plainText.identifier: mermaidSource]], options: [:])
+
+    do {
+      let item = try canvasStore.saveTextFile(content: mermaidSource, fileExtension: "mmd", prefix: "causal_mermaid")
+      statusLabel.text = "已导出 Mermaid 源文件并复制到剪贴板。"
+      tipLabel.text = "已保存：\(item.fileName)（.mmd）"
+    } catch {
+      statusLabel.text = "Mermaid 导出失败：\(error.localizedDescription)"
+      tipLabel.text = "已复制 Mermaid 文本到剪贴板。"
     }
   }
 
