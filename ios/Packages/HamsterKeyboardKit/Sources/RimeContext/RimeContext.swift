@@ -33,7 +33,7 @@ public class RimeContext {
   /// rime 用户选择方案列表
   public lazy var selectSchemas: [RimeSchema] = UserDefaults.hamster.selectSchemas {
     didSet {
-      UserDefaults.hamster.selectSchemas = self.selectSchemas.sorted()
+      UserDefaults.hamster.selectSchemas = orderedSelectSchemas(self.selectSchemas)
     }
   }
 
@@ -322,17 +322,40 @@ public extension RimeContext {
   }
 
   func appendSelectSchema(_ schema: RimeSchema) {
-    self.selectSchemas.append(schema)
-    self.selectSchemas.sort()
+    var schemas = self.selectSchemas
+    schemas.append(schema)
+    self.selectSchemas = orderedSelectSchemas(schemas)
     resetCurrentSchema()
     resetLatestSchema()
   }
 
   func removeSelectSchema(_ schema: RimeSchema) {
-    self.selectSchemas.removeAll(where: { $0 == schema })
-    self.selectSchemas.sort()
+    var schemas = self.selectSchemas
+    schemas.removeAll(where: { $0 == schema })
+    self.selectSchemas = orderedSelectSchemas(schemas)
     resetCurrentSchema()
     resetLatestSchema()
+  }
+
+  /// 统一排序用户已选输入方案：
+  /// - 中文方案中优先把 rime_ice 放到首位
+  /// - 其余保持按 schemaId 稳定排序
+  private func orderedSelectSchemas(_ schemas: [RimeSchema]) -> [RimeSchema] {
+    schemas.sorted { lhs, rhs in
+      let lhsIsChinese = !lhs.isJapaneseSchema
+      let rhsIsChinese = !rhs.isJapaneseSchema
+      if lhsIsChinese && rhsIsChinese {
+        let lhsPrefer = lhs.schemaId == "rime_ice"
+        let rhsPrefer = rhs.schemaId == "rime_ice"
+        if lhsPrefer != rhsPrefer {
+          return lhsPrefer
+        }
+      }
+      if lhs.schemaId != rhs.schemaId {
+        return lhs.schemaId < rhs.schemaId
+      }
+      return lhs.schemaName < rhs.schemaName
+    }
   }
 
   func setCurrentSchema(_ schema: RimeSchema?) {
@@ -494,7 +517,7 @@ public extension RimeContext {
       // 取交集
       let intersection = Set(schemas).intersection(selectSchemas)
       if !intersection.isEmpty {
-        selectSchemas = Array(intersection).sorted()
+        selectSchemas = orderedSelectSchemas(Array(intersection))
       } else {
         // 交集为空时保持 selectSchemas 为空，由 loadAppData() 处理
         selectSchemas = []
@@ -609,7 +632,7 @@ public extension RimeContext {
       // 取交集
       let intersection = Set(mutableSchemas).intersection(selectSchemas)
       if !intersection.isEmpty {
-        selectSchemas = Array(intersection).sorted()
+        selectSchemas = orderedSelectSchemas(Array(intersection))
       } else {
         // 交集为空时保持 selectSchemas 为空，由 loadAppData() 处理
         selectSchemas = []

@@ -176,9 +176,24 @@ public class InputSchemaViewModel {
 
   func schemas(in group: SchemaGroup) -> [RimeSchema] {
     let schemas = rimeContext.schemas.filter { schemaGroup(for: $0) == group }
-    guard group == .japanese else { return schemas }
-    return japaneseSchemas.map { placeholder in
-      schemas.first(where: { $0.schemaId == placeholder.schemaId }) ?? placeholder
+    switch group {
+    case .chineseEnglish:
+      // UI 顺序与内核选择顺序保持一致：雾凇方案固定置顶，其余稳定排序
+      return schemas.sorted { lhs, rhs in
+        let lhsPrefer = lhs.schemaId == "rime_ice"
+        let rhsPrefer = rhs.schemaId == "rime_ice"
+        if lhsPrefer != rhsPrefer {
+          return lhsPrefer
+        }
+        if lhs.schemaId != rhs.schemaId {
+          return lhs.schemaId < rhs.schemaId
+        }
+        return lhs.schemaName < rhs.schemaName
+      }
+    case .japanese:
+      return japaneseSchemas.map { placeholder in
+        schemas.first(where: { $0.schemaId == placeholder.schemaId }) ?? placeholder
+      }
     }
   }
 
