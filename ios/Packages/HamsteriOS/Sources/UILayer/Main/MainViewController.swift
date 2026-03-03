@@ -293,6 +293,7 @@ open class MainTabBarController: UITabBarController {
   private var pendingVoiceRequestId: String?
   private var pendingVoiceLaunchedFromKeyboard = false
   private var pendingCanvasRequestId: String?
+  private var embeddedTabIndexMap: [String: Int] = [:]
 
   private lazy var canvasController = VoiceCanvasViewController()
   private lazy var markdownController = VoiceMarkdownViewController()
@@ -320,6 +321,7 @@ open class MainTabBarController: UITabBarController {
   }
 
   private func setupTabs() {
+    embeddedTabIndexMap.removeAll()
     tabBar.backgroundColor = .systemBackground
     tabBar.tintColor = .label
     tabBar.unselectedItemTintColor = .secondaryLabel
@@ -356,12 +358,29 @@ open class MainTabBarController: UITabBarController {
       selectedImage: UIImage(systemName: "gearshape.fill")
     )
 
-    viewControllers = [
+    var tabs: [UIViewController] = [
       canvasNavigationController,
       markdownNavigationController,
       homeNavigationController,
       accountNavigationController
     ]
+
+    let embeddedTabs = MainAppEmbeddedModuleRegistry.shared.makeEmbeddedTabs()
+    for item in embeddedTabs {
+      let rootController = item.makeRootViewController()
+      let navigationController = UINavigationController(rootViewController: rootController)
+      navigationController.navigationBar.isHidden = item.hidesNavigationBar
+      navigationController.navigationBar.prefersLargeTitles = item.prefersLargeTitles
+      navigationController.tabBarItem = UITabBarItem(
+        title: item.title,
+        image: UIImage(systemName: item.iconSystemName),
+        selectedImage: UIImage(systemName: item.selectedIconSystemName ?? item.iconSystemName)
+      )
+      embeddedTabIndexMap[item.moduleIdentifier] = tabs.count
+      tabs.append(navigationController)
+    }
+
+    viewControllers = tabs
   }
 
   open func activateSettingsTab() {
@@ -379,6 +398,11 @@ open class MainTabBarController: UITabBarController {
     pendingCanvasRequestId = requestId
     selectedIndex = 0
     deliverPendingRequestsIfNeeded()
+  }
+
+  open func activateEmbeddedModuleTab(moduleIdentifier: String) {
+    guard let index = embeddedTabIndexMap[moduleIdentifier] else { return }
+    selectedIndex = index
   }
 
   private func deliverPendingRequestsIfNeeded() {

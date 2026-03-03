@@ -17,7 +17,7 @@ let package = Package(
     .package(url: "https://github.com/relatedcode/ProgressHUD.git", exact: "14.1.0"),
     .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
     .package(path: "../Runestone"),
-    .package(url: "https://github.com/simonbs/TreeSitterLanguages.git", exact: "0.1.7"),
+    .package(url: "https://github.com/simonbs/TreeSitterLanguages.git", exact: "0.1.10"),
     .package(path: "../HamsterUIKit"),
     .package(path: "../HamsterKit"),
     .package(path: "../RimeKit"),

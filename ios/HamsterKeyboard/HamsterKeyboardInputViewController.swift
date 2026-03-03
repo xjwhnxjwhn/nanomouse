@@ -8,4 +8,8 @@
 import HamsterKeyboardKit
 import UIKit
 
-public class HamsterKeyboardInputViewController: KeyboardInputViewController {}
+public class HamsterKeyboardInputViewController: KeyboardInputViewController {
+  public override func viewDidLoad() {
+    super.viewDidLoad()
+  }
+}

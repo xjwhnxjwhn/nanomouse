@@ -55,17 +55,38 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     }
 }
 
+enum SidebarSelection: Hashable {
+    case builtIn(SidebarItem)
+    case embedded(String)
+}
+
 struct ContentView: View {
     @StateObject private var manager = RimeConfigManager()
     @StateObject private var schemaStore = SchemaStore()
-    @State private var selection: SidebarItem? = .schemes
+    @StateObject private var embeddedRegistry = EmbeddedModuleRegistry.shared
+    @State private var selection: SidebarSelection? = .builtIn(.schemes)
     @Environment(\.undoManager) var undoManager
 
     var body: some View {
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selection) { item in
-                NavigationLink(value: item) {
-                    Label(item.title, systemImage: item.icon)
+            List(selection: $selection) {
+                Section {
+                    ForEach(SidebarItem.allCases, id: \.id) { item in
+                        NavigationLink(value: SidebarSelection.builtIn(item)) {
+                            Label(item.title, systemImage: item.icon)
+                        }
+                    }
+                }
+
+                let embeddedItems = embeddedRegistry.sidebarItems()
+                if !embeddedItems.isEmpty {
+                    Section("扩展模块") {
+                        ForEach(embeddedItems) { item in
+                            NavigationLink(value: SidebarSelection.embedded(item.id)) {
+                                Label(item.title, systemImage: item.iconSystemName)
+                            }
+                        }
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -100,19 +121,29 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func detailView(for item: SidebarItem) -> some View {
-        switch item {
-        case .nanomouse:
-            NanomouseSettingsView(manager: manager)
-        case .advanced:
-            AdvancedSettingsView(manager: manager)
-        case .help:
-            HelpView(manager: manager)
-        default:
-            SchemaDrivenView(schemaStore: schemaStore,
-                             manager: manager,
-                             sectionIDs: item.sectionIDs,
-                             title: item.title)
+    private func detailView(for selection: SidebarSelection) -> some View {
+        switch selection {
+        case .embedded(let moduleIdentifier):
+            if let view = embeddedRegistry.detailView(moduleIdentifier: moduleIdentifier) {
+                view
+            } else {
+                Text(L10n.selectItem)
+                    .foregroundStyle(.secondary)
+            }
+        case .builtIn(let item):
+            switch item {
+            case .nanomouse:
+                NanomouseSettingsView(manager: manager)
+            case .advanced:
+                AdvancedSettingsView(manager: manager)
+            case .help:
+                HelpView(manager: manager)
+            default:
+                SchemaDrivenView(schemaStore: schemaStore,
+                                 manager: manager,
+                                 sectionIDs: item.sectionIDs,
+                                 title: item.title)
+            }
         }
     }
 }

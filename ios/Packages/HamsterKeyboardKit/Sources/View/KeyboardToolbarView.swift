@@ -25,6 +25,7 @@ class KeyboardToolbarView: NibLessView {
   private var rimeContext: RimeContext
   private let canvasInputBridge: KeyboardCanvasBridge = .shared
   private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
+  private let embeddedModuleEntry: KeyboardEmbeddedModuleEntry? = KeyboardEmbeddedModuleRegistry.shared.keyboardEntries().first
   private var style: CandidateBarStyle
   private var userInterfaceStyle: UIUserInterfaceStyle
   private var oldBounds: CGRect = .zero
@@ -167,6 +168,23 @@ class KeyboardToolbarView: NibLessView {
     return button
   }()
 
+  /// 私有模块按钮（由注册表动态提供）
+  private lazy var embeddedModuleButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.backgroundColor = style.toolbarButtonBackgroundColor
+    let symbolName = embeddedModuleEntry?.iconSystemName ?? "square.on.square"
+    button.setImage(UIImage(systemName: symbolName), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.tintColor = style.toolbarButtonFrontColor
+    button.accessibilityLabel = embeddedModuleEntry?.accessibilityLabel ?? "扩展模块"
+    button.addTarget(self, action: #selector(embeddedModuleTouchDownAction), for: .touchDown)
+    button.addTarget(self, action: #selector(embeddedModuleTouchUpAction), for: .touchUpInside)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
+    return button
+  }()
+
   // TODO: 常用功能栏
   lazy var commonFunctionBar: UIView = {
     let view = UIView(frame: .zero)
@@ -235,6 +253,9 @@ class KeyboardToolbarView: NibLessView {
       logoContainer.addSubview(iconButton)
     }
     commonFunctionBar.addSubview(rightButtonsStack)
+    if embeddedModuleEntry != nil {
+      rightButtonsStack.addArrangedSubview(embeddedModuleButton)
+    }
     rightButtonsStack.addArrangedSubview(canvasButton)
     rightButtonsStack.addArrangedSubview(voiceModeButton)
     if keyboardContext.displayKeyboardDismissButton {
@@ -289,6 +310,12 @@ class KeyboardToolbarView: NibLessView {
         canvasButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
         canvasButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
       ])
+      if embeddedModuleEntry != nil {
+        constraints.append(contentsOf: [
+          embeddedModuleButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
+          embeddedModuleButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
+        ])
+      }
     } else {
       constraints.append(contentsOf: [
         voiceModeButton.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
@@ -296,6 +323,12 @@ class KeyboardToolbarView: NibLessView {
         canvasButton.heightAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
         canvasButton.widthAnchor.constraint(equalTo: voiceModeButton.widthAnchor),
       ])
+      if embeddedModuleEntry != nil {
+        constraints.append(contentsOf: [
+          embeddedModuleButton.heightAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
+          embeddedModuleButton.widthAnchor.constraint(equalTo: voiceModeButton.widthAnchor),
+        ])
+      }
     }
 
     constraints.append(contentsOf: [
@@ -327,6 +360,8 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
     }
+    embeddedModuleButton.tintColor = style.toolbarButtonFrontColor
+    embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
     canvasButton.tintColor = style.toolbarButtonFrontColor
     canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
@@ -453,6 +488,25 @@ class KeyboardToolbarView: NibLessView {
     actionHandler.handle(.release, on: .url(openURL, id: "canvasInput"))
   }
 
+  @objc func embeddedModuleTouchDownAction() {
+    embeddedModuleButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+  }
+
+  @objc func embeddedModuleTouchUpAction() {
+    embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
+    guard let entry = embeddedModuleEntry else { return }
+    if entry.makeInlineViewController != nil {
+      NotificationCenter.default.post(
+        name: KeyboardEmbeddedModuleNotification.toggle,
+        object: nil,
+        userInfo: [KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey: entry.moduleIdentifier]
+      )
+      return
+    }
+    guard let openURL = entry.makeLaunchURL() else { return }
+    actionHandler.handle(.release, on: .url(openURL, id: "embeddedModule.\(entry.moduleIdentifier)"))
+  }
+
   @objc func openHamsterAppTouchDownAction() {
     logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
   }
@@ -465,6 +519,7 @@ class KeyboardToolbarView: NibLessView {
   @objc func touchCancel() {
     dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
+    embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
     canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
   }
@@ -612,6 +667,9 @@ extension KeyboardToolbarView: UIGestureRecognizerDelegate {
       return false
     }
     if voiceModeButton.frame.contains(point) {
+      return false
+    }
+    if embeddedModuleEntry != nil, embeddedModuleButton.frame.contains(point) {
       return false
     }
     if keyboardContext.displayKeyboardDismissButton, dismissKeyboardButton.frame.contains(point) {

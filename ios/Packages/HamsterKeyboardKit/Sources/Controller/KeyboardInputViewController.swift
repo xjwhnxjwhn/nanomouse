@@ -54,6 +54,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputResyncing = false
   private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
   private let canvasInputBridge: KeyboardCanvasBridge = .shared
+  private var embeddedModuleContainerView: UIView?
+  private var embeddedModuleViewController: UIViewController?
+  private var activeEmbeddedModuleIdentifier: String?
   private var lastVoiceInsertedCharacterCount = 0
   private var lastVoiceInsertedRequestId: String?
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
@@ -69,6 +72,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private let rimeStartupRetryDelay: TimeInterval = 0.35
   private let rimeStartupTimeout: TimeInterval = 5.0
   private let rimeStartupWatchdogPollNanoseconds: UInt64 = 150_000_000
+  private var hasEstablishedHostConnection = false
 
   private struct RimeStartupConfig {
     let maximumNumberOfCandidateWords: Int?
@@ -108,6 +112,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     setupCombineRIMEInput()
     setupRIMELanguageObservation()
     setupBackgroundCommitObservation()
+    setupEmbeddedModuleObservation()
     azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
       guard let self else { return }
       guard self.isAzooKeyInputActive else { return }
@@ -121,6 +126,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    hasEstablishedHostConnection = false
     viewWillSetupKeyboard()
     viewWillSyncWithContext()
     setupRIME()
@@ -141,15 +147,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    hasEstablishedHostConnection = true
     startVoiceResultPollingIfNeeded()
     _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
   }
 
   override open func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    hasEstablishedHostConnection = false
     didApplyDefaultLanguage = false
     stopVoiceResultPolling()
     hideVoiceUndoButton(animated: false)
+    dismissEmbeddedModuleIfNeeded()
   }
 
   override open func viewDidLayoutSubviews() {
@@ -273,6 +282,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
   open var mainTextDocumentProxy: UITextDocumentProxy {
     super.textDocumentProxy
+  }
+
+  /// 仅在与宿主输入框建立连接后，才允许读取 needsInputModeSwitchKey。
+  /// 否则 UIKit 会在日志中报错，并可能在调试断点下中断执行。
+  var canSafelyQueryInputModeSwitchKey: Bool {
+    hasEstablishedHostConnection && viewIfLoaded?.window != nil
   }
 
   /**
@@ -1007,6 +1022,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   /// 当文档中的选择发生变化时，通知输入委托。
   override open func selectionDidChange(_ textInput: UITextInput?) {
     super.selectionDidChange(textInput)
+    hasEstablishedHostConnection = true
     resetAutocomplete()
   }
 
@@ -1015,6 +1031,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   ///   * textInput: 采用 UITextInput 协议的文档实例。
   override open func textWillChange(_ textInput: UITextInput?) {
     super.textWillChange(textInput)
+    hasEstablishedHostConnection = true
 
     // fix: 键盘跟随环境显示数字键盘
     if let keyboardType = textDocumentProxy.keyboardType, keyboardType.isNumberType {
@@ -1030,6 +1047,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   ///   * textInput: 采用 UITextInput 协议的文档实例。
   override open func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
+    hasEstablishedHostConnection = true
 //    performAutocomplete()
 //    performTextContextSync()
 //    tryChangeToPreferredKeyboardTypeAfterTextDidChange()
@@ -4013,6 +4031,95 @@ private extension KeyboardInputViewController {
         }
         .store(in: &cancellables)
     }
+  }
+
+  func setupEmbeddedModuleObservation() {
+    NotificationCenter.default.publisher(for: KeyboardEmbeddedModuleNotification.toggle)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] notification in
+        guard let self else { return }
+        guard let moduleIdentifier = notification.userInfo?[KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey] as? String,
+              moduleIdentifier.isEmpty == false else {
+          return
+        }
+        self.toggleEmbeddedModule(moduleIdentifier: moduleIdentifier)
+      }
+      .store(in: &cancellables)
+  }
+
+  func toggleEmbeddedModule(moduleIdentifier: String) {
+    if activeEmbeddedModuleIdentifier == moduleIdentifier {
+      dismissEmbeddedModuleIfNeeded()
+      return
+    }
+
+    guard let entry = KeyboardEmbeddedModuleRegistry.shared.keyboardEntry(moduleIdentifier: moduleIdentifier),
+          let makeInlineViewController = entry.makeInlineViewController else {
+      return
+    }
+
+    dismissEmbeddedModuleIfNeeded()
+
+    let container = UIView(frame: .zero)
+    container.translatesAutoresizingMaskIntoConstraints = false
+    container.backgroundColor = keyboardContext.colorScheme == .dark ? .black : .systemBackground
+    view.addSubview(container)
+    NSLayoutConstraint.activate([
+      container.topAnchor.constraint(equalTo: view.topAnchor),
+      container.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+      container.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      container.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+    ])
+
+    let moduleViewController = makeInlineViewController(self)
+    moduleViewController.view.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(moduleViewController.view)
+    NSLayoutConstraint.activate([
+      moduleViewController.view.topAnchor.constraint(equalTo: container.topAnchor),
+      moduleViewController.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      moduleViewController.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      moduleViewController.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+    ])
+
+    // 避免按钮点击抬手事件穿透到嵌入模块顶部按钮（尤其是右上角收起按钮），
+    // 导致刚打开就触发 dismissKeyboard。
+    moduleViewController.view.isUserInteractionEnabled = false
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak moduleViewController] in
+      moduleViewController?.view.isUserInteractionEnabled = true
+    }
+
+    // 某些私有模块控制器继承 UIInputViewController；此处避免作为子控制器嵌套，
+    // 仅附加其视图，防止宿主键盘被系统强制回退。
+    if moduleViewController is UIInputViewController {
+      moduleViewController.beginAppearanceTransition(true, animated: false)
+      moduleViewController.endAppearanceTransition()
+    } else {
+      addChild(moduleViewController)
+      moduleViewController.didMove(toParent: self)
+    }
+
+    embeddedModuleContainerView = container
+    embeddedModuleViewController = moduleViewController
+    activeEmbeddedModuleIdentifier = moduleIdentifier
+  }
+
+  func dismissEmbeddedModuleIfNeeded() {
+    if let moduleViewController = embeddedModuleViewController {
+      if moduleViewController is UIInputViewController {
+        moduleViewController.beginAppearanceTransition(false, animated: false)
+        moduleViewController.endAppearanceTransition()
+      } else if moduleViewController.parent === self {
+        moduleViewController.willMove(toParent: nil)
+      }
+      moduleViewController.view.removeFromSuperview()
+      if moduleViewController.parent === self {
+        moduleViewController.removeFromParent()
+      }
+    }
+    embeddedModuleContainerView?.removeFromSuperview()
+    embeddedModuleViewController = nil
+    embeddedModuleContainerView = nil
+    activeEmbeddedModuleIdentifier = nil
   }
 
   func commitPendingCompositionForBackground() {

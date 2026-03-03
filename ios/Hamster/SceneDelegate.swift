@@ -56,6 +56,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       if handleCanvasURL(url) {
         return
       }
+      if handleEmbeddedModuleURL(url) {
+        return
+      }
 
       // url.query(): 获取 `URL` 查询参数
       // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
@@ -105,6 +108,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
       if handleCanvasURL(url) {
+        return
+      }
+      if handleEmbeddedModuleURL(url) {
         return
       }
 
@@ -171,6 +177,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     }
     rootController.activateCanvas(requestId: requestId)
     return true
+  }
+
+  private func handleEmbeddedModuleURL(_ url: URL) -> Bool {
+    guard let rootController = window?.rootViewController as? MainTabBarController else { return false }
+    return MainAppEmbeddedModuleRegistry.shared.handleOpenURL(url) { moduleIdentifier in
+      rootController.activateEmbeddedModuleTab(moduleIdentifier: moduleIdentifier)
+    }
   }
 
   func sceneDidDisconnect(_ scene: UIScene) {

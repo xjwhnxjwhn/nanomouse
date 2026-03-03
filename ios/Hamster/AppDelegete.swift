@@ -5,6 +5,7 @@
 //  Created by morse on 2023/6/5.
 //
 
+import HamsteriOS
 import UIKit
 
 @main
