@@ -11,5 +11,6 @@ import UIKit
 public class HamsterKeyboardInputViewController: KeyboardInputViewController {
   public override func viewDidLoad() {
     super.viewDidLoad()
+    KeyboardEmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
   }
 }

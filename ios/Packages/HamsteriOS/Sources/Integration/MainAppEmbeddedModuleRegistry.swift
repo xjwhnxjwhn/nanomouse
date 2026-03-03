@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import HamsterKit
 
 /// 私有 SPM 模块在主 App 中挂载为独立 Tab 的描述。
 public struct MainAppEmbeddedTabDescriptor {
@@ -79,3 +80,8 @@ public final class MainAppEmbeddedModuleRegistry {
   }
 }
 
+extension MainAppEmbeddedModuleRegistry {
+  public func registerDefaultPrivateProvidersIfNeeded() {
+    // 公共仓库默认不注册任何私有模块，私有侧可通过协议自行注入。
+  }
+}

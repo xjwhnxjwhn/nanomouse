@@ -12,6 +12,10 @@ struct SCTApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var updaterViewModel = UpdaterViewModel()
 
+    init() {
+        EmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

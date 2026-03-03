@@ -5,6 +5,7 @@
 //  Created by Codex on 2026/2/28.
 //
 
+import Foundation
 import SwiftUI
 
 /// mac 端私有模块侧边栏入口描述。
@@ -52,3 +53,8 @@ final class EmbeddedModuleRegistry: ObservableObject {
     }
 }
 
+extension EmbeddedModuleRegistry {
+    func registerDefaultPrivateProvidersIfNeeded() {
+        // 公共仓库默认不注册任何私有模块，私有侧可通过协议自行注入。
+    }
+}

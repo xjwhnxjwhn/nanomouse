@@ -7,6 +7,7 @@
 
 import Foundation
 import UIKit
+import HamsterKit
 
 /// 私有 SPM 在键盘扩展中的入口描述。
 public struct KeyboardEmbeddedModuleEntry {
@@ -70,5 +71,11 @@ public final class KeyboardEmbeddedModuleRegistry {
 
   public func keyboardEntry(moduleIdentifier: String) -> KeyboardEmbeddedModuleEntry? {
     keyboardEntries().first(where: { $0.moduleIdentifier == moduleIdentifier })
+  }
+}
+
+extension KeyboardEmbeddedModuleRegistry {
+  public func registerDefaultPrivateProvidersIfNeeded() {
+    // 公共仓库默认不注册任何私有模块，私有侧可通过协议自行注入。
   }
 }
