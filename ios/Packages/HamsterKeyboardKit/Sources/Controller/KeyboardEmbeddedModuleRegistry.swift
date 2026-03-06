@@ -8,6 +8,9 @@
 import Foundation
 import UIKit
 import HamsterKit
+#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
+import EmbeddedKeyboardModuleBridge
+#endif
 
 /// 私有 SPM 在键盘扩展中的入口描述。
 public struct KeyboardEmbeddedModuleEntry {
@@ -49,6 +52,7 @@ public final class KeyboardEmbeddedModuleRegistry {
   public static let shared = KeyboardEmbeddedModuleRegistry()
 
   private var providers: [KeyboardEmbeddedModuleProvider] = []
+  private var didRegisterDefaultPrivateProviders = false
 
   private init() {}
 
@@ -76,6 +80,48 @@ public final class KeyboardEmbeddedModuleRegistry {
 
 extension KeyboardEmbeddedModuleRegistry {
   public func registerDefaultPrivateProvidersIfNeeded() {
-    // 公共仓库默认不注册任何私有模块，私有侧可通过协议自行注入。
+    guard didRegisterDefaultPrivateProviders == false else { return }
+    didRegisterDefaultPrivateProviders = true
+
+    #if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
+      EmbeddedKeyboardModuleBridge.configure(
+        EmbeddedKeyboardRuntimeConfiguration(
+          appGroupIdentifier: HamsterConstants.appGroupName,
+          cloudKitContainerIdentifier: HamsterConstants.iCloudID
+        )
+      )
+      register(provider: EmbeddedKeyboardRegistryAdapter())
+    #endif
   }
 }
+
+#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
+private final class EmbeddedKeyboardRegistryAdapter: KeyboardEmbeddedModuleProvider {
+  let moduleIdentifier: String
+
+  private let descriptor: EmbeddedKeyboardEntryDescriptor
+
+  init() {
+    let descriptor = EmbeddedKeyboardModuleBridge.defaultEntryDescriptor()
+    self.descriptor = descriptor
+    self.moduleIdentifier = descriptor.moduleIdentifier
+  }
+
+  func makeKeyboardEntry() -> KeyboardEmbeddedModuleEntry? {
+    KeyboardEmbeddedModuleEntry(
+      moduleIdentifier: descriptor.moduleIdentifier,
+      iconSystemName: descriptor.iconSystemName,
+      accessibilityLabel: descriptor.accessibilityLabel,
+      makeInlineViewController: { hostInputViewController in
+        EmbeddedKeyboardModuleBridge.makeInlineViewController(
+          hostInputViewController: hostInputViewController,
+          onRequestClose: { hostInputViewController.dismissKeyboard() }
+        )
+      },
+      makeLaunchURL: {
+        EmbeddedKeyboardModuleBridge.makeLaunchURL()
+      }
+    )
+  }
+}
+#endif

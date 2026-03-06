@@ -7,6 +7,9 @@
 
 import Foundation
 import SwiftUI
+#if canImport(EmbeddedMacModuleBridge)
+import EmbeddedMacModuleBridge
+#endif
 
 /// mac 端私有模块侧边栏入口描述。
 struct EmbeddedModuleSidebarItem: Identifiable, Hashable {
@@ -28,6 +31,7 @@ final class EmbeddedModuleRegistry: ObservableObject {
     static let shared = EmbeddedModuleRegistry()
 
     @Published private(set) var providers: [EmbeddedModuleProvider] = []
+    private var didRegisterDefaultPrivateProviders = false
 
     private init() {}
 
@@ -55,6 +59,67 @@ final class EmbeddedModuleRegistry: ObservableObject {
 
 extension EmbeddedModuleRegistry {
     func registerDefaultPrivateProvidersIfNeeded() {
-        // 公共仓库默认不注册任何私有模块，私有侧可通过协议自行注入。
+        guard didRegisterDefaultPrivateProviders == false else { return }
+        didRegisterDefaultPrivateProviders = true
+
+        #if canImport(EmbeddedMacModuleBridge)
+        if let runtimeConfiguration = EmbeddedMacRuntimeConfigurationProvider.resolve() {
+            EmbeddedMacModuleBridge.configure(runtimeConfiguration)
+        }
+        register(provider: EmbeddedMacRegistryAdapter())
+        #endif
     }
 }
+
+#if canImport(EmbeddedMacModuleBridge)
+private enum EmbeddedMacRuntimeConfigurationProvider {
+    private static let appGroupInfoKey = "EMBEDDED_APP_GROUP_IDENTIFIER"
+    private static let cloudKitInfoKey = "EMBEDDED_CLOUDKIT_CONTAINER_IDENTIFIER"
+
+    static func resolve() -> EmbeddedMacRuntimeConfiguration? {
+        let infoDictionary = Bundle.main.infoDictionary
+        guard
+            let appGroupIdentifier = sanitizedString(infoDictionary?[appGroupInfoKey] as? String),
+            let cloudKitContainerIdentifier = sanitizedString(infoDictionary?[cloudKitInfoKey] as? String)
+        else {
+            return nil
+        }
+
+        return EmbeddedMacRuntimeConfiguration(
+            appGroupIdentifier: appGroupIdentifier,
+            cloudKitContainerIdentifier: cloudKitContainerIdentifier
+        )
+    }
+
+    private static func sanitizedString(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+#endif
+
+#if canImport(EmbeddedMacModuleBridge)
+private final class EmbeddedMacRegistryAdapter: EmbeddedModuleProvider {
+    let moduleIdentifier: String
+    private let descriptor: EmbeddedMacSidebarItem
+
+    init() {
+        let descriptor = EmbeddedMacModuleBridge.defaultSidebarItem()
+        self.descriptor = descriptor
+        self.moduleIdentifier = descriptor.moduleIdentifier
+    }
+
+    func sidebarItem() -> EmbeddedModuleSidebarItem? {
+        EmbeddedModuleSidebarItem(
+            id: descriptor.moduleIdentifier,
+            title: descriptor.title,
+            iconSystemName: descriptor.iconSystemName
+        )
+    }
+
+    func makeDetailView() -> AnyView {
+        EmbeddedMacModuleBridge.makeDetailView()
+    }
+}
+#endif
