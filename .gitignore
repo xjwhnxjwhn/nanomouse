@@ -22,6 +22,10 @@ Resources/
 .idea/
 .vscode/
 *.swp
+**/.swiftpm/
+**/xcuserdata/
+**/project.xcworkspace/xcuserdata/
+**/xcschememanagement.plist
 
 # Rime build files
 *.bin

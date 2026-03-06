@@ -73,28 +73,27 @@ extension EmbeddedModuleRegistry {
 
 #if canImport(EmbeddedMacModuleBridge)
 private enum EmbeddedMacRuntimeConfigurationProvider {
-    private static let appGroupInfoKey = "EMBEDDED_APP_GROUP_IDENTIFIER"
-    private static let cloudKitInfoKey = "EMBEDDED_CLOUDKIT_CONTAINER_IDENTIFIER"
-
     static func resolve() -> EmbeddedMacRuntimeConfiguration? {
-        let infoDictionary = Bundle.main.infoDictionary
-        guard
-            let appGroupIdentifier = sanitizedString(infoDictionary?[appGroupInfoKey] as? String),
-            let cloudKitContainerIdentifier = sanitizedString(infoDictionary?[cloudKitInfoKey] as? String)
+        guard let baseIdentifier = resolveBaseBundleIdentifier() else { return nil }
+
+        return EmbeddedMacRuntimeConfiguration(
+            appGroupIdentifier: "group.\(baseIdentifier)",
+            cloudKitContainerIdentifier: "iCloud.\(baseIdentifier)"
+        )
+    }
+
+    private static func resolveBaseBundleIdentifier() -> String? {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+              bundleIdentifier.isEmpty == false
         else {
             return nil
         }
 
-        return EmbeddedMacRuntimeConfiguration(
-            appGroupIdentifier: appGroupIdentifier,
-            cloudKitContainerIdentifier: cloudKitContainerIdentifier
-        )
-    }
+        if bundleIdentifier.hasSuffix(".mac") {
+            return String(bundleIdentifier.dropLast(4))
+        }
 
-    private static func sanitizedString(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        return bundleIdentifier
     }
 }
 #endif

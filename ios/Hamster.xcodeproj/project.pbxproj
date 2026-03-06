@@ -7,7 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		000AD9A7B8B7BF183239A494 /* RimeConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */; };
+		0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */ = {isa = PBXBuildFile; fileRef = 034D1299E7F66EFEFF108E4C /* ConfigSchema.json */; };
+		1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; };
+		21D40FAEAF717B1EA549D7B3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 517FF44AFC9E1AD23C5D2EC8 /* Sparkle */; };
+		282C1F4DD89D7255EA115E05 /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */; };
 		4A438822FEFD4E6892DBDFC0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */; };
+		4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */; };
+		5DF9BD59DBF42A89ADE3C73B /* NanomousePreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 378B1CE6110676BF59B3F635 /* NanomousePreset.swift */; };
+		5E84D052531658EAD03801D6 /* SCTApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A220479952655DE4C296084E /* SCTApp.swift */; };
+		601F27ACEF702E0436559FEF /* AdvancedSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5334DA1ACA6D3D5704A02449 /* AdvancedSettingsView.swift */; };
 		6611EB412F0ECE25005608B9 /* hamster.yaml in Resources */ = {isa = PBXBuildFile; fileRef = C0C9041C2A56412200AF3F15 /* hamster.yaml */; };
 		6611EB422F0ECE26005608B9 /* hamster.yaml in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0C9041C2A56412200AF3F15 /* hamster.yaml */; };
 		6611EB492F15B8E2005608B9 /* icudata.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB452F15B8E2005608B9 /* icudata.xcframework */; };
@@ -18,7 +27,19 @@
 		6611EB4E2F15B8E2005608B9 /* icui18n.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB462F15B8E2005608B9 /* icui18n.xcframework */; };
 		6611EB4F2F15B8E2005608B9 /* icuio.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB472F15B8E2005608B9 /* icuio.xcframework */; };
 		6611EB502F15B8E2005608B9 /* icuuc.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB482F15B8E2005608B9 /* icuuc.xcframework */; };
+		6EEB847DF307BC5D9D7BAAA6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797F32A514B42D5B4A3AC869 /* ContentView.swift */; };
+		7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = A583BF6DB266C2092B020A23 /* Yams */; };
+		7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */; };
 		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
+		80B7B9768052F3128A75BDE1 /* EmbeddedModuleHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */; };
+		83A5021DE0E16A835C24D109 /* UpdaterViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */; };
+		8BD9CC0A7BF1DD566E3C31C8 /* AccessRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 098632F7F01C6BA30216932A /* AccessRequestView.swift */; };
+		93574C47469B70B73C84AC1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 140AD60148CD771E40791AA0 /* Cocoa.framework */; };
+		953C7FAB4F9E5F4305BA83AD /* Help.md in Resources */ = {isa = PBXBuildFile; fileRef = 33B32CEB35D0335627EDE72D /* Help.md */; };
+		98BC9BBF3E85E5DDE9E869EB /* NanomouseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18CC0BE25F6AC0B272E39BD /* NanomouseSettingsView.swift */; };
+		9920617D13E2FE5C1EFB6A1D /* Color+BGR.swift in Sources */ = {isa = PBXBuildFile; fileRef = A158829CDBB269B0462A19E6 /* Color+BGR.swift */; };
+		ACA046B79F6CFD2C14D4155B /* RimeConfigManager+Nanomouse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */; };
+		BF2D8D9467CD35CFFACF092D /* SchemaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */; };
 		C00C26B72B0698E300E92F89 /* HamsterKeyboardKit in Frameworks */ = {isa = PBXBuildFile; productRef = C00C26B62B0698E300E92F89 /* HamsterKeyboardKit */; };
 		C00C26C72B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
 		C00C26C82B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */; };
@@ -57,6 +78,10 @@
 		C0D672B429F1E0E7002D0439 /* SharedSupport.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D672B329F1E066002D0439 /* SharedSupport.zip */; };
 		C0D856CC2B026FF6003DB275 /* rime-ice.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CA2B026FDA003DB275 /* rime-ice.zip */; };
 		C0DA3F422AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */; };
+		C3406F9822F77479D5C35195 /* SchemaValueFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */; };
+		CAB4CF2795F7E8CF88CD1580 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 200105F3FF0CBB3C70788F08 /* Assets.xcassets */; };
+		F4820B196B5346C12F89C37C /* HelpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DCF4D820EA8488FE4668162 /* HelpView.swift */; };
+		F7599F37E25BEE271D85317D /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D226D38D63ADA8902EF4AF /* L10n.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -97,12 +122,32 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EmbeddedModuleHost.swift; sourceTree = "<group>"; };
+		034D1299E7F66EFEFF108E4C /* ConfigSchema.json */ = {isa = PBXFileReference; includeInIndex = 1; path = ConfigSchema.json; sourceTree = "<group>"; };
+		098632F7F01C6BA30216932A /* AccessRequestView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccessRequestView.swift; sourceTree = "<group>"; };
 		113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		140AD60148CD771E40791AA0 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		200105F3FF0CBB3C70788F08 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2DCF4D820EA8488FE4668162 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
+		33B32CEB35D0335627EDE72D /* Help.md */ = {isa = PBXFileReference; includeInIndex = 1; path = Help.md; sourceTree = "<group>"; };
+		3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "RimeConfigManager+Nanomouse.swift"; sourceTree = "<group>"; };
+		378B1CE6110676BF59B3F635 /* NanomousePreset.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NanomousePreset.swift; sourceTree = "<group>"; };
+		446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaStore.swift; sourceTree = "<group>"; };
+		4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaDrivenView.swift; sourceTree = "<group>"; };
+		5334DA1ACA6D3D5704A02449 /* AdvancedSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AdvancedSettingsView.swift; sourceTree = "<group>"; };
 		6611EB452F15B8E2005608B9 /* icudata.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icudata.xcframework; sourceTree = "<group>"; };
 		6611EB462F15B8E2005608B9 /* icui18n.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icui18n.xcframework; sourceTree = "<group>"; };
 		6611EB472F15B8E2005608B9 /* icuio.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuio.xcframework; sourceTree = "<group>"; };
 		6611EB482F15B8E2005608B9 /* icuuc.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuuc.xcframework; sourceTree = "<group>"; };
+		686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterViewModel.swift; sourceTree = "<group>"; };
+		797F32A514B42D5B4A3AC869 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
+		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
+		A220479952655DE4C296084E /* SCTApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SCTApp.swift; sourceTree = "<group>"; };
+		B8525A8107843174DE7A518A /* SCT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = SCT.app; path = SCT.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaValueFormatter.swift; sourceTree = "<group>"; };
 		C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HamsterKeyboardInputViewController.swift; sourceTree = "<group>"; };
 		C00C26BB2B069D6900E92F89 /* boost_filesystem.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = boost_filesystem.xcframework; sourceTree = "<group>"; };
 		C00C26BC2B069D6900E92F89 /* boost_regex.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = boost_regex.xcframework; sourceTree = "<group>"; };
@@ -146,6 +191,10 @@
 		C0D856C92B0213E5003DB275 /* HamsterDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterDebug.entitlements; sourceTree = "<group>"; };
 		C0D856CA2B026FDA003DB275 /* rime-ice.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-ice.zip"; sourceTree = "<group>"; };
 		C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployBackgroundIntent.swift; sourceTree = "<group>"; };
+		DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
+		E18CC0BE25F6AC0B272E39BD /* NanomouseSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NanomouseSettingsView.swift; sourceTree = "<group>"; };
+		E5B34C379075AD857F124ABB /* SCT.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SCT.entitlements; sourceTree = "<group>"; };
+		E9D226D38D63ADA8902EF4AF /* L10n.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -193,9 +242,69 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D288BC1A2E0B1EA6246540D7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				93574C47469B70B73C84AC1E /* Cocoa.framework in Frameworks */,
+				4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */,
+				7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */,
+				1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */,
+				21D40FAEAF717B1EA549D7B3 /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		18AFDF75770F5EBCB0D45C5F /* SCT */ = {
+			isa = PBXGroup;
+			children = (
+				098632F7F01C6BA30216932A /* AccessRequestView.swift */,
+				5334DA1ACA6D3D5704A02449 /* AdvancedSettingsView.swift */,
+				A158829CDBB269B0462A19E6 /* Color+BGR.swift */,
+				797F32A514B42D5B4A3AC869 /* ContentView.swift */,
+				00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */,
+				2DCF4D820EA8488FE4668162 /* HelpView.swift */,
+				DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */,
+				E9D226D38D63ADA8902EF4AF /* L10n.swift */,
+				378B1CE6110676BF59B3F635 /* NanomousePreset.swift */,
+				E18CC0BE25F6AC0B272E39BD /* NanomouseSettingsView.swift */,
+				3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */,
+				803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */,
+				A220479952655DE4C296084E /* SCTApp.swift */,
+				4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */,
+				446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */,
+				BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */,
+				686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */,
+				200105F3FF0CBB3C70788F08 /* Assets.xcassets */,
+				034D1299E7F66EFEFF108E4C /* ConfigSchema.json */,
+				33B32CEB35D0335627EDE72D /* Help.md */,
+				8A0D10CD705986269D449012 /* Info.plist */,
+				E5B34C379075AD857F124ABB /* SCT.entitlements */,
+			);
+			name = SCT;
+			path = SCT;
+			sourceTree = "<group>";
+		};
+		1A259C2DD04B63358176A1D8 /* gui */ = {
+			isa = PBXGroup;
+			children = (
+				18AFDF75770F5EBCB0D45C5F /* SCT */,
+			);
+			name = gui;
+			path = gui;
+			sourceTree = "<group>";
+		};
+		43D10395DB4474F5F01C6387 /* mac */ = {
+			isa = PBXGroup;
+			children = (
+				1A259C2DD04B63358176A1D8 /* gui */,
+			);
+			name = mac;
+			path = ../mac;
+			sourceTree = "<group>";
+		};
 		C00C26BA2B069D3500E92F89 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -213,6 +322,7 @@
 				C00C26C32B069D6A00E92F89 /* libopencc.xcframework */,
 				C00C26C62B069D6A00E92F89 /* librime.xcframework */,
 				C00C26BF2B069D6900E92F89 /* libyaml-cpp.xcframework */,
+				F227DB2716BC6F034BDA0B95 /* OS X */,
 			);
 			path = Frameworks;
 			sourceTree = "<group>";
@@ -269,6 +379,7 @@
 				C08387E82A55101A00EA8082 /* Packages */,
 				C071BECC2970108000E21FBC /* Resources */,
 				C03E8026296D4F4C0083E53A /* Products */,
+				43D10395DB4474F5F01C6387 /* mac */,
 			);
 			sourceTree = "<group>";
 		};
@@ -277,6 +388,7 @@
 			children = (
 				C03E8025296D4F4C0083E53A /* Hamster.app */,
 				C03E803C296D53650083E53A /* HamsterKeyboard.appex */,
+				B8525A8107843174DE7A518A /* SCT.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -339,9 +451,40 @@
 			path = SharedSupport;
 			sourceTree = "<group>";
 		};
+		F227DB2716BC6F034BDA0B95 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				140AD60148CD771E40791AA0 /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		034DB19F16BC2B6AF3641873 /* SCT */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */;
+			buildPhases = (
+				F56E6246A79D1C14864453B7 /* Sources */,
+				D288BC1A2E0B1EA6246540D7 /* Frameworks */,
+				5D3832E36C966D002944B2B1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SCT;
+			packageProductDependencies = (
+				FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */,
+				A583BF6DB266C2092B020A23 /* Yams */,
+				86A69570B6A620619716F664 /* MarkdownUI */,
+				517FF44AFC9E1AD23C5D2EC8 /* Sparkle */,
+			);
+			productName = SCT;
+			productReference = B8525A8107843174DE7A518A /* SCT.app */;
+			productType = "com.apple.product-type.application";
+		};
 		C03E8024296D4F4C0083E53A /* Hamster */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C03E8033296D4F4D0083E53A /* Build configuration list for PBXNativeTarget "Hamster" */;
@@ -418,6 +561,10 @@
 			);
 			mainGroup = C03E801C296D4F4C0083E53A;
 			packageReferences = (
+				3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */,
+				705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */,
+				65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = C03E8026296D4F4C0083E53A /* Products */;
 			projectDirPath = "";
@@ -425,11 +572,22 @@
 			targets = (
 				C03E8024296D4F4C0083E53A /* Hamster */,
 				C03E803B296D53650083E53A /* HamsterKeyboard */,
+				034DB19F16BC2B6AF3641873 /* SCT */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		5D3832E36C966D002944B2B1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CAB4CF2795F7E8CF88CD1580 /* Assets.xcassets in Resources */,
+				0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */,
+				953C7FAB4F9E5F4305BA83AD /* Help.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C03E803A296D53650083E53A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -474,6 +632,30 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0A602B32A185D88000DC924 /* HamsterKeyboardInputViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F56E6246A79D1C14864453B7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8BD9CC0A7BF1DD566E3C31C8 /* AccessRequestView.swift in Sources */,
+				601F27ACEF702E0436559FEF /* AdvancedSettingsView.swift in Sources */,
+				9920617D13E2FE5C1EFB6A1D /* Color+BGR.swift in Sources */,
+				6EEB847DF307BC5D9D7BAAA6 /* ContentView.swift in Sources */,
+				80B7B9768052F3128A75BDE1 /* EmbeddedModuleHost.swift in Sources */,
+				F4820B196B5346C12F89C37C /* HelpView.swift in Sources */,
+				282C1F4DD89D7255EA115E05 /* HotkeyRecorder.swift in Sources */,
+				F7599F37E25BEE271D85317D /* L10n.swift in Sources */,
+				5DF9BD59DBF42A89ADE3C73B /* NanomousePreset.swift in Sources */,
+				98BC9BBF3E85E5DDE9E869EB /* NanomouseSettingsView.swift in Sources */,
+				ACA046B79F6CFD2C14D4155B /* RimeConfigManager+Nanomouse.swift in Sources */,
+				000AD9A7B8B7BF183239A494 /* RimeConfigManager.swift in Sources */,
+				5E84D052531658EAD03801D6 /* SCTApp.swift in Sources */,
+				7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */,
+				BF2D8D9467CD35CFFACF092D /* SchemaStore.swift in Sources */,
+				C3406F9822F77479D5C35195 /* SchemaValueFormatter.swift in Sources */,
+				83A5021DE0E16A835C24D109 /* UpdaterViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -805,9 +987,104 @@
 			};
 			name = Release;
 		};
+		CCB68ACF401775F5E8F5D587 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = RimeIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCT/SCT.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 3;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ../mac/gui/SCT/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SCT;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.mac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F43FFA2BC159491DF6C45863 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = RimeIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
+				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCT/SCT.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 3;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ../mac/gui/SCT/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SCT;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.mac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCB68ACF401775F5E8F5D587 /* Release */,
+				F43FFA2BC159491DF6C45863 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C03E8020296D4F4C0083E53A /* Build configuration list for PBXProject "Hamster" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -837,7 +1114,56 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../mac/Packages/EmbeddedModuleHostKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.8.1;
+			};
+		};
+		65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+		705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		517FF44AFC9E1AD23C5D2EC8 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+		86A69570B6A620619716F664 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+		A583BF6DB266C2092B020A23 /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
+		};
 		C00C26B62B0698E300E92F89 /* HamsterKeyboardKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HamsterKeyboardKit;
@@ -845,6 +1171,11 @@
 		C053ADC22A5D503200EA7EEE /* HamsteriOS */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = HamsteriOS;
+		};
+		FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */;
+			productName = EmbeddedModuleHostKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
