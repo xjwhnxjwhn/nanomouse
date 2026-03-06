@@ -7,9 +7,7 @@
 
 import UIKit
 import HamsterKit
-#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
-import EmbeddedMainModuleBridge
-#endif
+import EmbeddedMainModuleHost
 
 /// 私有 SPM 模块在主 App 中挂载为独立 Tab 的描述。
 public struct MainAppEmbeddedTabDescriptor {
@@ -89,26 +87,23 @@ extension MainAppEmbeddedModuleRegistry {
     guard didRegisterDefaultPrivateProviders == false else { return }
     didRegisterDefaultPrivateProviders = true
 
-    #if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
-      EmbeddedMainModuleBridge.configure(
-        EmbeddedMainRuntimeConfiguration(
-          appGroupIdentifier: HamsterConstants.appGroupName,
-          cloudKitContainerIdentifier: HamsterConstants.iCloudID
-        )
-      )
-      register(provider: EmbeddedMainRegistryAdapter())
-    #endif
+    guard EmbeddedMainModuleHost.isAvailable else { return }
+
+    EmbeddedMainModuleHost.configure(
+      appGroupIdentifier: HamsterConstants.appGroupName,
+      cloudKitContainerIdentifier: HamsterConstants.iCloudID
+    )
+    register(provider: EmbeddedMainRegistryAdapter())
   }
 }
 
-#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
 private final class EmbeddedMainRegistryAdapter: MainAppEmbeddedModuleProvider {
   let moduleIdentifier: String
 
-  private let descriptor: EmbeddedMainTabDescriptor
+  private let descriptor: EmbeddedMainModuleHostTabDescriptor
 
   init() {
-    let descriptor = EmbeddedMainModuleBridge.defaultTabDescriptor()
+    let descriptor = EmbeddedMainModuleHost.defaultTabDescriptor()!
     self.descriptor = descriptor
     self.moduleIdentifier = descriptor.moduleIdentifier
   }
@@ -122,16 +117,15 @@ private final class EmbeddedMainRegistryAdapter: MainAppEmbeddedModuleProvider {
       hidesNavigationBar: descriptor.hidesNavigationBar,
       prefersLargeTitles: descriptor.prefersLargeTitles,
       makeRootViewController: { [self] in
-        EmbeddedMainModuleBridge.makeRootViewController(
+        EmbeddedMainModuleHost.makeRootViewController(
           title: self.descriptor.title,
           prefersLargeTitles: self.descriptor.prefersLargeTitles
-        )
+        )!
       }
     )
   }
 
   func handleOpenURL(_ url: URL, activateTab: (String) -> Void) -> Bool {
-    EmbeddedMainModuleBridge.handleOpenURL(url, activateTab: activateTab)
+    EmbeddedMainModuleHost.handleOpenURL(url, activateTab: activateTab)
   }
 }
-#endif

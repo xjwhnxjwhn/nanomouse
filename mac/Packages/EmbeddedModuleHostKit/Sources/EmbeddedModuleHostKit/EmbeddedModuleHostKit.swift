@@ -1,9 +1,22 @@
 import AppKit
 import Foundation
+import SwiftUI
 
 #if canImport(EmbeddedMacModuleBridge)
 import EmbeddedMacModuleBridge
 #endif
+
+public struct EmbeddedModuleSidebarDescriptor {
+    public let moduleIdentifier: String
+    public let title: String
+    public let iconSystemName: String
+
+    public init(moduleIdentifier: String, title: String, iconSystemName: String) {
+        self.moduleIdentifier = moduleIdentifier
+        self.title = title
+        self.iconSystemName = iconSystemName
+    }
+}
 
 @MainActor
 public final class EmbeddedModuleMenuBarHost {
@@ -90,6 +103,35 @@ public final class EmbeddedModuleMenuBarHost {
         #else
         _ = application
         _ = userInfo
+        #endif
+    }
+
+    public static var isEmbeddedModuleAvailable: Bool {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        true
+        #else
+        false
+        #endif
+    }
+
+    public static func defaultSidebarDescriptor() -> EmbeddedModuleSidebarDescriptor? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        let descriptor = EmbeddedMacModuleBridge.defaultSidebarItem()
+        return EmbeddedModuleSidebarDescriptor(
+            moduleIdentifier: descriptor.moduleIdentifier,
+            title: descriptor.title,
+            iconSystemName: descriptor.iconSystemName
+        )
+        #else
+        return nil
+        #endif
+    }
+
+    public static func makeDetailView() -> AnyView? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        return EmbeddedMacModuleBridge.makeDetailView()
+        #else
+        return nil
         #endif
     }
 }

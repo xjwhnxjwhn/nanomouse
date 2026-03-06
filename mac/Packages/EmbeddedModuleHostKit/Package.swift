@@ -35,9 +35,18 @@ if hasPrivateEmbeddedPackage {
 let package = Package(
   name: "EmbeddedModuleHostKit",
   platforms: [
+    .iOS(.v16),
     .macOS(.v13),
   ],
   products: [
+    .library(
+      name: "EmbeddedMainModuleHost",
+      targets: ["EmbeddedMainModuleHost"]
+    ),
+    .library(
+      name: "EmbeddedKeyboardModuleHost",
+      targets: ["EmbeddedKeyboardModuleHost"]
+    ),
     .library(
       name: "EmbeddedModuleHostKit",
       targets: ["EmbeddedModuleHostKit"]
@@ -45,6 +54,22 @@ let package = Package(
   ],
   dependencies: dependencies,
   targets: [
+    .target(
+      name: "EmbeddedMainModuleHost",
+      dependencies: hasPrivateEmbeddedPackage ? [
+        .product(name: "EmbeddedMainModuleBridge", package: privateEmbeddedPackageIdentity!),
+      ] : [],
+      path: "Sources/EmbeddedMainModuleHost",
+      swiftSettings: hasPrivateEmbeddedPackage ? [.define("EMBEDDED_MODULE_BRIDGE_ENABLED")] : []
+    ),
+    .target(
+      name: "EmbeddedKeyboardModuleHost",
+      dependencies: hasPrivateEmbeddedPackage ? [
+        .product(name: "EmbeddedKeyboardModuleBridge", package: privateEmbeddedPackageIdentity!),
+      ] : [],
+      path: "Sources/EmbeddedKeyboardModuleHost",
+      swiftSettings: hasPrivateEmbeddedPackage ? [.define("EMBEDDED_MODULE_BRIDGE_ENABLED")] : []
+    ),
     .target(
       name: "EmbeddedModuleHostKit",
       dependencies: targetDependencies,

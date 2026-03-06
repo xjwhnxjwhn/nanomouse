@@ -8,9 +8,7 @@
 import Foundation
 import UIKit
 import HamsterKit
-#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
-import EmbeddedKeyboardModuleBridge
-#endif
+import EmbeddedKeyboardModuleHost
 
 /// 私有 SPM 在键盘扩展中的入口描述。
 public struct KeyboardEmbeddedModuleEntry {
@@ -83,26 +81,23 @@ extension KeyboardEmbeddedModuleRegistry {
     guard didRegisterDefaultPrivateProviders == false else { return }
     didRegisterDefaultPrivateProviders = true
 
-    #if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
-      EmbeddedKeyboardModuleBridge.configure(
-        EmbeddedKeyboardRuntimeConfiguration(
-          appGroupIdentifier: HamsterConstants.appGroupName,
-          cloudKitContainerIdentifier: HamsterConstants.iCloudID
-        )
-      )
-      register(provider: EmbeddedKeyboardRegistryAdapter())
-    #endif
+    guard EmbeddedKeyboardModuleHost.isAvailable else { return }
+
+    EmbeddedKeyboardModuleHost.configure(
+      appGroupIdentifier: HamsterConstants.appGroupName,
+      cloudKitContainerIdentifier: HamsterConstants.iCloudID
+    )
+    register(provider: EmbeddedKeyboardRegistryAdapter())
   }
 }
 
-#if HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
 private final class EmbeddedKeyboardRegistryAdapter: KeyboardEmbeddedModuleProvider {
   let moduleIdentifier: String
 
-  private let descriptor: EmbeddedKeyboardEntryDescriptor
+  private let descriptor: EmbeddedKeyboardModuleHostEntryDescriptor
 
   init() {
-    let descriptor = EmbeddedKeyboardModuleBridge.defaultEntryDescriptor()
+    let descriptor = EmbeddedKeyboardModuleHost.defaultEntryDescriptor()!
     self.descriptor = descriptor
     self.moduleIdentifier = descriptor.moduleIdentifier
   }
@@ -113,15 +108,14 @@ private final class EmbeddedKeyboardRegistryAdapter: KeyboardEmbeddedModuleProvi
       iconSystemName: descriptor.iconSystemName,
       accessibilityLabel: descriptor.accessibilityLabel,
       makeInlineViewController: { hostInputViewController in
-        EmbeddedKeyboardModuleBridge.makeInlineViewController(
+        EmbeddedKeyboardModuleHost.makeInlineViewController(
           hostInputViewController: hostInputViewController,
           onRequestClose: { hostInputViewController.dismissKeyboard() }
-        )
+        )!
       },
       makeLaunchURL: {
-        EmbeddedKeyboardModuleBridge.makeLaunchURL()
+        EmbeddedKeyboardModuleHost.makeLaunchURL()
       }
     )
   }
 }
-#endif

@@ -7,9 +7,7 @@
 
 import Foundation
 import SwiftUI
-#if canImport(EmbeddedMacModuleBridge)
-import EmbeddedMacModuleBridge
-#endif
+import EmbeddedModuleHostKit
 
 /// mac 端私有模块侧边栏入口描述。
 struct EmbeddedModuleSidebarItem: Identifiable, Hashable {
@@ -20,6 +18,7 @@ struct EmbeddedModuleSidebarItem: Identifiable, Hashable {
 
 /// 私有 SPM 模块在 mac 端接入协议。
 /// 模块只需要注册入口和详情页视图，主应用无需复制模块源码。
+@MainActor
 protocol EmbeddedModuleProvider: AnyObject {
     var moduleIdentifier: String { get }
     func sidebarItem() -> EmbeddedModuleSidebarItem?
@@ -27,6 +26,7 @@ protocol EmbeddedModuleProvider: AnyObject {
 }
 
 /// mac 端私有模块注册表。
+@MainActor
 final class EmbeddedModuleRegistry: ObservableObject {
     static let shared = EmbeddedModuleRegistry()
 
@@ -62,49 +62,18 @@ extension EmbeddedModuleRegistry {
         guard didRegisterDefaultPrivateProviders == false else { return }
         didRegisterDefaultPrivateProviders = true
 
-        #if canImport(EmbeddedMacModuleBridge)
-        if let runtimeConfiguration = EmbeddedMacRuntimeConfigurationProvider.resolve() {
-            EmbeddedMacModuleBridge.configure(runtimeConfiguration)
-        }
+        guard EmbeddedModuleMenuBarHost.isEmbeddedModuleAvailable else { return }
         register(provider: EmbeddedMacRegistryAdapter())
-        #endif
     }
 }
 
-#if canImport(EmbeddedMacModuleBridge)
-private enum EmbeddedMacRuntimeConfigurationProvider {
-    static func resolve() -> EmbeddedMacRuntimeConfiguration? {
-        guard let baseIdentifier = resolveBaseBundleIdentifier() else { return nil }
-
-        return EmbeddedMacRuntimeConfiguration(
-            appGroupIdentifier: "group.\(baseIdentifier)",
-            cloudKitContainerIdentifier: "iCloud.\(baseIdentifier)"
-        )
-    }
-
-    private static func resolveBaseBundleIdentifier() -> String? {
-        guard let bundleIdentifier = Bundle.main.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
-              bundleIdentifier.isEmpty == false
-        else {
-            return nil
-        }
-
-        if bundleIdentifier.hasSuffix(".mac") {
-            return String(bundleIdentifier.dropLast(4))
-        }
-
-        return bundleIdentifier
-    }
-}
-#endif
-
-#if canImport(EmbeddedMacModuleBridge)
+@MainActor
 private final class EmbeddedMacRegistryAdapter: EmbeddedModuleProvider {
     let moduleIdentifier: String
-    private let descriptor: EmbeddedMacSidebarItem
+    private let descriptor: EmbeddedModuleSidebarDescriptor
 
     init() {
-        let descriptor = EmbeddedMacModuleBridge.defaultSidebarItem()
+        let descriptor = EmbeddedModuleMenuBarHost.defaultSidebarDescriptor()!
         self.descriptor = descriptor
         self.moduleIdentifier = descriptor.moduleIdentifier
     }
@@ -118,7 +87,6 @@ private final class EmbeddedMacRegistryAdapter: EmbeddedModuleProvider {
     }
 
     func makeDetailView() -> AnyView {
-        EmbeddedMacModuleBridge.makeDetailView()
+        EmbeddedModuleMenuBarHost.makeDetailView()!
     }
 }
-#endif

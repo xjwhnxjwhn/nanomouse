@@ -2,23 +2,6 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
-import Foundation
-
-let privateEmbeddedPackagePath = ProcessInfo.processInfo.environment["EMBEDDED_MODULE_PATH"]?
-  .trimmingCharacters(in: .whitespacesAndNewlines)
-let resolvedPrivateEmbeddedPackagePath: String? = {
-  guard let privateEmbeddedPackagePath else { return nil }
-  guard !privateEmbeddedPackagePath.isEmpty else { return nil }
-  return URL(fileURLWithPath: privateEmbeddedPackagePath).standardizedFileURL.path
-}()
-let hasPrivateEmbeddedPackage = resolvedPrivateEmbeddedPackagePath
-  .map { FileManager.default.fileExists(atPath: $0) } ?? false
-let privateEmbeddedPackageIdentity = resolvedPrivateEmbeddedPackagePath.map {
-  URL(fileURLWithPath: $0)
-    .resolvingSymlinksInPath()
-    .lastPathComponent
-    .lowercased()
-}
 
 var dependencies: [Package.Dependency] = [
   .package(url: "https://github.com/relatedcode/ProgressHUD.git", exact: "14.1.0"),
@@ -30,11 +13,8 @@ var dependencies: [Package.Dependency] = [
   .package(path: "../RimeKit"),
   .package(path: "../HamsterKeyboardKit"),
   .package(path: "../HamsterFileServer"),
+  .package(path: "../../mac/Packages/EmbeddedModuleHostKit"),
 ]
-
-if hasPrivateEmbeddedPackage {
-  dependencies.append(.package(path: resolvedPrivateEmbeddedPackagePath!))
-}
 
 var hamsterDependencies: [Target.Dependency] = [
   "Runestone",
@@ -51,18 +31,12 @@ var hamsterDependencies: [Target.Dependency] = [
   .product(name: "RimeKit", package: "RimeKit"),
   "HamsterFileServer",
   "WhisperKit",
+  .product(name: "EmbeddedMainModuleHost", package: "EmbeddedModuleHostKit"),
 ]
 
 var hamsterSwiftSettings: [SwiftSetting] = [
   .interoperabilityMode(.Cxx),
 ]
-
-if hasPrivateEmbeddedPackage {
-  hamsterDependencies.append(
-    .product(name: "EmbeddedMainModuleBridge", package: privateEmbeddedPackageIdentity!)
-  )
-  hamsterSwiftSettings.append(.define("HAMSTER_EMBEDDED_MODULE_BRIDGE_ENABLED"))
-}
 
 let package = Package(
   name: "HamsteriOS",
