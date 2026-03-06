@@ -21,10 +21,6 @@ struct SCTApp: App {
         .commands {
             applicationCommands
         }
-
-        Settings {
-            SettingsRootContentView(usesEmbeddedMenuBarHost: appDelegate.usesEmbeddedMenuBarHost)
-        }
     }
 
     @CommandsBuilder
@@ -69,20 +65,6 @@ private struct RootWindowContentView: View {
     }
 }
 
-private struct SettingsRootContentView: View {
-    let usesEmbeddedMenuBarHost: Bool
-
-    var body: some View {
-        Group {
-            if usesEmbeddedMenuBarHost {
-                ContentView()
-            } else {
-                EmptyView()
-            }
-        }
-    }
-}
-
 private struct EmbeddedMenuBarPlaceholderView: View {
     var body: some View {
         Color.clear
@@ -105,6 +87,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.openSettingsWindow()
         }
     )
+    private var settingsWindow: NSWindow?
 
     var usesEmbeddedMenuBarHost: Bool {
         embeddedMenuBarHost.isAvailable
@@ -151,9 +134,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func openSettingsWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        let didOpenSettings = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        if didOpenSettings == false, let firstWindow = NSApp.windows.first {
-            firstWindow.makeKeyAndOrderFront(nil)
+        if usesEmbeddedMenuBarHost == false {
+            if let firstWindow = NSApp.windows.first {
+                firstWindow.makeKeyAndOrderFront(nil)
+            }
+            return
         }
+
+        if settingsWindow == nil {
+            let controller = NSHostingController(rootView: ContentView())
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 960, height: 620),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = L10n.appTitle
+            window.center()
+            window.contentViewController = controller
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            settingsWindow = window
+        }
+
+        settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        guard window == settingsWindow else { return }
+        settingsWindow = nil
     }
 }
