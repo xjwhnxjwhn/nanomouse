@@ -13,7 +13,7 @@ var dependencies: [Package.Dependency] = [
   .package(path: "../RimeKit"),
   .package(path: "../HamsterKeyboardKit"),
   .package(path: "../HamsterFileServer"),
-  .package(path: "../../mac/Packages/EmbeddedModuleHostKit"),
+  .package(path: "../../../mac/Packages/EmbeddedModuleHostKit"),
 ]
 
 var hamsterDependencies: [Target.Dependency] = [

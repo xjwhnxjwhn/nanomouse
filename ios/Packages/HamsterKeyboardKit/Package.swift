@@ -11,7 +11,7 @@ var dependencies: [Package.Dependency] = [
   .package(url: "https://github.com/weichsel/ZIPFoundation.git", exact: "0.9.16"),
   .package(url: "https://github.com/jpsim/Yams.git", exact: "5.0.6"),
   .package(path: "../AzooKeyKanaKanjiConverter"),
-  .package(path: "../../mac/Packages/EmbeddedModuleHostKit"),
+  .package(path: "../../../mac/Packages/EmbeddedModuleHostKit"),
 ]
 
 var targetDependencies: [Target.Dependency] = [
