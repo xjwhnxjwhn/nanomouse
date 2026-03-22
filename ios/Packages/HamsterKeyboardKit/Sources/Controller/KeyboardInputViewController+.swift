@@ -219,6 +219,14 @@ public extension KeyboardInputViewController {
     }
   }
 
+  var shouldUseFullwidthSpaceForCurrentInputMode: Bool {
+    rimeContext.asciiModeSnapshot == false && rimeContext.currentSchema?.isJapaneseSchema == true
+  }
+
+  func preferredSpaceTextForCurrentInputMode() -> String {
+    shouldUseFullwidthSpaceForCurrentInputMode ? "\u{3000}" : .space
+  }
+
   func setLanguageMode(_ mode: LanguageMode) {
     Logger.statistics.info("DBG_LANGSWITCH setLanguageMode: \(String(describing: mode), privacy: .public), currentSchema: \(self.rimeContext.currentSchema?.schemaId ?? "nil", privacy: .public), asciiSnapshot: \(self.rimeContext.asciiModeSnapshot)")
     if isUnifiedCompositionBufferEnabled, hasActiveCompositionForBuffer() {
@@ -452,11 +460,11 @@ public extension KeyboardInputViewController {
         Logger.statistics.info("SystemTextReplacement: feature enabled, calling tryReplace")
         if self.systemTextReplacementManager.tryReplace(in: self.textDocumentProxy) {
           // 替换成功，插入空格后返回
-          self.textDocumentProxy.insertText(.space)
+          self.textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
           return
         }
       }
-      self.textDocumentProxy.insertText(.space)
+      self.textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
     default:
       break
     }

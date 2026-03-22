@@ -708,6 +708,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func adjustedSymbolForContext(_ text: String) -> String {
+    if text == .space, shouldUseFullwidthSpaceForCurrentInputMode {
+      return preferredSpaceTextForCurrentInputMode()
+    }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return text }
     guard CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar) else { return text }
     if isAzooKeyInputActive || isEnglishInputActive { return text }
@@ -3712,7 +3715,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
       }
-      appendToCompositionPrefix(.space)
+      appendToCompositionPrefix(preferredSpaceTextForCurrentInputMode())
       return
     }
     // 英语输入模式的特殊键处理
@@ -3726,10 +3729,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         // 空格键：确认第一个候选词
         if let commit = englishEngine.commitCandidate(at: 0) {
           if isUnifiedCompositionBufferEnabled {
-            appendToCompositionPrefix(commit + " ")
+            appendToCompositionPrefix(commit + preferredSpaceTextForCurrentInputMode())
           } else {
             textDocumentProxy.insertText(commit)
-            textDocumentProxy.insertText(.space)
+            textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
           }
         }
         clearEnglishState()
@@ -3784,11 +3787,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
           Logger.statistics.info("SystemTextReplacement: space key pressed (AzooKey), trying replacement")
           if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
-            textDocumentProxy.insertText(.space)
+            textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
             return
           }
         }
-        textDocumentProxy.insertText(.space)
+        textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
         return
       default:
         tryHandleSpecificCode(keyCode)
@@ -3800,7 +3803,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
         Logger.statistics.info("SystemTextReplacement: space key pressed with no RIME input, trying replacement")
         if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
-          textDocumentProxy.insertText(.space)
+          textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
           return
         }
       }
