@@ -49,8 +49,8 @@ open class StandardInputSetProvider: InputSetProviderProxy {
    用于特定键盘上下文的 provider。
    */
   open func provider(for context: KeyboardContext) -> InputSetProvider {
-    if context.keyboardType.isChinese { return chineseProvider }
     if shouldUseJapaneseProvider { return japaneseProvider }
+    if context.keyboardType.isChinese { return chineseProvider }
     return englishProvider
   }
 

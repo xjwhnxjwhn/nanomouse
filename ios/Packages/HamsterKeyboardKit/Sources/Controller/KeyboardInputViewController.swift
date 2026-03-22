@@ -4281,6 +4281,11 @@ private extension KeyboardInputViewController {
 
       if startupSucceeded {
         await self.rimeContext.syncAsciiModeFromEngine()
+      }
+
+      self.finishRimeStartup(startupID: startupID, startupSucceeded: startupSucceeded)
+
+      if startupSucceeded {
         await MainActor.run { [weak self] in
           self?.applyDefaultLanguageIfNeeded(reason: "startupOrAlreadyRunning")
         }
@@ -4289,8 +4294,6 @@ private extension KeyboardInputViewController {
           self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "startupFailed")
         }
       }
-
-      self.finishRimeStartup(startupID: startupID, startupSucceeded: startupSucceeded)
     }
     storeRimeStartupTask(startupTask)
   }
