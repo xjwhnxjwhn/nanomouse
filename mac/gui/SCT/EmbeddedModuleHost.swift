@@ -70,19 +70,21 @@ extension EmbeddedModuleRegistry {
 @MainActor
 private final class EmbeddedMacRegistryAdapter: EmbeddedModuleProvider {
     let moduleIdentifier: String
-    private let descriptor: EmbeddedModuleSidebarDescriptor
+    private let title: String
+    private let iconSystemName: String
 
     init() {
         let descriptor = EmbeddedModuleMenuBarHost.defaultSidebarDescriptor()!
-        self.descriptor = descriptor
         self.moduleIdentifier = descriptor.moduleIdentifier
+        self.title = descriptor.title
+        self.iconSystemName = descriptor.iconSystemName
     }
 
     func sidebarItem() -> EmbeddedModuleSidebarItem? {
         EmbeddedModuleSidebarItem(
-            id: descriptor.moduleIdentifier,
-            title: descriptor.title,
-            iconSystemName: descriptor.iconSystemName
+            id: moduleIdentifier,
+            title: title,
+            iconSystemName: iconSystemName
         )
     }
 
