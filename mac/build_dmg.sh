@@ -8,8 +8,8 @@ GUI_DIR="$MAC_DIR/gui"
 INSTALLERS_DIR="$PROJECT_ROOT/installers/mac"
 BUILD_DIR="$PROJECT_ROOT/build"
 STAGING_DIR="$BUILD_DIR/dmg-staging"
-DMG_NAME="Nanomouse-Installer.dmg"
-APP_NAME="Nanomouse Configurator.app"
+DMG_NAME="NanoMouse-Installer.dmg"
+APP_NAME="NanoMouse.app"
 INSTALLER_APP_NAME="Install Configs.app"
 
 # Cleanup
@@ -17,7 +17,7 @@ rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"
 mkdir -p "$BUILD_DIR"
 
-echo "🚀 Starting Nanomouse macOS Build..."
+echo "🚀 Starting NanoMouse macOS Build..."
 
 # Load Environment Variables from .env if present
 if [ -f "$MAC_DIR/.env" ]; then
@@ -44,7 +44,7 @@ if [ -z "$DEVELOPMENT_TEAM" ] && [ -n "$CODE_SIGN_IDENTITY" ]; then
 fi
 
 # 1. Build GUI App
-echo "📦 Building SCT GUI..."
+echo "📦 Building NanoMouse app..."
 cd "$GUI_DIR"
 
 # Construct xcodebuild args
@@ -66,13 +66,13 @@ fi
 xcodebuild "${XCODEBUILD_ARGS[@]}" clean build
 
 # Check if build was successful
-GUI_APP_PATH="$BUILD_DIR/SCT-Build/Build/Products/Release/SCT.app"
+GUI_APP_PATH="$BUILD_DIR/SCT-Build/Build/Products/Release/NanoMouse.app"
 if [ ! -d "$GUI_APP_PATH" ]; then
     echo "❌ GUI Build Failed!"
     exit 1
 fi
 
-GUI_BINARY_PATH="$GUI_APP_PATH/Contents/MacOS/SCT"
+GUI_BINARY_PATH="$GUI_APP_PATH/Contents/MacOS/NanoMouse"
 if [ ! -f "$GUI_BINARY_PATH" ]; then
     echo "❌ GUI binary not found at $GUI_BINARY_PATH"
     exit 1
@@ -123,7 +123,7 @@ cp -R "$GUI_APP_PATH" "$STAGING_DIR/$APP_NAME"
 # Copy Readme
 cp "$PROJECT_ROOT/README.md" "$STAGING_DIR/README.md"
 # Create a simple instruction text
-echo "1. Drag 'Nanomouse Configurator.app' to Applications to install the GUI tool." > "$STAGING_DIR/使用说明.txt"
+echo "1. Drag 'NanoMouse.app' to Applications to install the GUI tool." > "$STAGING_DIR/使用说明.txt"
 echo "2. Double click 'Install Configs.app' to assist with Rime configuration setup." >> "$STAGING_DIR/使用说明.txt"
 
 # Copy Configs
@@ -137,7 +137,7 @@ DMG_PATH="$BUILD_DIR/$DMG_NAME"
 rm -f "$DMG_PATH"
 
 # Create DMG
-hdiutil create -volname "Nanomouse Installer" \
+hdiutil create -volname "NanoMouse Installer" \
                -srcfolder "$STAGING_DIR" \
                -ov -format UDZO \
                "$DMG_PATH"

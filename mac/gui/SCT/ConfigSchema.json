@@ -1,7 +1,7 @@
 {
   "version": 1,
   "meta": {
-    "description": "Schema-driven UI definition for Nanomouse GUI. Each field describes how a YAML key should be presented and patched.",
+    "description": "Schema-driven UI definition for NanoMouse GUI. Each field describes how a YAML key should be presented and patched.",
     "targetFiles": {
       "default": "default.custom.yaml",
       "squirrel": "squirrel.custom.yaml"

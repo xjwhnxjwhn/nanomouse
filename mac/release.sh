@@ -4,7 +4,7 @@ set -e
 # Configuration
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build"
-DMG_NAME="Nanomouse-Installer.dmg"
+DMG_NAME="NanoMouse-Installer.dmg"
 DMG_PATH="$BUILD_DIR/$DMG_NAME"
 
 # 1. Check gh CLI
@@ -53,8 +53,8 @@ fi
 # 5. Create GitHub Release
 echo "📦 Uploading to GitHub Releases..."
 
-# Title default: "Nanomouse 1.0.0"
-TITLE="Nanomouse $VERSION"
+# Title default: "NanoMouse 1.0.0"
+TITLE="NanoMouse $VERSION"
 NOTES="$2"
 
 if [ -n "$NOTES" ]; then

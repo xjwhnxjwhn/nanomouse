@@ -1,5 +1,5 @@
 #!/bin/bash
-# Nanomouse 拼音输入法 - Mac 安装脚本
+# NanoMouse 拼音输入法 - Mac 安装脚本
 # 适用于鼠须管 (Squirrel)
 
 set -e
@@ -8,7 +8,7 @@ RIME_DIR="$HOME/Library/Rime"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SHARED_DIR="$SCRIPT_DIR/../shared"
 
-echo "🐭 Nanomouse 拼音输入法安装脚本"
+echo "🐭 NanoMouse 拼音输入法安装脚本"
 echo "================================"
 
 # 检查鼠须管是否安装

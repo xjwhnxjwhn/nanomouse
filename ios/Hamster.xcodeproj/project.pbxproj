@@ -145,7 +145,7 @@
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
 		A220479952655DE4C296084E /* SCTApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SCTApp.swift; sourceTree = "<group>"; };
-		B8525A8107843174DE7A518A /* SCT.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = SCT.app; path = SCT.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B8525A8107843174DE7A518A /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NanoMouse.app; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaValueFormatter.swift; sourceTree = "<group>"; };
 		C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HamsterKeyboardInputViewController.swift; sourceTree = "<group>"; };
@@ -388,7 +388,7 @@
 			children = (
 				C03E8025296D4F4C0083E53A /* Hamster.app */,
 				C03E803C296D53650083E53A /* HamsterKeyboard.appex */,
-				B8525A8107843174DE7A518A /* SCT.app */,
+				B8525A8107843174DE7A518A /* NanoMouse.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -481,8 +481,8 @@
 				86A69570B6A620619716F664 /* MarkdownUI */,
 				517FF44AFC9E1AD23C5D2EC8 /* Sparkle */,
 			);
-			productName = SCT;
-			productReference = B8525A8107843174DE7A518A /* SCT.app */;
+			productName = NanoMouse;
+			productReference = B8525A8107843174DE7A518A /* NanoMouse.app */;
 			productType = "com.apple.product-type.application";
 		};
 		C03E8024296D4F4C0083E53A /* Hamster */ = {
@@ -841,7 +841,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hamster/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Nanomouse;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -886,7 +886,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Hamster/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Nanomouse;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -926,7 +926,7 @@
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HamsterKeyboard/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = NanomouseKeyboard;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouseKeyboard;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -962,7 +962,7 @@
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HamsterKeyboard/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = NanomouseKeyboard;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouseKeyboard;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -1007,7 +1007,8 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ../mac/gui/SCT/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SCT;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouse;
+				INFOPLIST_KEY_CFBundleName = NanoMouse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1017,7 +1018,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = NanoMouse;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -1050,7 +1051,8 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ../mac/gui/SCT/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = SCT;
+				INFOPLIST_KEY_CFBundleDisplayName = NanoMouse;
+				INFOPLIST_KEY_CFBundleName = NanoMouse;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1060,7 +1062,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = NanoMouse;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "034DB19F16BC2B6AF3641873"
-               BuildableName = "SCT.app"
+               BuildableName = "NanoMouse.app"
                BlueprintName = "SCT"
                ReferencedContainer = "container:Hamster.xcodeproj">
             </BuildableReference>
@@ -31,7 +31,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "034DB19F16BC2B6AF3641873"
-            BuildableName = "SCT.app"
+            BuildableName = "NanoMouse.app"
             BlueprintName = "SCT"
             ReferencedContainer = "container:Hamster.xcodeproj">
          </BuildableReference>
@@ -54,7 +54,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "034DB19F16BC2B6AF3641873"
-            BuildableName = "SCT.app"
+            BuildableName = "NanoMouse.app"
             BlueprintName = "SCT"
             ReferencedContainer = "container:Hamster.xcodeproj">
          </BuildableReference>
@@ -71,7 +71,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "034DB19F16BC2B6AF3641873"
-            BuildableName = "SCT.app"
+            BuildableName = "NanoMouse.app"
             BlueprintName = "SCT"
             ReferencedContainer = "container:Hamster.xcodeproj">
          </BuildableReference>

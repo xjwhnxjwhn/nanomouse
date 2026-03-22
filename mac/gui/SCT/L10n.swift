@@ -3,8 +3,8 @@ import Foundation
 /// Centralized UI strings for localization and easier maintenance.
 struct L10n {
     // Sidebar & Navigation
-    static let appTitle = "Nanomouse 配置"
-    static let nanomouse = "Nanomouse"
+    static let appTitle = "NanoMouse"
+    static let nanomouse = "NanoMouse"
     static let schemes = "输入方案"
     static let panel = "候选词面板"
     static let behaviors = "输入行为"
@@ -12,7 +12,7 @@ struct L10n {
     static let advanced = "高级设置"
     static let help = "帮助"
     static let selectItem = "请选择一个项目"
-    static let sctWebsite = "Nanomouse GitHub"
+    static let sctWebsite = "NanoMouse GitHub"
     static let squirrelWebsite = "Squirrel 官网"
     static let checkForUpdates = "检查更新..."
 
@@ -38,7 +38,7 @@ struct L10n {
 
     // Access Request
     static let accessTitle = "需要访问 Rime 配置目录"
-    static let accessDescription = "为了读取和修改您的 Squirrel 配置，Nanomouse GUI 需要访问您的 Rime 目录（通常位于 ~/Library/Rime）。"
+    static let accessDescription = "为了读取和修改您的 Squirrel 配置，NanoMouse 需要访问您的 Rime 目录（通常位于 ~/Library/Rime）。"
     static let accessButton = "授权访问 ~/Library/Rime"
     static let accessFooter = "您的授权将被安全地存储，以便下次自动访问。"
     static let accessPrompt = "请选择您的 Rime 配置目录 (通常是 ~/Library/Rime)"
@@ -139,7 +139,7 @@ struct L10n {
     static let showInFinder = "在 Finder 中显示 Rime 目录"
     static let helpLoadError = "无法加载帮助文档。"
     static let version = "版本 %@"
-    static let copyright = "© 2026 Nanomouse. All rights reserved."
+    static let copyright = "© 2026 NanoMouse. All rights reserved."
     static let checkUpdates = "检查更新..."
     static let resetAccess = "重置目录授权"
     static let on = "开启"
@@ -154,9 +154,9 @@ struct L10n {
     static let schemaParseFailed = "Schema 解析失败：%@"
 
     // Nanomouse
-    static let nanomouseIntro = "Nanomouse 会为所选方案追加拼音优化规则（ng→nn 等）。"
+    static let nanomouseIntro = "NanoMouse 会为所选方案追加拼音优化规则（ng→nn 等）。"
     static let nanomouseHint = "提示：这些规则写入对应的 *.custom.yaml，不会覆盖你的其他配置。"
-    static let nanomouseEnabled = "已启用 Nanomouse 规则：%@"
-    static let nanomouseDisabled = "已关闭 Nanomouse 规则：%@"
-    static let nanomouseNoChange = "Nanomouse 规则无变化：%@"
+    static let nanomouseEnabled = "已启用 NanoMouse 规则：%@"
+    static let nanomouseDisabled = "已关闭 NanoMouse 规则：%@"
+    static let nanomouseNoChange = "NanoMouse 规则无变化：%@"
 }
