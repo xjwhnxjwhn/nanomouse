@@ -669,6 +669,40 @@ public extension FileManager {
     }
   }
 
+  /// 读取 Rime 用户目录文本文件；若用户目录不存在，则回退到内置 rime-ice.zip。
+  public static func loadRimeUserDataTextFile(named fileName: String) -> String? {
+    let fm = FileManager.default
+    let candidateURLs = [
+      appGroupUserDataDirectoryURL.appendingPathComponent(fileName),
+      sandboxUserDataDirectory.appendingPathComponent(fileName),
+    ]
+
+    for url in candidateURLs {
+      guard fm.fileExists(atPath: url.path) else { continue }
+      if let text = try? String(contentsOf: url, encoding: .utf8) {
+        return text
+      }
+    }
+
+    let bundledZipURL = appSharedSupportDirectory.appendingPathComponent(HamsterConstants.userDataZipFile)
+    guard let archive = Archive(url: bundledZipURL, accessMode: .read),
+          let entry = archive[fileName]
+    else {
+      return nil
+    }
+
+    var data = Data()
+    do {
+      _ = try archive.extract(entry, skipCRC32: true) { chunk in
+        data.append(chunk)
+      }
+      return String(data: data, encoding: .utf8)
+    } catch {
+      Logger.statistics.error("load bundled Rime text file failed: \(fileName), error: \(error.localizedDescription)")
+      return nil
+    }
+  }
+
   /// 输出 Rime 用户目录结构，便于核对实际路径
   static func debugRimeUserDataLayout(in dst: URL, note: String) {
     guard UserDefaults.hamster.enableRimeDictRepairLog else { return }
