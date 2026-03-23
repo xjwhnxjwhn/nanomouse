@@ -6,65 +6,99 @@
 //
 
 import Foundation
+import HamsterKit
 
 public struct AccentCharacterProvider {
+  private static let symbolsFileName = "symbols_v.yaml"
+  private static let cacheLock = NSLock()
+  private static var cachedAccents: [String: [String]]?
+
+  private static let fallbackAccents: [String: [String]] = {
+    var accents = AccentSymbolsVSingle.letterAccents
+    accents["$"] = ["¥", "€", "£", "¢", "₽", "₩"]
+    accents["\""] = ["“", "”", "„", "«", "»"]
+    accents["'"] = ["‘", "’", "`"]
+    accents["."] = ["…"]
+    accents["?"] = ["¿"]
+    accents["!"] = ["¡"]
+    accents["-"] = ["–", "—", "•"]
+    accents["/"] = ["\\"]
+    accents["%"] = ["‰"]
+    return accents
+  }()
+
   /// 获取按键对应的变音符号列表
   public static func accents(for key: String) -> [String]? {
-    switch key.lowercased() {
-    case "a":
-      // Pinyin: ā á ǎ à
-      // European: â ä å ã æ (removed duplicate à, a)
-      return ["ā", "á", "ǎ", "à", "â", "ä", "å", "ã", "æ"]
-    case "o":
-      // Pinyin: ō ó ǒ ò
-      // European: ô ö õ œ (removed duplicate ò, o)
-      return ["ō", "ó", "ǒ", "ò", "ô", "ö", "õ", "œ"]
-    case "e":
-      // Pinyin: ē é ě è
-      // European: ê ë (removed duplicate è, e)
-      return ["ē", "é", "ě", "è", "ê", "ë"]
-    case "i":
-      // Pinyin: ī í ǐ ì
-      // European: î ï (removed duplicate ì, i)
-      return ["ī", "í", "ǐ", "ì", "î", "ï"]
-    case "u":
-      // Pinyin: ū ú ǔ ù
-      // European: û ü (removed duplicate ù, u)
-      // Note: ü is also used in Pinyin as v, but kept here for European support on u key
-      return ["ū", "ú", "ǔ", "ù", "û", "ü"]
-    case "v":
-      // v 在拼音输入中通常映射为 ü
-      return ["ü", "ǖ", "ǘ", "ǚ", "ǜ"]
-    case "n":
-      return ["ñ", "ń", "ň"]
-    case "c":
-      return ["ç", "ć", "č"]
-    case "s":
-      return ["ß", "ś", "š"]
-    case "z":
-      return ["ź", "ž", "ż"]
-    case "y":
-      return ["ý", "ÿ"]
-    case "$":
-      return ["¥", "€", "£", "¢", "₽", "₩"]
-    case "\"":
-      return ["“", "”", "„", "«", "»"]
-    case "'":
-      return ["‘", "’", "`"]
-    case ".":
-      return ["…"]
-    case "?":
-      return ["¿"]
-    case "!":
-      return ["¡"]
-    case "-":
-      return ["–", "—", "•"]
-    case "/":
-      return ["\\"]
-    case "%":
-      return ["‰"]
-    default:
+    accentMap()[key.lowercased()]
+  }
+
+  static func buildAccentMap(symbolsVYaml: String?) -> [String: [String]] {
+    var accents = fallbackAccents
+    guard let symbolsVYaml else { return accents }
+
+    for line in symbolsVYaml.split(whereSeparator: \.isNewline) {
+      guard let (key, values) = parseSymbolsLine(String(line)) else { continue }
+      accents[key] = values
+    }
+    return accents
+  }
+
+  private static func accentMap() -> [String: [String]] {
+    cacheLock.lock()
+    defer { cacheLock.unlock() }
+
+    if let cachedAccents {
+      return cachedAccents
+    }
+
+    let yaml = FileManager.loadRimeUserDataTextFile(named: symbolsFileName)
+    let accents = buildAccentMap(symbolsVYaml: yaml)
+    cachedAccents = accents
+    return accents
+  }
+
+  private static func parseSymbolsLine(_ line: String) -> (String, [String])? {
+    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("'v"), trimmed.contains(": ["), trimmed.hasSuffix("]") else {
       return nil
     }
+
+    let parts = trimmed.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+    guard parts.count == 2 else { return nil }
+
+    let rawKey = parts[0]
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "'"))
+    guard rawKey.count == 2,
+          rawKey.hasPrefix("v"),
+          let letter = rawKey.last,
+          ("a"..."z").contains(String(letter))
+    else {
+      return nil
+    }
+
+    let rawValues = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+    guard rawValues.first == "[", rawValues.last == "]" else { return nil }
+
+    let body = String(rawValues.dropFirst().dropLast())
+    let values = normalizedEntries(from: body)
+    guard !values.isEmpty else { return nil }
+    return (String(letter), values)
+  }
+
+  private static func normalizedEntries(from body: String) -> [String] {
+    var entries: [String] = []
+    var seen = Set<String>()
+
+    for rawValue in body.split(separator: ",", omittingEmptySubsequences: false) {
+      let value = rawValue
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .trimmingCharacters(in: CharacterSet(charactersIn: "'\""))
+      guard !value.isEmpty else { continue }
+      guard seen.insert(value).inserted else { continue }
+      entries.append(value)
+    }
+
+    return entries
   }
 }

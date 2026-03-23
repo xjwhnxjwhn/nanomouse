@@ -14,12 +14,12 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private var highlightedChar: String?
 
   private let menuContainer = UIView()
-  private let stackView = UIStackView()
   private var charButtons: [UIButton] = []
 
   private let buttonSize = CGSize(width: 36, height: 44) // 宽度从 44 减小到 36，更紧凑
   private let padding: CGFloat = 4 // padding 从 8 减小到 4
   private let spacing: CGFloat = 0 // spacing 从 4 减小到 0，紧密排列
+  private let rowSpacing: CGFloat = 4
   private let edgeInset: CGFloat = 2 // 边缘留白减小
 
   init(
@@ -41,8 +41,13 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
 
   func positionMenu(above buttonFrame: CGRect, in bounds: CGRect) {
     let count = max(chars.count, 1)
-    let menuWidth = padding * 2 + buttonSize.width * CGFloat(count) + spacing * CGFloat(max(count - 1, 0))
-    let menuHeight = padding * 2 + buttonSize.height
+    let maxContentWidth = max(bounds.width - edgeInset * 2 - padding * 2, buttonSize.width)
+    let maxColumns = max(Int((maxContentWidth + spacing) / (buttonSize.width + spacing)), 1)
+    let columns = min(count, maxColumns)
+    let rows = Int(ceil(Double(count) / Double(columns)))
+
+    let menuWidth = padding * 2 + buttonSize.width * CGFloat(columns) + spacing * CGFloat(max(columns - 1, 0))
+    let menuHeight = padding * 2 + buttonSize.height * CGFloat(rows) + rowSpacing * CGFloat(max(rows - 1, 0))
 
     var origin = CGPoint(
       x: buttonFrame.midX - menuWidth / 2,
@@ -66,23 +71,17 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     }
 
     menuContainer.frame = CGRect(origin: origin, size: CGSize(width: menuWidth, height: menuHeight))
-    stackView.frame = CGRect(
-      x: padding,
-      y: padding,
-      width: menuWidth - padding * 2,
-      height: buttonSize.height
-    )
+    layoutButtons(columns: columns)
   }
 
   /// 处理拖拽手势选择
   func handleDrag(at point: CGPoint, in view: UIView) {
-    // 将点转换到 stackView 坐标系
-    let localPoint = view.convert(point, to: stackView)
+    let localPoint = view.convert(point, to: self)
     
     // 查找包含触摸点的按钮
     var foundChar: String?
     for button in charButtons {
-      if button.frame.contains(view.convert(point, to: stackView)) {
+      if button.convert(button.bounds, to: self).contains(localPoint) {
         foundChar = chars[button.tag]
         break
       }
@@ -146,12 +145,6 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     menuContainer.layer.shadowOffset = CGSize(width: 0, height: 4)
 
     addSubview(menuContainer)
-    menuContainer.addSubview(stackView)
-
-    stackView.axis = .horizontal
-    stackView.alignment = .fill
-    stackView.distribution = .fillEqually
-    stackView.spacing = spacing
 
     for (index, char) in chars.enumerated() {
       let button = UIButton(type: .custom)
@@ -174,9 +167,22 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
       button.layer.cornerRadius = 6
       button.tag = index
       button.addTarget(self, action: #selector(handleOptionTap(_:)), for: .touchUpInside)
+      button.frame.size = buttonSize
       
-      stackView.addArrangedSubview(button)
+      menuContainer.addSubview(button)
       charButtons.append(button)
+    }
+  }
+
+  private func layoutButtons(columns: Int) {
+    guard columns > 0 else { return }
+
+    for (index, button) in charButtons.enumerated() {
+      let row = index / columns
+      let column = index % columns
+      let x = padding + CGFloat(column) * (buttonSize.width + spacing)
+      let y = padding + CGFloat(row) * (buttonSize.height + rowSpacing)
+      button.frame = CGRect(origin: CGPoint(x: x, y: y), size: buttonSize)
     }
   }
 
