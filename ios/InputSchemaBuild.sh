@@ -2,21 +2,23 @@
 # encoding: utf-8
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IOS_ROOT="${SCRIPT_DIR}"
+
 # 输入方案临时目录
 if [[ -z "${CI_PRIMARY_REPOSITORY_PATH}" ]]; then
-  CI_PRIMARY_REPOSITORY_PATH="$PWD"
-  WORK=`pwd`
+  REPO_ROOT="$(cd "${IOS_ROOT}/.." && pwd)"
+  WORK="$(pwd)"
 else
   CI_PRIMARY_REPOSITORY_PATH="${CI_PRIMARY_REPOSITORY_PATH}"
+  if [[ -d "${CI_PRIMARY_REPOSITORY_PATH}/ios/Resources" ]]; then
+    REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH}"
+  else
+    REPO_ROOT="$(cd "${CI_PRIMARY_REPOSITORY_PATH}/.." && pwd)"
+  fi
   WORK="${CI_PRIMARY_REPOSITORY_PATH}"
 fi
 
-# repo root (for zips output)
-if [[ -d "${CI_PRIMARY_REPOSITORY_PATH}/ios/Resources" ]]; then
-  REPO_ROOT="${CI_PRIMARY_REPOSITORY_PATH}"
-else
-  REPO_ROOT="$(cd "${CI_PRIMARY_REPOSITORY_PATH}/.." && pwd)"
-fi
 ZIPS_DIR="${REPO_ROOT}/zips"
 mkdir -p "${ZIPS_DIR}"
 
@@ -48,7 +50,7 @@ fi
 
 
 
-OUTPUT="$CI_PRIMARY_REPOSITORY_PATH/.tmp"
+OUTPUT="$REPO_ROOT/.tmp"
 DST_PATH="$OUTPUT/SharedSupport"
 rm -rf .plum $OUTPUT
 mkdir -p $DST_PATH/opencc
@@ -98,7 +100,7 @@ mv default.yaml.min default.yaml
 popd > /dev/null
 
 # SharedSupport
-SHARED_SUPPORT_DIR="$CI_PRIMARY_REPOSITORY_PATH/ios/Resources/SharedSupport"
+SHARED_SUPPORT_DIR="$IOS_ROOT/Resources/SharedSupport"
 mkdir -p "$SHARED_SUPPORT_DIR"
 (
   cp "$SHARED_SUPPORT_DIR/hamster.yaml" "$DST_PATH"
@@ -349,6 +351,15 @@ patch:
     - derive/^dian$/sian/
     - derive/^co$/xo/
     - derive/^cong$/xong/
+    - derive/^na$/ns/
+    - derive/^hou$/hiu/
+    - derive/^xiann$/ciann/
+    - derive/^qiann$/wiann/
+    - derive/^jiu$/jou/
+    - derive/^chenn$/chrnn/
+    - derive/^fen$/frn/
+    - derive/^duo$/fuo/
+    - derive/^wo$/eo/
 
     # 纠错：辅音后误触 w/r → e（通用）
     - derive/^(zh|ch|sh)e$/$1w/

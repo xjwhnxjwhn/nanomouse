@@ -232,6 +232,15 @@ patch:
     - derive/^dian$/sian/
     - derive/^co$/xo/
     - derive/^cong$/xong/
+    - derive/^na$/ns/
+    - derive/^hou$/hiu/
+    - derive/^xiann$/ciann/
+    - derive/^qiann$/wiann/
+    - derive/^jiu$/jou/
+    - derive/^chenn$/chrnn/
+    - derive/^fen$/frn/
+    - derive/^duo$/fuo/
+    - derive/^wo$/eo/
 
     # 纠错：辅音后误触 w/r → e（通用）
     - derive/^(zh|ch|sh)e$/$1w/
