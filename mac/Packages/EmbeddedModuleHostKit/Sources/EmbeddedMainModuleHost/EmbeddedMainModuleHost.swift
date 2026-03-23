@@ -30,6 +30,25 @@ public struct EmbeddedMainModuleHostTabDescriptor {
     }
 }
 
+public struct EmbeddedMainModuleHostSettingsDescriptor {
+    public let moduleIdentifier: String
+    public let title: String
+    public let iconSystemName: String
+    public let prefersLargeTitles: Bool
+
+    public init(
+        moduleIdentifier: String,
+        title: String,
+        iconSystemName: String,
+        prefersLargeTitles: Bool = false
+    ) {
+        self.moduleIdentifier = moduleIdentifier
+        self.title = title
+        self.iconSystemName = iconSystemName
+        self.prefersLargeTitles = prefersLargeTitles
+    }
+}
+
 public enum EmbeddedMainModuleHost {
     public static var isAvailable: Bool {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
@@ -78,6 +97,36 @@ public enum EmbeddedMainModuleHost {
     ) -> UIViewController? {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
         EmbeddedMainModuleBridge.makeRootViewController(
+            title: title,
+            prefersLargeTitles: prefersLargeTitles
+        )
+        #else
+        _ = title
+        _ = prefersLargeTitles
+        return nil
+        #endif
+    }
+
+    public static func defaultSettingsDescriptor() -> EmbeddedMainModuleHostSettingsDescriptor? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        let descriptor = EmbeddedMainModuleBridge.defaultSettingsDescriptor()
+        return EmbeddedMainModuleHostSettingsDescriptor(
+            moduleIdentifier: descriptor.moduleIdentifier,
+            title: descriptor.title,
+            iconSystemName: descriptor.iconSystemName,
+            prefersLargeTitles: descriptor.prefersLargeTitles
+        )
+        #else
+        return nil
+        #endif
+    }
+
+    public static func makeSettingsViewController(
+        title: String,
+        prefersLargeTitles: Bool
+    ) -> UIViewController? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        EmbeddedMainModuleBridge.makeSettingsViewController(
             title: title,
             prefersLargeTitles: prefersLargeTitles
         )

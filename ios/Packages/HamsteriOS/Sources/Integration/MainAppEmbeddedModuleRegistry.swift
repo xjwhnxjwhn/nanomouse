@@ -38,12 +38,35 @@ public struct MainAppEmbeddedTabDescriptor {
   }
 }
 
+public struct MainAppEmbeddedSettingsDescriptor {
+  public let moduleIdentifier: String
+  public let title: String
+  public let iconSystemName: String
+  public let prefersLargeTitles: Bool
+  public let makeRootViewController: () -> UIViewController
+
+  public init(
+    moduleIdentifier: String,
+    title: String,
+    iconSystemName: String,
+    prefersLargeTitles: Bool = false,
+    makeRootViewController: @escaping () -> UIViewController
+  ) {
+    self.moduleIdentifier = moduleIdentifier
+    self.title = title
+    self.iconSystemName = iconSystemName
+    self.prefersLargeTitles = prefersLargeTitles
+    self.makeRootViewController = makeRootViewController
+  }
+}
+
 /// 私有 SPM 模块接入协议：
 /// - 提供可选 Tab
 /// - 处理模块专用 deep link
 public protocol MainAppEmbeddedModuleProvider: AnyObject {
   var moduleIdentifier: String { get }
   func makeEmbeddedTab() -> MainAppEmbeddedTabDescriptor?
+  func makeEmbeddedSettings() -> MainAppEmbeddedSettingsDescriptor?
   func handleOpenURL(_ url: URL, activateTab: (String) -> Void) -> Bool
 }
 
@@ -72,6 +95,10 @@ public final class MainAppEmbeddedModuleRegistry {
 
   public func makeEmbeddedTabs() -> [MainAppEmbeddedTabDescriptor] {
     providers.compactMap { $0.makeEmbeddedTab() }
+  }
+
+  public func makeEmbeddedSettingsEntries() -> [MainAppEmbeddedSettingsDescriptor] {
+    providers.compactMap { $0.makeEmbeddedSettings() }
   }
 
   public func handleOpenURL(_ url: URL, activateTab: (String) -> Void) -> Bool {
@@ -120,6 +147,22 @@ private final class EmbeddedMainRegistryAdapter: MainAppEmbeddedModuleProvider {
         EmbeddedMainModuleHost.makeRootViewController(
           title: self.descriptor.title,
           prefersLargeTitles: self.descriptor.prefersLargeTitles
+        )!
+      }
+    )
+  }
+
+  func makeEmbeddedSettings() -> MainAppEmbeddedSettingsDescriptor? {
+    guard let descriptor = EmbeddedMainModuleHost.defaultSettingsDescriptor() else { return nil }
+    return MainAppEmbeddedSettingsDescriptor(
+      moduleIdentifier: descriptor.moduleIdentifier,
+      title: descriptor.title,
+      iconSystemName: descriptor.iconSystemName,
+      prefersLargeTitles: descriptor.prefersLargeTitles,
+      makeRootViewController: {
+        EmbeddedMainModuleHost.makeSettingsViewController(
+          title: descriptor.title,
+          prefersLargeTitles: descriptor.prefersLargeTitles
         )!
       }
     )

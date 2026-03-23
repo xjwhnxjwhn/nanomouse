@@ -294,6 +294,7 @@ open class MainTabBarController: UITabBarController {
   private var pendingVoiceLaunchedFromKeyboard = false
   private var pendingCanvasRequestId: String?
   private var embeddedTabIndexMap: [String: Int] = [:]
+  private var accountTabIndex = 3
 
   private lazy var canvasController = VoiceCanvasViewController()
   private lazy var markdownController = VoiceMarkdownViewController()
@@ -361,8 +362,7 @@ open class MainTabBarController: UITabBarController {
     var tabs: [UIViewController] = [
       canvasNavigationController,
       markdownNavigationController,
-      homeNavigationController,
-      accountNavigationController
+      homeNavigationController
     ]
 
     let embeddedTabs = MainAppEmbeddedModuleRegistry.shared.makeEmbeddedTabs()
@@ -380,11 +380,14 @@ open class MainTabBarController: UITabBarController {
       tabs.append(navigationController)
     }
 
+    accountTabIndex = tabs.count
+    tabs.append(accountNavigationController)
+
     viewControllers = tabs
   }
 
   open func activateSettingsTab() {
-    selectedIndex = 3
+    selectedIndex = accountTabIndex
   }
 
   open func activateVoiceDictation(requestId: String, launchedFromKeyboard: Bool = false) {
@@ -2868,6 +2871,9 @@ final class VoiceAccountViewController: NibLessViewController {
   private lazy var dictionaryController = VoiceDictionaryViewController()
   private lazy var historyController = VoiceHistoryViewController()
   private lazy var canvasStorageController = VoiceCanvasStorageViewController()
+  private var embeddedSettingsEntries: [MainAppEmbeddedSettingsDescriptor] {
+    MainAppEmbeddedModuleRegistry.shared.makeEmbeddedSettingsEntries()
+  }
   private lazy var accountProfileController: VoiceAccountProfileViewController = {
     let controller = VoiceAccountProfileViewController()
     controller.onAccountUpdated = { [weak self] in
@@ -2948,7 +2954,7 @@ final class VoiceAccountViewController: NibLessViewController {
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    5
+    6
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -2958,6 +2964,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case 2: return 1
     case 3: return 5
     case 4: return 1
+    case 5: return embeddedSettingsEntries.count
     default: return 0
     }
   }
@@ -3006,6 +3013,10 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case (4, 0):
       cell.textLabel?.text = "画布保存位置"
       cell.imageView?.image = UIImage(systemName: "folder")
+    case (5, let row) where embeddedSettingsEntries.indices.contains(row):
+      let entry = embeddedSettingsEntries[row]
+      cell.textLabel?.text = entry.title
+      cell.imageView?.image = UIImage(systemName: entry.iconSystemName)
     default:
       cell.textLabel?.text = nil
     }
@@ -3047,6 +3058,12 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     }
     if indexPath.section == 4, indexPath.row == 0 {
       navigationController?.pushViewController(canvasStorageController, animated: true)
+      return
+    }
+    if indexPath.section == 5 {
+      guard embeddedSettingsEntries.indices.contains(indexPath.row) else { return }
+      let controller = embeddedSettingsEntries[indexPath.row].makeRootViewController()
+      navigationController?.pushViewController(controller, animated: true)
     }
   }
 }
