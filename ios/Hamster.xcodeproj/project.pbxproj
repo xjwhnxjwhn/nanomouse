@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */; };
 		000AD9A7B8B7BF183239A494 /* RimeConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */; };
 		0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */ = {isa = PBXBuildFile; fileRef = 034D1299E7F66EFEFF108E4C /* ConfigSchema.json */; };
 		1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; };
@@ -246,6 +247,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */,
 				93574C47469B70B73C84AC1E /* Cocoa.framework in Frameworks */,
 				4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */,
 				7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */,
@@ -477,6 +479,7 @@
 			name = SCT;
 			packageProductDependencies = (
 				FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */,
+				0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */,
 				A583BF6DB266C2092B020A23 /* Yams */,
 				86A69570B6A620619716F664 /* MarkdownUI */,
 				517FF44AFC9E1AD23C5D2EC8 /* Sparkle */,
@@ -562,6 +565,7 @@
 			mainGroup = C03E801C296D4F4C0083E53A;
 			packageReferences = (
 				3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */,
+				0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */,
 				705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */,
 				65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */,
@@ -1117,6 +1121,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../shared/NanomouseReviewKit;
+		};
 		3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../mac/Packages/EmbeddedModuleHostKit;
@@ -1151,6 +1159,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */;
+			productName = NanomouseReviewKit;
+		};
 		517FF44AFC9E1AD23C5D2EC8 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */;

@@ -141,6 +141,7 @@ struct L10n {
     static let version = "版本 %@"
     static let copyright = "© 2026 NanoMouse. All rights reserved."
     static let checkUpdates = "检查更新..."
+    static let rateApp = "给 NanoMouse 评分"
     static let resetAccess = "重置目录授权"
     static let on = "开启"
     static let off = "关闭"

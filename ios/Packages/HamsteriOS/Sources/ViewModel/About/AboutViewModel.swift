@@ -8,6 +8,7 @@
 import Combine
 import HamsterKeyboardKit
 import HamsterKit
+import NanomouseReviewKit
 import ProgressHUD
 import UIKit
 
@@ -47,6 +48,11 @@ public class AboutViewModel: ObservableObject {
           DispatchQueue.main.async {
             UIApplication.shared.open(url)
           }
+        }
+      }),
+      .init(text: "给 Nanomouse 评分", secondaryText: "", type: .settings, buttonAction: {
+        DispatchQueue.main.async {
+          AppReviewManager.shared.requestManualReview()
         }
       }),
       .init(text: "联系邮箱", secondaryText: "nanomouse.official@gmail.com", type: .settings, buttonAction: {

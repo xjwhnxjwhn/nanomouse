@@ -1,5 +1,6 @@
 import SwiftUI
 import MarkdownUI
+import NanomouseReviewKit
 
 struct HelpView: View {
     @ObservedObject var manager: RimeConfigManager
@@ -99,6 +100,12 @@ struct HelpView: View {
                         if let url = URL(string: "https://github.com/xjwhnxjwhn/nanomouse") {
                             NSWorkspace.shared.open(url)
                         }
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+
+                    Button(L10n.rateApp) {
+                        AppReviewManager.shared.requestManualReview()
                     }
                     .buttonStyle(.link)
                     .font(.caption)

@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import NanomouseReviewKit
 import Yams
 import AppKit
 
@@ -715,6 +716,7 @@ final class RimeConfigManager: ObservableObject {
             do {
                 try process.run()
                 setStatusMessage(L10n.deployTriggered)
+                AppReviewManager.shared.recordSuccessfulUse()
                 return
             } catch {
                 // Continue to fallback
@@ -736,6 +738,7 @@ final class RimeConfigManager: ObservableObject {
                 }
             }
             setStatusMessage(L10n.timestampUpdated)
+            AppReviewManager.shared.recordSuccessfulUse()
         }
     }
 

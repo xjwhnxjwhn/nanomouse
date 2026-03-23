@@ -7,6 +7,7 @@
 
 import HamsteriOS
 import HamsterKit
+import NanomouseReviewKit
 import OSLog
 import ProgressHUD
 import UIKit
@@ -18,6 +19,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     guard let windowScene = (scene as? UIWindowScene) else { return }
+    AppReviewManager.shared.registerLaunchIfNeeded()
 
     if window == nil {
       let window = UIWindow(windowScene: windowScene)
@@ -198,6 +200,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
     let localeIdentifier = Locale.preferredLanguages.first
     voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
+    AppReviewManager.shared.maybeRequestAutomaticReview()
   }
 
   /// 应用注册 quick action

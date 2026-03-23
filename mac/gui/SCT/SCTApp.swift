@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import EmbeddedModuleHostKit
+import NanomouseReviewKit
 
 @main
 struct SCTApp: App {
@@ -94,7 +95,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppReviewManager.shared.registerLaunchIfNeeded()
         embeddedMenuBarHost.applicationDidFinishLaunching(notification)
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        AppReviewManager.shared.maybeRequestAutomaticReview()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

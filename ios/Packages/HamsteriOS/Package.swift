@@ -14,6 +14,7 @@ var dependencies: [Package.Dependency] = [
   .package(path: "../HamsterKeyboardKit"),
   .package(path: "../HamsterFileServer"),
   .package(path: "../../../mac/Packages/EmbeddedModuleHostKit"),
+  .package(path: "../../../shared/NanomouseReviewKit"),
 ]
 
 var hamsterDependencies: [Target.Dependency] = [
@@ -32,6 +33,7 @@ var hamsterDependencies: [Target.Dependency] = [
   "HamsterFileServer",
   "WhisperKit",
   .product(name: "EmbeddedMainModuleHost", package: "EmbeddedModuleHostKit"),
+  "NanomouseReviewKit",
 ]
 
 var hamsterSwiftSettings: [SwiftSetting] = [

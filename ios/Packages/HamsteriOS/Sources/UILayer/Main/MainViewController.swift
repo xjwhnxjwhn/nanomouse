@@ -8,6 +8,7 @@
 import Combine
 import HamsterKit
 import HamsterUIKit
+import NanomouseReviewKit
 import UIKit
 
 protocol SubViewControllerFactory {
@@ -3684,6 +3685,7 @@ final class VoiceASRSettingsViewController: NibLessViewController {
       message = "已保存在线 ASR 配置。当前主引擎为在线 ASR。"
     }
     presentHintAlert(title: "保存成功", message: message)
+    AppReviewManager.shared.recordSuccessfulUse()
   }
 
   private func applyProvider(_ provider: VoiceASRProvider) {
@@ -4532,6 +4534,7 @@ final class VoiceLLMSettingsViewController: NibLessViewController {
     let alert = UIAlertController(title: "保存成功", message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: "知道了", style: .default))
     present(alert, animated: true)
+    AppReviewManager.shared.recordSuccessfulUse()
   }
 
   private func persistCurrentPresetDraft() {

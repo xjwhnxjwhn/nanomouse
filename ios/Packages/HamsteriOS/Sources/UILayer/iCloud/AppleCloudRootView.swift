@@ -7,6 +7,7 @@
 
 import HamsterKit
 import HamsterUIKit
+import NanomouseReviewKit
 import ProgressHUD
 import UIKit
 
@@ -51,6 +52,7 @@ class AppleCloudRootView: NibLessView {
   @objc func copyRegex() {
     UIPasteboard.general.string = Self.clipboardOnCopyToCloudFilterRegexRemark
     ProgressHUD.success("复制成功", delay: 1.5)
+    AppReviewManager.shared.recordSuccessfulUse()
   }
 }
 

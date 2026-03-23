@@ -43,3 +43,5 @@ mac/.env
 
 # Local private-module backups (must stay local)
 ConfirmTrash/private_spm_backup_*/
+
+shared/NanomouseReviewKit/.build/

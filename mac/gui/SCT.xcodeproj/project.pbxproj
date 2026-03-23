@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1B2C3D4E5F60718293A4B5C /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */; };
 		B5AF88462EF3F1F2000868B9 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = B5AF88452EF3F1F2000868B9 /* Yams */; };
 		B5AF88462EF3F1F2000868BA /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = B5AF88452EF3F1F2000868BA /* MarkdownUI */; };
 		B5FD97A82EF7E9E4009CE14D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B5FD97A72EF7E9E4009CE14D /* Sparkle */; };
@@ -42,6 +43,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F60718293A4B5C /* NanomouseReviewKit in Frameworks */,
 				B5FD97A82EF7E9E4009CE14D /* Sparkle in Frameworks */,
 				B5AF88462EF3F1F2000868BA /* MarkdownUI in Frameworks */,
 				B5AF88462EF3F1F2000868B9 /* Yams in Frameworks */,
@@ -95,6 +97,7 @@
 			);
 			name = SCT;
 			packageProductDependencies = (
+				A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */,
 				B5AF88452EF3F1F2000868BA /* MarkdownUI */,
 				B5AF88452EF3F1F2000868B9 /* Yams */,
 				B5FD97A72EF7E9E4009CE14D /* Sparkle */,
@@ -128,6 +131,7 @@
 			mainGroup = B5AF882D2EF3F059000868B9;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */,
 				B5AF88472EF3F1F2000868BA /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				B5AF88472EF3F1F2000868B9 /* XCRemoteSwiftPackageReference "Yams" */,
 				B5FD97A62EF7E9E4009CE14D /* XCRemoteSwiftPackageReference "Sparkle" */,
@@ -392,6 +396,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../shared/NanomouseReviewKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		B5AF88472EF3F1F2000868B9 /* XCRemoteSwiftPackageReference "Yams" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -420,6 +431,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */;
+			productName = NanomouseReviewKit;
+		};
 		B5AF88452EF3F1F2000868B9 /* Yams */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B5AF88472EF3F1F2000868B9 /* XCRemoteSwiftPackageReference "Yams" */;

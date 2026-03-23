@@ -7,6 +7,7 @@
 
 import Combine
 import HamsterUIKit
+import NanomouseReviewKit
 import ProgressHUD
 import UIKit
 
@@ -65,6 +66,7 @@ public class RimeRootView: NibLessView {
   @objc func copySyncConfig() {
     UIPasteboard.general.string = RimeViewModel.rimeSyncConfigSample
     ProgressHUD.success("复制成功", interaction: false, delay: 1.5)
+    AppReviewManager.shared.recordSuccessfulUse()
   }
 }
 

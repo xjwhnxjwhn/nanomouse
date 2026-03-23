@@ -33,6 +33,8 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NanomouseAppStoreID</key>
+	<string></string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nanomouse 需要使用麦克风进行语音输入。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
