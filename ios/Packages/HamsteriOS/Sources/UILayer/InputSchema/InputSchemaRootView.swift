@@ -46,6 +46,11 @@ class InputSchemaRootView: NibLessView {
         tableView.reloadData()
       }
       .store(in: &subscriptions)
+
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      self.inputSchemaViewModel.refreshRemotePackageStates()
+    }
   }
 
   override func constructViewHierarchy() {
@@ -107,8 +112,8 @@ class InputSchemaRootView: NibLessView {
     return visibleSections[section]
   }
 
-  private func downloadAccessoryView(for schema: RimeSchema) -> UIView {
-    let button = downloadButton(for: schema)
+  private func actionAccessoryView(for schema: RimeSchema, state: InputSchemaViewModel.SchemaActionState) -> UIView {
+    let button = actionButton(for: schema, state: state)
     guard isRecommendedSchema(schema) else { return button }
 
     let badge = UILabel()
@@ -183,13 +188,16 @@ class InputSchemaRootView: NibLessView {
     }
   }
 
-  private func downloadButton(for schema: RimeSchema) -> UIButton {
+  private func actionButton(for schema: RimeSchema, state: InputSchemaViewModel.SchemaActionState) -> UIButton {
     let button = UIButton(type: .system)
-    button.setTitle("下载", for: .normal)
+    button.setTitle(state.buttonTitle, for: .normal)
+    if state == .upgradeApp {
+      button.tintColor = .systemOrange
+    }
     button.contentEdgeInsets = UIEdgeInsets(top: 4, left: 8, bottom: 4, right: 8)
     button.sizeToFit()
     button.addAction(UIAction { [unowned self] _ in
-      self.inputSchemaViewModel.downloadJapaneseSchema(schema)
+      self.inputSchemaViewModel.handleAction(for: schema)
     }, for: .touchUpInside)
     return button
   }
@@ -303,12 +311,11 @@ extension InputSchemaRootView: UITableViewDataSource {
     case .schemaList(let group):
       let schemas = inputSchemaViewModel.schemas(in: group)
       let schema = schemas[indexPath.row]
-      let isJapanese = group == .japanese
-      let isAvailable = inputSchemaViewModel.isSchemaAvailable(schema)
+      let actionState = inputSchemaViewModel.actionState(for: schema)
       config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
       cell.contentConfiguration = config
-      if isJapanese, !isAvailable {
-        cell.accessoryView = downloadAccessoryView(for: schema)
+      if actionState != .none {
+        cell.accessoryView = actionAccessoryView(for: schema, state: actionState)
         cell.accessoryType = .none
       } else if isRecommendedSchema(schema) {
         // 已下载的推荐方案：显示推荐标签

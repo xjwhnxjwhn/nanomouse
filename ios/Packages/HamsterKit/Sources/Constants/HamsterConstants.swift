@@ -38,6 +38,9 @@ public enum HamsterConstants {
   /// 按需下载的 zip 包基础地址（GitHub raw）
   public static let onDemandInputSchemaZipBaseURL = "https://raw.githubusercontent.com/xjwhnxjwhn/nanomouse/main/zips"
 
+  /// 按需下载资源清单
+  public static let onDemandInputSchemaManifestFile = "manifest.json"
+
   /// 日语方案 zip 包（按需下载）
   public static let onDemandJapaneseSchemaZipMap: [String: String] = [
     "japanese": "rime-japanese.zip",

@@ -397,6 +397,59 @@ public extension UserDefaults {
       Logger.statistics.debug("save enableKeyboardExtensionVoiceModeView: \(newValue)")
     }
   }
+
+  /// 远程包最近一次安装版本
+  func remotePackageInstalledVersion(packageId: String) -> String? {
+    string(forKey: Self.remotePackageInstalledVersionKey(for: packageId))
+  }
+
+  func setRemotePackageInstalledVersion(_ version: String?, packageId: String) {
+    let key = Self.remotePackageInstalledVersionKey(for: packageId)
+    if let version {
+      setValue(version, forKey: key)
+      Logger.statistics.debug("save remotePackageInstalledVersion[\(packageId)]: \(version)")
+    } else {
+      removeObject(forKey: key)
+    }
+  }
+
+  /// 远程包最近一次安装 SHA256
+  func remotePackageInstalledSHA256(packageId: String) -> String? {
+    string(forKey: Self.remotePackageInstalledSHA256Key(for: packageId))
+  }
+
+  func setRemotePackageInstalledSHA256(_ sha256: String?, packageId: String) {
+    let key = Self.remotePackageInstalledSHA256Key(for: packageId)
+    if let sha256 {
+      setValue(sha256, forKey: key)
+      Logger.statistics.debug("save remotePackageInstalledSHA256[\(packageId)]: \(sha256)")
+    } else {
+      removeObject(forKey: key)
+    }
+  }
+
+  /// 远程包最近一次检查时间
+  func remotePackageLastCheckAt(packageId: String) -> Date? {
+    object(forKey: Self.remotePackageLastCheckAtKey(for: packageId)) as? Date
+  }
+
+  func setRemotePackageLastCheckAt(_ date: Date?, packageId: String) {
+    let key = Self.remotePackageLastCheckAtKey(for: packageId)
+    if let date {
+      setValue(date, forKey: key)
+      Logger.statistics.debug("save remotePackageLastCheckAt[\(packageId)]: \(date.formatted())")
+    } else {
+      removeObject(forKey: key)
+    }
+  }
+
+  /// 清理远程包本地状态
+  func clearRemotePackageState(packageId: String) {
+    removeObject(forKey: Self.remotePackageInstalledVersionKey(for: packageId))
+    removeObject(forKey: Self.remotePackageInstalledSHA256Key(for: packageId))
+    removeObject(forKey: Self.remotePackageLastCheckAtKey(for: packageId))
+    Logger.statistics.debug("clear remotePackageState[\(packageId)]")
+  }
 }
 
 extension UserDefaults {
@@ -459,8 +512,23 @@ extension UserDefaults {
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"
   private static let azooKeyTypographyLetterKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyTypographyLetter"
   private static let enableKeyboardExtensionVoiceModeViewKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.enableKeyboardExtensionVoiceModeView"
+  private static let remotePackageInstalledVersionPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledVersion."
+  private static let remotePackageInstalledSHA256Prefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledSHA256."
+  private static let remotePackageLastCheckAtPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageLastCheckAt."
 
   // MARK: - 补丁
 
   public static let patch_2_65 = "com.XiangqingZHANG.nanomouse.patchState.2.0.0-65"
+
+  private static func remotePackageInstalledVersionKey(for packageId: String) -> String {
+    remotePackageInstalledVersionPrefix + packageId
+  }
+
+  private static func remotePackageInstalledSHA256Key(for packageId: String) -> String {
+    remotePackageInstalledSHA256Prefix + packageId
+  }
+
+  private static func remotePackageLastCheckAtKey(for packageId: String) -> String {
+    remotePackageLastCheckAtPrefix + packageId
+  }
 }

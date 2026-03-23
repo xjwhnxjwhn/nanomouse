@@ -1,0 +1,76 @@
+{
+  "packages": [
+    {
+      "id": "azookey-dictionary",
+      "fileName": "azookey-dictionary.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "cfa7a71fc8621e40a27de77a03fa507e56184b86a506338789a5026112244daf",
+      "minSharedSupportVersion": "",
+      "title": "AzooKey 词库"
+    },
+    {
+      "id": "rime-japanese",
+      "fileName": "rime-japanese.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "14baed37669ebaa72b457ca79e893f681c27fab1acaf8ef211ad0aa736ebbcf9",
+      "minSharedSupportVersion": "",
+      "title": "rime-japanese"
+    },
+    {
+      "id": "rime-jaroomaji",
+      "fileName": "rime-jaroomaji.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "3709f648596b1d62c2f34618e594bee6d6e096d51242d112d09c21ebb7654338",
+      "minSharedSupportVersion": "",
+      "title": "rime-jaroomaji"
+    },
+    {
+      "id": "rime-jaroomaji-easy",
+      "fileName": "rime-jaroomaji-easy.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "9c55bd11639a966984b1f936ae9567f144913d505dcbaf04f6d1c985ffaa882b",
+      "minSharedSupportVersion": "",
+      "title": "rime-jaroomaji-easy"
+    },
+    {
+      "id": "rime-terra-pinyin",
+      "fileName": "rime-terra-pinyin.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "fd168ba4bb6dd14203eaa6ed31e2554e2707e76db9371c0c2622ea14275a34dd",
+      "minSharedSupportVersion": "",
+      "title": "地球拼音"
+    },
+    {
+      "id": "rime-stroke",
+      "fileName": "rime-stroke.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "8d354982c99721a9a27b769a7025f1f2323b10ef5369aef6d04afd7b6cd539c4",
+      "minSharedSupportVersion": "",
+      "title": "笔画"
+    },
+    {
+      "id": "rime-hangyl",
+      "fileName": "rime-hangyl.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "3f6026751974cb006ecae3e46bdfb7c3cda049f5aff4c1e70342a8e6abd06666",
+      "minSharedSupportVersion": "",
+      "title": "韩语"
+    },
+    {
+      "id": "rime-hannomps",
+      "fileName": "rime-hannomps.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "de2891256b5479bf083e9d59de7879d31c6e83dcd58d4fe6ae169cc66d0c0a0e",
+      "minSharedSupportVersion": "",
+      "title": "越南语"
+    },
+    {
+      "id": "rime-ice",
+      "fileName": "rime-ice.zip",
+      "publishedAt": "2026-03-23",
+      "sha256": "5541768f59c95e7b49d00203bab7361d4cd82b8a409823a65fd9cab5d8825ea0",
+      "minSharedSupportVersion": "2026-03-23",
+      "title": "雾凇拼音"
+    }
+  ]
+}

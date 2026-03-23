@@ -409,6 +409,8 @@ NANOMOUSE_CONFIG
   ) && \
   cp -R $OUTPUT/.$input_scheme_name/*.zip "$SHARED_SUPPORT_DIR/"
 
+cp "$SHARED_SUPPORT_DIR/$input_scheme_name.zip" "$ZIPS_DIR/$input_scheme_name.zip"
+
 # === 内置方案：日语 (rime-japanese) ===
 japanese_scheme_name=rime-japanese
 
@@ -664,3 +666,108 @@ rm -rf $OUTPUT/.$azookey_dictionary_name && \
     zip -r $azookey_dictionary_name.zip Dictionary
   ) && \
   cp -R $OUTPUT/.$azookey_dictionary_name/*.zip $ZIPS_DIR/
+
+# === 生成远程更新清单（manifest.json） ===
+shared_support_version="$(/usr/libexec/PlistBuddy -c 'Print :sharedSupportVersion' "$IOS_ROOT/Hamster/Info.plist" 2>/dev/null || true)"
+published_at="$(date +%F)"
+export ZIPS_DIR
+export shared_support_version
+export published_at
+
+python3 - <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+zips_dir = Path(os.environ["ZIPS_DIR"])
+published_at = os.environ["published_at"]
+shared_support_version = os.environ["shared_support_version"]
+
+packages = [
+    {
+        "id": "azookey-dictionary",
+        "fileName": "azookey-dictionary.zip",
+        "title": "AzooKey 词库",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-japanese",
+        "fileName": "rime-japanese.zip",
+        "title": "rime-japanese",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-jaroomaji",
+        "fileName": "rime-jaroomaji.zip",
+        "title": "rime-jaroomaji",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-jaroomaji-easy",
+        "fileName": "rime-jaroomaji-easy.zip",
+        "title": "rime-jaroomaji-easy",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-terra-pinyin",
+        "fileName": "rime-terra-pinyin.zip",
+        "title": "地球拼音",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-stroke",
+        "fileName": "rime-stroke.zip",
+        "title": "笔画",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-hangyl",
+        "fileName": "rime-hangyl.zip",
+        "title": "韩语",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-hannomps",
+        "fileName": "rime-hannomps.zip",
+        "title": "越南语",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-ice",
+        "fileName": "rime-ice.zip",
+        "title": "雾凇拼音",
+        "minSharedSupportVersion": shared_support_version,
+    },
+]
+
+
+def sha256_for_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+manifest = {"packages": []}
+for package in packages:
+    zip_path = zips_dir / package["fileName"]
+    if not zip_path.exists():
+        continue
+    manifest["packages"].append(
+        {
+            "id": package["id"],
+            "fileName": package["fileName"],
+            "publishedAt": published_at,
+            "sha256": sha256_for_file(zip_path),
+            "minSharedSupportVersion": package["minSharedSupportVersion"],
+            "title": package["title"],
+        }
+    )
+
+(zips_dir / "manifest.json").write_text(
+    json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+PY

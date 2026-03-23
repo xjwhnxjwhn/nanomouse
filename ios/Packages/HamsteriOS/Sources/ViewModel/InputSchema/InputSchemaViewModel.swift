@@ -36,6 +36,150 @@ public class InputSchemaViewModel {
     public var description: String
   }
 
+  enum RemotePackageID: String, CaseIterable {
+    case azooKeyDictionary = "azookey-dictionary"
+    case rimeJapanese = "rime-japanese"
+    case rimeJaroomaji = "rime-jaroomaji"
+    case rimeJaroomajiEasy = "rime-jaroomaji-easy"
+    case rimeTerraPinyin = "rime-terra-pinyin"
+    case rimeStroke = "rime-stroke"
+    case rimeHangyl = "rime-hangyl"
+    case rimeHannomps = "rime-hannomps"
+    case rimeIce = "rime-ice"
+
+    var fileName: String {
+      switch self {
+      case .azooKeyDictionary:
+        HamsterConstants.azooKeyDictionaryZipFile
+      case .rimeJapanese:
+        "rime-japanese.zip"
+      case .rimeJaroomaji:
+        "rime-jaroomaji.zip"
+      case .rimeJaroomajiEasy:
+        "rime-jaroomaji-easy.zip"
+      case .rimeTerraPinyin:
+        "rime-terra-pinyin.zip"
+      case .rimeStroke:
+        "rime-stroke.zip"
+      case .rimeHangyl:
+        "rime-hangyl.zip"
+      case .rimeHannomps:
+        "rime-hannomps.zip"
+      case .rimeIce:
+        HamsterConstants.userDataZipFile
+      }
+    }
+
+    var title: String {
+      switch self {
+      case .azooKeyDictionary:
+        "AzooKey 词库"
+      case .rimeJapanese:
+        "rime-japanese"
+      case .rimeJaroomaji:
+        "rime-jaroomaji"
+      case .rimeJaroomajiEasy:
+        "rime-jaroomaji-easy"
+      case .rimeTerraPinyin:
+        "地球拼音"
+      case .rimeStroke:
+        "笔画"
+      case .rimeHangyl:
+        "韩语"
+      case .rimeHannomps:
+        "越南语"
+      case .rimeIce:
+        "雾凇拼音"
+      }
+    }
+
+    var destination: URL {
+      switch self {
+      case .azooKeyDictionary:
+        FileManager.appGroupAzooKeyDirectoryURL
+      default:
+        FileManager.appGroupUserDataDirectoryURL
+      }
+    }
+
+    var needsRimeDeploy: Bool {
+      self != .azooKeyDictionary
+    }
+
+    static func from(schemaId: String) -> RemotePackageID? {
+      switch schemaId {
+      case HamsterConstants.azooKeySchemaId:
+        .azooKeyDictionary
+      case "japanese":
+        .rimeJapanese
+      case "jaroomaji":
+        .rimeJaroomaji
+      case "jaroomaji-easy":
+        .rimeJaroomajiEasy
+      case "terra_pinyin", "terra_pinyin.extended":
+        .rimeTerraPinyin
+      case "stroke":
+        .rimeStroke
+      case "hangyl", "hangyl_hanja":
+        .rimeHangyl
+      case "hannom":
+        .rimeHannomps
+      case "rime_ice":
+        .rimeIce
+      default:
+        nil
+      }
+    }
+
+    static func from(zipFile: String) -> RemotePackageID? {
+      Self.allCases.first(where: { $0.fileName == zipFile })
+    }
+  }
+
+  struct RemotePackageManifest: Decodable {
+    let packages: [RemotePackageManifestEntry]
+  }
+
+  struct RemotePackageManifestEntry: Decodable {
+    let id: String
+    let fileName: String
+    let publishedAt: String
+    let sha256: String
+    let minSharedSupportVersion: String?
+    let title: String
+  }
+
+  enum RemotePackageStatus {
+    case upToDate
+    case updateAvailable
+    case requiresAppUpgrade
+  }
+
+  enum SchemaActionState: Equatable {
+    case none
+    case download
+    case update
+    case upgradeApp
+
+    var buttonTitle: String {
+      switch self {
+      case .none:
+        ""
+      case .download:
+        "下载"
+      case .update:
+        "更新"
+      case .upgradeApp:
+        "升级App"
+      }
+    }
+  }
+
+  private struct LocalRemotePackageState {
+    let version: String
+    let sha256: String?
+  }
+
   public let rimeContext: RimeContext
   public var inputSchemas = [InputSchemaInfo]()
   public var searchText = ""
@@ -85,6 +229,11 @@ public class InputSchemaViewModel {
   }
 
   private let errorMessageSubject = PassthroughSubject<ErrorMessage, Never>()
+  private var remotePackageManifestByID = [RemotePackageID: RemotePackageManifestEntry]()
+  private var remotePackageStatusByID = [RemotePackageID: RemotePackageStatus]()
+  private var remotePackageRefreshTask: Task<Void, Never>?
+
+  private static let legacyRemotePackageVersion = "1970-01-01"
 
   // MARK: methods
 
@@ -215,6 +364,38 @@ public class InputSchemaViewModel {
   func isSchemaAvailable(_ schema: RimeSchema) -> Bool {
     guard schemaGroup(for: schema) == .japanese else { return true }
     return schemaFileExists(schema.schemaId)
+  }
+
+  func actionState(for schema: RimeSchema) -> SchemaActionState {
+    let isInstalled = schemaFileExists(schema.schemaId)
+    if schemaGroup(for: schema) == .japanese, !isInstalled {
+      return .download
+    }
+    guard let packageID = RemotePackageID.from(schemaId: schema.schemaId) else {
+      return .none
+    }
+    switch remotePackageStatusByID[packageID] {
+    case .updateAvailable:
+      return .update
+    case .requiresAppUpgrade:
+      return .upgradeApp
+    default:
+      return .none
+    }
+  }
+
+  func handleAction(for schema: RimeSchema) {
+    switch actionState(for: schema) {
+    case .none:
+      return
+    case .download:
+      downloadJapaneseSchema(schema)
+    case .update:
+      updateRemotePackage(for: schema)
+    case .upgradeApp:
+      let currentVersion = AppInfo.sharedSupportVersion.isEmpty ? "未知" : AppInfo.sharedSupportVersion
+      ProgressHUD.failed("当前词库依赖更高版本的内置资源。你当前的 SharedSupport 版本是 \(currentVersion)，请先升级 App。", interaction: false, delay: 2)
+    }
   }
 
   var shouldShowRimeIceTraditionalizationSection: Bool {
@@ -393,6 +574,35 @@ public class InputSchemaViewModel {
     }
   }
 
+  @MainActor
+  func refreshRemotePackageStates(force: Bool = false) {
+    if remotePackageRefreshTask != nil, !force {
+      return
+    }
+    remotePackageRefreshTask?.cancel()
+
+    let installedPackageIDs = installedRemotePackageIDs()
+    remotePackageRefreshTask = Task { [weak self] in
+      guard let self else { return }
+      defer { self.remotePackageRefreshTask = nil }
+
+      guard !installedPackageIDs.isEmpty else {
+        self.remotePackageManifestByID = [:]
+        self.remotePackageStatusByID = [:]
+        self.reloadTableStateSubject.send(true)
+        return
+      }
+
+      do {
+        let manifestByID = try await self.fetchRemotePackageManifest()
+        guard !Task.isCancelled else { return }
+        self.applyRemotePackageManifest(manifestByID, installedPackageIDs: installedPackageIDs)
+      } catch {
+        Logger.statistics.error("fetch remote package manifest failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
   private var japaneseSchemas: [RimeSchema] {
     [
       .init(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey"),
@@ -400,6 +610,137 @@ public class InputSchemaViewModel {
       .init(schemaId: "jaroomaji", schemaName: "jaroomaji"),
       .init(schemaId: "jaroomaji-easy", schemaName: "jaroomaji-easy"),
     ]
+  }
+
+  private func installedRemotePackageIDs() -> Set<RemotePackageID> {
+    var packageIDs = Set<RemotePackageID>()
+
+    for schema in rimeContext.schemas {
+      guard let packageID = RemotePackageID.from(schemaId: schema.schemaId) else { continue }
+      packageIDs.insert(packageID)
+    }
+
+    if FileManager.isAzooKeyDictionaryAvailable() {
+      packageIDs.insert(.azooKeyDictionary)
+    }
+
+    if schemaFileExists("rime_ice") {
+      packageIDs.insert(.rimeIce)
+    }
+
+    return packageIDs
+  }
+
+  private func fetchRemotePackageManifest() async throws -> [RemotePackageID: RemotePackageManifestEntry] {
+    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
+      throw StringError("下载地址无效")
+    }
+    let manifestURL = baseURL.appendingPathComponent(HamsterConstants.onDemandInputSchemaManifestFile)
+    let (data, response) = try await URLSession.shared.data(from: manifestURL)
+    if let httpResponse = response as? HTTPURLResponse,
+       !(200...299).contains(httpResponse.statusCode) {
+      throw StringError("获取更新清单失败（HTTP \(httpResponse.statusCode)）")
+    }
+
+    let manifest = try JSONDecoder().decode(RemotePackageManifest.self, from: data)
+    return manifest.packages.reduce(into: [RemotePackageID: RemotePackageManifestEntry]()) { result, entry in
+      guard let packageID = RemotePackageID(rawValue: entry.id) else { return }
+      result[packageID] = entry
+    }
+  }
+
+  private func applyRemotePackageManifest(
+    _ manifestByID: [RemotePackageID: RemotePackageManifestEntry],
+    installedPackageIDs: Set<RemotePackageID>
+  ) {
+    remotePackageManifestByID = manifestByID
+    var statuses = [RemotePackageID: RemotePackageStatus]()
+    let now = Date()
+
+    for packageID in installedPackageIDs {
+      UserDefaults.hamster.setRemotePackageLastCheckAt(now, packageId: packageID.rawValue)
+      guard let manifestEntry = manifestByID[packageID],
+            let localState = localRemotePackageState(for: packageID) else {
+        continue
+      }
+
+      let currentSHA256 = localState.sha256?.lowercased()
+      let remoteSHA256 = manifestEntry.sha256.lowercased()
+      let needsUpgrade = requiresAppUpgrade(for: manifestEntry)
+      let hasNewSHA256 = currentSHA256 != nil && currentSHA256 != remoteSHA256
+      let hasNewVersion = localState.version.compare(manifestEntry.publishedAt, options: .numeric) == .orderedAscending
+
+      if hasNewSHA256 || (currentSHA256 == nil && hasNewVersion) {
+        statuses[packageID] = needsUpgrade ? .requiresAppUpgrade : .updateAvailable
+      } else {
+        statuses[packageID] = .upToDate
+      }
+    }
+
+    remotePackageStatusByID = statuses
+    reloadTableStateSubject.send(true)
+  }
+
+  private func localRemotePackageState(for packageID: RemotePackageID) -> LocalRemotePackageState? {
+    guard installedRemotePackageIDs().contains(packageID) else { return nil }
+
+    let defaults = UserDefaults.hamster
+    let storedVersion = defaults.remotePackageInstalledVersion(packageId: packageID.rawValue)
+    let storedSHA256 = defaults.remotePackageInstalledSHA256(packageId: packageID.rawValue)
+    if storedVersion != nil || storedSHA256 != nil {
+      return LocalRemotePackageState(
+        version: storedVersion ?? Self.legacyRemotePackageVersion,
+        sha256: storedSHA256
+      )
+    }
+
+    // 老用户没有远程包状态字段时，普通按需包一律视为极早版本；
+    // rime-ice 则优先使用当前安装包内置 zip 的 SHA256，避免最新安装包错误地显示“更新”。
+    if packageID == .rimeIce {
+      let bundledZipURL = FileManager.appSharedSupportDirectory.appendingPathComponent(HamsterConstants.userDataZipFile)
+      let bundledSHA256 = FileManager.default.sha256(filePath: bundledZipURL.path)
+      let normalizedSHA256 = bundledSHA256.isEmpty ? nil : bundledSHA256
+      let currentVersion = AppInfo.sharedSupportVersion.isEmpty ? Self.legacyRemotePackageVersion : AppInfo.sharedSupportVersion
+      return LocalRemotePackageState(version: currentVersion, sha256: normalizedSHA256)
+    }
+
+    return LocalRemotePackageState(version: Self.legacyRemotePackageVersion, sha256: nil)
+  }
+
+  private func requiresAppUpgrade(for manifestEntry: RemotePackageManifestEntry) -> Bool {
+    guard let minSharedSupportVersion = manifestEntry.minSharedSupportVersion,
+          !minSharedSupportVersion.isEmpty else {
+      return false
+    }
+    guard !AppInfo.sharedSupportVersion.isEmpty else { return true }
+    return AppInfo.sharedSupportVersion.compare(minSharedSupportVersion, options: .numeric) == .orderedAscending
+  }
+
+  private func markRemotePackageInstalled(_ packageID: RemotePackageID, sha256: String?) {
+    let defaults = UserDefaults.hamster
+    let manifestEntry = remotePackageManifestByID[packageID]
+    defaults.setRemotePackageInstalledVersion(manifestEntry?.publishedAt ?? Self.currentDateString(), packageId: packageID.rawValue)
+    defaults.setRemotePackageInstalledSHA256((sha256 ?? manifestEntry?.sha256)?.lowercased(), packageId: packageID.rawValue)
+    defaults.setRemotePackageLastCheckAt(Date(), packageId: packageID.rawValue)
+    remotePackageStatusByID[packageID] = .upToDate
+  }
+
+  private func clearRemotePackageState(_ packageID: RemotePackageID) {
+    UserDefaults.hamster.clearRemotePackageState(packageId: packageID.rawValue)
+    remotePackageStatusByID.removeValue(forKey: packageID)
+  }
+
+  private func updateRemotePackage(for schema: RimeSchema) {
+    guard let packageID = RemotePackageID.from(schemaId: schema.schemaId) else { return }
+    let manifestEntry = remotePackageManifestByID[packageID]
+    let zipFile = manifestEntry?.fileName ?? packageID.fileName
+    downloadOnDemandZipFiles(
+      [zipFile],
+      title: manifestEntry?.title ?? packageID.title,
+      packageID: packageID,
+      destination: packageID.destination,
+      needsRimeDeploy: packageID.needsRimeDeploy
+    )
   }
 
   private func schemaFileExists(_ schemaId: String) -> Bool {
@@ -418,15 +759,16 @@ public class InputSchemaViewModel {
       downloadAzooKeyDictionary()
       return
     }
-    guard let zipFile = HamsterConstants.onDemandJapaneseSchemaZipMap[schema.schemaId] else {
+    guard let packageID = RemotePackageID.from(schemaId: schema.schemaId),
+          let zipFile = HamsterConstants.onDemandJapaneseSchemaZipMap[schema.schemaId] else {
       ProgressHUD.failed("未找到下载资源", interaction: false, delay: 1.5)
       return
     }
-    downloadOnDemandZipFiles([zipFile], title: displayNameForInputSchemaList(schema))
+    downloadOnDemandZipFiles([zipFile], title: displayNameForInputSchemaList(schema), packageID: packageID)
   }
 
   func downloadExtraSchema(zipFile: String, title: String) {
-    downloadOnDemandZipFiles([zipFile], title: title)
+    downloadOnDemandZipFiles([zipFile], title: title, packageID: RemotePackageID.from(zipFile: zipFile))
   }
 
   func deleteDownloadedSchema(_ schema: RimeSchema) async {
@@ -438,6 +780,7 @@ public class InputSchemaViewModel {
           rimeContext.removeSelectSchema(schema)
         }
         UserDefaults.hamster.azooKeyMode = .standard
+        clearRemotePackageState(.azooKeyDictionary)
         await MainActor.run {
           reloadTableStateSubject.send(true)
           ProgressHUD.success("删除完成", interaction: false, delay: 1.0)
@@ -447,6 +790,9 @@ public class InputSchemaViewModel {
       try removeSchemaFiles(schemaId: schema.schemaId)
       if rimeContext.selectSchemas.contains(schema) {
         rimeContext.removeSelectSchema(schema)
+      }
+      if let packageID = RemotePackageID.from(schemaId: schema.schemaId) {
+        clearRemotePackageState(packageID)
       }
 
       var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
@@ -465,13 +811,20 @@ public class InputSchemaViewModel {
     }
   }
 
-  private func downloadOnDemandZipFiles(_ zipFiles: [String], title: String) {
-    downloadOnDemandZipFiles(zipFiles, title: title, destination: FileManager.appGroupUserDataDirectoryURL, needsRimeDeploy: true)
+  private func downloadOnDemandZipFiles(_ zipFiles: [String], title: String, packageID: RemotePackageID? = nil) {
+    downloadOnDemandZipFiles(
+      zipFiles,
+      title: title,
+      packageID: packageID,
+      destination: FileManager.appGroupUserDataDirectoryURL,
+      needsRimeDeploy: true
+    )
   }
 
   private func downloadOnDemandZipFiles(
     _ zipFiles: [String],
     title: String,
+    packageID: RemotePackageID? = nil,
     destination: URL,
     needsRimeDeploy: Bool,
     onSuccess: (() -> Void)? = nil
@@ -489,12 +842,24 @@ public class InputSchemaViewModel {
 
       do {
         try FileManager.createDirectory(override: false, dst: destination)
+        var downloadedSHA256: String?
 
         for zipFile in zipFiles {
           let remoteURL = baseURL.appendingPathComponent(zipFile)
           let tempURL = try await self.downloadZip(from: remoteURL)
+          if packageID != nil, zipFiles.count == 1 {
+            let currentSHA256 = FileManager.default.sha256(filePath: tempURL.path)
+            downloadedSHA256 = currentSHA256.isEmpty ? nil : currentSHA256
+          }
           try await FileManager.default.unzip(tempURL, dst: destination)
           try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        if packageID == .rimeIce {
+          let buildDirectory = destination.appendingPathComponent("build", isDirectory: true)
+          if FileManager.default.fileExists(atPath: buildDirectory.path) {
+            try? FileManager.default.removeItem(at: buildDirectory)
+          }
         }
 
         if needsRimeDeploy {
@@ -503,12 +868,18 @@ public class InputSchemaViewModel {
 
           await MainActor.run {
             HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+            if let packageID {
+              self.markRemotePackageInstalled(packageID, sha256: downloadedSHA256)
+            }
             self.reloadTableStateSubject.send(true)
             onSuccess?()
             ProgressHUD.success("\(title)部署完成", interaction: false, delay: 1.2)
           }
         } else {
           await MainActor.run {
+            if let packageID {
+              self.markRemotePackageInstalled(packageID, sha256: downloadedSHA256)
+            }
             self.reloadTableStateSubject.send(true)
             onSuccess?()
             ProgressHUD.success("\(title)下载完成", interaction: false, delay: 1.2)
@@ -566,6 +937,7 @@ public class InputSchemaViewModel {
     downloadOnDemandZipFiles(
       [HamsterConstants.azooKeyDictionaryZipFile],
       title: "AzooKey 词库",
+      packageID: .azooKeyDictionary,
       destination: FileManager.appGroupAzooKeyDirectoryURL,
       needsRimeDeploy: false
     ) { [weak self] in
@@ -970,4 +1342,12 @@ public extension InputSchemaViewModel {
   static let copyright = "开源输入方案均来自：https://github.com/xjwhnxjwhn/nanomouse 项目，希望将输入方案内置到鼠输入法的作者，可以提交 PR，或者联系我（nanomouse.official@gmail.com）。"
   // 单位： byte
   static let maxFileSize = 50 * 1024 * 1024
+
+  fileprivate static func currentDateString() -> String {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.string(from: Date())
+  }
 }
