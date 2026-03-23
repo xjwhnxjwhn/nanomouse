@@ -654,3 +654,13 @@ PY
     zip -r $hannom_scheme_name.zip ./*
   ) && \
   cp -R $OUTPUT/.$hannom_scheme_name/*.zip $ZIPS_DIR/
+
+# === AzooKey 官方词库（azooKey_dictionary_storage） ===
+azookey_dictionary_name=azookey-dictionary
+
+rm -rf $OUTPUT/.$azookey_dictionary_name && \
+  git clone --depth 1 https://github.com/ensan-hcl/azooKey_dictionary_storage $OUTPUT/.$azookey_dictionary_name && (
+    cd $OUTPUT/.$azookey_dictionary_name
+    zip -r $azookey_dictionary_name.zip Dictionary
+  ) && \
+  cp -R $OUTPUT/.$azookey_dictionary_name/*.zip $ZIPS_DIR/
