@@ -3971,6 +3971,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 //  }
 }
 
+extension KeyboardInputViewController {
+  func closeEmbeddedModuleIfNeeded() {
+    dismissEmbeddedModuleIfNeeded()
+  }
+
+  func openEmbeddedModuleMainApp() {
+    openUrl(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/main"))
+  }
+}
+
 // MARK: - Private Functions
 
 private extension KeyboardInputViewController {

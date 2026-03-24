@@ -62,16 +62,19 @@ public enum EmbeddedKeyboardModuleHost {
 
     public static func makeInlineViewController(
         hostInputViewController: UIInputViewController,
-        onRequestClose: (() -> Void)? = nil
+        onRequestClose: (() -> Void)? = nil,
+        onRequestOpenMainApp: (() -> Void)? = nil
     ) -> UIViewController? {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
         EmbeddedKeyboardModuleBridge.makeInlineViewController(
             hostInputViewController: hostInputViewController,
-            onRequestClose: onRequestClose
+            onRequestClose: onRequestClose,
+            onRequestOpenMainApp: onRequestOpenMainApp
         )
         #else
         _ = hostInputViewController
         _ = onRequestClose
+        _ = onRequestOpenMainApp
         return nil
         #endif
     }

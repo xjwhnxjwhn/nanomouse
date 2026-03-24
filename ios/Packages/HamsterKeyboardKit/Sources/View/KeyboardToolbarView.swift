@@ -105,10 +105,10 @@ class KeyboardToolbarView: NibLessView {
   lazy var dismissKeyboardButton: UIButton = {
     let button = UIButton(type: .custom)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setImage(UIImage(systemName: "chevron.down.circle"), for: .normal)
-    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 18), scale: .default), forImageIn: .normal)
-    button.tintColor = style.toolbarButtonFrontColor
-    button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.tintColor = .secondaryLabel
+    button.backgroundColor = .clear
     button.addTarget(self, action: #selector(dismissKeyboardTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(dismissKeyboardTouchUpAction), for: .touchUpInside)
     button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
@@ -243,6 +243,7 @@ class KeyboardToolbarView: NibLessView {
     let radius = logoImageView.bounds.height * 0.2237
     logoImageView.layer.cornerRadius = radius
     logoImageView.layer.cornerCurve = .continuous
+    applyToolbarButtonCornerStyle()
   }
 
   override func constructViewHierarchy() {
@@ -358,7 +359,9 @@ class KeyboardToolbarView: NibLessView {
       logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
     }
     if keyboardContext.displayKeyboardDismissButton {
-      dismissKeyboardButton.tintColor = style.toolbarButtonFrontColor
+      dismissKeyboardButton.tintColor = .secondaryLabel
+      dismissKeyboardButton.backgroundColor = .clear
+      dismissKeyboardButton.alpha = 1
     }
     embeddedModuleButton.tintColor = style.toolbarButtonFrontColor
     embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
@@ -374,6 +377,21 @@ class KeyboardToolbarView: NibLessView {
     let guideFontSize = style.candidateTextFont.pointSize * 0.5
     userGuideLabel.font = style.candidateTextFont.withSize(guideFontSize)
     userGuideLabel.textColor = style.candidateTextColor.withAlphaComponent(0.6)
+  }
+
+  private func applyToolbarButtonCornerStyle() {
+    let buttons = [embeddedModuleButton, canvasButton, voiceModeButton, dismissKeyboardButton]
+    for button in buttons {
+      let radius = button.bounds.height / 2
+      button.layer.cornerRadius = radius
+      button.layer.cornerCurve = .continuous
+      button.layer.masksToBounds = true
+    }
+  }
+
+  private func setTopToolbarButtonPressed(_ button: UIButton, isPressed: Bool) {
+    button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.alpha = isPressed ? 0.62 : 1
   }
 
   func combine() {
@@ -446,20 +464,20 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func dismissKeyboardTouchDownAction() {
-    dismissKeyboardButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    dismissKeyboardButton.alpha = 0.62
   }
 
   @objc func dismissKeyboardTouchUpAction() {
-    dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
+    dismissKeyboardButton.alpha = 1
     actionHandler.handle(.release, on: .dismissKeyboard)
   }
 
   @objc func voiceModeTouchDownAction() {
-    voiceModeButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    setTopToolbarButtonPressed(voiceModeButton, isPressed: true)
   }
 
   @objc func voiceModeTouchUpAction() {
-    voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
+    setTopToolbarButtonPressed(voiceModeButton, isPressed: false)
     if UserDefaults.hamster.enableKeyboardExtensionVoiceModeView {
       NotificationCenter.default.post(name: .hamsterVoiceModeToggle, object: nil)
       return
@@ -474,11 +492,11 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func canvasTouchDownAction() {
-    canvasButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    setTopToolbarButtonPressed(canvasButton, isPressed: true)
   }
 
   @objc func canvasTouchUpAction() {
-    canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
+    setTopToolbarButtonPressed(canvasButton, isPressed: false)
     let requestId = canvasInputBridge.makeRequestId()
     canvasInputBridge.setState(requestId: requestId, state: .launching)
     guard let openURL = canvasInputBridge.makeCanvasURL(requestId: requestId) else {
@@ -489,11 +507,11 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func embeddedModuleTouchDownAction() {
-    embeddedModuleButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
+    setTopToolbarButtonPressed(embeddedModuleButton, isPressed: true)
   }
 
   @objc func embeddedModuleTouchUpAction() {
-    embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
+    setTopToolbarButtonPressed(embeddedModuleButton, isPressed: false)
     guard let entry = embeddedModuleEntry else { return }
     if entry.makeInlineViewController != nil {
       NotificationCenter.default.post(
@@ -517,11 +535,12 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func touchCancel() {
-    dismissKeyboardButton.backgroundColor = style.toolbarButtonBackgroundColor
+    dismissKeyboardButton.backgroundColor = .clear
+    dismissKeyboardButton.alpha = 1
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
-    embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
-    canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
-    voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
+    setTopToolbarButtonPressed(embeddedModuleButton, isPressed: false)
+    setTopToolbarButtonPressed(canvasButton, isPressed: false)
+    setTopToolbarButtonPressed(voiceModeButton, isPressed: false)
   }
 
   private var canToggleTraditionalizationFromToolbar: Bool {

@@ -110,7 +110,18 @@ private final class EmbeddedKeyboardRegistryAdapter: KeyboardEmbeddedModuleProvi
       makeInlineViewController: { hostInputViewController in
         EmbeddedKeyboardModuleHost.makeInlineViewController(
           hostInputViewController: hostInputViewController,
-          onRequestClose: { hostInputViewController.dismissKeyboard() }
+          onRequestClose: {
+            if let keyboardInputViewController = hostInputViewController as? KeyboardInputViewController {
+              keyboardInputViewController.closeEmbeddedModuleIfNeeded()
+            } else {
+              hostInputViewController.dismissKeyboard()
+            }
+          },
+          onRequestOpenMainApp: {
+            if let keyboardInputViewController = hostInputViewController as? KeyboardInputViewController {
+              keyboardInputViewController.openEmbeddedModuleMainApp()
+            }
+          }
         )!
       },
       makeLaunchURL: {
