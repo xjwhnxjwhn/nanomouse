@@ -45,7 +45,7 @@ public extension NumericInputSet {
   static let japanese = NumericInputSet(rows: [
     .init(chars: "1234567890"),
     .init(phone: "-/:@()「」¥&", pad: "-/:@()「」¥&"),
-    .init(phone: "。、？！・~", pad: "。、？！・~")
+    .init(phone: "。、？！・.", pad: "。、？！・.")
   ])
 }
 
