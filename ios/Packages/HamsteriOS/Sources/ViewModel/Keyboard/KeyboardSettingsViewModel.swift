@@ -436,6 +436,46 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableWeatherIndicator: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableWeatherIndicator ?? false
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableWeatherIndicator = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.enableWeatherIndicator = newValue
+    }
+  }
+
+  public var weatherIndicatorMetric: KeyboardWeatherIndicatorMetric {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorMetric ?? .temperature
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorMetric = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.weatherIndicatorMetric = newValue
+    }
+  }
+
+  public var weatherIndicatorLocationMode: KeyboardWeatherIndicatorLocationMode {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorLocationMode ?? .currentLocation
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorLocationMode = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.weatherIndicatorLocationMode = newValue
+    }
+  }
+
+  public var weatherIndicatorFixedLocationName: String {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLocationName ?? ""
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLocationName = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.weatherIndicatorFixedLocationName = newValue
+    }
+  }
+
   public var spaceDragSensitivity: Int {
     get {
       HamsterAppDependencyContainer.shared.configuration.swipe?.spaceDragSensitivity ?? 5
@@ -504,6 +544,26 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       HamsterAppDependencyContainer.shared.configuration.keyboard?.symbolsOfChineseNineGridKeyboard = newValue
       HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.symbolsOfChineseNineGridKeyboard = newValue
     }
+  }
+
+  public var weatherIndicatorMetricLabel: String {
+    weatherIndicatorMetric.title
+  }
+
+  public var weatherIndicatorLocationModeLabel: String {
+    weatherIndicatorLocationMode.title
+  }
+
+  public var weatherIndicatorCacheStatusText: String {
+    weatherIndicatorStatusText()
+  }
+
+  public var weatherIndicatorAttributionSummaryText: String {
+    UserDefaults.hamster.keyboardWeatherIndicatorCache?.attributionServiceName ?? "Apple Weather"
+  }
+
+  public func refreshToolbarSettings() {
+    resetSignSubject.send(true)
   }
 
   // 是否启用空格加载文本
@@ -1074,119 +1134,202 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ])
   ]
 
-  lazy var toolbarSettings: [SettingSectionModel] = [
-    .init(items: [
-      .init(
-        text: "启用候选工具栏",
-        toggleValue: { [unowned self] in enableToolbar },
-        toggleHandled: { [unowned self] in
-          enableToolbar = $0
-        }),
-      .init(
-        text: "显示应用图标",
-        toggleValue: { [unowned self] in displayAppIconButton },
-        toggleHandled: { [unowned self] in
-          displayAppIconButton = $0
-        }),
-      .init(
-        text: "显示键盘收起图标",
-        toggleValue: { [unowned self] in displayKeyboardDismissButton },
-        toggleHandled: { [unowned self] in
-          displayKeyboardDismissButton = $0
-        }),
-      .init(
-        text: "显示候选项序号",
-        toggleValue: { [unowned self] in displayIndexOfCandidateWord },
-        toggleHandled: { [unowned self] in
-          displayIndexOfCandidateWord = $0
-        }),
-      .init(
-        text: "显示候选 Comment",
-        toggleValue: { [unowned self] in displayCommentOfCandidateWord },
-        toggleHandled: { [unowned self] in
-          displayCommentOfCandidateWord = $0
-        }),
-      .init(
-        text: "划动分页模式",
-        toggleValue: { [unowned self] in swipePaging },
-        toggleHandled: { [unowned self] in
-          swipePaging = $0
-        })
-    ]),
+  var toolbarSettings: [SettingSectionModel] {
+    [
+      .init(items: [
+        .init(
+          text: "启用候选工具栏",
+          type: .toggle,
+          toggleValue: { [unowned self] in enableToolbar },
+          toggleHandled: { [unowned self] in
+            enableToolbar = $0
+          }),
+        .init(
+          text: "显示应用图标",
+          type: .toggle,
+          toggleValue: { [unowned self] in displayAppIconButton },
+          toggleHandled: { [unowned self] in
+            displayAppIconButton = $0
+          }),
+        .init(
+          text: "显示键盘收起图标",
+          type: .toggle,
+          toggleValue: { [unowned self] in displayKeyboardDismissButton },
+          toggleHandled: { [unowned self] in
+            displayKeyboardDismissButton = $0
+          }),
+        .init(
+          text: "显示候选项序号",
+          type: .toggle,
+          toggleValue: { [unowned self] in displayIndexOfCandidateWord },
+          toggleHandled: { [unowned self] in
+            displayIndexOfCandidateWord = $0
+          }),
+        .init(
+          text: "显示候选 Comment",
+          type: .toggle,
+          toggleValue: { [unowned self] in displayCommentOfCandidateWord },
+          toggleHandled: { [unowned self] in
+            displayCommentOfCandidateWord = $0
+          }),
+        .init(
+          text: "划动分页模式",
+          type: .toggle,
+          toggleValue: { [unowned self] in swipePaging },
+          toggleHandled: { [unowned self] in
+            swipePaging = $0
+          })
+      ]),
 
-    .init(items: [
+      .init(items: [
+        .init(
+          text: "候选字最大数量",
+          type: .step,
+          textValue: { [unowned self] in String(maximumNumberOfCandidateWords) },
+          minValue: 50,
+          maxValue: 500,
+          stepValue: 50,
+          valueChangeHandled: { [unowned self] in
+            maximumNumberOfCandidateWords = Int($0)
+          }),
+        .init(
+          text: "候选序号字体大小",
+          type: .step,
+          textValue: { [unowned self] in String(candidateLabelFontSize) },
+          minValue: 10,
+          maxValue: 30,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            candidateLabelFontSize = Int($0)
+          }),
+        .init(
+          text: "候选字体大小",
+          type: .step,
+          textValue: { [unowned self] in String(candidateWordFontSize) },
+          minValue: 10,
+          maxValue: 30,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            candidateWordFontSize = Int($0)
+          }),
+        .init(
+          text: "候选 Comment 字体大小",
+          type: .step,
+          textValue: { [unowned self] in String(candidateCommentFontSize) },
+          minValue: 5,
+          maxValue: 30,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            candidateCommentFontSize = Int($0)
+          }),
+        .init(
+          text: "工具栏高度",
+          type: .step,
+          textValue: { [unowned self] in String(heightOfToolbar) },
+          minValue: 30,
+          maxValue: 80,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            heightOfToolbar = Int($0)
+          }),
+        .init(
+          text: "编码区高度",
+          type: .step,
+          textValue: { [unowned self] in String(heightOfCodingArea) },
+          minValue: 5,
+          maxValue: 20,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            heightOfCodingArea = Int($0)
+          }),
+        .init(
+          text: "编码区字体大小",
+          type: .step,
+          textValue: { [unowned self] in String(codingAreaFontSize) },
+          minValue: 5,
+          maxValue: 20,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            codingAreaFontSize = Int($0)
+          })
+      ]),
+
       .init(
-        text: "候选字最大数量",
-        type: .step,
-        textValue: { [unowned self] in String(maximumNumberOfCandidateWords) },
-        minValue: 50,
-        maxValue: 500,
-        stepValue: 50,
-        valueChangeHandled: { [unowned self] in
-          maximumNumberOfCandidateWords = Int($0)
-        }),
-      .init(
-        text: "候选序号字体大小",
-        type: .step,
-        textValue: { [unowned self] in String(candidateLabelFontSize) },
-        minValue: 10,
-        maxValue: 30,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          candidateLabelFontSize = Int($0)
-        }),
-      .init(
-        text: "候选字体大小",
-        type: .step,
-        textValue: { [unowned self] in String(candidateWordFontSize) },
-        minValue: 10,
-        maxValue: 30,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          candidateWordFontSize = Int($0)
-        }),
-      .init(
-        text: "候选 Comment 字体大小",
-        type: .step,
-        textValue: { [unowned self] in String(candidateCommentFontSize) },
-        minValue: 5,
-        maxValue: 30,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          candidateCommentFontSize = Int($0)
-        }),
-      .init(
-        text: "工具栏高度",
-        type: .step,
-        textValue: { [unowned self] in String(heightOfToolbar) },
-        minValue: 30,
-        maxValue: 80,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          heightOfToolbar = Int($0)
-        }),
-      .init(
-        text: "编码区高度",
-        type: .step,
-        textValue: { [unowned self] in String(heightOfCodingArea) },
-        minValue: 5,
-        maxValue: 20,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          heightOfCodingArea = Int($0)
-        }),
-      .init(
-        text: "编码区字体大小",
-        type: .step,
-        textValue: { [unowned self] in String(codingAreaFontSize) },
-        minValue: 5,
-        maxValue: 20,
-        stepValue: 1,
-        valueChangeHandled: { [unowned self] in
-          codingAreaFontSize = Int($0)
-        })
-    ])
-  ]
+        title: "顶部天气指标",
+        footer: "主 App 负责拉取 WeatherKit 并写入共享缓存；键盘扩展只读缓存。只要缓存过期、无效或获取失败，键盘顶部就不会显示天气。",
+        items: [
+          .init(
+            text: "显示顶部天气",
+            type: .toggle,
+            toggleValue: { [unowned self] in enableWeatherIndicator },
+            toggleHandled: { [unowned self] in
+              enableWeatherIndicator = $0
+              refreshToolbarSettings()
+            }),
+          .init(
+            text: "显示指标",
+            type: .pullDown,
+            textValue: { [unowned self] in weatherIndicatorMetricLabel },
+            pullDownMenuActionsBuilder: { [unowned self] in
+              KeyboardWeatherIndicatorMetric.allCases.map { metric in
+                UIAction(title: metric.title, state: metric == self.weatherIndicatorMetric ? .on : .off) { _ in
+                  self.weatherIndicatorMetric = metric
+                  self.refreshToolbarSettings()
+                }
+              }
+            }),
+          .init(
+            text: "地点来源",
+            type: .pullDown,
+            textValue: { [unowned self] in weatherIndicatorLocationModeLabel },
+            pullDownMenuActionsBuilder: { [unowned self] in
+              KeyboardWeatherIndicatorLocationMode.allCases.map { mode in
+                UIAction(title: mode.title, state: mode == self.weatherIndicatorLocationMode ? .on : .off) { _ in
+                  self.weatherIndicatorLocationMode = mode
+                  self.refreshToolbarSettings()
+                }
+              }
+            }),
+          .init(
+            icon: UIImage(systemName: "mappin.and.ellipse"),
+            text: "固定城市",
+            placeholder: "例如：东京 / 上海 / New York",
+            type: .textField,
+            textValue: { [unowned self] in weatherIndicatorFixedLocationName },
+            textHandled: { [unowned self] in
+              self.weatherIndicatorFixedLocationName = $0
+              self.refreshToolbarSettings()
+            }),
+          .init(
+            text: "天气缓存状态",
+            secondaryText: weatherIndicatorCacheStatusText,
+            type: .settings),
+          .init(
+            text: "天气数据来源",
+            secondaryText: weatherIndicatorAttributionSummaryText,
+            type: .settings),
+          .init(
+            text: "刷新天气缓存",
+            type: .button,
+            buttonAction: { [unowned self] in
+              _ = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
+              self.refreshToolbarSettings()
+              await MainActor.run {
+                ProgressHUD.success("天气缓存已更新")
+              }
+            }),
+          .init(
+            text: "打开 Apple Weather 归因",
+            type: .button,
+            buttonAction: { [unowned self] in
+              try await MainActor.run {
+                try KeyboardWeatherIndicatorService.shared.openLegalAttributionPage()
+              }
+              self.refreshToolbarSettings()
+            })
+        ])
+    ]
+  }
 
   lazy var numberNineGridSettings: [SettingItemModel] = [
     .init(
@@ -1830,6 +1973,25 @@ private extension KeyboardSettingsViewModel {
     labelText(for: defaultLanguageMode)
   }
 
+  func weatherIndicatorStatusText() -> String {
+    guard enableWeatherIndicator else { return "未启用" }
+    guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else {
+      if weatherIndicatorLocationMode == .fixedCity,
+         KeyboardWeatherIndicatorCache.normalizedLocationQuery(weatherIndicatorFixedLocationName).isEmpty
+      {
+        return "请先填写固定城市名称。"
+      }
+      return "暂无天气缓存，请点击刷新。"
+    }
+    guard cache.matchesConfiguration(locationMode: weatherIndicatorLocationMode, fixedLocationName: weatherIndicatorFixedLocationName) else {
+      return "配置已变更，请刷新天气缓存。"
+    }
+    guard cache.isFresh else {
+      return "缓存已过期，请刷新天气缓存。"
+    }
+    return "已更新 · \(cache.resolvedLocationName) · \(Self.weatherIndicatorStatusDateFormatter.string(from: cache.updatedAt))"
+  }
+
   func labelText(for mode: KeyboardDefaultLanguage) -> String {
     switch mode {
     case .followLast: return "跟随上次"
@@ -1838,6 +2000,13 @@ private extension KeyboardSettingsViewModel {
     case .english: return "英文"
     }
   }
+
+  static let weatherIndicatorStatusDateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.dateFormat = "MM-dd HH:mm"
+    return formatter
+  }()
 }
 
 // MARK: - Constants

@@ -127,15 +127,6 @@
       }
     },
     {
-      "identity" : "treesitterlanguages",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/simonbs/TreeSitterLanguages.git",
-      "state" : {
-        "revision" : "15cf3a9ec3ab95e0d058b7df9f35619123c9e02d",
-        "version" : "0.1.10"
-      }
-    },
-    {
       "identity" : "whisperkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/argmaxinc/WhisperKit.git",

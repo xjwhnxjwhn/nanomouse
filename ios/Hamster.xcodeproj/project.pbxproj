@@ -3,13 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */; };
 		000AD9A7B8B7BF183239A494 /* RimeConfigManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */; };
 		0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */ = {isa = PBXBuildFile; fileRef = 034D1299E7F66EFEFF108E4C /* ConfigSchema.json */; };
+		0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */; };
 		1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; };
 		21D40FAEAF717B1EA549D7B3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 517FF44AFC9E1AD23C5D2EC8 /* Sparkle */; };
 		282C1F4DD89D7255EA115E05 /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */; };
@@ -124,13 +124,13 @@
 
 /* Begin PBXFileReference section */
 		00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EmbeddedModuleHost.swift; sourceTree = "<group>"; };
-		034D1299E7F66EFEFF108E4C /* ConfigSchema.json */ = {isa = PBXFileReference; includeInIndex = 1; path = ConfigSchema.json; sourceTree = "<group>"; };
+		034D1299E7F66EFEFF108E4C /* ConfigSchema.json */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.json; path = ConfigSchema.json; sourceTree = "<group>"; };
 		098632F7F01C6BA30216932A /* AccessRequestView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccessRequestView.swift; sourceTree = "<group>"; };
 		113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		140AD60148CD771E40791AA0 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		200105F3FF0CBB3C70788F08 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2DCF4D820EA8488FE4668162 /* HelpView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
-		33B32CEB35D0335627EDE72D /* Help.md */ = {isa = PBXFileReference; includeInIndex = 1; path = Help.md; sourceTree = "<group>"; };
+		33B32CEB35D0335627EDE72D /* Help.md */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = net.daringfireball.markdown; path = Help.md; sourceTree = "<group>"; };
 		3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "RimeConfigManager+Nanomouse.swift"; sourceTree = "<group>"; };
 		378B1CE6110676BF59B3F635 /* NanomousePreset.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NanomousePreset.swift; sourceTree = "<group>"; };
 		446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaStore.swift; sourceTree = "<group>"; };
@@ -146,7 +146,7 @@
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
 		A220479952655DE4C296084E /* SCTApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SCTApp.swift; sourceTree = "<group>"; };
-		B8525A8107843174DE7A518A /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NanoMouse.app; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B8525A8107843174DE7A518A /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SchemaValueFormatter.swift; sourceTree = "<group>"; };
 		C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HamsterKeyboardInputViewController.swift; sourceTree = "<group>"; };
@@ -285,7 +285,6 @@
 				8A0D10CD705986269D449012 /* Info.plist */,
 				E5B34C379075AD857F124ABB /* SCT.entitlements */,
 			);
-			name = SCT;
 			path = SCT;
 			sourceTree = "<group>";
 		};
@@ -294,7 +293,6 @@
 			children = (
 				18AFDF75770F5EBCB0D45C5F /* SCT */,
 			);
-			name = gui;
 			path = gui;
 			sourceTree = "<group>";
 		};
@@ -564,8 +562,8 @@
 			);
 			mainGroup = C03E801C296D4F4C0083E53A;
 			packageReferences = (
-				3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */,
-				0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */,
+				3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "../mac/Packages/EmbeddedModuleHostKit" */,
+				0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */,
 				705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */,
 				65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */,
@@ -1121,11 +1119,11 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */ = {
+		0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../shared/NanomouseReviewKit;
 		};
-		3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */ = {
+		3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "../mac/Packages/EmbeddedModuleHostKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../mac/Packages/EmbeddedModuleHostKit;
 		};
@@ -1161,7 +1159,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "NanomouseReviewKit" */;
+			package = 0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */;
 			productName = NanomouseReviewKit;
 		};
 		517FF44AFC9E1AD23C5D2EC8 /* Sparkle */ = {
@@ -1189,7 +1187,7 @@
 		};
 		FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */;
+			package = 3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "../mac/Packages/EmbeddedModuleHostKit" */;
 			productName = EmbeddedModuleHostKit;
 		};
 /* End XCSwiftPackageProductDependency section */

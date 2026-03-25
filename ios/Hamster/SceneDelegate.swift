@@ -85,6 +85,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     }
 
     autoRedeployIfNeededOnVersionChange()
+    Task { @MainActor in
+      await KeyboardWeatherIndicatorService.shared.refreshIfNeeded()
+    }
   }
 
   // 通过URL打开App
@@ -219,6 +222,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     let localeIdentifier = Locale.preferredLanguages.first
     voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
     AppReviewManager.shared.maybeRequestAutomaticReview()
+    Task { @MainActor in
+      await KeyboardWeatherIndicatorService.shared.refreshIfNeeded()
+    }
   }
 
   /// 应用注册 quick action

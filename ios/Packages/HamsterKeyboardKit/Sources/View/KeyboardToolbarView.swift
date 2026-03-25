@@ -62,6 +62,42 @@ class KeyboardToolbarView: NibLessView {
     return label
   }()
 
+  private struct WeatherIndicatorPresentation {
+    let symbolName: String
+    let text: String
+  }
+
+  private lazy var weatherIndicatorContainer: UIStackView = {
+    let stack = UIStackView()
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 4
+    stack.isHidden = true
+    stack.isUserInteractionEnabled = true
+    let tap = UITapGestureRecognizer(target: self, action: #selector(openWeatherIndicatorSettings))
+    stack.addGestureRecognizer(tap)
+    return stack
+  }()
+
+  private lazy var weatherIndicatorIconView: UIImageView = {
+    let imageView = UIImageView(frame: .zero)
+    imageView.translatesAutoresizingMaskIntoConstraints = false
+    imageView.contentMode = .scaleAspectFit
+    imageView.tintColor = style.candidateTextColor
+    return imageView
+  }()
+
+  private lazy var weatherIndicatorLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.textAlignment = .left
+    label.adjustsFontSizeToFitWidth = true
+    label.minimumScaleFactor = 0.7
+    label.lineBreakMode = .byTruncatingTail
+    return label
+  }()
+
   lazy var logoContainer: RoundedContainer = {
     let view = RoundedContainer(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -258,6 +294,9 @@ class KeyboardToolbarView: NibLessView {
     if keyboardContext.displayKeyboardDismissButton {
       rightButtonsStack.addArrangedSubview(dismissKeyboardButton)
     }
+    weatherIndicatorContainer.addArrangedSubview(weatherIndicatorIconView)
+    weatherIndicatorContainer.addArrangedSubview(weatherIndicatorLabel)
+    commonFunctionBar.addSubview(weatherIndicatorContainer)
     commonFunctionBar.addSubview(traditionalizeHintLabel)
   }
 
@@ -336,7 +375,17 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHintLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
       traditionalizeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
       traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -2),
+      weatherIndicatorContainer.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+      weatherIndicatorContainer.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -6),
+      weatherIndicatorContainer.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
+      weatherIndicatorContainer.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
+      weatherIndicatorIconView.widthAnchor.constraint(equalToConstant: 15),
+      weatherIndicatorIconView.heightAnchor.constraint(equalTo: weatherIndicatorIconView.widthAnchor),
     ])
+
+    if keyboardContext.displayAppIconButton {
+      constraints.append(weatherIndicatorContainer.leadingAnchor.constraint(greaterThanOrEqualTo: logoContainer.trailingAnchor, constant: 6))
+    }
 
     NSLayoutConstraint.activate(constraints)
   }
@@ -363,6 +412,10 @@ class KeyboardToolbarView: NibLessView {
     let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
     traditionalizeHintLabel.font = style.phoneticTextFont.withSize(hintFontSize)
     traditionalizeHintLabel.textColor = style.candidateTextColor
+    weatherIndicatorLabel.font = style.phoneticTextFont.withSize(hintFontSize)
+    weatherIndicatorLabel.textColor = style.candidateTextColor
+    weatherIndicatorIconView.tintColor = style.candidateTextColor
+    updateCenterIndicatorVisibility()
   }
 
   private func applyToolbarButtonCornerStyle() {
@@ -399,6 +452,7 @@ class KeyboardToolbarView: NibLessView {
       if hasContent {
         self.hideTraditionalizeHint(animated: false)
       }
+      self.updateCenterIndicatorVisibility()
 
       if self.candidateBarView.superview == nil {
         candidateBarView.setStyle(self.style)
@@ -445,6 +499,13 @@ class KeyboardToolbarView: NibLessView {
         if previous && !current {
           self.showTraditionalizeHintIfNeeded()
         }
+      }
+      .store(in: &subscriptions)
+
+    NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.updateCenterIndicatorVisibility()
       }
       .store(in: &subscriptions)
   }
@@ -586,6 +647,7 @@ class KeyboardToolbarView: NibLessView {
     traditionalizeHintWorkItem?.cancel()
     traditionalizeHintLabel.text = traditionalizeHintText()
     traditionalizeHintLabel.isHidden = false
+    weatherIndicatorContainer.isHidden = true
     UIView.animate(withDuration: 0.12) {
       self.traditionalizeHintLabel.alpha = 1
     }
@@ -605,13 +667,47 @@ class KeyboardToolbarView: NibLessView {
     }
     let completion: (Bool) -> Void = { _ in
       self.traditionalizeHintLabel.isHidden = true
+      self.updateCenterIndicatorVisibility()
     }
     if animated {
       UIView.animate(withDuration: 0.12, animations: hide, completion: completion)
     } else {
       hide()
       traditionalizeHintLabel.isHidden = true
+      updateCenterIndicatorVisibility()
     }
+  }
+
+  private func weatherIndicatorPresentation() -> WeatherIndicatorPresentation? {
+    guard keyboardContext.hamsterConfiguration?.toolbar?.enableWeatherIndicator ?? false else { return nil }
+    let locationMode = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorLocationMode ?? .currentLocation
+    let fixedLocationName = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorFixedLocationName
+    let metric = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorMetric ?? .temperature
+    guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else { return nil }
+    guard cache.isDisplayable(enabled: true, locationMode: locationMode, fixedLocationName: fixedLocationName) else { return nil }
+    return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: cache.displayText(for: metric))
+  }
+
+  private func updateCenterIndicatorVisibility() {
+    guard !commonFunctionBar.isHidden else {
+      weatherIndicatorContainer.isHidden = true
+      return
+    }
+    guard traditionalizeHintLabel.isHidden else {
+      weatherIndicatorContainer.isHidden = true
+      return
+    }
+    guard let presentation = weatherIndicatorPresentation() else {
+      weatherIndicatorContainer.isHidden = true
+      return
+    }
+    weatherIndicatorLabel.text = presentation.text
+    weatherIndicatorIconView.image = UIImage(systemName: presentation.symbolName) ?? UIImage(systemName: "cloud.sun")
+    weatherIndicatorContainer.isHidden = false
+  }
+
+  @objc private func openWeatherIndicatorSettings() {
+    actionHandler.handle(.release, on: .url(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/keyboardSettings"), id: "openWeatherIndicatorSettings"))
   }
 
   @objc private func handleTraditionalizeLongPress(_ sender: UILongPressGestureRecognizer) {

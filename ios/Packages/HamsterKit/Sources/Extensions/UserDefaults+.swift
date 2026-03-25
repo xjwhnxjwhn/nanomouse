@@ -450,6 +450,23 @@ public extension UserDefaults {
     removeObject(forKey: Self.remotePackageLastCheckAtKey(for: packageId))
     Logger.statistics.debug("clear remotePackageState[\(packageId)]")
   }
+
+  /// 键盘顶部天气指标缓存
+  var keyboardWeatherIndicatorCache: KeyboardWeatherIndicatorCache? {
+    get {
+      guard let data = data(forKey: Self.keyboardWeatherIndicatorCacheKey) else { return nil }
+      return try? JSONDecoder().decode(KeyboardWeatherIndicatorCache.self, from: data)
+    }
+    set {
+      if let newValue, let data = try? JSONEncoder().encode(newValue) {
+        set(data, forKey: Self.keyboardWeatherIndicatorCacheKey)
+        Logger.statistics.debug("save keyboardWeatherIndicatorCache: \(newValue.resolvedLocationName)")
+      } else {
+        removeObject(forKey: Self.keyboardWeatherIndicatorCacheKey)
+        Logger.statistics.debug("remove keyboardWeatherIndicatorCache")
+      }
+    }
+  }
 }
 
 extension UserDefaults {
@@ -512,6 +529,7 @@ extension UserDefaults {
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"
   private static let azooKeyTypographyLetterKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyTypographyLetter"
   private static let enableKeyboardExtensionVoiceModeViewKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.enableKeyboardExtensionVoiceModeView"
+  private static let keyboardWeatherIndicatorCacheKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardWeatherIndicatorCache"
   private static let remotePackageInstalledVersionPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledVersion."
   private static let remotePackageInstalledSHA256Prefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledSHA256."
   private static let remotePackageLastCheckAtPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageLastCheckAt."

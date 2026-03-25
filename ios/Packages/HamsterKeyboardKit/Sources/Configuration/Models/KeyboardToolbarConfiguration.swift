@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HamsterKit
 
 /// 键盘工具栏偏好
 /// 工具栏包含候选栏，如果关闭工具栏，则候选文字不会显示
@@ -52,6 +53,18 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
   /// 候选栏空闲时滚动显示用户引导
   public var enableUserGuideScrolling: Bool?
 
+  /// 在工具栏中部显示天气指标
+  public var enableWeatherIndicator: Bool?
+
+  /// 天气指标类型
+  public var weatherIndicatorMetric: KeyboardWeatherIndicatorMetric?
+
+  /// 天气位置来源
+  public var weatherIndicatorLocationMode: KeyboardWeatherIndicatorLocationMode?
+
+  /// 固定城市名称
+  public var weatherIndicatorFixedLocationName: String?
+
   public init(
     enableToolbar: Bool? = true,
     heightOfToolbar: Int? = 60,
@@ -65,7 +78,11 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     displayIndexOfCandidateWord: Bool? = false,
     displayCommentOfCandidateWord: Bool? = false,
     swipePaging: Bool? = true,
-    enableUserGuideScrolling: Bool? = true)
+    enableUserGuideScrolling: Bool? = true,
+    enableWeatherIndicator: Bool? = false,
+    weatherIndicatorMetric: KeyboardWeatherIndicatorMetric? = .temperature,
+    weatherIndicatorLocationMode: KeyboardWeatherIndicatorLocationMode? = .currentLocation,
+    weatherIndicatorFixedLocationName: String? = nil)
   {
     self.enableToolbar = enableToolbar
     self.heightOfToolbar = heightOfToolbar
@@ -80,6 +97,10 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.displayCommentOfCandidateWord = displayCommentOfCandidateWord
     self.swipePaging = swipePaging
     self.enableUserGuideScrolling = enableUserGuideScrolling
+    self.enableWeatherIndicator = enableWeatherIndicator
+    self.weatherIndicatorMetric = weatherIndicatorMetric
+    self.weatherIndicatorLocationMode = weatherIndicatorLocationMode
+    self.weatherIndicatorFixedLocationName = weatherIndicatorFixedLocationName
   }
 
   public init(from decoder: Decoder) throws {
@@ -97,6 +118,10 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.displayCommentOfCandidateWord = try container.decodeIfPresent(Bool.self, forKey: .displayCommentOfCandidateWord)
     self.swipePaging = try container.decodeIfPresent(Bool.self, forKey: .swipePaging)
     self.enableUserGuideScrolling = try container.decodeIfPresent(Bool.self, forKey: .enableUserGuideScrolling)
+    self.enableWeatherIndicator = try container.decodeIfPresent(Bool.self, forKey: .enableWeatherIndicator)
+    self.weatherIndicatorMetric = try container.decodeIfPresent(KeyboardWeatherIndicatorMetric.self, forKey: .weatherIndicatorMetric)
+    self.weatherIndicatorLocationMode = try container.decodeIfPresent(KeyboardWeatherIndicatorLocationMode.self, forKey: .weatherIndicatorLocationMode)
+    self.weatherIndicatorFixedLocationName = try container.decodeIfPresent(String.self, forKey: .weatherIndicatorFixedLocationName)
   }
 
   enum CodingKeys: CodingKey {
@@ -113,6 +138,10 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     case displayCommentOfCandidateWord
     case swipePaging
     case enableUserGuideScrolling
+    case enableWeatherIndicator
+    case weatherIndicatorMetric
+    case weatherIndicatorLocationMode
+    case weatherIndicatorFixedLocationName
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -130,5 +159,9 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.displayCommentOfCandidateWord, forKey: .displayCommentOfCandidateWord)
     try container.encodeIfPresent(self.swipePaging, forKey: .swipePaging)
     try container.encodeIfPresent(self.enableUserGuideScrolling, forKey: .enableUserGuideScrolling)
+    try container.encodeIfPresent(self.enableWeatherIndicator, forKey: .enableWeatherIndicator)
+    try container.encodeIfPresent(self.weatherIndicatorMetric, forKey: .weatherIndicatorMetric)
+    try container.encodeIfPresent(self.weatherIndicatorLocationMode, forKey: .weatherIndicatorLocationMode)
+    try container.encodeIfPresent(self.weatherIndicatorFixedLocationName, forKey: .weatherIndicatorFixedLocationName)
   }
 }
