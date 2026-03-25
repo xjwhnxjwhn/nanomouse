@@ -17,6 +17,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     case locationUnavailable
     case fixedCityMissing
     case fixedCityNotFound
+    case refreshCoolingDown(TimeInterval)
 
     var errorDescription: String? {
       switch self {
@@ -34,7 +35,17 @@ public final class KeyboardWeatherIndicatorService: NSObject {
         return "请先填写固定城市名称。"
       case .fixedCityNotFound:
         return "没有解析到这个固定城市，请换一个名称再试。"
+      case .refreshCoolingDown(let remainingTime):
+        return "天气刷新冷却中，请\(Self.cooldownText(for: remainingTime))后再试。"
       }
+    }
+
+    private static func cooldownText(for remainingTime: TimeInterval) -> String {
+      let seconds = max(Int(ceil(remainingTime)), 1)
+      if seconds >= 60 {
+        return "\(Int(ceil(Double(seconds) / 60.0))) 分钟"
+      }
+      return "\(seconds) 秒"
     }
   }
 
@@ -49,6 +60,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
   private let geocoder = CLGeocoder()
   private var authorizationContinuation: CheckedContinuation<Void, Error>?
   private var locationContinuation: CheckedContinuation<CLLocation, Error>?
+  private static let refreshCooldown: TimeInterval = 10 * 60
 
   private override init() {
     super.init()
@@ -79,9 +91,11 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       UserDefaults.hamster.keyboardWeatherIndicatorCache = nil
       throw WeatherIndicatorError.featureDisabled
     }
+    try enforceRefreshCooldownIfNeeded()
 
     do {
       let resolvedLocation = try await resolveLocation(mode: config.locationMode, fixedLocationName: config.fixedLocationName, allowAuthorizationPrompt: forceAuthorizationPrompt)
+      UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt = Date()
       let currentWeather = try await WeatherService.shared.weather(for: resolvedLocation.location, including: .current)
       let attribution = try? await WeatherService.shared.attribution
       let attributionText: String?
@@ -134,6 +148,9 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       return "配置已变更，请刷新天气缓存。"
     }
     guard cache.isFresh else {
+      if let cooldownText = refreshCooldownText() {
+        return "缓存已过期，\(cooldownText)后可再次刷新。"
+      }
       return "缓存已过期，请刷新天气缓存。"
     }
     return "已更新 · \(cache.resolvedLocationName) · \(Self.statusDateFormatter.string(from: cache.updatedAt))"
@@ -214,10 +231,36 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     return (enabled, locationMode, fixedLocationName)
   }
 
+  private func enforceRefreshCooldownIfNeeded() throws {
+#if DEBUG
+    return
+#else
+    guard let lastRefreshAt = UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt else { return }
+    let elapsed = Date().timeIntervalSince(lastRefreshAt)
+    guard elapsed < Self.refreshCooldown else { return }
+    throw WeatherIndicatorError.refreshCoolingDown(Self.refreshCooldown - elapsed)
+#endif
+  }
+
+  private func refreshCooldownText() -> String? {
+#if DEBUG
+    return nil
+#else
+    guard let lastRefreshAt = UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt else { return nil }
+    let elapsed = Date().timeIntervalSince(lastRefreshAt)
+    guard elapsed < Self.refreshCooldown else { return nil }
+    let remaining = Self.refreshCooldown - elapsed
+    return WeatherIndicatorError.cooldownText(for: remaining)
+#endif
+  }
+
   private func missingCacheReasonText(
     locationMode: KeyboardWeatherIndicatorLocationMode,
     fixedLocationName: String?) -> String
   {
+    if let cooldownText = refreshCooldownText() {
+      return "暂无天气缓存，\(cooldownText)后可再次刷新。"
+    }
     switch locationMode {
     case .currentLocation:
       switch locationManager.authorizationStatus {

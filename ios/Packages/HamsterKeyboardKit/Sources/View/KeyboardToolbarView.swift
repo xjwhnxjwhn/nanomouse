@@ -95,6 +95,8 @@ class KeyboardToolbarView: NibLessView {
     label.adjustsFontSizeToFitWidth = true
     label.minimumScaleFactor = 0.7
     label.lineBreakMode = .byTruncatingTail
+    label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    label.setContentHuggingPriority(.defaultLow, for: .horizontal)
     return label
   }()
 
@@ -377,14 +379,14 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -2),
       weatherIndicatorContainer.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
       weatherIndicatorContainer.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -6),
-      weatherIndicatorContainer.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
-      weatherIndicatorContainer.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
       weatherIndicatorIconView.widthAnchor.constraint(equalToConstant: 15),
       weatherIndicatorIconView.heightAnchor.constraint(equalTo: weatherIndicatorIconView.widthAnchor),
     ])
 
     if keyboardContext.displayAppIconButton {
-      constraints.append(weatherIndicatorContainer.leadingAnchor.constraint(greaterThanOrEqualTo: logoContainer.trailingAnchor, constant: 6))
+      constraints.append(weatherIndicatorContainer.leadingAnchor.constraint(equalTo: logoContainer.trailingAnchor, constant: 6))
+    } else {
+      constraints.append(weatherIndicatorContainer.leadingAnchor.constraint(equalTo: commonFunctionBar.leadingAnchor, constant: 8))
     }
 
     NSLayoutConstraint.activate(constraints)
