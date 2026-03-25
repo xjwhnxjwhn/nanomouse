@@ -41,6 +41,7 @@ final class KeyboardCanvasBridge {
 
   private enum Constants {
     static let deepLinkPath = "canvas"
+    static let markdownDeepLinkPath = "markdown"
     static let requestIdQueryName = "rid"
     static let sourceQueryName = "source"
     static let sourceKeyboard = "keyboard"
@@ -71,6 +72,17 @@ final class KeyboardCanvasBridge {
   func makeCanvasURL(requestId: String) -> URL? {
     guard !requestId.isEmpty else { return nil }
     let base = "\(HamsterConstants.appURL)/\(Constants.deepLinkPath)"
+    guard var components = URLComponents(string: base) else { return nil }
+    components.queryItems = [
+      URLQueryItem(name: Constants.requestIdQueryName, value: requestId),
+      URLQueryItem(name: Constants.sourceQueryName, value: Constants.sourceKeyboard),
+    ]
+    return components.url
+  }
+
+  func makeMarkdownURL(requestId: String) -> URL? {
+    guard !requestId.isEmpty else { return nil }
+    let base = "\(HamsterConstants.appURL)/\(Constants.markdownDeepLinkPath)"
     guard var components = URLComponents(string: base) else { return nil }
     components.queryItems = [
       URLQueryItem(name: Constants.requestIdQueryName, value: requestId),

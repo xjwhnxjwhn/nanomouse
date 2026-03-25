@@ -294,7 +294,11 @@ open class MainTabBarController: UITabBarController {
   private var pendingVoiceRequestId: String?
   private var pendingVoiceLaunchedFromKeyboard = false
   private var pendingCanvasRequestId: String?
+  private var pendingMarkdownRequestId: String?
   private var embeddedTabIndexMap: [String: Int] = [:]
+  private var canvasTabIndex = 0
+  private var markdownTabIndex = 1
+  private var voiceTabIndex = 2
   private var accountTabIndex = 3
 
   private lazy var canvasController = VoiceCanvasViewController()
@@ -360,11 +364,7 @@ open class MainTabBarController: UITabBarController {
       selectedImage: UIImage(systemName: "gearshape.fill")
     )
 
-    var tabs: [UIViewController] = [
-      canvasNavigationController,
-      markdownNavigationController,
-      homeNavigationController
-    ]
+    var tabs: [UIViewController] = []
 
     let embeddedTabs = MainAppEmbeddedModuleRegistry.shared.makeEmbeddedTabs()
     for item in embeddedTabs {
@@ -381,6 +381,15 @@ open class MainTabBarController: UITabBarController {
       tabs.append(navigationController)
     }
 
+    canvasTabIndex = tabs.count
+    tabs.append(canvasNavigationController)
+
+    markdownTabIndex = tabs.count
+    tabs.append(markdownNavigationController)
+
+    voiceTabIndex = tabs.count
+    tabs.append(homeNavigationController)
+
     accountTabIndex = tabs.count
     tabs.append(accountNavigationController)
 
@@ -394,13 +403,19 @@ open class MainTabBarController: UITabBarController {
   open func activateVoiceDictation(requestId: String, launchedFromKeyboard: Bool = false) {
     pendingVoiceRequestId = requestId
     pendingVoiceLaunchedFromKeyboard = launchedFromKeyboard
-    selectedIndex = 2
+    selectedIndex = voiceTabIndex
     deliverPendingRequestsIfNeeded()
   }
 
   open func activateCanvas(requestId: String) {
     pendingCanvasRequestId = requestId
-    selectedIndex = 0
+    selectedIndex = canvasTabIndex
+    deliverPendingRequestsIfNeeded()
+  }
+
+  open func activateMarkdown(requestId: String) {
+    pendingMarkdownRequestId = requestId
+    selectedIndex = markdownTabIndex
     deliverPendingRequestsIfNeeded()
   }
 
@@ -414,6 +429,10 @@ open class MainTabBarController: UITabBarController {
     if let requestId = pendingCanvasRequestId {
       pendingCanvasRequestId = nil
       canvasController.startCanvasSession(requestId: requestId)
+    }
+    if let requestId = pendingMarkdownRequestId {
+      pendingMarkdownRequestId = nil
+      markdownController.startMarkdownSession(requestId: requestId)
     }
     if let requestId = pendingVoiceRequestId {
       pendingVoiceRequestId = nil

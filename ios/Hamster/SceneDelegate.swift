@@ -58,6 +58,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       if handleCanvasURL(url) {
         return
       }
+      if handleMarkdownURL(url) {
+        return
+      }
       if handleEmbeddedModuleURL(url) {
         return
       }
@@ -110,6 +113,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
       if handleCanvasURL(url) {
+        return
+      }
+      if handleMarkdownURL(url) {
         return
       }
       if handleEmbeddedModuleURL(url) {
@@ -178,6 +184,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       return true
     }
     rootController.activateCanvas(requestId: requestId)
+    return true
+  }
+
+  private func handleMarkdownURL(_ url: URL) -> Bool {
+    guard canvasInputBridge.isMarkdownURL(url) else { return false }
+    let requestId = canvasInputBridge.parseRequestId(from: url) ?? canvasInputBridge.makeRequestId()
+    canvasInputBridge.setState(requestId: requestId, state: .launching)
+
+    guard let rootController = window?.rootViewController as? MainTabBarController else {
+      return true
+    }
+    rootController.activateMarkdown(requestId: requestId)
     return true
   }
 

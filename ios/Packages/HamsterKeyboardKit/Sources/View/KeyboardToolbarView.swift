@@ -33,12 +33,20 @@ class KeyboardToolbarView: NibLessView {
   private var lastKeyboardType: KeyboardType?
   private var lastAsciiModeSnapshot: Bool = false
   private var traditionalizeHintWorkItem: DispatchWorkItem?
+  private var didTriggerEmbeddedModuleLongPress = false
 
   private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
     recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
     recognizer.cancelsTouchesInView = false
     recognizer.delegate = self
+    return recognizer
+  }()
+
+  private lazy var embeddedModuleLongPressGesture: UILongPressGestureRecognizer = {
+    let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleEmbeddedModuleLongPress(_:)))
+    recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
+    recognizer.cancelsTouchesInView = false
     return recognizer
   }()
 
@@ -89,7 +97,7 @@ class KeyboardToolbarView: NibLessView {
     let button = UIButton(type: .custom)
     button.translatesAutoresizingMaskIntoConstraints = false
     button.setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
-    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
     button.tintColor = .secondaryLabel
     button.backgroundColor = .clear
     button.addTarget(self, action: #selector(dismissKeyboardTouchDownAction), for: .touchDown)
@@ -108,31 +116,18 @@ class KeyboardToolbarView: NibLessView {
     return stack
   }()
 
-  private lazy var voiceModeIconView: VoiceModeIconView = {
-    let view = VoiceModeIconView()
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.isUserInteractionEnabled = false
-    return view
-  }()
-
-  /// 口述模式按钮（铜钱样式）
+  /// 口述模式按钮
   private lazy var voiceModeButton: UIButton = {
     let button = UIButton(type: .custom)
     button.translatesAutoresizingMaskIntoConstraints = false
     button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.setImage(UIImage(systemName: "waveform"), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.tintColor = style.toolbarButtonFrontColor
     button.addTarget(self, action: #selector(voiceModeTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(voiceModeTouchUpAction), for: .touchUpInside)
     button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
     button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
-    button.addSubview(voiceModeIconView)
-
-    NSLayoutConstraint.activate([
-      voiceModeIconView.centerXAnchor.constraint(equalTo: button.centerXAnchor),
-      voiceModeIconView.centerYAnchor.constraint(equalTo: button.centerYAnchor),
-      voiceModeIconView.widthAnchor.constraint(equalTo: button.widthAnchor, multiplier: 0.58),
-      voiceModeIconView.heightAnchor.constraint(equalTo: voiceModeIconView.widthAnchor)
-    ])
-
     return button
   }()
 
@@ -141,11 +136,26 @@ class KeyboardToolbarView: NibLessView {
     let button = UIButton(type: .custom)
     button.translatesAutoresizingMaskIntoConstraints = false
     button.backgroundColor = style.toolbarButtonBackgroundColor
-    button.setImage(UIImage(systemName: "square.and.pencil"), for: .normal)
-    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.setImage(UIImage(systemName: "scribble.variable"), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
     button.tintColor = style.toolbarButtonFrontColor
     button.addTarget(self, action: #selector(canvasTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(canvasTouchUpAction), for: .touchUpInside)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
+    button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
+    return button
+  }()
+
+  /// Markdown 按钮
+  private lazy var markdownButton: UIButton = {
+    let button = UIButton(type: .custom)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.backgroundColor = style.toolbarButtonBackgroundColor
+    button.setImage(UIImage(systemName: "text.document"), for: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.tintColor = style.toolbarButtonFrontColor
+    button.addTarget(self, action: #selector(markdownTouchDownAction), for: .touchDown)
+    button.addTarget(self, action: #selector(markdownTouchUpAction), for: .touchUpInside)
     button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)
     button.addTarget(self, action: #selector(touchCancel), for: .touchUpOutside)
     return button
@@ -158,7 +168,7 @@ class KeyboardToolbarView: NibLessView {
     button.backgroundColor = style.toolbarButtonBackgroundColor
     let symbolName = embeddedModuleEntry?.iconSystemName ?? "square.on.square"
     button.setImage(UIImage(systemName: symbolName), for: .normal)
-    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 17), scale: .default), forImageIn: .normal)
+    button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
     button.tintColor = style.toolbarButtonFrontColor
     button.accessibilityLabel = embeddedModuleEntry?.accessibilityLabel ?? "扩展模块"
     button.addTarget(self, action: #selector(embeddedModuleTouchDownAction), for: .touchDown)
@@ -210,6 +220,9 @@ class KeyboardToolbarView: NibLessView {
     activateViewConstraints()
     setupAppearance()
     commonFunctionBar.addGestureRecognizer(traditionalizeLongPressGesture)
+    if embeddedModuleEntry != nil {
+      embeddedModuleButton.addGestureRecognizer(embeddedModuleLongPressGesture)
+    }
   }
 
   override func layoutSubviews() {
@@ -240,6 +253,7 @@ class KeyboardToolbarView: NibLessView {
       rightButtonsStack.addArrangedSubview(embeddedModuleButton)
     }
     rightButtonsStack.addArrangedSubview(canvasButton)
+    rightButtonsStack.addArrangedSubview(markdownButton)
     rightButtonsStack.addArrangedSubview(voiceModeButton)
     if keyboardContext.displayKeyboardDismissButton {
       rightButtonsStack.addArrangedSubview(dismissKeyboardButton)
@@ -291,6 +305,8 @@ class KeyboardToolbarView: NibLessView {
         voiceModeButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
         canvasButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
         canvasButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
+        markdownButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
+        markdownButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
       ])
       if embeddedModuleEntry != nil {
         constraints.append(contentsOf: [
@@ -304,6 +320,8 @@ class KeyboardToolbarView: NibLessView {
         voiceModeButton.widthAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
         canvasButton.heightAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
         canvasButton.widthAnchor.constraint(equalTo: voiceModeButton.widthAnchor),
+        markdownButton.heightAnchor.constraint(equalTo: voiceModeButton.heightAnchor),
+        markdownButton.widthAnchor.constraint(equalTo: voiceModeButton.widthAnchor),
       ])
       if embeddedModuleEntry != nil {
         constraints.append(contentsOf: [
@@ -338,15 +356,17 @@ class KeyboardToolbarView: NibLessView {
     embeddedModuleButton.backgroundColor = style.toolbarButtonBackgroundColor
     canvasButton.tintColor = style.toolbarButtonFrontColor
     canvasButton.backgroundColor = style.toolbarButtonBackgroundColor
+    markdownButton.tintColor = style.toolbarButtonFrontColor
+    markdownButton.backgroundColor = style.toolbarButtonBackgroundColor
+    voiceModeButton.tintColor = style.toolbarButtonFrontColor
     voiceModeButton.backgroundColor = style.toolbarButtonBackgroundColor
-    voiceModeIconView.applyColor(style.toolbarButtonFrontColor)
     let hintFontSize = max(style.phoneticTextFont.pointSize - 1, 9)
     traditionalizeHintLabel.font = style.phoneticTextFont.withSize(hintFontSize)
     traditionalizeHintLabel.textColor = style.candidateTextColor
   }
 
   private func applyToolbarButtonCornerStyle() {
-    let buttons = [embeddedModuleButton, canvasButton, voiceModeButton, dismissKeyboardButton]
+    let buttons = [embeddedModuleButton, canvasButton, markdownButton, voiceModeButton, dismissKeyboardButton]
     for button in buttons {
       let radius = button.bounds.height / 2
       button.layer.cornerRadius = radius
@@ -472,12 +492,31 @@ class KeyboardToolbarView: NibLessView {
     actionHandler.handle(.release, on: .url(openURL, id: "canvasInput"))
   }
 
+  @objc func markdownTouchDownAction() {
+    setTopToolbarButtonPressed(markdownButton, isPressed: true)
+  }
+
+  @objc func markdownTouchUpAction() {
+    setTopToolbarButtonPressed(markdownButton, isPressed: false)
+    let requestId = canvasInputBridge.makeRequestId()
+    canvasInputBridge.setState(requestId: requestId, state: .launching)
+    guard let openURL = canvasInputBridge.makeMarkdownURL(requestId: requestId) else {
+      canvasInputBridge.setState(requestId: requestId, state: .failed, errorMessage: "invalid markdown url")
+      return
+    }
+    actionHandler.handle(.release, on: .url(openURL, id: "markdownInput"))
+  }
+
   @objc func embeddedModuleTouchDownAction() {
     setTopToolbarButtonPressed(embeddedModuleButton, isPressed: true)
   }
 
   @objc func embeddedModuleTouchUpAction() {
     setTopToolbarButtonPressed(embeddedModuleButton, isPressed: false)
+    if didTriggerEmbeddedModuleLongPress {
+      didTriggerEmbeddedModuleLongPress = false
+      return
+    }
     guard let entry = embeddedModuleEntry else { return }
     if entry.makeInlineViewController != nil {
       NotificationCenter.default.post(
@@ -491,6 +530,21 @@ class KeyboardToolbarView: NibLessView {
     actionHandler.handle(.release, on: .url(openURL, id: "embeddedModule.\(entry.moduleIdentifier)"))
   }
 
+  @objc private func handleEmbeddedModuleLongPress(_ sender: UILongPressGestureRecognizer) {
+    guard let entry = embeddedModuleEntry else { return }
+    switch sender.state {
+    case .began:
+      guard let openURL = entry.makeLaunchURL() else { return }
+      didTriggerEmbeddedModuleLongPress = true
+      setTopToolbarButtonPressed(embeddedModuleButton, isPressed: true)
+      actionHandler.handle(.release, on: .url(openURL, id: "embeddedModule.longPress.\(entry.moduleIdentifier)"))
+    case .ended, .cancelled, .failed:
+      setTopToolbarButtonPressed(embeddedModuleButton, isPressed: false)
+    default:
+      break
+    }
+  }
+
   @objc func openHamsterAppTouchDownAction() {
     logoContainer.backgroundColor = style.toolbarButtonPressedBackgroundColor
   }
@@ -501,11 +555,13 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc func touchCancel() {
+    didTriggerEmbeddedModuleLongPress = false
     dismissKeyboardButton.backgroundColor = .clear
     dismissKeyboardButton.alpha = 1
     logoContainer.backgroundColor = style.toolbarButtonBackgroundColor
     setTopToolbarButtonPressed(embeddedModuleButton, isPressed: false)
     setTopToolbarButtonPressed(canvasButton, isPressed: false)
+    setTopToolbarButtonPressed(markdownButton, isPressed: false)
     setTopToolbarButtonPressed(voiceModeButton, isPressed: false)
   }
 
@@ -580,6 +636,12 @@ extension KeyboardToolbarView: UIGestureRecognizerDelegate {
       return false
     }
     if voiceModeButton.frame.contains(point) {
+      return false
+    }
+    if canvasButton.frame.contains(point) {
+      return false
+    }
+    if markdownButton.frame.contains(point) {
       return false
     }
     if embeddedModuleEntry != nil, embeddedModuleButton.frame.contains(point) {

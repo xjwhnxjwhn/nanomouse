@@ -41,6 +41,7 @@ public final class AppCanvasBridge {
 
   private enum Constants {
     static let deepLinkPath = "canvas"
+    static let markdownDeepLinkPath = "markdown"
     static let requestIdQueryName = "rid"
     static let sourceQueryName = "source"
     static let sourceKeyboard = "keyboard"
@@ -77,8 +78,23 @@ public final class AppCanvasBridge {
     return components.url
   }
 
+  public func makeMarkdownURL(requestId: String) -> URL? {
+    guard !requestId.isEmpty else { return nil }
+    let base = "\(HamsterConstants.appURL)/\(Constants.markdownDeepLinkPath)"
+    guard var components = URLComponents(string: base) else { return nil }
+    components.queryItems = [
+      URLQueryItem(name: Constants.requestIdQueryName, value: requestId),
+      URLQueryItem(name: Constants.sourceQueryName, value: Constants.sourceKeyboard),
+    ]
+    return components.url
+  }
+
   public func isCanvasURL(_ url: URL) -> Bool {
     url.lastPathComponent.lowercased() == Constants.deepLinkPath
+  }
+
+  public func isMarkdownURL(_ url: URL) -> Bool {
+    url.lastPathComponent.lowercased() == Constants.markdownDeepLinkPath
   }
 
   public func parseRequestId(from url: URL) -> String? {
