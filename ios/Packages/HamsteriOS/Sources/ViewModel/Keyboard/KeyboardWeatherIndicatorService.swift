@@ -138,6 +138,23 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     UIApplication.shared.open(url)
   }
 
+  public func openApplicationSettings() throws {
+    guard let url = URL(string: UIApplication.openSettingsURLString) else {
+      throw StringError("无法打开系统设置。")
+    }
+    UIApplication.shared.open(url, options: [:], completionHandler: nil)
+  }
+
+  public func shouldShowOpenLocationSettingsButton(locationMode: KeyboardWeatherIndicatorLocationMode) -> Bool {
+    guard locationMode == .currentLocation else { return false }
+    switch locationManager.authorizationStatus {
+    case .denied, .restricted:
+      return true
+    default:
+      return false
+    }
+  }
+
   public func cacheStatusText() -> String {
     let config = currentWeatherConfiguration()
     guard config.enabled else { return "未启用" }
@@ -148,6 +165,12 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       return "配置已变更，请刷新天气缓存。"
     }
     guard cache.isFresh else {
+      if shouldShowOpenLocationSettingsButton(locationMode: config.locationMode) {
+        return "缓存已过期，请在系统设置中允许定位。"
+      }
+      if config.locationMode == .currentLocation, locationManager.authorizationStatus == .notDetermined {
+        return "缓存已过期，请点击刷新并允许定位。"
+      }
       if let cooldownText = refreshCooldownText() {
         return "缓存已过期，\(cooldownText)后可再次刷新。"
       }
@@ -225,7 +248,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
 
   private func currentWeatherConfiguration() -> (enabled: Bool, locationMode: KeyboardWeatherIndicatorLocationMode, fixedLocationName: String?) {
     let toolbar = HamsterAppDependencyContainer.shared.configuration.toolbar
-    let enabled = toolbar?.enableWeatherIndicator ?? false
+    let enabled = toolbar?.enableWeatherIndicator ?? true
     let locationMode = toolbar?.weatherIndicatorLocationMode ?? .currentLocation
     let fixedLocationName = toolbar?.weatherIndicatorFixedLocationName
     return (enabled, locationMode, fixedLocationName)
@@ -258,24 +281,30 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     locationMode: KeyboardWeatherIndicatorLocationMode,
     fixedLocationName: String?) -> String
   {
-    if let cooldownText = refreshCooldownText() {
-      return "暂无天气缓存，\(cooldownText)后可再次刷新。"
-    }
     switch locationMode {
     case .currentLocation:
       switch locationManager.authorizationStatus {
-      case .authorizedAlways, .authorizedWhenInUse:
-        return "暂无天气缓存，请点击刷新。"
-      case .notDetermined:
-        return "请点击刷新并允许定位。"
       case .restricted, .denied:
         return "请在系统设置中允许定位。"
+      case .notDetermined:
+        if let cooldownText = refreshCooldownText() {
+          return "暂无天气缓存，\(cooldownText)后可再次刷新。"
+        }
+        return "请点击刷新并允许定位。"
+      case .authorizedAlways, .authorizedWhenInUse:
+        if let cooldownText = refreshCooldownText() {
+          return "暂无天气缓存，\(cooldownText)后可再次刷新。"
+        }
+        return "暂无天气缓存，请点击刷新。"
       @unknown default:
         return "暂无天气缓存，请点击刷新。"
       }
     case .fixedCity:
       if KeyboardWeatherIndicatorCache.normalizedLocationQuery(fixedLocationName).isEmpty {
         return "请先填写固定城市名称。"
+      }
+      if let cooldownText = refreshCooldownText() {
+        return "暂无天气缓存，\(cooldownText)后可再次刷新。"
       }
       return "暂无天气缓存，请点击刷新。"
     }

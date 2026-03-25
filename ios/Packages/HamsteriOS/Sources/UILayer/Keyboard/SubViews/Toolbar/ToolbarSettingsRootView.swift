@@ -62,6 +62,30 @@ class ToolbarSettingsRootView: NibLessView {
       tableView.reloadData()
     }
   }
+
+  func scrollToPendingFocusIfNeeded(animated: Bool) {
+    guard let focus = keyboardSettingsViewModel.consumePendingToolbarSettingsFocus() else { return }
+    switch focus {
+    case .weatherIndicator:
+      scrollToWeatherIndicatorSection(animated: animated)
+    }
+  }
+
+  private func scrollToWeatherIndicatorSection(animated: Bool) {
+    guard let section = keyboardSettingsViewModel.toolbarWeatherIndicatorSectionIndex,
+          let row = keyboardSettingsViewModel.toolbarWeatherIndicatorPrimaryActionRowIndex,
+          keyboardSettingsViewModel.toolbarSettings.indices.contains(section),
+          keyboardSettingsViewModel.toolbarSettings[section].items.indices.contains(row)
+    else {
+      return
+    }
+    tableView.reloadData()
+    tableView.layoutIfNeeded()
+    let indexPath = IndexPath(row: row, section: section)
+    DispatchQueue.main.async { [weak self] in
+      self?.tableView.scrollToRow(at: indexPath, at: .middle, animated: animated)
+    }
+  }
 }
 
 extension ToolbarSettingsRootView: UITableViewDataSource, UITableViewDelegate {

@@ -241,7 +241,14 @@ extension MainViewController {
   }
 
   func presentKeyboardSettingsViewController() {
+    _ = mainViewModel.consumePendingKeyboardSettingsNavigationRequested()
     presentViewController(keyboardSettingsViewController)
+    if let toolbarFocus = mainViewModel.consumePendingKeyboardToolbarSettingsFocus() {
+      HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.focusToolbarSettings(on: toolbarFocus)
+    }
+    if let subView = mainViewModel.consumePendingKeyboardSettingsSubView() {
+      HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.navigation(to: subView)
+    }
   }
 
   func presentKeyboardLayoutViewController() {
@@ -398,6 +405,15 @@ open class MainTabBarController: UITabBarController {
 
   open func activateSettingsTab() {
     selectedIndex = accountTabIndex
+  }
+
+  open func openKeyboardSettings(
+    subView: KeyboardSettingsSubView? = nil,
+    toolbarFocus: KeyboardToolbarSettingsFocus? = nil,
+    animated: Bool = true)
+  {
+    selectedIndex = accountTabIndex
+    accountController.openKeyboardSettings(subView: subView, toolbarFocus: toolbarFocus, animated: animated)
   }
 
   open func activateVoiceDictation(requestId: String, launchedFromKeyboard: Bool = false) {
@@ -2800,6 +2816,7 @@ final class VoiceModelManagementRootView: NibLessView {
 // MARK: - Account
 
 final class KeyboardModuleHostViewController: NibLessViewController {
+  private let mainViewModel: MainViewModel
   private let keyboardController: MainViewController
   private var previousNavigationBarHidden = false
   private lazy var edgeBackGestureRecognizer: UIScreenEdgePanGestureRecognizer = {
@@ -2810,6 +2827,7 @@ final class KeyboardModuleHostViewController: NibLessViewController {
   }()
 
   init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
+    self.mainViewModel = mainViewModel
     self.keyboardController = MainViewController(
       mainViewModel: mainViewModel,
       subViewControllerFactory: subViewControllerFactory
@@ -2862,6 +2880,11 @@ final class KeyboardModuleHostViewController: NibLessViewController {
     keyboardController.setMainScreenTitleOverride("键盘")
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    openPendingKeyboardSettingsIfNeeded()
+  }
+
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     navigationController?.setNavigationBarHidden(previousNavigationBarHidden, animated: animated)
@@ -2873,6 +2896,11 @@ final class KeyboardModuleHostViewController: NibLessViewController {
     if translationX > 45 {
       navigationController?.popViewController(animated: true)
     }
+  }
+
+  func openPendingKeyboardSettingsIfNeeded() {
+    guard mainViewModel.consumePendingKeyboardSettingsNavigationRequested() else { return }
+    keyboardController.presentKeyboardSettingsViewController()
   }
 }
 
@@ -2969,6 +2997,26 @@ final class VoiceAccountViewController: NibLessViewController {
 
   @objc private func handleKeyboardVoiceModeSwitchChanged(_ sender: UISwitch) {
     UserDefaults.hamster.enableKeyboardExtensionVoiceModeView = sender.isOn
+  }
+
+  func openKeyboardSettings(
+    subView: KeyboardSettingsSubView? = nil,
+    toolbarFocus: KeyboardToolbarSettingsFocus? = nil,
+    animated: Bool = true)
+  {
+    mainViewModel.stageKeyboardSettingsNavigation(subView: subView, toolbarFocus: toolbarFocus)
+
+    if let hostController = navigationController?.topViewController as? KeyboardModuleHostViewController {
+      hostController.openPendingKeyboardSettingsIfNeeded()
+      return
+    }
+
+    if let hostController = navigationController?.viewControllers.first(where: { $0 is KeyboardModuleHostViewController }) as? KeyboardModuleHostViewController {
+      navigationController?.popToViewController(hostController, animated: animated)
+      return
+    }
+
+    navigationController?.pushViewController(makeKeyboardHostController(), animated: animated)
   }
 }
 

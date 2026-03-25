@@ -14,6 +14,9 @@ public class MainViewModel: ObservableObject {
   public var subViewPublished: AnyPublisher<SettingsSubView, Never> {
     subViewSubject.eraseToAnyPublisher()
   }
+  private var pendingKeyboardSettingsNavigationRequested = false
+  private var pendingKeyboardSettingsSubView: KeyboardSettingsSubView?
+  private var pendingKeyboardToolbarSettingsFocus: KeyboardToolbarSettingsFocus?
 
   public let shortcutItemTypeSubject = PassthroughSubject<ShortcutItemType, Never>()
   public var shortcutItemTypePublished: AnyPublisher<ShortcutItemType, Never> {
@@ -28,6 +31,41 @@ public class MainViewModel: ObservableObject {
   /// 导航到 RIME 设置页面
   public func navigationToRIME() {
     subViewSubject.send(.rime)
+  }
+
+  public func stageKeyboardSettingsNavigation(
+    subView: KeyboardSettingsSubView? = nil,
+    toolbarFocus: KeyboardToolbarSettingsFocus? = nil)
+  {
+    pendingKeyboardSettingsNavigationRequested = true
+    pendingKeyboardSettingsSubView = subView
+    pendingKeyboardToolbarSettingsFocus = toolbarFocus
+  }
+
+  public func navigationToKeyboardSettings(
+    subView: KeyboardSettingsSubView? = nil,
+    toolbarFocus: KeyboardToolbarSettingsFocus? = nil)
+  {
+    stageKeyboardSettingsNavigation(subView: subView, toolbarFocus: toolbarFocus)
+    subViewSubject.send(.keyboardSettings)
+  }
+
+  public func consumePendingKeyboardSettingsNavigationRequested() -> Bool {
+    let requested = pendingKeyboardSettingsNavigationRequested
+    pendingKeyboardSettingsNavigationRequested = false
+    return requested
+  }
+
+  public func consumePendingKeyboardSettingsSubView() -> KeyboardSettingsSubView? {
+    let subView = pendingKeyboardSettingsSubView
+    pendingKeyboardSettingsSubView = nil
+    return subView
+  }
+
+  public func consumePendingKeyboardToolbarSettingsFocus() -> KeyboardToolbarSettingsFocus? {
+    let focus = pendingKeyboardToolbarSettingsFocus
+    pendingKeyboardToolbarSettingsFocus = nil
+    return focus
   }
 
   public func execShortcutCommand(_ shortItemType: ShortcutItemType) {

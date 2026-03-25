@@ -79,7 +79,7 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     displayCommentOfCandidateWord: Bool? = false,
     swipePaging: Bool? = true,
     enableUserGuideScrolling: Bool? = true,
-    enableWeatherIndicator: Bool? = false,
+    enableWeatherIndicator: Bool? = true,
     weatherIndicatorMetric: KeyboardWeatherIndicatorMetric? = .temperature,
     weatherIndicatorLocationMode: KeyboardWeatherIndicatorLocationMode? = .currentLocation,
     weatherIndicatorFixedLocationName: String? = nil)

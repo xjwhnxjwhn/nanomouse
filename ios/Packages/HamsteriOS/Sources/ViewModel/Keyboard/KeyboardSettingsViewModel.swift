@@ -6,19 +6,24 @@
 //
 
 import Combine
+import CoreLocation
 import HamsterKeyboardKit
 import HamsterKit
 import OSLog
 import ProgressHUD
 import UIKit
 
-public enum KeyboardSettingsSubView {
+public enum KeyboardSettingsSubView: String {
   case toolbar
   case numberNineGrid
   case symbols
   case symbolKeyboard
   case keyboardLayout
   case space
+}
+
+public enum KeyboardToolbarSettingsFocus: String {
+  case weatherIndicator
 }
 
 public enum NumberNineGridTabView {
@@ -438,7 +443,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var enableWeatherIndicator: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableWeatherIndicator ?? false
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.enableWeatherIndicator ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.toolbar?.enableWeatherIndicator = newValue
@@ -763,6 +768,50 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   private let subViewSubject = PassthroughSubject<KeyboardSettingsSubView, Never>()
   public var subViewPublished: AnyPublisher<KeyboardSettingsSubView, Never> {
     subViewSubject.eraseToAnyPublisher()
+  }
+  private var pendingToolbarSettingsFocus: KeyboardToolbarSettingsFocus?
+
+  public func navigation(to subView: KeyboardSettingsSubView) {
+    subViewSubject.send(subView)
+  }
+
+  public func focusToolbarSettings(on focus: KeyboardToolbarSettingsFocus) {
+    pendingToolbarSettingsFocus = focus
+  }
+
+  public func consumePendingToolbarSettingsFocus() -> KeyboardToolbarSettingsFocus? {
+    let focus = pendingToolbarSettingsFocus
+    pendingToolbarSettingsFocus = nil
+    return focus
+  }
+
+  public var toolbarWeatherIndicatorSectionIndex: Int? {
+    toolbarSettings.firstIndex { $0.title == "顶部天气指标" && !$0.items.isEmpty }
+  }
+
+  public var toolbarWeatherIndicatorPrimaryActionRowIndex: Int? {
+    guard let section = toolbarWeatherIndicatorSectionIndex,
+          toolbarSettings.indices.contains(section)
+    else {
+      return nil
+    }
+    let items = toolbarSettings[section].items
+    if let actionIndex = items.firstIndex(where: {
+      $0.text == "刷新天气缓存" || $0.text == "打开系统设置开启定位"
+    }) {
+      return actionIndex
+    }
+    return items.indices.last
+  }
+
+  private var shouldShowOpenLocationSettingsForWeatherIndicator: Bool {
+    guard weatherIndicatorLocationMode == .currentLocation else { return false }
+    switch CLLocationManager().authorizationStatus {
+    case .denied, .restricted:
+      return true
+    default:
+      return false
+    }
   }
 
   /// 数字九宫格页面切换
@@ -1135,8 +1184,95 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   ]
 
   var toolbarSettings: [SettingSectionModel] {
-    [
-      .init(items: [
+    var weatherIndicatorItems: [SettingItemModel] = [
+      .init(
+        text: "显示顶部天气",
+        type: .toggle,
+        toggleValue: { [unowned self] in enableWeatherIndicator },
+        toggleHandled: { [unowned self] in
+          enableWeatherIndicator = $0
+          refreshToolbarSettings()
+        }),
+      .init(
+        text: "显示指标",
+        type: .pullDown,
+        textValue: { [unowned self] in weatherIndicatorMetricLabel },
+        pullDownMenuActionsBuilder: { [unowned self] in
+          KeyboardWeatherIndicatorMetric.allCases.map { metric in
+            UIAction(title: metric.title, state: metric == self.weatherIndicatorMetric ? .on : .off) { _ in
+              self.weatherIndicatorMetric = metric
+              self.refreshToolbarSettings()
+            }
+          }
+        }),
+      .init(
+        text: "地点来源",
+        type: .pullDown,
+        textValue: { [unowned self] in weatherIndicatorLocationModeLabel },
+        pullDownMenuActionsBuilder: { [unowned self] in
+          KeyboardWeatherIndicatorLocationMode.allCases.map { mode in
+            UIAction(title: mode.title, state: mode == self.weatherIndicatorLocationMode ? .on : .off) { _ in
+              self.weatherIndicatorLocationMode = mode
+              self.refreshToolbarSettings()
+            }
+          }
+        }),
+      .init(
+        icon: UIImage(systemName: "mappin.and.ellipse"),
+        text: "固定城市",
+        placeholder: "例如：东京 / 上海 / New York",
+        type: .textField,
+        textValue: { [unowned self] in weatherIndicatorFixedLocationName },
+        textHandled: { [unowned self] in
+          self.weatherIndicatorFixedLocationName = $0
+          self.refreshToolbarSettings()
+        }),
+      .init(
+        text: "天气缓存状态",
+        secondaryText: weatherIndicatorCacheStatusText,
+        type: .settings),
+      .init(
+        text: "天气数据来源",
+        secondaryText: weatherIndicatorAttributionSummaryText,
+        type: .settings)
+    ]
+
+    if shouldShowOpenLocationSettingsForWeatherIndicator {
+      weatherIndicatorItems.append(
+        .init(
+          text: "打开系统设置开启定位",
+          type: .button,
+          buttonAction: {
+            try await MainActor.run {
+              try KeyboardWeatherIndicatorService.shared.openApplicationSettings()
+            }
+          }))
+    } else {
+      weatherIndicatorItems.append(
+        .init(
+          text: "刷新天气缓存",
+          type: .button,
+          buttonAction: { [unowned self] in
+            _ = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
+            self.refreshToolbarSettings()
+            await MainActor.run {
+              ProgressHUD.success("天气缓存已更新")
+            }
+          }))
+    }
+
+    weatherIndicatorItems.append(
+      .init(
+        text: "打开 Apple Weather 归因",
+        type: .button,
+        buttonAction: { [unowned self] in
+          try await MainActor.run {
+            try KeyboardWeatherIndicatorService.shared.openLegalAttributionPage()
+          }
+          self.refreshToolbarSettings()
+        }))
+
+    let basicSection = SettingSectionModel(items: [
         .init(
           text: "启用候选工具栏",
           type: .toggle,
@@ -1179,9 +1315,9 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           toggleHandled: { [unowned self] in
             swipePaging = $0
           })
-      ]),
+      ])
 
-      .init(items: [
+    let appearanceSection = SettingSectionModel(items: [
         .init(
           text: "候选字最大数量",
           type: .step,
@@ -1252,83 +1388,14 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           valueChangeHandled: { [unowned self] in
             codingAreaFontSize = Int($0)
           })
-      ]),
+      ])
 
-      .init(
-        title: "顶部天气指标",
-        footer: "主 App 负责拉取 WeatherKit 并写入共享缓存；键盘扩展只读缓存。只要缓存过期、无效或获取失败，键盘顶部就不会显示天气。",
-        items: [
-          .init(
-            text: "显示顶部天气",
-            type: .toggle,
-            toggleValue: { [unowned self] in enableWeatherIndicator },
-            toggleHandled: { [unowned self] in
-              enableWeatherIndicator = $0
-              refreshToolbarSettings()
-            }),
-          .init(
-            text: "显示指标",
-            type: .pullDown,
-            textValue: { [unowned self] in weatherIndicatorMetricLabel },
-            pullDownMenuActionsBuilder: { [unowned self] in
-              KeyboardWeatherIndicatorMetric.allCases.map { metric in
-                UIAction(title: metric.title, state: metric == self.weatherIndicatorMetric ? .on : .off) { _ in
-                  self.weatherIndicatorMetric = metric
-                  self.refreshToolbarSettings()
-                }
-              }
-            }),
-          .init(
-            text: "地点来源",
-            type: .pullDown,
-            textValue: { [unowned self] in weatherIndicatorLocationModeLabel },
-            pullDownMenuActionsBuilder: { [unowned self] in
-              KeyboardWeatherIndicatorLocationMode.allCases.map { mode in
-                UIAction(title: mode.title, state: mode == self.weatherIndicatorLocationMode ? .on : .off) { _ in
-                  self.weatherIndicatorLocationMode = mode
-                  self.refreshToolbarSettings()
-                }
-              }
-            }),
-          .init(
-            icon: UIImage(systemName: "mappin.and.ellipse"),
-            text: "固定城市",
-            placeholder: "例如：东京 / 上海 / New York",
-            type: .textField,
-            textValue: { [unowned self] in weatherIndicatorFixedLocationName },
-            textHandled: { [unowned self] in
-              self.weatherIndicatorFixedLocationName = $0
-              self.refreshToolbarSettings()
-            }),
-          .init(
-            text: "天气缓存状态",
-            secondaryText: weatherIndicatorCacheStatusText,
-            type: .settings),
-          .init(
-            text: "天气数据来源",
-            secondaryText: weatherIndicatorAttributionSummaryText,
-            type: .settings),
-          .init(
-            text: "刷新天气缓存",
-            type: .button,
-            buttonAction: { [unowned self] in
-              _ = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
-              self.refreshToolbarSettings()
-              await MainActor.run {
-                ProgressHUD.success("天气缓存已更新")
-              }
-            }),
-          .init(
-            text: "打开 Apple Weather 归因",
-            type: .button,
-            buttonAction: { [unowned self] in
-              try await MainActor.run {
-                try KeyboardWeatherIndicatorService.shared.openLegalAttributionPage()
-              }
-              self.refreshToolbarSettings()
-            })
-        ])
-    ]
+    let weatherSection = SettingSectionModel(
+      title: "顶部天气指标",
+      footer: "主 App 负责拉取 WeatherKit 并写入共享缓存；键盘扩展只读缓存。没有有效天气数据时，键盘顶部会显示天气入口，点击后可直接来到这里刷新。",
+      items: weatherIndicatorItems)
+
+    return [basicSection, appearanceSection, weatherSection]
   }
 
   lazy var numberNineGridSettings: [SettingItemModel] = [

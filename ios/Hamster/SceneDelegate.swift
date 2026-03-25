@@ -65,12 +65,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
 
-      // url.query(): 获取 `URL` 查询参数
-      // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
-      let components = url.lastPathComponent
-      if let subView = SettingsSubView(rawValue: components) {
-        activateSettingsTabIfNeeded()
-        HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
+      if handleSettingsURL(url) {
+        return
       }
     }
 
@@ -125,12 +121,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
 
-      // url.query(): 获取 `URL` 查询参数
-      // url.lastPathComponent 获取 `URL` 中 `/a/b` 中最后一个 b
-      let components = url.lastPathComponent
-      if let subView = SettingsSubView(rawValue: components) {
-        activateSettingsTabIfNeeded()
-        HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
+      if handleSettingsURL(url) {
+        return
       }
     }
   }
@@ -158,6 +150,38 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     if let tabBarController = rootController as? MainTabBarController {
       tabBarController.activateSettingsTab()
     }
+  }
+
+  private func handleSettingsURL(_ url: URL) -> Bool {
+    let components = url.lastPathComponent
+    guard let subView = SettingsSubView(rawValue: components) else { return false }
+    let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+
+    if subView == .keyboardSettings,
+       let subViewRawValue = queryItems?
+        .first(where: { $0.name == "subView" })?
+        .value,
+       let keyboardSubView = KeyboardSettingsSubView(rawValue: subViewRawValue) {
+      let toolbarFocus = queryItems?
+        .first(where: { $0.name == "focus" })?
+        .value
+        .flatMap(KeyboardToolbarSettingsFocus.init(rawValue:))
+      if let tabBarController = window?.rootViewController as? MainTabBarController {
+        tabBarController.openKeyboardSettings(
+          subView: keyboardSubView,
+          toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
+      } else {
+        activateSettingsTabIfNeeded()
+        HamsterAppDependencyContainer.shared.mainViewModel.navigationToKeyboardSettings(
+          subView: keyboardSubView,
+          toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
+      }
+      return true
+    }
+
+    activateSettingsTabIfNeeded()
+    HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
+    return true
   }
 
   private func handleVoiceDictationURL(_ url: URL) -> Bool {

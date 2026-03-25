@@ -147,7 +147,7 @@ public class SettingsViewModel: ObservableObject {
           text: "键盘设置",
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
-            self.mainViewModel.subViewSubject.send(.keyboardSettings)
+            self.mainViewModel.navigationToKeyboardSettings()
           }
         ),
         .init(

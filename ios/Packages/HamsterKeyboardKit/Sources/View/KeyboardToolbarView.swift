@@ -681,13 +681,16 @@ class KeyboardToolbarView: NibLessView {
   }
 
   private func weatherIndicatorPresentation() -> WeatherIndicatorPresentation? {
-    guard keyboardContext.hamsterConfiguration?.toolbar?.enableWeatherIndicator ?? false else { return nil }
+    guard keyboardContext.hamsterConfiguration?.toolbar?.enableWeatherIndicator ?? true else { return nil }
     let locationMode = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorLocationMode ?? .currentLocation
     let fixedLocationName = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorFixedLocationName
     let metric = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorMetric ?? .temperature
-    guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else { return nil }
-    guard cache.isDisplayable(enabled: true, locationMode: locationMode, fixedLocationName: fixedLocationName) else { return nil }
-    return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: cache.displayText(for: metric))
+    if let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache,
+       cache.isDisplayable(enabled: true, locationMode: locationMode, fixedLocationName: fixedLocationName)
+    {
+      return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: cache.displayText(for: metric))
+    }
+    return WeatherIndicatorPresentation(symbolName: "arrow.clockwise", text: "天气")
   }
 
   private func updateCenterIndicatorVisibility() {
@@ -709,7 +712,12 @@ class KeyboardToolbarView: NibLessView {
   }
 
   @objc private func openWeatherIndicatorSettings() {
-    actionHandler.handle(.release, on: .url(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/keyboardSettings"), id: "openWeatherIndicatorSettings"))
+    actionHandler.handle(
+      .release,
+      on: .url(
+        URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/keyboardSettings?subView=toolbar&focus=weatherIndicator"),
+        id: "openWeatherIndicatorSettings")
+    )
   }
 
   @objc private func handleTraditionalizeLongPress(_ sender: UILongPressGestureRecognizer) {
