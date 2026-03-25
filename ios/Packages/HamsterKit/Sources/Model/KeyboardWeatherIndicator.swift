@@ -103,13 +103,22 @@ public struct KeyboardWeatherIndicatorCache: Codable, Hashable {
 
   public func matchesConfiguration(
     locationMode: KeyboardWeatherIndicatorLocationMode,
-    fixedLocationName: String?) -> Bool
+    fixedLocationName: String?,
+    fixedLatitude: Double? = nil,
+    fixedLongitude: Double? = nil) -> Bool
   {
     guard sourceLocationMode == locationMode else { return false }
     switch locationMode {
     case .currentLocation:
       return true
     case .fixedCity:
+      if let fixedLatitude, let fixedLongitude {
+        guard Self.matchesCoordinate(lhs: latitude, rhs: fixedLatitude),
+              Self.matchesCoordinate(lhs: longitude, rhs: fixedLongitude)
+        else {
+          return false
+        }
+      }
       let configName = Self.normalizedLocationQuery(fixedLocationName)
       let cachedName = Self.normalizedLocationQuery(sourceLocationQuery)
       return !configName.isEmpty && configName == cachedName
@@ -132,11 +141,18 @@ public struct KeyboardWeatherIndicatorCache: Codable, Hashable {
   public func isDisplayable(
     enabled: Bool,
     locationMode: KeyboardWeatherIndicatorLocationMode,
-    fixedLocationName: String?) -> Bool
+    fixedLocationName: String?,
+    fixedLatitude: Double? = nil,
+    fixedLongitude: Double? = nil) -> Bool
   {
     guard enabled else { return false }
     guard isFresh else { return false }
-    return matchesConfiguration(locationMode: locationMode, fixedLocationName: fixedLocationName)
+    return matchesConfiguration(
+      locationMode: locationMode,
+      fixedLocationName: fixedLocationName,
+      fixedLatitude: fixedLatitude,
+      fixedLongitude: fixedLongitude
+    )
   }
 
   public static func normalizedLocationQuery(_ value: String?) -> String {
@@ -144,5 +160,9 @@ public struct KeyboardWeatherIndicatorCache: Codable, Hashable {
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
       .lowercased() ?? ""
+  }
+
+  private static func matchesCoordinate(lhs: Double, rhs: Double) -> Bool {
+    abs(lhs - rhs) <= 0.0005
   }
 }

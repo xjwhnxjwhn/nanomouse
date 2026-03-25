@@ -481,6 +481,26 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var weatherIndicatorFixedLatitude: Double? {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLatitude
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLatitude = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.weatherIndicatorFixedLatitude = newValue
+    }
+  }
+
+  public var weatherIndicatorFixedLongitude: Double? {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLongitude
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.toolbar?.weatherIndicatorFixedLongitude = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.toolbar?.weatherIndicatorFixedLongitude = newValue
+    }
+  }
+
   public var spaceDragSensitivity: Int {
     get {
       HamsterAppDependencyContainer.shared.configuration.swipe?.spaceDragSensitivity ?? 5
@@ -567,8 +587,25 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     UserDefaults.hamster.keyboardWeatherIndicatorCache?.attributionServiceName ?? "Apple Weather"
   }
 
+  public var weatherIndicatorFixedLocationDisplayText: String {
+    let name = weatherIndicatorFixedLocationName.trimmingCharacters(in: .whitespacesAndNewlines)
+    return name.isEmpty ? "未选择" : name
+  }
+
   public func refreshToolbarSettings() {
     resetSignSubject.send(true)
+  }
+
+  public func openWeatherIndicatorCityPicker() {
+    weatherIndicatorCityPickerSubject.send()
+  }
+
+  public func setWeatherIndicatorFixedLocation(name: String, latitude: Double, longitude: Double) {
+    weatherIndicatorLocationMode = .fixedCity
+    weatherIndicatorFixedLocationName = name
+    weatherIndicatorFixedLatitude = latitude
+    weatherIndicatorFixedLongitude = longitude
+    refreshToolbarSettings()
   }
 
   // 是否启用空格加载文本
@@ -770,6 +807,10 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     subViewSubject.eraseToAnyPublisher()
   }
   private var pendingToolbarSettingsFocus: KeyboardToolbarSettingsFocus?
+  private let weatherIndicatorCityPickerSubject = PassthroughSubject<Void, Never>()
+  public var weatherIndicatorCityPickerPublished: AnyPublisher<Void, Never> {
+    weatherIndicatorCityPickerSubject.eraseToAnyPublisher()
+  }
 
   public func navigation(to subView: KeyboardSettingsSubView) {
     subViewSubject.send(subView)
@@ -1218,14 +1259,12 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           }
         }),
       .init(
-        icon: UIImage(systemName: "mappin.and.ellipse"),
         text: "固定城市",
-        placeholder: "例如：东京 / 上海 / New York",
-        type: .textField,
-        textValue: { [unowned self] in weatherIndicatorFixedLocationName },
-        textHandled: { [unowned self] in
-          self.weatherIndicatorFixedLocationName = $0
-          self.refreshToolbarSettings()
+        accessoryType: .disclosureIndicator,
+        type: .navigation,
+        navigationLinkLabel: { [unowned self] in weatherIndicatorFixedLocationDisplayText },
+        navigationAction: { [unowned self] in
+          self.openWeatherIndicatorCityPicker()
         }),
       .init(
         text: "天气缓存状态",
@@ -2046,11 +2085,16 @@ private extension KeyboardSettingsViewModel {
       if weatherIndicatorLocationMode == .fixedCity,
          KeyboardWeatherIndicatorCache.normalizedLocationQuery(weatherIndicatorFixedLocationName).isEmpty
       {
-        return "请先填写固定城市名称。"
+        return "请先选择固定城市。"
       }
       return "暂无天气缓存，请点击刷新。"
     }
-    guard cache.matchesConfiguration(locationMode: weatherIndicatorLocationMode, fixedLocationName: weatherIndicatorFixedLocationName) else {
+    guard cache.matchesConfiguration(
+      locationMode: weatherIndicatorLocationMode,
+      fixedLocationName: weatherIndicatorFixedLocationName,
+      fixedLatitude: weatherIndicatorFixedLatitude,
+      fixedLongitude: weatherIndicatorFixedLongitude
+    ) else {
       return "配置已变更，请刷新天气缓存。"
     }
     guard cache.isFresh else {

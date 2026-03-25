@@ -65,6 +65,12 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
   /// 固定城市名称
   public var weatherIndicatorFixedLocationName: String?
 
+  /// 固定城市纬度
+  public var weatherIndicatorFixedLatitude: Double?
+
+  /// 固定城市经度
+  public var weatherIndicatorFixedLongitude: Double?
+
   public init(
     enableToolbar: Bool? = true,
     heightOfToolbar: Int? = 60,
@@ -82,7 +88,9 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     enableWeatherIndicator: Bool? = true,
     weatherIndicatorMetric: KeyboardWeatherIndicatorMetric? = .temperature,
     weatherIndicatorLocationMode: KeyboardWeatherIndicatorLocationMode? = .currentLocation,
-    weatherIndicatorFixedLocationName: String? = nil)
+    weatherIndicatorFixedLocationName: String? = nil,
+    weatherIndicatorFixedLatitude: Double? = nil,
+    weatherIndicatorFixedLongitude: Double? = nil)
   {
     self.enableToolbar = enableToolbar
     self.heightOfToolbar = heightOfToolbar
@@ -101,6 +109,8 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.weatherIndicatorMetric = weatherIndicatorMetric
     self.weatherIndicatorLocationMode = weatherIndicatorLocationMode
     self.weatherIndicatorFixedLocationName = weatherIndicatorFixedLocationName
+    self.weatherIndicatorFixedLatitude = weatherIndicatorFixedLatitude
+    self.weatherIndicatorFixedLongitude = weatherIndicatorFixedLongitude
   }
 
   public init(from decoder: Decoder) throws {
@@ -122,6 +132,8 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     self.weatherIndicatorMetric = try container.decodeIfPresent(KeyboardWeatherIndicatorMetric.self, forKey: .weatherIndicatorMetric)
     self.weatherIndicatorLocationMode = try container.decodeIfPresent(KeyboardWeatherIndicatorLocationMode.self, forKey: .weatherIndicatorLocationMode)
     self.weatherIndicatorFixedLocationName = try container.decodeIfPresent(String.self, forKey: .weatherIndicatorFixedLocationName)
+    self.weatherIndicatorFixedLatitude = try container.decodeIfPresent(Double.self, forKey: .weatherIndicatorFixedLatitude)
+    self.weatherIndicatorFixedLongitude = try container.decodeIfPresent(Double.self, forKey: .weatherIndicatorFixedLongitude)
   }
 
   enum CodingKeys: CodingKey {
@@ -142,6 +154,8 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     case weatherIndicatorMetric
     case weatherIndicatorLocationMode
     case weatherIndicatorFixedLocationName
+    case weatherIndicatorFixedLatitude
+    case weatherIndicatorFixedLongitude
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -163,5 +177,7 @@ public struct KeyboardToolbarConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.weatherIndicatorMetric, forKey: .weatherIndicatorMetric)
     try container.encodeIfPresent(self.weatherIndicatorLocationMode, forKey: .weatherIndicatorLocationMode)
     try container.encodeIfPresent(self.weatherIndicatorFixedLocationName, forKey: .weatherIndicatorFixedLocationName)
+    try container.encodeIfPresent(self.weatherIndicatorFixedLatitude, forKey: .weatherIndicatorFixedLatitude)
+    try container.encodeIfPresent(self.weatherIndicatorFixedLongitude, forKey: .weatherIndicatorFixedLongitude)
   }
 }

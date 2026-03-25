@@ -32,9 +32,9 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       case .locationUnavailable:
         return "当前位置暂时不可用，请稍后重试。"
       case .fixedCityMissing:
-        return "请先填写固定城市名称。"
+        return "请先选择固定城市。"
       case .fixedCityNotFound:
-        return "没有解析到这个固定城市，请换一个名称再试。"
+        return "没有解析到这个固定城市，请重新选择。"
       case .refreshCoolingDown(let remainingTime):
         return "天气刷新冷却中，请\(Self.cooldownText(for: remainingTime))后再试。"
       }
@@ -72,7 +72,13 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     let config = currentWeatherConfiguration()
     guard config.enabled else { return }
     if let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache,
-       cache.isDisplayable(enabled: true, locationMode: config.locationMode, fixedLocationName: config.fixedLocationName) {
+       cache.isDisplayable(
+         enabled: true,
+         locationMode: config.locationMode,
+         fixedLocationName: config.fixedLocationName,
+         fixedLatitude: config.fixedLatitude,
+         fixedLongitude: config.fixedLongitude
+       ) {
       return
     }
 
@@ -94,7 +100,13 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     try enforceRefreshCooldownIfNeeded()
 
     do {
-      let resolvedLocation = try await resolveLocation(mode: config.locationMode, fixedLocationName: config.fixedLocationName, allowAuthorizationPrompt: forceAuthorizationPrompt)
+      let resolvedLocation = try await resolveLocation(
+        mode: config.locationMode,
+        fixedLocationName: config.fixedLocationName,
+        fixedLatitude: config.fixedLatitude,
+        fixedLongitude: config.fixedLongitude,
+        allowAuthorizationPrompt: forceAuthorizationPrompt
+      )
       UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt = Date()
       let currentWeather = try await WeatherService.shared.weather(for: resolvedLocation.location, including: .current)
       let attribution = try? await WeatherService.shared.attribution
@@ -161,7 +173,12 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else {
       return missingCacheReasonText(locationMode: config.locationMode, fixedLocationName: config.fixedLocationName)
     }
-    guard cache.matchesConfiguration(locationMode: config.locationMode, fixedLocationName: config.fixedLocationName) else {
+    guard cache.matchesConfiguration(
+      locationMode: config.locationMode,
+      fixedLocationName: config.fixedLocationName,
+      fixedLatitude: config.fixedLatitude,
+      fixedLongitude: config.fixedLongitude
+    ) else {
       return "配置已变更，请刷新天气缓存。"
     }
     guard cache.isFresh else {
@@ -191,6 +208,8 @@ public final class KeyboardWeatherIndicatorService: NSObject {
   private func resolveLocation(
     mode: KeyboardWeatherIndicatorLocationMode,
     fixedLocationName: String?,
+    fixedLatitude: Double?,
+    fixedLongitude: Double?,
     allowAuthorizationPrompt: Bool) async throws -> ResolvedWeatherLocation
   {
     switch mode {
@@ -202,6 +221,13 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       let normalizedQuery = KeyboardWeatherIndicatorCache.normalizedLocationQuery(fixedLocationName)
       guard !normalizedQuery.isEmpty else {
         throw WeatherIndicatorError.fixedCityMissing
+      }
+      if let fixedLatitude,
+         let fixedLongitude
+      {
+        let location = CLLocation(latitude: fixedLatitude, longitude: fixedLongitude)
+        let displayName = fixedLocationName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "固定城市"
+        return ResolvedWeatherLocation(mode: .fixedCity, query: fixedLocationName, displayName: displayName, location: location)
       }
       let placemarks = try await geocoder.geocodeAddressString(fixedLocationName ?? "")
       guard let placemark = placemarks.first, let location = placemark.location else {
@@ -246,12 +272,20 @@ public final class KeyboardWeatherIndicatorService: NSObject {
     }
   }
 
-  private func currentWeatherConfiguration() -> (enabled: Bool, locationMode: KeyboardWeatherIndicatorLocationMode, fixedLocationName: String?) {
+  private func currentWeatherConfiguration() -> (
+    enabled: Bool,
+    locationMode: KeyboardWeatherIndicatorLocationMode,
+    fixedLocationName: String?,
+    fixedLatitude: Double?,
+    fixedLongitude: Double?)
+  {
     let toolbar = HamsterAppDependencyContainer.shared.configuration.toolbar
     let enabled = toolbar?.enableWeatherIndicator ?? true
     let locationMode = toolbar?.weatherIndicatorLocationMode ?? .currentLocation
     let fixedLocationName = toolbar?.weatherIndicatorFixedLocationName
-    return (enabled, locationMode, fixedLocationName)
+    let fixedLatitude = toolbar?.weatherIndicatorFixedLatitude
+    let fixedLongitude = toolbar?.weatherIndicatorFixedLongitude
+    return (enabled, locationMode, fixedLocationName, fixedLatitude, fixedLongitude)
   }
 
   private func enforceRefreshCooldownIfNeeded() throws {
@@ -301,7 +335,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       }
     case .fixedCity:
       if KeyboardWeatherIndicatorCache.normalizedLocationQuery(fixedLocationName).isEmpty {
-        return "请先填写固定城市名称。"
+        return "请先选择固定城市。"
       }
       if let cooldownText = refreshCooldownText() {
         return "暂无天气缓存，\(cooldownText)后可再次刷新。"

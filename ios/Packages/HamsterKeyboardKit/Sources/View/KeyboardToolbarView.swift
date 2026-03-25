@@ -684,9 +684,17 @@ class KeyboardToolbarView: NibLessView {
     guard keyboardContext.hamsterConfiguration?.toolbar?.enableWeatherIndicator ?? true else { return nil }
     let locationMode = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorLocationMode ?? .currentLocation
     let fixedLocationName = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorFixedLocationName
+    let fixedLatitude = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorFixedLatitude
+    let fixedLongitude = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorFixedLongitude
     let metric = keyboardContext.hamsterConfiguration?.toolbar?.weatherIndicatorMetric ?? .temperature
     if let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache,
-       cache.isDisplayable(enabled: true, locationMode: locationMode, fixedLocationName: fixedLocationName)
+       cache.isDisplayable(
+         enabled: true,
+         locationMode: locationMode,
+         fixedLocationName: fixedLocationName,
+         fixedLatitude: fixedLatitude,
+         fixedLongitude: fixedLongitude
+       )
     {
       return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: cache.displayText(for: metric))
     }
