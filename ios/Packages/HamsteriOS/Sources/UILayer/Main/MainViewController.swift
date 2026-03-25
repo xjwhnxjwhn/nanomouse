@@ -2929,6 +2929,7 @@ final class VoiceAccountViewController: NibLessViewController {
     }
     return controller
   }()
+  private var notificationStateObserver: NSObjectProtocol?
 
   init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
     self.mainViewModel = mainViewModel
@@ -2941,6 +2942,12 @@ final class VoiceAccountViewController: NibLessViewController {
     fatalError("init(coder:) has not been implemented")
   }
 
+  deinit {
+    if let notificationStateObserver {
+      NotificationCenter.default.removeObserver(notificationStateObserver)
+    }
+  }
+
   override func loadView() {
     title = "账户"
     view = accountView
@@ -2950,13 +2957,26 @@ final class VoiceAccountViewController: NibLessViewController {
     super.viewDidLoad()
     accountView.tableView.dataSource = self
     accountView.tableView.delegate = self
-    accountView.tableView.register(AccountNotificationCell.self, forCellReuseIdentifier: AccountNotificationCell.identifier)
     accountView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "AccountCell")
+    notificationStateObserver = NotificationCenter.default.addObserver(
+      forName: .appNotificationStateDidChange,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.reloadNotificationCard()
+    }
+    Task { @MainActor in
+      await AppNotificationManager.shared.refreshAuthorizationStatus()
+      await AppNotificationManager.shared.syncCurrentStatusIfPossible()
+    }
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     accountView.tableView.reloadData()
+    Task { @MainActor in
+      await AppNotificationManager.shared.refreshAuthorizationStatus()
+    }
   }
 
   private func makeKeyboardHostController() -> KeyboardModuleHostViewController {
@@ -2999,6 +3019,26 @@ final class VoiceAccountViewController: NibLessViewController {
     UserDefaults.hamster.enableKeyboardExtensionVoiceModeView = sender.isOn
   }
 
+  private func reloadNotificationCard() {
+    let section = 0
+    guard accountView.tableView.numberOfSections > section else { return }
+    accountView.tableView.reloadSections(IndexSet(integer: section), with: .none)
+  }
+
+  @objc private func handleNotificationSwitchChanged(_ sender: UISwitch) {
+    let desiredValue = sender.isOn
+    Task { @MainActor in
+      let outcome = await AppNotificationManager.shared.handleUserToggleChange(to: desiredValue)
+      if outcome == .openSystemSettings,
+         let settingsURL = URL(string: UIApplication.openSettingsURLString),
+         UIApplication.shared.canOpenURL(settingsURL) {
+        _ = await UIApplication.shared.open(settingsURL)
+      }
+      self.reloadNotificationCard()
+    }
+  }
+
+
   func openKeyboardSettings(
     subView: KeyboardSettingsSubView? = nil,
     toolbarFocus: KeyboardToolbarSettingsFocus? = nil,
@@ -3039,7 +3079,19 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     if indexPath.section == 0 {
-      let cell = tableView.dequeueReusableCell(withIdentifier: AccountNotificationCell.identifier, for: indexPath)
+      let cellIdentifier = "AccountNotificationToggleCell"
+      let cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
+        ?? UITableViewCell(style: .default, reuseIdentifier: cellIdentifier)
+      cell.textLabel?.text = "产品通知"
+      cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
+      cell.textLabel?.textColor = .label
+      cell.imageView?.image = UIImage(systemName: "bell.badge")
+      cell.selectionStyle = .none
+      cell.accessoryType = .none
+      let toggle = UISwitch(frame: .zero)
+      toggle.isOn = AppNotificationManager.shared.isNotificationEnabled
+      toggle.addTarget(self, action: #selector(handleNotificationSwitchChanged(_:)), for: .valueChanged)
+      cell.accessoryView = toggle
       return cell
     }
 
@@ -3094,6 +3146,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
   func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
     UITableView.automaticDimension
   }
+
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
@@ -3568,95 +3621,6 @@ final class VoiceAccountProfileRootView: NibLessView {
   override func setupAppearance() {
     backgroundColor = .systemBackground
     tableView.backgroundColor = .systemBackground
-  }
-}
-
-final class AccountNotificationCell: UITableViewCell {
-  static let identifier = "AccountNotificationCell"
-
-  private lazy var cardView: UIView = {
-    let view = UIView()
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.backgroundColor = .secondarySystemBackground
-    view.layer.cornerRadius = 16
-    return view
-  }()
-
-  private lazy var dotView: UIView = {
-    let view = UIView()
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.backgroundColor = .systemRed
-    view.layer.cornerRadius = 4
-    return view
-  }()
-
-  private lazy var titleLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 15, weight: .semibold)
-    label.text = "通知：关闭"
-    label.textColor = .systemRed
-    return label
-  }()
-
-  private lazy var subtitleLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 13, weight: .regular)
-    label.textColor = .secondaryLabel
-    label.numberOfLines = 0
-    label.text = "开启通知以获取有用提示，并第一时间了解新功能。"
-    return label
-  }()
-
-  private lazy var actionButton: UIButton = {
-    let button = UIButton(type: .system)
-    button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("开启通知", for: .normal)
-    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
-    button.backgroundColor = .secondarySystemBackground
-    button.layer.cornerRadius = 10
-    return button
-  }()
-
-  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
-    super.init(style: style, reuseIdentifier: reuseIdentifier)
-    selectionStyle = .none
-    contentView.addSubview(cardView)
-    cardView.addSubview(dotView)
-    cardView.addSubview(titleLabel)
-    cardView.addSubview(subtitleLabel)
-    cardView.addSubview(actionButton)
-
-    NSLayoutConstraint.activate([
-      cardView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
-      cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-      cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
-      cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
-
-      dotView.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 16),
-      dotView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
-      dotView.widthAnchor.constraint(equalToConstant: 8),
-      dotView.heightAnchor.constraint(equalToConstant: 8),
-
-      titleLabel.centerYAnchor.constraint(equalTo: dotView.centerYAnchor),
-      titleLabel.leadingAnchor.constraint(equalTo: dotView.trailingAnchor, constant: 8),
-      titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
-
-      subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-      subtitleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
-      subtitleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
-
-      actionButton.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 12),
-      actionButton.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
-      actionButton.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -16),
-      actionButton.heightAnchor.constraint(equalToConstant: 36)
-    ])
-  }
-
-  @available(*, unavailable)
-  required init?(coder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
   }
 }
 

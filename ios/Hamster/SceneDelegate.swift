@@ -12,10 +12,12 @@ import OSLog
 import ProgressHUD
 import UIKit
 
+@MainActor
 class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   var window: UIWindow?
   private let voiceInputBridge: AppVoiceInputBridge = .shared
   private let canvasInputBridge: AppCanvasBridge = .shared
+  private var notificationRouteObserver: NSObjectProtocol?
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -27,6 +29,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       self.window = window
       window.makeKeyAndVisible()
     }
+    installNotificationRouteObserver()
+    if let notificationResponse = connectionOptions.notificationResponse {
+      AppNotificationManager.shared.stageRoute(from: notificationResponse.notification.request.content.userInfo)
+    }
+    applyPendingNotificationRouteIfNeeded()
     let localeIdentifier = Locale.preferredLanguages.first
     voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
 
@@ -238,6 +245,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     // This occurs shortly after the scene enters the background, or when its session is discarded.
     // Release any resources associated with this scene that can be re-created the next time the scene connects.
     // The scene may re-connect later, as its session was not necessarily discarded (see `application:didDiscardSceneSessions` instead).
+    _ = scene
+    if let notificationRouteObserver {
+      NotificationCenter.default.removeObserver(notificationRouteObserver)
+      self.notificationRouteObserver = nil
+    }
   }
 
   func sceneDidBecomeActive(_ scene: UIScene) {
@@ -247,7 +259,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
     AppReviewManager.shared.maybeRequestAutomaticReview()
     Task { @MainActor in
+      await AppNotificationManager.shared.refreshAuthorizationStatus()
+      await AppNotificationManager.shared.syncCurrentStatusIfPossible()
       await KeyboardWeatherIndicatorService.shared.refreshIfNeeded()
+      self.applyPendingNotificationRouteIfNeeded()
     }
   }
 
@@ -330,9 +345,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         deployError = error
       }
 
+      let finalDeployError = deployError
       await MainActor.run {
-        if let deployError {
-          ProgressHUD.failed(deployError, interaction: false, delay: 5)
+        if let finalDeployError {
+          ProgressHUD.failed(finalDeployError, interaction: false, delay: 5)
         } else {
           ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
         }
@@ -340,4 +356,50 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     }
   }
 
+  private func installNotificationRouteObserver() {
+    guard notificationRouteObserver == nil else { return }
+    notificationRouteObserver = NotificationCenter.default.addObserver(
+      forName: .appNotificationRouteDidChange,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.applyPendingNotificationRouteIfNeeded()
+    }
+  }
+
+  private func applyPendingNotificationRouteIfNeeded() {
+    guard let route = AppNotificationManager.shared.consumePendingRoute() else { return }
+    applyNotificationRoute(route)
+  }
+
+  private func applyNotificationRoute(_ route: AppNotificationRoute) {
+    guard let rootController = window?.rootViewController as? MainTabBarController else { return }
+
+    switch route {
+    case .home:
+      return
+    case .settings:
+      rootController.activateSettingsTab()
+    case .voice:
+      let requestId = voiceInputBridge.makeRequestId()
+      voiceInputBridge.setState(requestId: requestId, state: .launching)
+      rootController.activateVoiceDictation(requestId: requestId, launchedFromKeyboard: false)
+    case .clipboard:
+      rootController.activateEmbeddedModuleTab(moduleIdentifier: "clipboard")
+    case .canvas:
+      let requestId = canvasInputBridge.makeRequestId()
+      canvasInputBridge.setState(requestId: requestId, state: .launching)
+      rootController.activateCanvas(requestId: requestId)
+    case .markdown:
+      let requestId = canvasInputBridge.makeRequestId()
+      canvasInputBridge.setState(requestId: requestId, state: .launching)
+      rootController.activateMarkdown(requestId: requestId)
+    case .deeplink(let url):
+      if handleVoiceDictationURL(url) { return }
+      if handleCanvasURL(url) { return }
+      if handleMarkdownURL(url) { return }
+      if handleEmbeddedModuleURL(url) { return }
+      _ = handleSettingsURL(url)
+    }
+  }
 }
