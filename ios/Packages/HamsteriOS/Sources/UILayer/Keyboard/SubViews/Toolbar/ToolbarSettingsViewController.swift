@@ -323,14 +323,24 @@ private final class WeatherIndicatorCityPickerViewController: NibLessViewControl
   }
 
   private static func displayName(for placemark: CLPlacemark, fallbackCoordinate: CLLocationCoordinate2D) -> String {
-    if let locality = placemark.locality, !locality.isEmpty {
-      if let administrativeArea = placemark.administrativeArea,
-         !administrativeArea.isEmpty,
-         administrativeArea != locality
-      {
-        return "\(locality), \(administrativeArea)"
+    let preferredComponents = [
+      placemark.administrativeArea,
+      placemark.locality,
+      placemark.subLocality
+    ].compactMap { value -> String? in
+      guard let value else { return nil }
+      let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? nil : trimmed
+    }
+
+    let deduplicatedComponents = preferredComponents.reduce(into: [String]()) { result, value in
+      if result.last != value {
+        result.append(value)
       }
-      return locality
+    }
+
+    if !deduplicatedComponents.isEmpty {
+      return deduplicatedComponents.joined(separator: " ")
     }
     if let subAdministrativeArea = placemark.subAdministrativeArea, !subAdministrativeArea.isEmpty {
       return subAdministrativeArea
