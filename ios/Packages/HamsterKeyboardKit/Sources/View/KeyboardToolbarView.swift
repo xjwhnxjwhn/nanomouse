@@ -136,6 +136,8 @@ class KeyboardToolbarView: NibLessView {
     button.translatesAutoresizingMaskIntoConstraints = false
     button.setImage(UIImage(systemName: "keyboard.chevron.compact.down"), for: .normal)
     button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.imageView?.contentMode = .scaleAspectFit
+    button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = .secondaryLabel
     button.backgroundColor = .clear
     button.addTarget(self, action: #selector(dismissKeyboardTouchDownAction), for: .touchDown)
@@ -161,6 +163,8 @@ class KeyboardToolbarView: NibLessView {
     button.backgroundColor = style.toolbarButtonBackgroundColor
     button.setImage(UIImage(systemName: "waveform"), for: .normal)
     button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.imageView?.contentMode = .scaleAspectFit
+    button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = style.toolbarButtonFrontColor
     button.addTarget(self, action: #selector(voiceModeTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(voiceModeTouchUpAction), for: .touchUpInside)
@@ -176,6 +180,8 @@ class KeyboardToolbarView: NibLessView {
     button.backgroundColor = style.toolbarButtonBackgroundColor
     button.setImage(UIImage(systemName: "scribble.variable"), for: .normal)
     button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.imageView?.contentMode = .scaleAspectFit
+    button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = style.toolbarButtonFrontColor
     button.addTarget(self, action: #selector(canvasTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(canvasTouchUpAction), for: .touchUpInside)
@@ -191,6 +197,8 @@ class KeyboardToolbarView: NibLessView {
     button.backgroundColor = style.toolbarButtonBackgroundColor
     button.setImage(UIImage(systemName: "text.document"), for: .normal)
     button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.imageView?.contentMode = .scaleAspectFit
+    button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = style.toolbarButtonFrontColor
     button.addTarget(self, action: #selector(markdownTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(markdownTouchUpAction), for: .touchUpInside)
@@ -207,6 +215,8 @@ class KeyboardToolbarView: NibLessView {
     let symbolName = embeddedModuleEntry?.iconSystemName ?? "square.on.square"
     button.setImage(UIImage(systemName: symbolName), for: .normal)
     button.setPreferredSymbolConfiguration(.init(font: .systemFont(ofSize: 19), scale: .default), forImageIn: .normal)
+    button.imageView?.contentMode = .scaleAspectFit
+    button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = style.toolbarButtonFrontColor
     button.accessibilityLabel = embeddedModuleEntry?.accessibilityLabel ?? "扩展模块"
     button.addTarget(self, action: #selector(embeddedModuleTouchDownAction), for: .touchDown)
@@ -276,6 +286,7 @@ class KeyboardToolbarView: NibLessView {
     let radius = logoImageView.bounds.height * 0.2237
     logoImageView.layer.cornerRadius = radius
     logoImageView.layer.cornerCurve = .continuous
+    updateToolbarButtonSymbolConfiguration()
     applyToolbarButtonCornerStyle()
   }
 
@@ -341,6 +352,7 @@ class KeyboardToolbarView: NibLessView {
 
     if keyboardContext.displayKeyboardDismissButton {
       constraints.append(contentsOf: [
+        dismissKeyboardButton.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
         dismissKeyboardButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
         voiceModeButton.heightAnchor.constraint(equalTo: dismissKeyboardButton.heightAnchor),
         voiceModeButton.widthAnchor.constraint(equalTo: dismissKeyboardButton.widthAnchor),
@@ -426,8 +438,23 @@ class KeyboardToolbarView: NibLessView {
       let radius = button.bounds.height / 2
       button.layer.cornerRadius = radius
       button.layer.cornerCurve = .continuous
-      button.layer.masksToBounds = true
+      button.layer.masksToBounds = false
     }
+  }
+
+  private func updateToolbarButtonSymbolConfiguration() {
+    let buttons = [embeddedModuleButton, canvasButton, markdownButton, voiceModeButton, dismissKeyboardButton]
+    for button in buttons {
+      let pointSize = toolbarSymbolPointSize(for: button)
+      let configuration = UIImage.SymbolConfiguration(font: .systemFont(ofSize: pointSize), scale: .default)
+      button.setPreferredSymbolConfiguration(configuration, forImageIn: .normal)
+    }
+  }
+
+  private func toolbarSymbolPointSize(for button: UIButton) -> CGFloat {
+    let availableHeight = button.bounds.height - button.contentEdgeInsets.top - button.contentEdgeInsets.bottom
+    guard availableHeight > 0 else { return 19 }
+    return min(19, max(14, availableHeight * 0.65))
   }
 
   private func setTopToolbarButtonPressed(_ button: UIButton, isPressed: Bool) {
