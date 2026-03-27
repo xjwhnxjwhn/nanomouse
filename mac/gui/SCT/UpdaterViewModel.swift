@@ -1,22 +1,10 @@
 import Foundation
-import Combine
-import Sparkle
 
 @MainActor
 final class UpdaterViewModel: ObservableObject {
-    @Published var canCheckForUpdates = false
-
-    private let updaterController: SPUStandardUpdaterController
-
-    init() {
-        // SPUStandardUpdaterController is the standard way to use Sparkle in a SwiftUI app
-        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-
-        updaterController.updater.publisher(for: \.canCheckForUpdates)
-            .assign(to: &$canCheckForUpdates)
-    }
+    let canCheckForUpdates = false
 
     func checkForUpdates() {
-        updaterController.checkForUpdates(nil)
+        // Mac App Store 版本由 App Store 负责更新，这里保留空实现以避免额外删除文件。
     }
 }

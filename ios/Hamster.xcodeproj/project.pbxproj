@@ -11,7 +11,6 @@
 		0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */ = {isa = PBXBuildFile; fileRef = 034D1299E7F66EFEFF108E4C /* ConfigSchema.json */; };
 		0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */; };
 		1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; };
-		21D40FAEAF717B1EA549D7B3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 517FF44AFC9E1AD23C5D2EC8 /* Sparkle */; };
 		282C1F4DD89D7255EA115E05 /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */; };
 		4A438822FEFD4E6892DBDFC0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */; };
 		4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */; };
@@ -252,7 +251,6 @@
 				4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */,
 				7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */,
 				1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */,
-				21D40FAEAF717B1EA549D7B3 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -480,7 +478,6 @@
 				0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */,
 				A583BF6DB266C2092B020A23 /* Yams */,
 				86A69570B6A620619716F664 /* MarkdownUI */,
-				517FF44AFC9E1AD23C5D2EC8 /* Sparkle */,
 			);
 			productName = NanoMouse;
 			productReference = B8525A8107843174DE7A518A /* NanoMouse.app */;
@@ -566,7 +563,6 @@
 				0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */,
 				705D517CFE924CB240C3044D /* XCRemoteSwiftPackageReference "Yams" */,
 				65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			productRefGroup = C03E8026296D4F4C0083E53A /* Products */;
 			projectDirPath = "";
@@ -1130,14 +1126,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.8.1;
-			};
-		};
 		65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
@@ -1161,11 +1149,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */;
 			productName = NanomouseReviewKit;
-		};
-		517FF44AFC9E1AD23C5D2EC8 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 08D990EC8E8F12B9E20771ED /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
 		};
 		86A69570B6A620619716F664 /* MarkdownUI */ = {
 			isa = XCSwiftPackageProductDependency;

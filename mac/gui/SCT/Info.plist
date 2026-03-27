@@ -4,13 +4,5 @@
 <dict>
 	<key>NanomouseAppStoreID</key>
 	<string></string>
-	<key>SUEnableDownloaderService</key>
-	<false/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/xjwhnxjwhn/nanomouse/main/mac/gui/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>BZtiGDw/HAT1SMdwFHzZLmI9ajiab+jWmb4EqGAF6lE=</string>
 </dict>
 </plist>
