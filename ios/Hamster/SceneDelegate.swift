@@ -159,35 +159,52 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     }
   }
 
+  private func dismissPresentedControllersIfNeeded(completion: @escaping () -> Void) {
+    guard let rootController = window?.rootViewController else {
+      completion()
+      return
+    }
+    guard rootController.presentedViewController != nil else {
+      completion()
+      return
+    }
+    rootController.dismiss(animated: false) {
+      completion()
+    }
+  }
+
   private func handleSettingsURL(_ url: URL) -> Bool {
     let components = url.lastPathComponent
     guard let subView = SettingsSubView(rawValue: components) else { return false }
     let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+    dismissPresentedControllersIfNeeded { [weak self] in
+      guard let self else { return }
 
-    if subView == .keyboardSettings,
-       let subViewRawValue = queryItems?
-        .first(where: { $0.name == "subView" })?
-        .value,
-       let keyboardSubView = KeyboardSettingsSubView(rawValue: subViewRawValue) {
-      let toolbarFocus = queryItems?
-        .first(where: { $0.name == "focus" })?
-        .value
-        .flatMap(KeyboardToolbarSettingsFocus.init(rawValue:))
-      if let tabBarController = window?.rootViewController as? MainTabBarController {
-        tabBarController.openKeyboardSettings(
-          subView: keyboardSubView,
-          toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
-      } else {
-        activateSettingsTabIfNeeded()
-        HamsterAppDependencyContainer.shared.mainViewModel.navigationToKeyboardSettings(
-          subView: keyboardSubView,
-          toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
+      if subView == .keyboardSettings,
+         let subViewRawValue = queryItems?
+          .first(where: { $0.name == "subView" })?
+          .value,
+         let keyboardSubView = KeyboardSettingsSubView(rawValue: subViewRawValue) {
+        let toolbarFocus = queryItems?
+          .first(where: { $0.name == "focus" })?
+          .value
+          .flatMap(KeyboardToolbarSettingsFocus.init(rawValue:))
+        if let tabBarController = self.window?.rootViewController as? MainTabBarController {
+          tabBarController.openKeyboardSettings(
+            subView: keyboardSubView,
+            toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
+        } else {
+          self.activateSettingsTabIfNeeded()
+          HamsterAppDependencyContainer.shared.mainViewModel.navigationToKeyboardSettings(
+            subView: keyboardSubView,
+            toolbarFocus: keyboardSubView == .toolbar ? toolbarFocus : nil)
+        }
+        return
       }
-      return true
-    }
 
-    activateSettingsTabIfNeeded()
-    HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
+      self.activateSettingsTabIfNeeded()
+      HamsterAppDependencyContainer.shared.mainViewModel.navigation(subView)
+    }
     return true
   }
 
