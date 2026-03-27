@@ -2,12 +2,33 @@
 import PackageDescription
 import Foundation
 
-let privateEmbeddedPackagePath = ProcessInfo.processInfo.environment["EMBEDDED_MODULE_PATH"]?
+private let packageDirectoryURL = URL(fileURLWithPath: #filePath)
+  .deletingLastPathComponent()
+private let repositoryRootURL = packageDirectoryURL
+  .deletingLastPathComponent()
+  .deletingLastPathComponent()
+  .deletingLastPathComponent()
+private let defaultEmbeddedPackagePath = repositoryRootURL
+  .appendingPathComponent(".private/embedded-module")
+  .standardizedFileURL
+  .path
+private let privateEmbeddedPackagePath = ProcessInfo.processInfo.environment["EMBEDDED_MODULE_PATH"]?
   .trimmingCharacters(in: .whitespacesAndNewlines)
-let resolvedPrivateEmbeddedPackagePath: String? = {
-  guard let privateEmbeddedPackagePath else { return nil }
-  guard !privateEmbeddedPackagePath.isEmpty else { return nil }
-  return URL(fileURLWithPath: privateEmbeddedPackagePath).standardizedFileURL.path
+private let resolvedPrivateEmbeddedPackagePath: String? = {
+  let fileManager = FileManager.default
+  let candidates = [privateEmbeddedPackagePath, defaultEmbeddedPackagePath]
+
+  for candidate in candidates {
+    guard let candidate else { continue }
+    guard !candidate.isEmpty else { continue }
+
+    let normalizedPath = URL(fileURLWithPath: candidate).standardizedFileURL.path
+    if fileManager.fileExists(atPath: normalizedPath) {
+      return normalizedPath
+    }
+  }
+
+  return nil
 }()
 let hasPrivateEmbeddedPackage = resolvedPrivateEmbeddedPackagePath
   .map { FileManager.default.fileExists(atPath: $0) } ?? false

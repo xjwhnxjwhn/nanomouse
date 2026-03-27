@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E3B7085B731E44C68C7D1A10 /* EmbeddedModuleHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = E3B7085B731E44C68C7D1A11 /* EmbeddedModuleHostKit */; };
 		A1B2C3D4E5F60718293A4B5C /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */; };
 		B5AF88462EF3F1F2000868B9 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = B5AF88452EF3F1F2000868B9 /* Yams */; };
 		B5AF88462EF3F1F2000868BA /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = B5AF88452EF3F1F2000868BA /* MarkdownUI */; };
@@ -43,6 +44,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E3B7085B731E44C68C7D1A10 /* EmbeddedModuleHostKit in Frameworks */,
 				A1B2C3D4E5F60718293A4B5C /* NanomouseReviewKit in Frameworks */,
 				B5FD97A82EF7E9E4009CE14D /* Sparkle in Frameworks */,
 				B5AF88462EF3F1F2000868BA /* MarkdownUI in Frameworks */,
@@ -97,6 +99,7 @@
 			);
 			name = SCT;
 			packageProductDependencies = (
+				E3B7085B731E44C68C7D1A11 /* EmbeddedModuleHostKit */,
 				A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */,
 				B5AF88452EF3F1F2000868BA /* MarkdownUI */,
 				B5AF88452EF3F1F2000868B9 /* Yams */,
@@ -131,6 +134,7 @@
 			mainGroup = B5AF882D2EF3F059000868B9;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				E3B7085B731E44C68C7D1A12 /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */,
 				A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */,
 				B5AF88472EF3F1F2000868BA /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				B5AF88472EF3F1F2000868B9 /* XCRemoteSwiftPackageReference "Yams" */,
@@ -397,6 +401,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		E3B7085B731E44C68C7D1A12 /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/EmbeddedModuleHostKit;
+		};
 		A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../shared/NanomouseReviewKit;
@@ -431,6 +439,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E3B7085B731E44C68C7D1A11 /* EmbeddedModuleHostKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E3B7085B731E44C68C7D1A12 /* XCLocalSwiftPackageReference "EmbeddedModuleHostKit" */;
+			productName = EmbeddedModuleHostKit;
+		};
 		A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D4E5F60718293A4B5D /* XCLocalSwiftPackageReference "NanomouseReviewKit" */;

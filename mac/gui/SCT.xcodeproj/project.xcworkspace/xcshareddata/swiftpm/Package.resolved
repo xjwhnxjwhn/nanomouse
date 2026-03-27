@@ -1,6 +1,15 @@
 {
-  "originHash" : "1adc15099f1e0b0b1e36ac46f13c73099cc7933a0cbed0da7bee5a79e61c7a72",
+  "originHash" : "03b4a284e3497ab26567054f489d939ebc31c46323055f43dc3e05c2b0ce9915",
   "pins" : [
+    {
+      "identity" : "keyboardshortcuts",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sindresorhus/KeyboardShortcuts",
+      "state" : {
+        "revision" : "045cf174010beb335fa1d2567d18c057b8787165",
+        "version" : "2.3.0"
+      }
+    },
     {
       "identity" : "networkimage",
       "kind" : "remoteSourceControl",
@@ -8,6 +17,15 @@
       "state" : {
         "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
         "version" : "6.0.1"
+      }
+    },
+    {
+      "identity" : "richtextkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/danielsaidi/RichTextKit.git",
+      "state" : {
+        "revision" : "8aa44cfa645404ad84e52e3ab7723ecf4b82f92b",
+        "version" : "1.2.0"
       }
     },
     {
