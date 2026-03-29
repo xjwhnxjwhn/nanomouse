@@ -149,4 +149,14 @@ public enum EmbeddedMainModuleHost {
         return false
         #endif
     }
+
+    public static func handleRemoteNotification(
+        userInfo: [AnyHashable: Any]
+    ) async {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        await EmbeddedMainModuleBridge.handleRemoteNotification(userInfo: userInfo)
+        #else
+        _ = userInfo
+        #endif
+    }
 }

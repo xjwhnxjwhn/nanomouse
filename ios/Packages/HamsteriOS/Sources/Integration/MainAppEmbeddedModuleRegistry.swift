@@ -107,6 +107,12 @@ public final class MainAppEmbeddedModuleRegistry {
     }
     return false
   }
+
+  public func handleRemoteNotification(userInfo: [AnyHashable: Any]) async -> Bool {
+    guard EmbeddedMainModuleHost.isAvailable else { return false }
+    await EmbeddedMainModuleHost.handleRemoteNotification(userInfo: userInfo)
+    return true
+  }
 }
 
 extension MainAppEmbeddedModuleRegistry {

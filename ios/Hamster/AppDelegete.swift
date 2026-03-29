@@ -5,6 +5,7 @@
 //  Created by morse on 2023/6/5.
 //
 
+import CloudKit
 import HamsteriOS
 import UIKit
 
@@ -39,5 +40,23 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
     _ = application
     AppNotificationManager.shared.didFailToRegisterForRemoteNotifications(error: error)
+  }
+
+  func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    _ = application
+
+    guard CKNotification(fromRemoteNotificationDictionary: userInfo) != nil else {
+      completionHandler(.noData)
+      return
+    }
+
+    Task {
+      let handled = await MainAppEmbeddedModuleRegistry.shared.handleRemoteNotification(userInfo: userInfo)
+      completionHandler(handled ? .newData : .noData)
+    }
   }
 }
