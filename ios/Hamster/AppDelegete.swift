@@ -13,6 +13,9 @@ import UIKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
     MainAppEmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
+    // 字节粘贴的 CloudKit 静默推送不依赖用户可见通知授权。
+    // 主 App 启动后先注册远程通知，确保后台同步具备被系统唤醒的条件。
+    application.registerForRemoteNotifications()
     AppNotificationManager.shared.start(application: application)
     // Override point for customization after application launch.
     return true
