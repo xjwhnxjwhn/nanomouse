@@ -85,7 +85,8 @@ extension KeyboardEmbeddedModuleRegistry {
 
     EmbeddedKeyboardModuleHost.configure(
       appGroupIdentifier: HamsterConstants.appGroupName,
-      cloudKitContainerIdentifier: HamsterConstants.iCloudID
+      cloudKitContainerIdentifier: HamsterConstants.iCloudID,
+      enableCloudSync: true
     )
     register(provider: EmbeddedKeyboardRegistryAdapter())
   }

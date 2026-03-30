@@ -32,18 +32,21 @@ public enum EmbeddedKeyboardModuleHost {
 
     public static func configure(
         appGroupIdentifier: String,
-        cloudKitContainerIdentifier: String
+        cloudKitContainerIdentifier: String,
+        enableCloudSync: Bool = false
     ) {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedKeyboardModuleBridge)
         EmbeddedKeyboardModuleBridge.configure(
             EmbeddedKeyboardRuntimeConfiguration(
                 appGroupIdentifier: appGroupIdentifier,
-                cloudKitContainerIdentifier: cloudKitContainerIdentifier
+                cloudKitContainerIdentifier: cloudKitContainerIdentifier,
+                enableCloudSync: enableCloudSync
             )
         )
         #else
         _ = appGroupIdentifier
         _ = cloudKitContainerIdentifier
+        _ = enableCloudSync
         #endif
     }
 
