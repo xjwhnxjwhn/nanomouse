@@ -22,6 +22,9 @@ Resources/
 .idea/
 .vscode/
 *.swp
+.deriveddata/
+.DerivedData/
+DerivedData/
 **/.swiftpm/
 **/xcuserdata/
 **/project.xcworkspace/xcuserdata/
