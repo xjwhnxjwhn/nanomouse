@@ -1,6 +1,7 @@
 import SwiftUI
 import MarkdownUI
 import NanomouseReviewKit
+import EmbeddedModuleHostKit
 
 struct HelpView: View {
     @ObservedObject var manager: RimeConfigManager
@@ -81,52 +82,189 @@ struct HelpView: View {
         VStack(alignment: .leading, spacing: 16) {
             Divider()
 
-            HStack(spacing: 20) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 64, height: 64)
+            HStack(alignment: .top, spacing: 20) {
+                quickCopyAboutColumn
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L10n.appTitle)
-                        .font(.headline)
-                    Text(String(format: L10n.version, "1.0.0 (Build 20251219)"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text(L10n.copyright)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-
-                    Button(L10n.checkUpdates) {
-                        if let url = URL(string: "https://github.com/xjwhnxjwhn/nanomouse") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
-
-                    Button(L10n.rateApp) {
-                        AppReviewManager.shared.requestManualReview()
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
-
-                    Button(L10n.resetAccess) {
-                        manager.resetAccess()
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-
-                    Button(L10n.sharedSupportResetButton) {
-                        manager.resetSharedSupportAccess()
-                    }
-                    .buttonStyle(.link)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                }
+                sctAboutColumn
             }
         }
         .padding(.top, 20)
+    }
+
+    private var quickCopyAboutColumn: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 48, height: 48)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("字节粘贴关于")
+                        .font(.headline)
+                    Text("此区域直接映射“字节粘贴偏好设置 -> 关于”的内容。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            ForEach(EmbeddedModuleMenuBarHost.defaultAboutSections()) { section in
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(Array(section.items.enumerated()), id: \.element.id) { index, item in
+                            embeddedAboutRow(item)
+
+                            if index < section.items.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } label: {
+                    Label(section.title, systemImage: section.iconSystemName)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    private var sctAboutColumn: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("项目")
+                    Spacer()
+                    Text("Squirrel Configuration Tool (SCT)")
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+
+                HStack {
+                    Text("版本")
+                    Spacer()
+                    Text(currentBundleVersionText)
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+
+                Button {
+                    if let url = URL(string: "https://github.com/neolee/sct") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack {
+                        Label("上游仓库", systemImage: "link")
+                        Spacer()
+                        Text("github.com/neolee/sct")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+
+                Divider()
+
+                Button {
+                    if let url = URL(string: "https://github.com/rime/squirrel") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack {
+                        Label("鼠须管项目", systemImage: "link")
+                        Spacer()
+                        Text("github.com/rime/squirrel")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+
+                Divider()
+
+                Button(L10n.resetAccess) {
+                    manager.resetAccess()
+                }
+                .buttonStyle(.link)
+                .foregroundStyle(.red)
+
+                Button(L10n.sharedSupportResetButton) {
+                    manager.resetSharedSupportAccess()
+                }
+                .buttonStyle(.link)
+                .foregroundStyle(.red)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Label("SCT 原项目信息", systemImage: "square.stack.3d.up")
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func embeddedAboutRow(_ item: EmbeddedModuleAboutItemDescriptor) -> some View {
+        switch item.displayStyle {
+        case .value:
+            HStack {
+                Text(item.title)
+                Spacer()
+                if let detail = item.detail {
+                    Text(detail)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .action:
+            Button {
+                handleEmbeddedAboutAction(item.action)
+            } label: {
+                HStack {
+                    if let systemImage = item.systemImage {
+                        Label(item.title, systemImage: systemImage)
+                    } else {
+                        Text(item.title)
+                    }
+
+                    Spacer()
+
+                    if let detail = item.detail {
+                        Text(detail)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Image(systemName: "arrow.up.forward.square")
+                            .font(.caption)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(item.systemImage == nil ? Color.primary : Color.blue)
+        }
+    }
+
+    private func handleEmbeddedAboutAction(_ action: EmbeddedModuleAboutAction?) {
+        guard let action else { return }
+
+        switch action {
+        case .openURL(let urlString):
+            guard let url = URL(string: urlString) else { return }
+            NSWorkspace.shared.open(url)
+        case .copy(let value):
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(value, forType: .string)
+        case .rateApp:
+            AppReviewManager.shared.requestManualReview()
+        }
+    }
+
+    private var currentBundleVersionText: String {
+        let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        if shortVersion.isEmpty {
+            return buildVersion
+        }
+        if buildVersion.isEmpty {
+            return shortVersion
+        }
+        return "\(shortVersion)(\(buildVersion))"
     }
 }
 

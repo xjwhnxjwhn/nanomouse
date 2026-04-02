@@ -18,6 +18,61 @@ public struct EmbeddedModuleSidebarDescriptor {
     }
 }
 
+public enum EmbeddedModuleAboutAction: Hashable {
+    case openURL(String)
+    case copy(String)
+    case rateApp
+}
+
+public struct EmbeddedModuleAboutItemDescriptor: Identifiable, Hashable {
+    public enum DisplayStyle: Hashable {
+        case value
+        case action
+    }
+
+    public let id: String
+    public let title: String
+    public let detail: String?
+    public let systemImage: String?
+    public let displayStyle: DisplayStyle
+    public let action: EmbeddedModuleAboutAction?
+
+    public init(
+        id: String,
+        title: String,
+        detail: String? = nil,
+        systemImage: String? = nil,
+        displayStyle: DisplayStyle = .value,
+        action: EmbeddedModuleAboutAction? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.systemImage = systemImage
+        self.displayStyle = displayStyle
+        self.action = action
+    }
+}
+
+public struct EmbeddedModuleAboutSectionDescriptor: Identifiable, Hashable {
+    public let id: String
+    public let title: String
+    public let iconSystemName: String
+    public let items: [EmbeddedModuleAboutItemDescriptor]
+
+    public init(
+        id: String,
+        title: String,
+        iconSystemName: String,
+        items: [EmbeddedModuleAboutItemDescriptor]
+    ) {
+        self.id = id
+        self.title = title
+        self.iconSystemName = iconSystemName
+        self.items = items
+    }
+}
+
 @MainActor
 public final class EmbeddedModuleMenuBarHost {
     #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
@@ -134,6 +189,30 @@ public final class EmbeddedModuleMenuBarHost {
         return nil
         #endif
     }
+
+    public static func defaultAboutSections() -> [EmbeddedModuleAboutSectionDescriptor] {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        return EmbeddedMacModuleBridge.defaultAboutSections().map { section in
+            EmbeddedModuleAboutSectionDescriptor(
+                id: section.id,
+                title: section.title,
+                iconSystemName: section.iconSystemName,
+                items: section.items.map { item in
+                    EmbeddedModuleAboutItemDescriptor(
+                        id: item.id,
+                        title: item.title,
+                        detail: item.detail,
+                        systemImage: item.systemImage,
+                        displayStyle: item.displayStyle == .value ? .value : .action,
+                        action: mapAboutAction(item.action)
+                    )
+                }
+            )
+        }
+        #else
+        return []
+        #endif
+    }
 }
 
 #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
@@ -165,4 +244,19 @@ private enum EmbeddedModuleRuntimeConfigurationProvider {
 }
 #else
 private typealias BridgeDelegate = NSObject
+#endif
+
+#if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+private func mapAboutAction(_ action: EmbeddedMacAboutAction?) -> EmbeddedModuleAboutAction? {
+    guard let action else { return nil }
+
+    switch action {
+    case .openURL(let urlString):
+        return .openURL(urlString)
+    case .copy(let value):
+        return .copy(value)
+    case .rateApp:
+        return .rateApp
+    }
+}
 #endif

@@ -163,23 +163,43 @@ final class RimeConfigManager: ObservableObject {
         openPanel.allowsMultipleSelection = false
         openPanel.directoryURL = rimePath
 
-        openPanel.begin { [weak self] response in
+        presentPanel(openPanel) { [weak self] response in
             guard let self = self, response == .OK, let url = openPanel.url else { return }
 
             do {
-                let bookmarkData = try url.bookmarkData(
+                var bookmarkData = try url.bookmarkData(
                     options: .withSecurityScope,
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 )
+                var isStale = false
+                let resolvedURL = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
+                if isStale {
+                    bookmarkData = try resolvedURL.bookmarkData(
+                        options: .withSecurityScope,
+                        includingResourceValuesForKeys: nil,
+                        relativeTo: nil
+                    )
+                }
                 UserDefaults.standard.set(bookmarkData, forKey: self.bookmarkKey)
-                self.rimePath = url
+                self.rimePath = resolvedURL
                 self.hasAccess = true
                 self.hasCreatedSessionBackup = false
                 self.isDirty = false
+                let started = resolvedURL.startAccessingSecurityScopedResource()
                 self.loadConfig()
                 self.startMonitoring()
+                if started {
+                    resolvedURL.stopAccessingSecurityScopedResource()
+                }
             } catch {
+                let nsError = error as NSError
+                print("❌ Rime 目录授权失败 domain=\(nsError.domain) code=\(nsError.code) desc=\(nsError.localizedDescription)")
                 self.statusMessage = String(format: L10n.authFailed, error.localizedDescription)
             }
         }
@@ -195,7 +215,7 @@ final class RimeConfigManager: ObservableObject {
         openPanel.treatsFilePackagesAsDirectories = true
         openPanel.directoryURL = URL(fileURLWithPath: "/Library/Input Methods", isDirectory: true)
 
-        openPanel.begin { [weak self] response in
+        presentPanel(openPanel) { [weak self] response in
             guard let self = self, response == .OK, let url = openPanel.url else { return }
 
             // 允许用户选择 Squirrel.app 或 SharedSupport 目录，统一解析为 SharedSupport 路径。
@@ -220,6 +240,17 @@ final class RimeConfigManager: ObservableObject {
             } catch {
                 self.statusMessage = String(format: L10n.sharedSupportAccessFailed, error.localizedDescription)
             }
+        }
+    }
+
+    private func presentPanel(_ panel: NSOpenPanel, completion: @escaping (NSApplication.ModalResponse) -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: { $0.isVisible }) {
+            panel.beginSheetModal(for: window, completionHandler: completion)
+        } else {
+            let response = panel.runModal()
+            completion(response)
         }
     }
 
