@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import CloudKit
 import EmbeddedModuleHostKit
 import NanomouseReviewKit
 
@@ -103,6 +104,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ application: NSApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
+        print("🧭 [PushDebug] SCTApp didRegister tokenLength=\(deviceToken.count)")
         embeddedMenuBarHost.application(
             application,
             didRegisterForRemoteNotificationsWithDeviceToken: deviceToken
@@ -123,6 +125,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ application: NSApplication,
         didReceiveRemoteNotification userInfo: [String: Any]
     ) {
+        let subscriptionID = CKNotification(fromRemoteNotificationDictionary: userInfo)?.subscriptionID ?? "nil"
+        print("🧭 [PushDebug] SCTApp didReceive subscriptionID=\(subscriptionID)")
         embeddedMenuBarHost.application(application, didReceiveRemoteNotification: userInfo)
     }
 

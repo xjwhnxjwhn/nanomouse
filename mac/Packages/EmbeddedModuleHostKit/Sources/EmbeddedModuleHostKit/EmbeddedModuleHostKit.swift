@@ -124,6 +124,7 @@ public final class EmbeddedModuleMenuBarHost {
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        print("🧭 [PushDebug] EmbeddedModuleHostKit forward didRegister tokenLength=\(deviceToken.count)")
         bridgeDelegate?.application(
             application,
             didRegisterForRemoteNotificationsWithDeviceToken: deviceToken
@@ -154,6 +155,7 @@ public final class EmbeddedModuleMenuBarHost {
         didReceiveRemoteNotification userInfo: [String: Any]
     ) {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        print("🧭 [PushDebug] EmbeddedModuleHostKit forward didReceive")
         bridgeDelegate?.application(application, didReceiveRemoteNotification: userInfo)
         #else
         _ = application
