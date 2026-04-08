@@ -35,6 +35,8 @@
 	<false/>
 	<key>NanomouseAppStoreID</key>
 	<string></string>
+	<key>NSCameraUsageDescription</key>
+	<string>Nanomouse 需要使用摄像头拍摄照片并保存到字节粘贴片段。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nanomouse 需要使用麦克风进行语音输入。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
