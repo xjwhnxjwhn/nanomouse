@@ -40,7 +40,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
       }
     }
 
-    private static func cooldownText(for remainingTime: TimeInterval) -> String {
+    fileprivate static func cooldownText(for remainingTime: TimeInterval) -> String {
       let seconds = max(Int(ceil(remainingTime)), 1)
       if seconds >= 60 {
         return "\(Int(ceil(Double(seconds) / 60.0))) 分钟"
