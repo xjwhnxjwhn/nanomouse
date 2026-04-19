@@ -25,10 +25,14 @@ Resources/
 .deriveddata/
 .DerivedData/
 DerivedData/
+**/.build/
 **/.swiftpm/
 **/xcuserdata/
 **/project.xcworkspace/xcuserdata/
 **/xcschememanagement.plist
+
+# Local SwiftPM artifacts
+mac/Packages/EmbeddedModuleHostKit/Package.resolved
 
 # Rime build files
 *.bin
