@@ -93,6 +93,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
   """
 
   private let canvasStore: VoiceCanvasStorageStore = .shared
+  private let workspaceStore: VoiceWorkspaceDocumentStore = .shared
   private let canvasBridge: AppCanvasBridge = .shared
   private let draftStore: VoiceMarkdownDraftStore = .shared
   private var activeRequestId: String?
@@ -102,6 +103,9 @@ final class VoiceMarkdownViewController: NibLessViewController {
   private var quickActionButtons: [UIButton] = []
   private var availableFontOptions: [MarkdownFontOption] = []
   private var selectedFontOption: MarkdownFontOption = .systemDefault
+  private var markdownDocumentItems: [VoiceWorkspaceDocumentItem] = []
+  private var markdownPathComponents: [String] = []
+  private var activeMarkdownDocumentURL: URL?
 
   private enum MarkdownQuickAction: CaseIterable {
     case h1
@@ -187,14 +191,45 @@ final class VoiceMarkdownViewController: NibLessViewController {
     return label
   }()
 
+  private lazy var documentsButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "folder")
+    configuration.title = "文件"
+    configuration.imagePadding = 6
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+    button.configuration = configuration
+    button.addTarget(self, action: #selector(handleDocumentsTap), for: .touchUpInside)
+    return button
+  }()
+
   private lazy var statusLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 14, weight: .medium)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "你可以输入 Markdown。完成后返回宿主 App 可粘贴图片，系统也会复制原文文本。"
+    label.text = ""
     return label
+  }()
+
+  private lazy var scrollView: UIScrollView = {
+    let view = UIScrollView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.alwaysBounceVertical = true
+    view.showsVerticalScrollIndicator = true
+    view.keyboardDismissMode = .interactive
+    return view
+  }()
+
+  private lazy var contentView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
   }()
 
   private lazy var editorContainerView: UIView = {
@@ -329,7 +364,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
     label.font = .systemFont(ofSize: 13, weight: .regular)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "点击完成导出 JPG；长按完成可仅复制 Markdown 原文。"
+    label.text = ""
     return label
   }()
 
@@ -344,6 +379,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
     setupView()
     setupRendererIfNeeded()
     restoreDraftIfNeeded()
+    reloadMarkdownDocumentItems()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -363,25 +399,42 @@ final class VoiceMarkdownViewController: NibLessViewController {
 
   private func setupView() {
     view.backgroundColor = .systemBackground
-    view.addSubview(titleLabel)
-    view.addSubview(statusLabel)
-    view.addSubview(editorContainerView)
+    view.addSubview(scrollView)
+    scrollView.addSubview(contentView)
+    view.addSubview(documentsButton)
+    contentView.addSubview(titleLabel)
+    contentView.addSubview(statusLabel)
+    contentView.addSubview(editorContainerView)
     editorContainerView.addSubview(toolbarScrollView)
     toolbarScrollView.addSubview(toolbarStackView)
     editorContainerView.addSubview(toolbarDividerView)
     editorContainerView.addSubview(markdownTextView)
     editorContainerView.addSubview(editorPlaceholderLabel)
-    view.addSubview(previewTitleLabel)
-    view.addSubview(previewContainerView)
+    contentView.addSubview(previewTitleLabel)
+    contentView.addSubview(previewContainerView)
     previewContainerView.addSubview(previewWebView)
-    view.addSubview(clearButton)
-    view.addSubview(doneButton)
-    view.addSubview(tipLabel)
+    contentView.addSubview(clearButton)
+    contentView.addSubview(doneButton)
+    contentView.addSubview(tipLabel)
 
     NSLayoutConstraint.activate([
-      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-      titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-      titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      documentsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      documentsButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+
+      scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+
+      contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+      contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+      contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+      contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+      contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+
+      titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+      titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: documentsButton.leadingAnchor, constant: -12),
 
       statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
       statusLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
@@ -424,7 +477,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
       previewContainerView.topAnchor.constraint(equalTo: previewTitleLabel.bottomAnchor, constant: 6),
       previewContainerView.leadingAnchor.constraint(equalTo: previewTitleLabel.leadingAnchor),
       previewContainerView.trailingAnchor.constraint(equalTo: previewTitleLabel.trailingAnchor),
-      previewContainerView.bottomAnchor.constraint(equalTo: doneButton.topAnchor, constant: -18),
+      previewContainerView.heightAnchor.constraint(equalToConstant: 260),
 
       previewWebView.topAnchor.constraint(equalTo: previewContainerView.topAnchor),
       previewWebView.leadingAnchor.constraint(equalTo: previewContainerView.leadingAnchor),
@@ -434,15 +487,60 @@ final class VoiceMarkdownViewController: NibLessViewController {
       clearButton.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
 
-      doneButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      doneButton.topAnchor.constraint(equalTo: previewContainerView.bottomAnchor, constant: 18),
+      doneButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
       doneButton.bottomAnchor.constraint(equalTo: tipLabel.topAnchor, constant: -10),
 
       tipLabel.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       tipLabel.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -14),
+      tipLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
     ])
 
     setupQuickActionButtons()
+  }
+
+  @objc private func handleDocumentsTap() {
+    let browser = VoiceWorkspaceDocumentBrowserViewController(
+      kind: .markdown,
+      store: workspaceStore,
+      pathComponentsProvider: { [weak self] in self?.markdownPathComponents ?? [] },
+      setPathComponents: { [weak self] in self?.markdownPathComponents = $0 },
+      activeDocumentURLProvider: { [weak self] in self?.activeMarkdownDocumentURL },
+      setActiveDocumentURL: { [weak self] in self?.activeMarkdownDocumentURL = $0 },
+      createDocument: { [weak self] name, pathComponents in
+        guard let self else { throw CocoaError(.userCancelled) }
+        let url = try self.workspaceStore.createMarkdownDocument(
+          named: name,
+          content: self.markdownTextView.text ?? "",
+          pathComponents: pathComponents
+        )
+        self.activeMarkdownDocumentURL = url
+        self.statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
+        return url
+      },
+      saveDocument: { [weak self] url in
+        guard let self else { return }
+        try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
+        self.tipLabel.text = "已保存：\(url.lastPathComponent)"
+      },
+      loadDocument: { [weak self] url in
+        guard let self else { return }
+        let content = try self.workspaceStore.loadMarkdown(from: url)
+        self.markdownTextView.text = content
+        self.draftStore.saveContent(content)
+        self.activeMarkdownDocumentURL = url
+        self.updatePlaceholderState()
+        self.schedulePreviewRender()
+        self.statusLabel.text = "已打开 Markdown 文件：\(url.lastPathComponent)"
+        self.tipLabel.text = nil
+      }
+    )
+    if let sheet = browser.sheetPresentationController {
+      sheet.detents = [.medium(), .large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    present(browser, animated: true)
   }
 
   private func setupQuickActionButtons() {
@@ -472,6 +570,112 @@ final class VoiceMarkdownViewController: NibLessViewController {
       ])
       toolbarStackView.addArrangedSubview(button)
       quickActionButtons.append(button)
+    }
+  }
+
+  private func reloadMarkdownDocumentItems() {
+    markdownDocumentItems = workspaceStore.listItems(for: .markdown, pathComponents: markdownPathComponents)
+  }
+
+  private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addTextField { textField in
+      textField.placeholder = "输入名称"
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: actionTitle, style: .default) { _ in
+      let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      completion(name)
+    })
+    present(alert, animated: true)
+  }
+
+  @objc private func handleDocumentBackTap() {
+    guard !markdownPathComponents.isEmpty else { return }
+    markdownPathComponents.removeLast()
+    reloadMarkdownDocumentItems()
+  }
+
+  @objc private func handleNewFolderTap() {
+    promptForName(title: "新建文件夹", actionTitle: "创建") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      do {
+        try self.workspaceStore.createFolder(named: name, for: .markdown, pathComponents: self.markdownPathComponents)
+        self.reloadMarkdownDocumentItems()
+      } catch {
+        self.statusLabel.text = "创建文件夹失败：\(error.localizedDescription)"
+      }
+    }
+  }
+
+  @objc private func handleNewDocumentTap() {
+    promptForName(title: "新建 Markdown 文件", message: "会在当前文件夹下创建 .md 文件。", actionTitle: "创建") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      self.createMarkdownDocument(named: name)
+    }
+  }
+
+  @objc private func handleSaveDocumentTap() {
+    saveCurrentMarkdownDocument(promptIfNeeded: true)
+  }
+
+  private func createMarkdownDocument(named name: String) {
+    do {
+      let url = try workspaceStore.createMarkdownDocument(
+        named: name,
+        content: markdownTextView.text ?? "",
+        pathComponents: markdownPathComponents
+      )
+      activeMarkdownDocumentURL = url
+      statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
+      reloadMarkdownDocumentItems()
+    } catch {
+      statusLabel.text = "创建文件失败：\(error.localizedDescription)"
+    }
+  }
+
+  private func saveCurrentMarkdownDocument(promptIfNeeded: Bool) {
+    if let activeMarkdownDocumentURL {
+      do {
+        try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: activeMarkdownDocumentURL)
+        tipLabel.text = "已保存：\(activeMarkdownDocumentURL.lastPathComponent)"
+        reloadMarkdownDocumentItems()
+      } catch {
+        statusLabel.text = "保存失败：\(error.localizedDescription)"
+      }
+      return
+    }
+
+    guard promptIfNeeded else { return }
+    promptForName(title: "保存 Markdown", message: "输入文件名后保存到当前文件夹。", actionTitle: "保存") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      self.createMarkdownDocument(named: name)
+    }
+  }
+
+  private func autosaveMarkdownDocumentIfNeeded() {
+    guard activeMarkdownDocumentURL != nil else { return }
+    saveCurrentMarkdownDocument(promptIfNeeded: false)
+  }
+
+  private func loadMarkdownDocumentItem(_ item: VoiceWorkspaceDocumentItem) {
+    if item.isDirectory {
+      markdownPathComponents.append(item.fileName)
+      reloadMarkdownDocumentItems()
+      return
+    }
+
+    do {
+      let content = try workspaceStore.loadMarkdown(from: item.url)
+      markdownTextView.text = content
+      activeMarkdownDocumentURL = item.url
+      updatePlaceholderState()
+      schedulePreviewRender()
+      statusLabel.text = "已打开 Markdown 文件：\(item.fileName)"
+      tipLabel.text = nil
+      reloadMarkdownDocumentItems()
+    } catch {
+      statusLabel.text = "打开文件失败：\(error.localizedDescription)"
     }
   }
 
@@ -622,11 +826,16 @@ final class VoiceMarkdownViewController: NibLessViewController {
     let payload = jsonStringLiteral(markdown)
     let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
     let fontFamily = jsonStringLiteral(selectedFontOption.cssFontFamily)
-    let script = "window.renderMarkdown(\(payload), \(isDark), \(fontFamily));"
+    let script = """
+    window.renderMarkdown(\(payload), \(isDark), \(fontFamily));
+    null;
+    """
     previewWebView.evaluateJavaScript(script) { [weak self] _, error in
       guard let self else { return }
       if let error {
         statusLabel.text = "Markdown 预览失败：\(error.localizedDescription)"
+      } else if statusLabel.text?.contains("Markdown 预览失败") == true {
+        statusLabel.text = nil
       }
     }
   }
@@ -909,6 +1118,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
     updatePlaceholderState()
     schedulePreviewRender()
     statusLabel.text = "Markdown 内容已清空。"
+    autosaveMarkdownDocumentIfNeeded()
   }
 
   @objc private func handleDoneTap() {
@@ -1107,6 +1317,59 @@ extension VoiceMarkdownViewController: UITextViewDelegate {
     draftStore.saveContent(text)
     updatePlaceholderState()
     schedulePreviewRender()
+    autosaveMarkdownDocumentIfNeeded()
+  }
+}
+
+extension VoiceMarkdownViewController: UITableViewDataSource, UITableViewDelegate {
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    markdownDocumentItems.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceWorkspaceDocumentCell", for: indexPath)
+    let item = markdownDocumentItems[indexPath.row]
+    var content = cell.defaultContentConfiguration()
+    content.text = item.fileName
+    if item.isDirectory {
+      content.secondaryText = "文件夹"
+      content.image = UIImage(systemName: "folder")
+    } else {
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MM-dd HH:mm"
+      content.secondaryText = item.modifiedAt.map { formatter.string(from: $0) } ?? "刚刚"
+      content.image = UIImage(systemName: "doc.text")
+    }
+    cell.contentConfiguration = content
+    cell.accessoryType = (item.url == activeMarkdownDocumentURL) ? .checkmark : (item.isDirectory ? .disclosureIndicator : .none)
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    loadMarkdownDocumentItem(markdownDocumentItems[indexPath.row])
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let item = markdownDocumentItems[indexPath.row]
+    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      guard let self else {
+        completion(false)
+        return
+      }
+      do {
+        try self.workspaceStore.deleteItem(item)
+        if self.activeMarkdownDocumentURL == item.url {
+          self.activeMarkdownDocumentURL = nil
+        }
+        self.reloadMarkdownDocumentItems()
+        completion(true)
+      } catch {
+        self.statusLabel.text = "删除失败：\(error.localizedDescription)"
+        completion(false)
+      }
+    }
+    return UISwipeActionsConfiguration(actions: [deleteAction])
   }
 }
 

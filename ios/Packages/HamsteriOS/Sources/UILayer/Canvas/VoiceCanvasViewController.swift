@@ -33,7 +33,7 @@ enum VoiceCanvasStoreError: LocalizedError {
   }
 }
 
-private struct VoiceCausalEdgeDraft: Codable, Hashable {
+struct VoiceCausalEdgeDraft: Codable, Hashable {
   let id: String
   var from: String
   var to: String
@@ -186,6 +186,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private let canvasStore: VoiceCanvasStorageStore = .shared
+  private let workspaceStore: VoiceWorkspaceDocumentStore = .shared
   private let canvasBridge: AppCanvasBridge = .shared
   private let causalDraftStore: VoiceCausalDraftStore = .shared
   private var activeRequestId: String?
@@ -198,6 +199,11 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
   private var suppressDoneTapOnce = false
+  private var canvasDocumentItems: [VoiceWorkspaceDocumentItem] = []
+  private var canvasPathComponents: [String] = []
+  private var causalPathComponents: [String] = []
+  private var activeCanvasDocumentURL: URL?
+  private var activeCausalDocumentURL: URL?
 
   private lazy var screenTapGestureRecognizer: UITapGestureRecognizer = {
     let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleScreenTap(_:)))
@@ -234,14 +240,45 @@ final class VoiceCanvasViewController: NibLessViewController {
     return label
   }()
 
+  private lazy var documentsButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "folder")
+    configuration.title = "文件"
+    configuration.imagePadding = 6
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+    button.configuration = configuration
+    button.addTarget(self, action: #selector(handleDocumentsTap), for: .touchUpInside)
+    return button
+  }()
+
   private lazy var statusLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 14, weight: .medium)
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
-    label.text = "你可以手绘示意图。画完后返回宿主 App，即可粘贴图片。"
+    label.text = ""
     return label
+  }()
+
+  private lazy var scrollView: UIScrollView = {
+    let view = UIScrollView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.alwaysBounceVertical = true
+    view.showsVerticalScrollIndicator = true
+    view.keyboardDismissMode = .interactive
+    return view
+  }()
+
+  private lazy var contentView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
   }()
 
   private lazy var modeSegmentedControl: UISegmentedControl = {
@@ -444,6 +481,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     setupCausalRendererIfNeeded()
     loadCausalDraft()
     applyCanvasMode(.draw, force: true)
+    reloadDocumentItems()
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -494,28 +532,45 @@ final class VoiceCanvasViewController: NibLessViewController {
   private func setupView() {
     view.backgroundColor = .systemBackground
     view.addGestureRecognizer(screenTapGestureRecognizer)
-    view.addSubview(titleLabel)
-    view.addSubview(statusLabel)
-    view.addSubview(modeSegmentedControl)
-    view.addSubview(canvasContainerView)
+    view.addSubview(scrollView)
+    scrollView.addSubview(contentView)
+    view.addSubview(documentsButton)
+    contentView.addSubview(titleLabel)
+    contentView.addSubview(statusLabel)
+    contentView.addSubview(modeSegmentedControl)
+    contentView.addSubview(canvasContainerView)
     canvasContainerView.addSubview(canvasView)
     canvasContainerView.addSubview(canvasWakeOverlayView)
     canvasWakeOverlayView.addSubview(canvasWakeHintLabel)
     setupCausalLayout()
-    view.addSubview(clearButton)
-    view.addSubview(historyButtonStackView)
-    view.addSubview(doneButton)
-    view.addSubview(tipLabel)
+    contentView.addSubview(clearButton)
+    contentView.addSubview(historyButtonStackView)
+    contentView.addSubview(doneButton)
+    contentView.addSubview(tipLabel)
     canvasView.delegate = self
 
     NSLayoutConstraint.activate([
-      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-      titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-      titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      documentsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      documentsButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+
+      scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+
+      contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
+      contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
+      contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
+      contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
+      contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+
+      titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+      titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: documentsButton.leadingAnchor, constant: -12),
 
       statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-      statusLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-      statusLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
 
       modeSegmentedControl.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 10),
       modeSegmentedControl.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
@@ -524,7 +579,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasContainerView.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 12),
       canvasContainerView.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       canvasContainerView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      canvasContainerView.bottomAnchor.constraint(equalTo: doneButton.topAnchor, constant: -18),
+      canvasContainerView.heightAnchor.constraint(equalToConstant: 400),
 
       canvasView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
       canvasView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
@@ -544,16 +599,98 @@ final class VoiceCanvasViewController: NibLessViewController {
       clearButton.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
 
+      historyButtonStackView.topAnchor.constraint(equalTo: canvasContainerView.bottomAnchor, constant: 18),
       historyButtonStackView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
       historyButtonStackView.centerYAnchor.constraint(equalTo: clearButton.centerYAnchor),
 
+      doneButton.topAnchor.constraint(equalTo: canvasContainerView.bottomAnchor, constant: 18),
       doneButton.bottomAnchor.constraint(equalTo: tipLabel.topAnchor, constant: -10),
-      doneButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+      doneButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
 
       tipLabel.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
       tipLabel.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      tipLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -14),
+      tipLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
     ])
+  }
+
+  @objc private func handleDocumentsTap() {
+    let browser = VoiceWorkspaceDocumentBrowserViewController(
+      kind: currentDocumentKind,
+      store: workspaceStore,
+      pathComponentsProvider: { [weak self] in self?.currentPathComponents ?? [] },
+      setPathComponents: { [weak self] in self?.currentPathComponents = $0 },
+      activeDocumentURLProvider: { [weak self] in self?.currentActiveDocumentURL },
+      setActiveDocumentURL: { [weak self] in self?.currentActiveDocumentURL = $0 },
+      createDocument: { [weak self] name, pathComponents in
+        guard let self else { throw CocoaError(.userCancelled) }
+        switch self.currentMode {
+        case .draw:
+          let url = try self.workspaceStore.createCanvasDocument(
+            named: name,
+            drawing: self.canvasView.drawing,
+            pathComponents: pathComponents
+          )
+          self.activeCanvasDocumentURL = url
+          self.statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
+          return url
+        case .causal:
+          let url = try self.workspaceStore.createCausalDocument(
+            named: name,
+            edges: self.causalEdges,
+            pathComponents: pathComponents
+          )
+          self.activeCausalDocumentURL = url
+          self.statusLabel.text = "已创建因果图文件：\(url.lastPathComponent)"
+          return url
+        }
+      },
+      saveDocument: { [weak self] url in
+        guard let self else { return }
+        switch self.currentMode {
+        case .draw:
+          try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url)
+        case .causal:
+          try self.workspaceStore.saveCausal(edges: self.causalEdges, to: url)
+        }
+        self.tipLabel.text = "已保存：\(url.lastPathComponent)"
+      },
+      loadDocument: { [weak self] url in
+        guard let self else { return }
+        switch self.currentMode {
+        case .draw:
+          let drawing = try self.workspaceStore.loadCanvas(from: url)
+          self.canvasView.drawing = drawing
+          self.canvasView.undoManager?.removeAllActions()
+          self.activeCanvasDocumentURL = url
+          self.setToolPickerVisible(false)
+          self.statusLabel.text = "已打开画布文件：\(url.lastPathComponent)"
+        case .causal:
+          let edges = try self.workspaceStore.loadCausal(from: url)
+          self.causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
+          self.causalDraftStore.saveEdges(self.causalEdges)
+          self.rebuildCausalRows()
+          self.scheduleCausalRender()
+          self.activeCausalDocumentURL = url
+          self.statusLabel.text = "已打开因果图文件：\(url.lastPathComponent)"
+        }
+        self.tipLabel.text = nil
+      },
+      didDeleteDocument: { [weak self] url in
+        guard let self else { return }
+        if self.activeCanvasDocumentURL == url {
+          self.activeCanvasDocumentURL = nil
+        }
+        if self.activeCausalDocumentURL == url {
+          self.activeCausalDocumentURL = nil
+        }
+      }
+    )
+    if let sheet = browser.sheetPresentationController {
+      sheet.detents = [.medium(), .large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    present(browser, animated: true)
   }
 
   private func setupCausalLayout() {
@@ -610,6 +747,160 @@ final class VoiceCanvasViewController: NibLessViewController {
       causalPreviewWebView.trailingAnchor.constraint(equalTo: causalPreviewContainerView.trailingAnchor),
       causalPreviewWebView.bottomAnchor.constraint(equalTo: causalPreviewContainerView.bottomAnchor),
     ])
+  }
+
+  private var currentDocumentKind: VoiceWorkspaceDocumentKind {
+    currentMode == .draw ? .canvas : .causal
+  }
+
+  private var currentPathComponents: [String] {
+    get { currentMode == .draw ? canvasPathComponents : causalPathComponents }
+    set {
+      if currentMode == .draw {
+        canvasPathComponents = newValue
+      } else {
+        causalPathComponents = newValue
+      }
+    }
+  }
+
+  private var currentActiveDocumentURL: URL? {
+    get { currentMode == .draw ? activeCanvasDocumentURL : activeCausalDocumentURL }
+    set {
+      if currentMode == .draw {
+        activeCanvasDocumentURL = newValue
+      } else {
+        activeCausalDocumentURL = newValue
+      }
+    }
+  }
+
+  private func reloadDocumentItems() {
+    canvasDocumentItems = workspaceStore.listItems(for: currentDocumentKind, pathComponents: currentPathComponents)
+  }
+
+  private func updateDocumentPanelState() {
+  }
+
+  private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addTextField { textField in
+      textField.placeholder = "输入名称"
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: actionTitle, style: .default) { _ in
+      let name = alert.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      completion(name)
+    })
+    present(alert, animated: true)
+  }
+
+  @objc private func handleDocumentBackTap() {
+    guard !currentPathComponents.isEmpty else { return }
+    currentPathComponents.removeLast()
+    reloadDocumentItems()
+  }
+
+  @objc private func handleNewFolderTap() {
+    promptForName(title: "新建文件夹", actionTitle: "创建") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      do {
+        try self.workspaceStore.createFolder(named: name, for: self.currentDocumentKind, pathComponents: self.currentPathComponents)
+        self.reloadDocumentItems()
+      } catch {
+        self.statusLabel.text = "创建文件夹失败：\(error.localizedDescription)"
+      }
+    }
+  }
+
+  @objc private func handleNewDocumentTap() {
+    promptForName(title: "新建文件", message: "会在当前文件夹下创建可继续编辑的源文件。", actionTitle: "创建") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      self.createNewDocument(named: name)
+    }
+  }
+
+  @objc private func handleSaveDocumentTap() {
+    saveCurrentDocument(promptIfNeeded: true)
+  }
+
+  private func createNewDocument(named name: String) {
+    do {
+      switch currentMode {
+      case .draw:
+        let url = try workspaceStore.createCanvasDocument(named: name, drawing: canvasView.drawing, pathComponents: currentPathComponents)
+        activeCanvasDocumentURL = url
+        statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
+      case .causal:
+        let url = try workspaceStore.createCausalDocument(named: name, edges: causalEdges, pathComponents: currentPathComponents)
+        activeCausalDocumentURL = url
+        statusLabel.text = "已创建因果图文件：\(url.lastPathComponent)"
+      }
+      reloadDocumentItems()
+    } catch {
+      statusLabel.text = "创建文件失败：\(error.localizedDescription)"
+    }
+  }
+
+  private func saveCurrentDocument(promptIfNeeded: Bool) {
+    if let currentActiveDocumentURL {
+      do {
+        switch currentMode {
+        case .draw:
+          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL)
+        case .causal:
+          try workspaceStore.saveCausal(edges: causalEdges, to: currentActiveDocumentURL)
+        }
+        tipLabel.text = "已保存：\(currentActiveDocumentURL.lastPathComponent)"
+        reloadDocumentItems()
+      } catch {
+        statusLabel.text = "保存失败：\(error.localizedDescription)"
+      }
+      return
+    }
+
+    guard promptIfNeeded else { return }
+    promptForName(title: "保存文件", message: "输入文件名后保存到当前文件夹。", actionTitle: "保存") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      self.createNewDocument(named: name)
+    }
+  }
+
+  private func autosaveCurrentDocumentIfNeeded() {
+    guard currentActiveDocumentURL != nil else { return }
+    saveCurrentDocument(promptIfNeeded: false)
+  }
+
+  private func loadDocumentItem(_ item: VoiceWorkspaceDocumentItem) {
+    if item.isDirectory {
+      currentPathComponents.append(item.fileName)
+      reloadDocumentItems()
+      return
+    }
+
+    do {
+      switch currentMode {
+      case .draw:
+        let drawing = try workspaceStore.loadCanvas(from: item.url)
+        canvasView.drawing = drawing
+        canvasView.undoManager?.removeAllActions()
+        activeCanvasDocumentURL = item.url
+        setToolPickerVisible(false)
+        statusLabel.text = "已打开画布文件：\(item.fileName)"
+      case .causal:
+        let edges = try workspaceStore.loadCausal(from: item.url)
+        causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
+        causalDraftStore.saveEdges(causalEdges)
+        rebuildCausalRows()
+        scheduleCausalRender()
+        activeCausalDocumentURL = item.url
+        statusLabel.text = "已打开因果图文件：\(item.fileName)"
+      }
+      tipLabel.text = nil
+      reloadDocumentItems()
+    } catch {
+      statusLabel.text = "打开文件失败：\(error.localizedDescription)"
+    }
   }
 
   private func setupToolPickerIfNeeded() {
@@ -684,6 +975,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     causalEdges[idx] = row.currentEdgeDraft(id: causalEdges[idx].id)
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
+    autosaveCurrentDocumentIfNeeded()
   }
 
   private func removeEdgeRow(_ row: VoiceCausalEdgeRowView) {
@@ -698,6 +990,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
+    autosaveCurrentDocumentIfNeeded()
   }
 
   private func scheduleCausalRender() {
@@ -714,10 +1007,18 @@ final class VoiceCanvasViewController: NibLessViewController {
     let mermaid = buildMermaidCode()
     let encodedMermaid = jsonStringLiteral(mermaid)
     let isDark = traitCollection.userInterfaceStyle == .dark
-    let script = "window.renderMermaid(\(encodedMermaid), \(isDark ? "true" : "false"));"
+    let script = """
+    window.renderMermaid(\(encodedMermaid), \(isDark ? "true" : "false"));
+    null;
+    """
     causalPreviewWebView.evaluateJavaScript(script) { [weak self] _, error in
+      guard let self else { return }
       if let error {
-        self?.statusLabel.text = "因果图预览失败：\(error.localizedDescription)"
+        self.statusLabel.text = "因果图预览失败：\(error.localizedDescription)"
+      } else if self.statusLabel.text?.contains("因果图预览失败") == true {
+        self.statusLabel.text = currentMode == .causal
+          ? "填写因果关系后，系统会自动生成关系图。完成后返回宿主 App 可直接粘贴图片。"
+          : nil
       }
     }
   }
@@ -864,6 +1165,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   @objc private func handleModeChanged(_ sender: UISegmentedControl) {
     let mode = CanvasMode(rawValue: sender.selectedSegmentIndex) ?? .draw
     applyCanvasMode(mode)
+    reloadDocumentItems()
   }
 
   @objc private func handleAddCausalEdgeTap() {
@@ -872,6 +1174,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     addRowView(for: edge)
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
+    autosaveCurrentDocumentIfNeeded()
   }
 
   @objc private func handleScreenTap(_ recognizer: UITapGestureRecognizer) {
@@ -913,6 +1216,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         ? "画布已清空，你可以继续绘制。"
         : "画布已清空，请重新绘制后点击“完成”。"
       updateHistoryButtonsState()
+      autosaveCurrentDocumentIfNeeded()
       return
     }
 
@@ -921,6 +1225,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     rebuildCausalRows()
     scheduleCausalRender()
     statusLabel.text = "因果关系已清空，请重新填写后再完成。"
+    autosaveCurrentDocumentIfNeeded()
   }
 
   @objc private func handleUndoTap() {
@@ -1209,6 +1514,7 @@ final class VoiceCanvasViewController: NibLessViewController {
 extension VoiceCanvasViewController: PKCanvasViewDelegate {
   func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
     updateHistoryButtonsState()
+    autosaveCurrentDocumentIfNeeded()
   }
 }
 
@@ -1219,6 +1525,67 @@ extension VoiceCanvasViewController: WKNavigationDelegate {
       statusLabel.text = "填写因果关系后，系统会自动生成关系图。完成后返回宿主 App 可直接粘贴图片。"
     }
     scheduleCausalRender()
+  }
+}
+
+extension VoiceCanvasViewController: UITableViewDataSource, UITableViewDelegate {
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    canvasDocumentItems.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "VoiceWorkspaceDocumentCell", for: indexPath)
+    let item = canvasDocumentItems[indexPath.row]
+    var content = cell.defaultContentConfiguration()
+    content.text = item.fileName
+    let modifiedText: String
+    if let modifiedAt = item.modifiedAt {
+      let formatter = DateFormatter()
+      formatter.dateFormat = "yyyy-MM-dd HH:mm"
+      modifiedText = formatter.string(from: modifiedAt)
+    } else {
+      modifiedText = "刚刚"
+    }
+    if item.isDirectory {
+      content.secondaryText = "文件夹"
+      content.image = UIImage(systemName: "folder")
+    } else {
+      content.secondaryText = modifiedText
+      content.image = UIImage(systemName: currentMode == .draw ? "scribble.variable" : "point.3.connected.trianglepath.dotted")
+    }
+    cell.contentConfiguration = content
+    cell.accessoryType = (item.url == currentActiveDocumentURL) ? .checkmark : (item.isDirectory ? .disclosureIndicator : .none)
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    loadDocumentItem(canvasDocumentItems[indexPath.row])
+  }
+
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+    let item = canvasDocumentItems[indexPath.row]
+    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+      guard let self else {
+        completion(false)
+        return
+      }
+      do {
+        try self.workspaceStore.deleteItem(item)
+        if self.activeCanvasDocumentURL == item.url {
+          self.activeCanvasDocumentURL = nil
+        }
+        if self.activeCausalDocumentURL == item.url {
+          self.activeCausalDocumentURL = nil
+        }
+        self.reloadDocumentItems()
+        completion(true)
+      } catch {
+        self.statusLabel.text = "删除失败：\(error.localizedDescription)"
+        completion(false)
+      }
+    }
+    return UISwipeActionsConfiguration(actions: [deleteAction])
   }
 }
 
