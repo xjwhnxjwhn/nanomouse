@@ -182,13 +182,15 @@ final class VoiceCanvasStorageStore {
 final class VoiceCanvasViewController: NibLessViewController {
   private enum CanvasMode: Int {
     case draw = 0
-    case causal = 1
+    case markdown = 1
+    case causal = 2
   }
 
   private let canvasStore: VoiceCanvasStorageStore = .shared
   private let workspaceStore: VoiceWorkspaceDocumentStore = .shared
   private let canvasBridge: AppCanvasBridge = .shared
   private let causalDraftStore: VoiceCausalDraftStore = .shared
+  private let markdownDraftDefaults: UserDefaults = .hamster
   private var activeRequestId: String?
   private var hasCompletedCurrentKeyboardSession = false
   private var toolPicker: PKToolPicker?
@@ -198,12 +200,150 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var causalRows: [VoiceCausalEdgeRowView] = []
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
+  private var pendingMarkdownRenderWorkItem: DispatchWorkItem?
+  private var isMarkdownRendererReady = false
   private var suppressDoneTapOnce = false
   private var canvasDocumentItems: [VoiceWorkspaceDocumentItem] = []
   private var canvasPathComponents: [String] = []
+  private var markdownPathComponents: [String] = []
   private var causalPathComponents: [String] = []
   private var activeCanvasDocumentURL: URL?
+  private var activeMarkdownDocumentURL: URL?
   private var activeCausalDocumentURL: URL?
+  private var lastSavedCanvasSignature: Data?
+  private var lastSavedMarkdownSignature: String?
+  private var lastSavedCausalSignature: Data?
+  private var markdownQuickActionButtons: [UIButton] = []
+  private var availableMarkdownFontOptions: [MarkdownFontOption] = []
+  private var selectedMarkdownFontOption: MarkdownFontOption = .systemDefault
+
+  private enum MarkdownDraftConstants {
+    static let contentKey = "voice.markdown.draft.content"
+    static let fontKey = "voice.markdown.draft.font"
+  }
+
+  private enum MarkdownQuickAction: CaseIterable {
+    case h1
+    case h2
+    case bold
+    case italic
+    case blockquote
+    case unorderedList
+    case orderedList
+    case todo
+    case inlineCode
+    case codeBlock
+    case link
+    case image
+    case table
+    case mermaid
+
+    var title: String {
+      switch self {
+      case .h1: return "H1"
+      case .h2: return "H2"
+      case .bold: return "B"
+      case .italic: return "I"
+      case .blockquote: return "引"
+      case .unorderedList: return "•"
+      case .orderedList: return "1."
+      case .todo: return "☑"
+      case .inlineCode: return "` `"
+      case .codeBlock: return "```"
+      case .link: return "链"
+      case .image: return "图"
+      case .table: return "表"
+      case .mermaid: return "Mer"
+      }
+    }
+  }
+
+  private struct MarkdownFontOption: Equatable {
+    static let systemIdentifier = "__system__"
+    static let systemDefault = MarkdownFontOption(
+      identifier: systemIdentifier,
+      displayName: "系统默认",
+      editorFont: .systemFont(ofSize: 15, weight: .regular),
+      cssFontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif"
+    )
+
+    let identifier: String
+    let displayName: String
+    let editorFont: UIFont
+    let cssFontFamily: String
+  }
+
+  private struct MarkdownFontPreset {
+    let displayName: String
+    let candidates: [String]
+    let cssFallback: String
+  }
+
+  private static let markdownRendererFallbackHTML: String = """
+  <!doctype html>
+  <html lang="zh-CN">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <style>
+        html, body {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          background: transparent;
+          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+        }
+        #content {
+          box-sizing: border-box;
+          width: 100%;
+          height: 100%;
+          overflow: auto;
+          white-space: pre-wrap;
+          line-height: 1.55;
+          padding: 12px;
+          font-size: 14px;
+          color: #111827;
+        }
+      </style>
+    </head>
+    <body>
+      <div id="content"></div>
+      <script>
+        window.__markdownRenderReady = false;
+        window.renderMarkdown = function renderMarkdown(source, _isDark, fontFamily) {
+          const el = document.getElementById("content");
+          if (fontFamily && typeof fontFamily === "string") {
+            el.style.fontFamily = fontFamily;
+          }
+          el.textContent = source || "";
+          window.__markdownRenderReady = true;
+        };
+        window.isMarkdownReady = function isMarkdownReady() {
+          return window.__markdownRenderReady === true;
+        };
+      </script>
+    </body>
+  </html>
+  """
+
+  private static let markdownFontPresets: [MarkdownFontPreset] = [
+    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "Songti SC", candidates: ["SongtiSC-Regular", "Songti SC"], cssFallback: "'Noto Serif CJK SC', serif"),
+    .init(displayName: "Kaiti SC", candidates: ["KaitiSC-Regular", "Kaiti SC"], cssFallback: "'STKaiti', serif"),
+    .init(displayName: "Heiti SC", candidates: ["STHeitiSC-Light", "Heiti SC"], cssFallback: "'Hiragino Sans GB', sans-serif"),
+    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'PingFang SC', sans-serif"),
+    .init(displayName: "STFangsong", candidates: ["STFangsong", "FangSong"], cssFallback: "'Songti SC', serif"),
+    .init(displayName: "STSong", candidates: ["STSongti-SC-Regular", "STSong"], cssFallback: "'Songti SC', serif"),
+    .init(displayName: "Helvetica Neue", candidates: ["HelveticaNeue", "Helvetica Neue"], cssFallback: "Helvetica, Arial, sans-serif"),
+    .init(displayName: "Avenir Next", candidates: ["AvenirNext-Regular", "Avenir Next"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "Georgia", candidates: ["Georgia"], cssFallback: "'Times New Roman', serif"),
+    .init(displayName: "Times New Roman", candidates: ["TimesNewRomanPSMT", "Times New Roman"], cssFallback: "Times, serif"),
+    .init(displayName: "Menlo", candidates: ["Menlo-Regular", "Menlo"], cssFallback: "ui-monospace, monospace"),
+    .init(displayName: "Courier New", candidates: ["CourierNewPSMT", "Courier New"], cssFallback: "Courier, monospace"),
+    .init(displayName: "SF Mono", candidates: ["SFMono-Regular"], cssFallback: "Menlo, ui-monospace, monospace"),
+  ]
 
   private lazy var screenTapGestureRecognizer: UITapGestureRecognizer = {
     let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleScreenTap(_:)))
@@ -261,28 +401,29 @@ final class VoiceCanvasViewController: NibLessViewController {
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 14, weight: .medium)
     label.textColor = .secondaryLabel
-    label.numberOfLines = 0
+    label.numberOfLines = 1
+    label.lineBreakMode = .byClipping
     label.text = ""
     return label
   }()
 
-  private lazy var scrollView: UIScrollView = {
+  private lazy var statusScrollView: UIScrollView = {
     let view = UIScrollView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
-    view.alwaysBounceVertical = true
-    view.showsVerticalScrollIndicator = true
-    view.keyboardDismissMode = .interactive
+    view.alwaysBounceHorizontal = true
+    view.showsHorizontalScrollIndicator = false
+    view.showsVerticalScrollIndicator = false
     return view
   }()
 
-  private lazy var contentView: UIView = {
+  private lazy var statusContentView: UIView = {
     let view = UIView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
     return view
   }()
 
   private lazy var modeSegmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["手绘", "因果图"])
+    let control = UISegmentedControl(items: ["手绘", "Markdown", "因果图"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = CanvasMode.draw.rawValue
     control.addTarget(self, action: #selector(handleModeChanged(_:)), for: .valueChanged)
@@ -315,6 +456,115 @@ final class VoiceCanvasViewController: NibLessViewController {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.backgroundColor = .clear
     view.isHidden = true
+    return view
+  }()
+
+  private lazy var markdownContainerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.isHidden = true
+    return view
+  }()
+
+  private lazy var markdownEditorContainerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .secondarySystemBackground
+    view.layer.cornerRadius = 12
+    view.layer.masksToBounds = true
+    return view
+  }()
+
+  private lazy var markdownToolbarScrollView: UIScrollView = {
+    let view = UIScrollView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.showsHorizontalScrollIndicator = false
+    view.alwaysBounceHorizontal = true
+    return view
+  }()
+
+  private lazy var markdownToolbarStackView: UIStackView = {
+    let view = UIStackView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.axis = .horizontal
+    view.alignment = .fill
+    view.spacing = 8
+    return view
+  }()
+
+  private lazy var markdownToolbarDividerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .separator
+    return view
+  }()
+
+  private lazy var markdownFontPickerButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    button.setTitle("字体", for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+    button.setTitleColor(.label, for: .normal)
+    button.backgroundColor = .tertiarySystemFill
+    button.layer.cornerRadius = 10
+    button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+    button.addTarget(self, action: #selector(handleMarkdownFontPickerTap(_:)), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var markdownTextView: UITextView = {
+    let view = UITextView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.textColor = .label
+    view.font = .systemFont(ofSize: 15, weight: .regular)
+    view.textContainerInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+    view.autocapitalizationType = .sentences
+    view.autocorrectionType = .default
+    view.keyboardDismissMode = .interactive
+    view.delegate = self
+    return view
+  }()
+
+  private lazy var markdownPlaceholderLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 15, weight: .regular)
+    label.textColor = .tertiaryLabel
+    label.numberOfLines = 2
+    label.text = "输入 Markdown，例如：\n```mermaid\\nflowchart TD\\nA --> B\\n```"
+    return label
+  }()
+
+  private lazy var markdownPreviewTitleLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 13, weight: .semibold)
+    label.textColor = .secondaryLabel
+    label.text = "预览"
+    return label
+  }()
+
+  private lazy var markdownPreviewContainerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .tertiarySystemBackground
+    view.layer.cornerRadius = 12
+    view.layer.masksToBounds = true
+    return view
+  }()
+
+  private lazy var markdownPreviewWebView: WKWebView = {
+    let configuration = WKWebViewConfiguration()
+    configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+    let view = WKWebView(frame: .zero, configuration: configuration)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.navigationDelegate = self
+    view.isOpaque = false
+    view.backgroundColor = .clear
+    view.scrollView.backgroundColor = .clear
+    view.scrollView.isScrollEnabled = false
     return view
   }()
 
@@ -443,16 +693,25 @@ final class VoiceCanvasViewController: NibLessViewController {
     return stack
   }()
 
-  private lazy var doneButton: UIButton = {
+  private lazy var copyButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("完成", for: .normal)
-    button.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
-    button.setTitleColor(.white, for: .normal)
-    button.backgroundColor = .systemBlue
-    button.layer.cornerRadius = 22
-    button.contentEdgeInsets = UIEdgeInsets(top: 11, left: 24, bottom: 11, right: 24)
-    button.addTarget(self, action: #selector(handleDoneTap), for: .touchUpInside)
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "doc.on.doc.fill")
+    configuration.title = nil
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    button.configuration = configuration
+    button.setTitle(nil, for: .normal)
+    button.setTitle(nil, for: .highlighted)
+    button.setTitle(nil, for: .selected)
+    button.setTitle(nil, for: .disabled)
+    button.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    button.accessibilityLabel = "复制到剪贴板"
+    button.addTarget(self, action: #selector(handleCopyTap), for: .touchUpInside)
     let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleDoneLongPress(_:)))
     longPress.minimumPressDuration = 0.45
     longPress.cancelsTouchesInView = true
@@ -460,14 +719,61 @@ final class VoiceCanvasViewController: NibLessViewController {
     return button
   }()
 
-  private lazy var tipLabel: UILabel = {
-    let label = UILabel(frame: .zero)
-    label.translatesAutoresizingMaskIntoConstraints = false
-    label.font = .systemFont(ofSize: 13, weight: .regular)
-    label.textColor = .secondaryLabel
-    label.numberOfLines = 0
-    label.text = "导出默认压缩率：0.28（低质量，体积更小）。"
-    return label
+  private lazy var newDocumentButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "plus")
+    configuration.title = nil
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    button.configuration = configuration
+    button.setTitle(nil, for: .normal)
+    button.setTitle(nil, for: .highlighted)
+    button.setTitle(nil, for: .selected)
+    button.setTitle(nil, for: .disabled)
+    button.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    button.accessibilityLabel = "新建未命名文件"
+    button.addTarget(self, action: #selector(handleNewUntitledDocumentTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var saveToFileButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "square.and.arrow.down")
+    configuration.title = nil
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    button.configuration = configuration
+    button.setTitle(nil, for: .normal)
+    button.setTitle(nil, for: .highlighted)
+    button.setTitle(nil, for: .selected)
+    button.setTitle(nil, for: .disabled)
+    button.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    button.accessibilityLabel = "保存到文件系统"
+    button.addTarget(self, action: #selector(handleSaveToFileTap), for: .touchUpInside)
+    return button
+  }()
+
+  private lazy var bottomBarView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }()
+
+  private lazy var bottomBarDividerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .separator
+    return view
   }()
 
   override func loadView() {
@@ -477,8 +783,11 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    availableMarkdownFontOptions = buildMarkdownFontOptions()
     setupView()
+    setupMarkdownRendererIfNeeded()
     setupCausalRendererIfNeeded()
+    restoreMarkdownDraftIfNeeded()
     loadCausalDraft()
     applyCanvasMode(.draw, force: true)
     reloadDocumentItems()
@@ -524,62 +833,92 @@ final class VoiceCanvasViewController: NibLessViewController {
       applyCanvasMode(.draw, force: true)
       canvasView.drawing = PKDrawing()
       setToolPickerVisible(true)
-      statusLabel.text = "已从键盘进入画布。画完后点击“完成”，返回宿主 App 即可粘贴图片。"
-      tipLabel.text = "图片会导出为低质量 JPG，并自动复制到系统剪贴板。"
+      statusLabel.text = "已从键盘进入画布。复制后返回宿主 App，即可粘贴图片。"
     }
   }
 
   private func setupView() {
     view.backgroundColor = .systemBackground
     view.addGestureRecognizer(screenTapGestureRecognizer)
-    view.addSubview(scrollView)
-    scrollView.addSubview(contentView)
     view.addSubview(documentsButton)
-    contentView.addSubview(titleLabel)
-    contentView.addSubview(statusLabel)
-    contentView.addSubview(modeSegmentedControl)
-    contentView.addSubview(canvasContainerView)
+    view.addSubview(titleLabel)
+    view.addSubview(statusScrollView)
+    statusScrollView.addSubview(statusContentView)
+    statusContentView.addSubview(statusLabel)
+    view.addSubview(modeSegmentedControl)
+    view.addSubview(canvasContainerView)
     canvasContainerView.addSubview(canvasView)
     canvasContainerView.addSubview(canvasWakeOverlayView)
     canvasWakeOverlayView.addSubview(canvasWakeHintLabel)
     setupCausalLayout()
-    contentView.addSubview(clearButton)
-    contentView.addSubview(historyButtonStackView)
-    contentView.addSubview(doneButton)
-    contentView.addSubview(tipLabel)
+    setupMarkdownLayout()
+    view.addSubview(bottomBarView)
+    bottomBarView.addSubview(bottomBarDividerView)
+    bottomBarView.addSubview(clearButton)
+    bottomBarView.addSubview(historyButtonStackView)
+    bottomBarView.addSubview(newDocumentButton)
+    bottomBarView.addSubview(copyButton)
+    bottomBarView.addSubview(saveToFileButton)
     canvasView.delegate = self
 
     NSLayoutConstraint.activate([
+      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+      titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: documentsButton.leadingAnchor, constant: -12),
+
       documentsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
       documentsButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
 
-      scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-      scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      scrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+      statusScrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+      statusScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+      statusScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+      statusScrollView.heightAnchor.constraint(equalToConstant: 20),
 
-      contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-      contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-      contentView.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-      contentView.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-      contentView.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor),
+      statusContentView.topAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.topAnchor),
+      statusContentView.leadingAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.leadingAnchor),
+      statusContentView.trailingAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.trailingAnchor),
+      statusContentView.bottomAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.bottomAnchor),
+      statusContentView.heightAnchor.constraint(equalTo: statusScrollView.frameLayoutGuide.heightAnchor),
+      statusContentView.widthAnchor.constraint(greaterThanOrEqualTo: statusScrollView.frameLayoutGuide.widthAnchor),
 
-      titleLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
-      titleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-      titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: documentsButton.leadingAnchor, constant: -12),
+      statusLabel.leadingAnchor.constraint(equalTo: statusContentView.leadingAnchor),
+      statusLabel.trailingAnchor.constraint(equalTo: statusContentView.trailingAnchor),
+      statusLabel.centerYAnchor.constraint(equalTo: statusContentView.centerYAnchor),
 
-      statusLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-      statusLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-      statusLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+      modeSegmentedControl.topAnchor.constraint(equalTo: statusScrollView.bottomAnchor, constant: 10),
+      modeSegmentedControl.leadingAnchor.constraint(equalTo: statusScrollView.leadingAnchor),
+      modeSegmentedControl.trailingAnchor.constraint(equalTo: statusScrollView.trailingAnchor),
 
-      modeSegmentedControl.topAnchor.constraint(equalTo: statusLabel.bottomAnchor, constant: 10),
-      modeSegmentedControl.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
-      modeSegmentedControl.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
+      bottomBarView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      bottomBarView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      bottomBarView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+
+      bottomBarDividerView.topAnchor.constraint(equalTo: bottomBarView.topAnchor),
+      bottomBarDividerView.leadingAnchor.constraint(equalTo: bottomBarView.leadingAnchor),
+      bottomBarDividerView.trailingAnchor.constraint(equalTo: bottomBarView.trailingAnchor),
+      bottomBarDividerView.heightAnchor.constraint(equalToConstant: 0.5),
+
+      clearButton.leadingAnchor.constraint(equalTo: bottomBarView.leadingAnchor, constant: 20),
+      clearButton.centerYAnchor.constraint(equalTo: copyButton.centerYAnchor),
+
+      historyButtonStackView.leadingAnchor.constraint(equalTo: clearButton.trailingAnchor, constant: 10),
+      historyButtonStackView.trailingAnchor.constraint(lessThanOrEqualTo: newDocumentButton.leadingAnchor, constant: -10),
+      historyButtonStackView.centerYAnchor.constraint(equalTo: clearButton.centerYAnchor),
+
+      saveToFileButton.trailingAnchor.constraint(equalTo: bottomBarView.trailingAnchor, constant: -20),
+      saveToFileButton.topAnchor.constraint(equalTo: bottomBarDividerView.bottomAnchor, constant: 10),
+      saveToFileButton.bottomAnchor.constraint(equalTo: bottomBarView.bottomAnchor, constant: -10),
+
+      newDocumentButton.trailingAnchor.constraint(equalTo: copyButton.leadingAnchor, constant: -10),
+      newDocumentButton.centerYAnchor.constraint(equalTo: copyButton.centerYAnchor),
+
+      copyButton.trailingAnchor.constraint(equalTo: saveToFileButton.leadingAnchor, constant: -10),
+      copyButton.centerYAnchor.constraint(equalTo: saveToFileButton.centerYAnchor),
 
       canvasContainerView.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 12),
-      canvasContainerView.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
-      canvasContainerView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      canvasContainerView.heightAnchor.constraint(equalToConstant: 400),
+      canvasContainerView.leadingAnchor.constraint(equalTo: statusScrollView.leadingAnchor),
+      canvasContainerView.trailingAnchor.constraint(equalTo: statusScrollView.trailingAnchor),
+      canvasContainerView.bottomAnchor.constraint(equalTo: bottomBarView.topAnchor, constant: -12),
 
       canvasView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
       canvasView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
@@ -595,21 +934,6 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasWakeHintLabel.centerYAnchor.constraint(equalTo: canvasWakeOverlayView.centerYAnchor),
       canvasWakeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: canvasWakeOverlayView.leadingAnchor, constant: 20),
       canvasWakeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: canvasWakeOverlayView.trailingAnchor, constant: -20),
-
-      clearButton.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
-      clearButton.centerYAnchor.constraint(equalTo: doneButton.centerYAnchor),
-
-      historyButtonStackView.topAnchor.constraint(equalTo: canvasContainerView.bottomAnchor, constant: 18),
-      historyButtonStackView.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      historyButtonStackView.centerYAnchor.constraint(equalTo: clearButton.centerYAnchor),
-
-      doneButton.topAnchor.constraint(equalTo: canvasContainerView.bottomAnchor, constant: 18),
-      doneButton.bottomAnchor.constraint(equalTo: tipLabel.topAnchor, constant: -10),
-      doneButton.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-
-      tipLabel.leadingAnchor.constraint(equalTo: statusLabel.leadingAnchor),
-      tipLabel.trailingAnchor.constraint(equalTo: statusLabel.trailingAnchor),
-      tipLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
     ])
   }
 
@@ -633,6 +957,15 @@ final class VoiceCanvasViewController: NibLessViewController {
           self.activeCanvasDocumentURL = url
           self.statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
           return url
+        case .markdown:
+          let url = try self.workspaceStore.createMarkdownDocument(
+            named: name,
+            content: self.markdownTextView.text ?? "",
+            pathComponents: pathComponents
+          )
+          self.activeMarkdownDocumentURL = url
+          self.statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
+          return url
         case .causal:
           let url = try self.workspaceStore.createCausalDocument(
             named: name,
@@ -649,10 +982,12 @@ final class VoiceCanvasViewController: NibLessViewController {
         switch self.currentMode {
         case .draw:
           try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url)
+        case .markdown:
+          try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
         case .causal:
           try self.workspaceStore.saveCausal(edges: self.causalEdges, to: url)
         }
-        self.tipLabel.text = "已保存：\(url.lastPathComponent)"
+        self.statusLabel.text = "已保存：\(url.lastPathComponent)"
       },
       loadDocument: { [weak self] url in
         guard let self else { return }
@@ -664,6 +999,14 @@ final class VoiceCanvasViewController: NibLessViewController {
           self.activeCanvasDocumentURL = url
           self.setToolPickerVisible(false)
           self.statusLabel.text = "已打开画布文件：\(url.lastPathComponent)"
+        case .markdown:
+          let content = try self.workspaceStore.loadMarkdown(from: url)
+          self.markdownTextView.text = content
+          self.saveMarkdownDraftContent(content)
+          self.activeMarkdownDocumentURL = url
+          self.updateMarkdownPlaceholderState()
+          self.scheduleMarkdownPreviewRender()
+          self.statusLabel.text = "已打开 Markdown 文件：\(url.lastPathComponent)"
         case .causal:
           let edges = try self.workspaceStore.loadCausal(from: url)
           self.causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
@@ -673,12 +1016,14 @@ final class VoiceCanvasViewController: NibLessViewController {
           self.activeCausalDocumentURL = url
           self.statusLabel.text = "已打开因果图文件：\(url.lastPathComponent)"
         }
-        self.tipLabel.text = nil
       },
       didDeleteDocument: { [weak self] url in
         guard let self else { return }
         if self.activeCanvasDocumentURL == url {
           self.activeCanvasDocumentURL = nil
+        }
+        if self.activeMarkdownDocumentURL == url {
+          self.activeMarkdownDocumentURL = nil
         }
         if self.activeCausalDocumentURL == url {
           self.activeCausalDocumentURL = nil
@@ -749,27 +1094,124 @@ final class VoiceCanvasViewController: NibLessViewController {
     ])
   }
 
+  private func setupMarkdownLayout() {
+    canvasContainerView.addSubview(markdownContainerView)
+    markdownContainerView.addSubview(markdownEditorContainerView)
+    markdownEditorContainerView.addSubview(markdownToolbarScrollView)
+    markdownToolbarScrollView.addSubview(markdownToolbarStackView)
+    markdownEditorContainerView.addSubview(markdownToolbarDividerView)
+    markdownEditorContainerView.addSubview(markdownTextView)
+    markdownEditorContainerView.addSubview(markdownPlaceholderLabel)
+    markdownContainerView.addSubview(markdownPreviewTitleLabel)
+    markdownContainerView.addSubview(markdownPreviewContainerView)
+    markdownPreviewContainerView.addSubview(markdownPreviewWebView)
+
+    NSLayoutConstraint.activate([
+      markdownContainerView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
+      markdownContainerView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
+      markdownContainerView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
+      markdownContainerView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
+
+      markdownEditorContainerView.topAnchor.constraint(equalTo: markdownContainerView.topAnchor, constant: 12),
+      markdownEditorContainerView.leadingAnchor.constraint(equalTo: markdownContainerView.leadingAnchor, constant: 12),
+      markdownEditorContainerView.trailingAnchor.constraint(equalTo: markdownContainerView.trailingAnchor, constant: -12),
+      markdownEditorContainerView.heightAnchor.constraint(equalTo: markdownContainerView.heightAnchor, multiplier: 0.42),
+
+      markdownToolbarScrollView.topAnchor.constraint(equalTo: markdownEditorContainerView.topAnchor, constant: 8),
+      markdownToolbarScrollView.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor, constant: 8),
+      markdownToolbarScrollView.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor, constant: -8),
+      markdownToolbarScrollView.heightAnchor.constraint(equalToConstant: 38),
+
+      markdownToolbarStackView.topAnchor.constraint(equalTo: markdownToolbarScrollView.contentLayoutGuide.topAnchor),
+      markdownToolbarStackView.leadingAnchor.constraint(equalTo: markdownToolbarScrollView.contentLayoutGuide.leadingAnchor),
+      markdownToolbarStackView.trailingAnchor.constraint(equalTo: markdownToolbarScrollView.contentLayoutGuide.trailingAnchor),
+      markdownToolbarStackView.bottomAnchor.constraint(equalTo: markdownToolbarScrollView.contentLayoutGuide.bottomAnchor),
+      markdownToolbarStackView.heightAnchor.constraint(equalTo: markdownToolbarScrollView.frameLayoutGuide.heightAnchor),
+
+      markdownToolbarDividerView.topAnchor.constraint(equalTo: markdownToolbarScrollView.bottomAnchor, constant: 6),
+      markdownToolbarDividerView.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor),
+      markdownToolbarDividerView.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor),
+      markdownToolbarDividerView.heightAnchor.constraint(equalToConstant: 0.5),
+
+      markdownTextView.topAnchor.constraint(equalTo: markdownToolbarDividerView.bottomAnchor, constant: 4),
+      markdownTextView.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor),
+      markdownTextView.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor),
+      markdownTextView.bottomAnchor.constraint(equalTo: markdownEditorContainerView.bottomAnchor),
+
+      markdownPlaceholderLabel.topAnchor.constraint(equalTo: markdownTextView.topAnchor, constant: 12),
+      markdownPlaceholderLabel.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor, constant: 16),
+      markdownPlaceholderLabel.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor, constant: -16),
+
+      markdownPreviewTitleLabel.topAnchor.constraint(equalTo: markdownEditorContainerView.bottomAnchor, constant: 10),
+      markdownPreviewTitleLabel.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor),
+      markdownPreviewTitleLabel.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor),
+
+      markdownPreviewContainerView.topAnchor.constraint(equalTo: markdownPreviewTitleLabel.bottomAnchor, constant: 6),
+      markdownPreviewContainerView.leadingAnchor.constraint(equalTo: markdownPreviewTitleLabel.leadingAnchor),
+      markdownPreviewContainerView.trailingAnchor.constraint(equalTo: markdownPreviewTitleLabel.trailingAnchor),
+      markdownPreviewContainerView.bottomAnchor.constraint(equalTo: markdownContainerView.bottomAnchor, constant: -12),
+
+      markdownPreviewWebView.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
+      markdownPreviewWebView.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
+      markdownPreviewWebView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
+      markdownPreviewWebView.bottomAnchor.constraint(equalTo: markdownPreviewContainerView.bottomAnchor),
+    ])
+
+    setupMarkdownQuickActionButtons()
+  }
+
   private var currentDocumentKind: VoiceWorkspaceDocumentKind {
-    currentMode == .draw ? .canvas : .causal
+    switch currentMode {
+    case .draw:
+      return .canvas
+    case .markdown:
+      return .markdown
+    case .causal:
+      return .causal
+    }
   }
 
   private var currentPathComponents: [String] {
-    get { currentMode == .draw ? canvasPathComponents : causalPathComponents }
+    get {
+      switch currentMode {
+      case .draw:
+        return canvasPathComponents
+      case .markdown:
+        return markdownPathComponents
+      case .causal:
+        return causalPathComponents
+      }
+    }
     set {
-      if currentMode == .draw {
+      switch currentMode {
+      case .draw:
         canvasPathComponents = newValue
-      } else {
+      case .markdown:
+        markdownPathComponents = newValue
+      case .causal:
         causalPathComponents = newValue
       }
     }
   }
 
   private var currentActiveDocumentURL: URL? {
-    get { currentMode == .draw ? activeCanvasDocumentURL : activeCausalDocumentURL }
+    get {
+      switch currentMode {
+      case .draw:
+        return activeCanvasDocumentURL
+      case .markdown:
+        return activeMarkdownDocumentURL
+      case .causal:
+        return activeCausalDocumentURL
+      }
+    }
     set {
-      if currentMode == .draw {
+      switch currentMode {
+      case .draw:
         activeCanvasDocumentURL = newValue
-      } else {
+      case .markdown:
+        activeMarkdownDocumentURL = newValue
+      case .causal:
         activeCausalDocumentURL = newValue
       }
     }
@@ -824,21 +1266,31 @@ final class VoiceCanvasViewController: NibLessViewController {
     saveCurrentDocument(promptIfNeeded: true)
   }
 
-  private func createNewDocument(named name: String) {
+  @discardableResult
+  private func createNewDocument(named name: String) -> Bool {
     do {
       switch currentMode {
       case .draw:
         let url = try workspaceStore.createCanvasDocument(named: name, drawing: canvasView.drawing, pathComponents: currentPathComponents)
         activeCanvasDocumentURL = url
+        lastSavedCanvasSignature = currentCanvasSignature()
         statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
+      case .markdown:
+        let url = try workspaceStore.createMarkdownDocument(named: name, content: markdownTextView.text ?? "", pathComponents: currentPathComponents)
+        activeMarkdownDocumentURL = url
+        lastSavedMarkdownSignature = currentMarkdownSignature()
+        statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
       case .causal:
         let url = try workspaceStore.createCausalDocument(named: name, edges: causalEdges, pathComponents: currentPathComponents)
         activeCausalDocumentURL = url
+        lastSavedCausalSignature = currentCausalSignature()
         statusLabel.text = "已创建因果图文件：\(url.lastPathComponent)"
       }
       reloadDocumentItems()
+      return true
     } catch {
       statusLabel.text = "创建文件失败：\(error.localizedDescription)"
+      return false
     }
   }
 
@@ -848,10 +1300,15 @@ final class VoiceCanvasViewController: NibLessViewController {
         switch currentMode {
         case .draw:
           try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL)
+          lastSavedCanvasSignature = currentCanvasSignature()
+        case .markdown:
+          try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
+          lastSavedMarkdownSignature = currentMarkdownSignature()
         case .causal:
           try workspaceStore.saveCausal(edges: causalEdges, to: currentActiveDocumentURL)
+          lastSavedCausalSignature = currentCausalSignature()
         }
-        tipLabel.text = "已保存：\(currentActiveDocumentURL.lastPathComponent)"
+        statusLabel.text = "已保存：\(currentActiveDocumentURL.lastPathComponent)"
         reloadDocumentItems()
       } catch {
         statusLabel.text = "保存失败：\(error.localizedDescription)"
@@ -885,8 +1342,18 @@ final class VoiceCanvasViewController: NibLessViewController {
         canvasView.drawing = drawing
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url
+        lastSavedCanvasSignature = currentCanvasSignature()
         setToolPickerVisible(false)
         statusLabel.text = "已打开画布文件：\(item.fileName)"
+      case .markdown:
+        let content = try workspaceStore.loadMarkdown(from: item.url)
+        markdownTextView.text = content
+        saveMarkdownDraftContent(content)
+        activeMarkdownDocumentURL = item.url
+        lastSavedMarkdownSignature = currentMarkdownSignature()
+        updateMarkdownPlaceholderState()
+        scheduleMarkdownPreviewRender()
+        statusLabel.text = "已打开 Markdown 文件：\(item.fileName)"
       case .causal:
         let edges = try workspaceStore.loadCausal(from: item.url)
         causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
@@ -894,9 +1361,9 @@ final class VoiceCanvasViewController: NibLessViewController {
         rebuildCausalRows()
         scheduleCausalRender()
         activeCausalDocumentURL = item.url
+        lastSavedCausalSignature = currentCausalSignature()
         statusLabel.text = "已打开因果图文件：\(item.fileName)"
       }
-      tipLabel.text = nil
       reloadDocumentItems()
     } catch {
       statusLabel.text = "打开文件失败：\(error.localizedDescription)"
@@ -1089,6 +1556,513 @@ final class VoiceCanvasViewController: NibLessViewController {
     return encoded
   }
 
+  private func setupMarkdownRendererIfNeeded() {
+    let bundle = Bundle.module
+    guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
+      isMarkdownRendererReady = false
+      markdownPreviewWebView.loadHTMLString(Self.markdownRendererFallbackHTML, baseURL: nil)
+      statusLabel.text = "Markdown 预览初始化失败，已切换基础模式。"
+      return
+    }
+    isMarkdownRendererReady = false
+    markdownPreviewWebView.loadFileURL(htmlURL, allowingReadAccessTo: bundle.bundleURL)
+  }
+
+  private func resolveMarkdownRendererURL(in bundle: Bundle) -> URL? {
+    if let url = bundle.url(forResource: "markdown_renderer", withExtension: "html", subdirectory: "Markdown") {
+      return url
+    }
+    if let url = bundle.url(forResource: "markdown_renderer", withExtension: "html") {
+      return url
+    }
+    let rootCandidate = bundle.bundleURL.appendingPathComponent("markdown_renderer.html")
+    if FileManager.default.fileExists(atPath: rootCandidate.path) { return rootCandidate }
+    let subdirCandidate = bundle.bundleURL.appendingPathComponent("Markdown").appendingPathComponent("markdown_renderer.html")
+    if FileManager.default.fileExists(atPath: subdirCandidate.path) { return subdirCandidate }
+    return bundle.urls(forResourcesWithExtension: "html", subdirectory: nil)?
+      .first(where: { $0.lastPathComponent == "markdown_renderer.html" })
+  }
+
+  private func restoreMarkdownDraftIfNeeded() {
+    let storedFont = resolveStoredMarkdownFontOption(loadMarkdownDraftFontIdentifier())
+    applyMarkdownFontOption(storedFont, persist: false, updateStatus: false)
+    let content = loadMarkdownDraftContent()
+    markdownTextView.text = content
+    updateMarkdownPlaceholderState()
+    scheduleMarkdownPreviewRender()
+  }
+
+  private func loadMarkdownDraftContent() -> String {
+    markdownDraftDefaults.string(forKey: MarkdownDraftConstants.contentKey) ?? ""
+  }
+
+  private func saveMarkdownDraftContent(_ content: String) {
+    markdownDraftDefaults.set(content, forKey: MarkdownDraftConstants.contentKey)
+  }
+
+  private func loadMarkdownDraftFontIdentifier() -> String? {
+    markdownDraftDefaults.string(forKey: MarkdownDraftConstants.fontKey)
+  }
+
+  private func saveMarkdownDraftFontIdentifier(_ identifier: String) {
+    markdownDraftDefaults.set(identifier, forKey: MarkdownDraftConstants.fontKey)
+  }
+
+  private func setupMarkdownQuickActionButtons() {
+    for button in markdownQuickActionButtons {
+      button.removeFromSuperview()
+    }
+    markdownQuickActionButtons.removeAll()
+    markdownFontPickerButton.removeFromSuperview()
+    markdownToolbarStackView.addArrangedSubview(markdownFontPickerButton)
+    NSLayoutConstraint.activate([
+      markdownFontPickerButton.heightAnchor.constraint(equalToConstant: 34)
+    ])
+
+    for (index, action) in MarkdownQuickAction.allCases.enumerated() {
+      let button = UIButton(type: .system)
+      button.translatesAutoresizingMaskIntoConstraints = false
+      button.tag = index
+      button.setTitle(action.title, for: .normal)
+      button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+      button.setTitleColor(.label, for: .normal)
+      button.backgroundColor = .tertiarySystemFill
+      button.layer.cornerRadius = 10
+      button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+      button.addTarget(self, action: #selector(handleMarkdownQuickActionTap(_:)), for: .touchUpInside)
+      NSLayoutConstraint.activate([
+        button.heightAnchor.constraint(equalToConstant: 34)
+      ])
+      markdownToolbarStackView.addArrangedSubview(button)
+      markdownQuickActionButtons.append(button)
+    }
+  }
+
+  private func updateMarkdownPlaceholderState() {
+    markdownPlaceholderLabel.isHidden = !markdownTextView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  private func scheduleMarkdownPreviewRender() {
+    pendingMarkdownRenderWorkItem?.cancel()
+    let item = DispatchWorkItem { [weak self] in
+      self?.renderMarkdownPreview()
+    }
+    pendingMarkdownRenderWorkItem = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: item)
+  }
+
+  private func renderMarkdownPreview() {
+    guard isMarkdownRendererReady else { return }
+    let markdown = markdownTextView.text ?? ""
+    let payload = jsonStringLiteral(markdown)
+    let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
+    let fontFamily = jsonStringLiteral(selectedMarkdownFontOption.cssFontFamily)
+    let script = """
+    window.renderMarkdown(\(payload), \(isDark), \(fontFamily));
+    null;
+    """
+    markdownPreviewWebView.evaluateJavaScript(script) { [weak self] _, error in
+      guard let self else { return }
+      if let error {
+        self.statusLabel.text = "Markdown 预览失败：\(error.localizedDescription)"
+      } else if self.statusLabel.text?.contains("Markdown 预览失败") == true {
+        self.statusLabel.text = nil
+      }
+    }
+  }
+
+  @objc private func handleMarkdownFontPickerTap(_ sender: UIButton) {
+    if availableMarkdownFontOptions.isEmpty {
+      availableMarkdownFontOptions = buildMarkdownFontOptions()
+    }
+    let alert = UIAlertController(title: "选择字体", message: nil, preferredStyle: .actionSheet)
+    for option in availableMarkdownFontOptions {
+      let title = option.identifier == selectedMarkdownFontOption.identifier ? "\(option.displayName)（当前）" : option.displayName
+      alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
+        self?.applyMarkdownFontOption(option, persist: true, updateStatus: true)
+      })
+    }
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = sender
+      popover.sourceRect = sender.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func buildMarkdownFontOptions() -> [MarkdownFontOption] {
+    var options: [MarkdownFontOption] = [.systemDefault]
+    var usedIdentifiers: Set<String> = [MarkdownFontOption.systemIdentifier]
+    var usedDisplayNames: Set<String> = [MarkdownFontOption.systemDefault.displayName]
+
+    func appendOption(displayName: String, fontName: String, fallback: String) {
+      guard let font = UIFont(name: fontName, size: 15) else { return }
+      let identifier = font.fontName
+      guard !usedIdentifiers.contains(identifier), !usedDisplayNames.contains(displayName) else { return }
+      let css = "\(cssQuoted(font.familyName)), \(cssQuoted(font.fontName)), \(fallback)"
+      options.append(MarkdownFontOption(identifier: identifier, displayName: displayName, editorFont: font, cssFontFamily: css))
+      usedIdentifiers.insert(identifier)
+      usedDisplayNames.insert(displayName)
+    }
+
+    for preset in Self.markdownFontPresets {
+      for candidate in preset.candidates where UIFont(name: candidate, size: 15) != nil {
+        appendOption(displayName: preset.displayName, fontName: candidate, fallback: preset.cssFallback)
+        break
+      }
+    }
+
+    let families = UIFont.familyNames.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    for family in families {
+      guard !family.isEmpty, !family.hasPrefix(".") else { continue }
+      let fontNames = UIFont.fontNames(forFamilyName: family)
+      guard !fontNames.isEmpty else { continue }
+      let preferredName = fontNames.first(where: { $0.localizedCaseInsensitiveContains("regular") }) ?? fontNames.first
+      guard let preferredName else { continue }
+      appendOption(displayName: family, fontName: preferredName, fallback: "-apple-system, sans-serif")
+    }
+    return options
+  }
+
+  private func resolveStoredMarkdownFontOption(_ storedIdentifier: String?) -> MarkdownFontOption {
+    guard let storedIdentifier, !storedIdentifier.isEmpty else {
+      return availableMarkdownFontOptions.first ?? .systemDefault
+    }
+    if let direct = availableMarkdownFontOptions.first(where: { $0.identifier == storedIdentifier }) {
+      return direct
+    }
+    return availableMarkdownFontOptions.first ?? .systemDefault
+  }
+
+  private func applyMarkdownFontOption(_ option: MarkdownFontOption, persist: Bool, updateStatus: Bool) {
+    selectedMarkdownFontOption = option
+    markdownTextView.font = option.editorFont
+    markdownPlaceholderLabel.font = option.editorFont
+    markdownFontPickerButton.setTitle("字体·\(option.displayName)", for: .normal)
+    if persist {
+      saveMarkdownDraftFontIdentifier(option.identifier)
+    }
+    if updateStatus {
+      statusLabel.text = "字体已切换为：\(option.displayName)。"
+    }
+    scheduleMarkdownPreviewRender()
+  }
+
+  private func cssQuoted(_ value: String) -> String {
+    let escaped = value.replacingOccurrences(of: "'", with: "\\'")
+    return "'\(escaped)'"
+  }
+
+  @objc private func handleMarkdownQuickActionTap(_ sender: UIButton) {
+    guard sender.tag >= 0, sender.tag < MarkdownQuickAction.allCases.count else { return }
+    if !markdownTextView.isFirstResponder {
+      markdownTextView.becomeFirstResponder()
+    }
+    let action = MarkdownQuickAction.allCases[sender.tag]
+    applyMarkdownQuickAction(action)
+  }
+
+  private func applyMarkdownQuickAction(_ action: MarkdownQuickAction) {
+    switch action {
+    case .h1:
+      applyMarkdownLinePrefixForSelectionOrInsert(prefix: "# ", placeholder: "标题")
+    case .h2:
+      applyMarkdownLinePrefixForSelectionOrInsert(prefix: "## ", placeholder: "标题")
+    case .bold:
+      wrapMarkdownSelectedText(prefix: "**", suffix: "**", placeholder: "文本")
+    case .italic:
+      wrapMarkdownSelectedText(prefix: "*", suffix: "*", placeholder: "文本")
+    case .blockquote:
+      applyMarkdownLinePrefixForSelectionOrInsert(prefix: "> ", placeholder: "引用")
+    case .unorderedList:
+      applyMarkdownLinePrefixForSelectionOrInsert(prefix: "- ", placeholder: "项目")
+    case .orderedList:
+      applyMarkdownOrderedListOrInsert()
+    case .todo:
+      applyMarkdownLinePrefixForSelectionOrInsert(prefix: "- [ ] ", placeholder: "任务")
+    case .inlineCode:
+      wrapMarkdownSelectedText(prefix: "`", suffix: "`", placeholder: "code")
+    case .codeBlock:
+      if markdownHasSelectedText {
+        wrapMarkdownSelectedText(prefix: "```text\n", suffix: "\n```", placeholder: "内容")
+      } else {
+        insertMarkdownTemplateAndPlaceCursor("```text\n__CURSOR__\n```", cursorToken: "__CURSOR__")
+      }
+    case .link:
+      wrapMarkdownSelectedText(prefix: "[", suffix: "](https://)", placeholder: "文本")
+    case .image:
+      wrapMarkdownSelectedText(prefix: "![", suffix: "](https://)", placeholder: "描述")
+    case .table:
+      insertMarkdownTemplateAndPlaceCursor("| 列1 | 列2 |\n| --- | --- |\n| __CURSOR__ | 内容 |", cursorToken: "__CURSOR__")
+    case .mermaid:
+      insertMarkdownTemplateAndPlaceCursor("```mermaid\nflowchart TD\n  A[起点] --> B[__CURSOR__]\n```", cursorToken: "__CURSOR__")
+    }
+    markdownTextView.scrollRangeToVisible(markdownTextView.selectedRange)
+  }
+
+  private var markdownHasSelectedText: Bool {
+    markdownSelectedRange().length > 0
+  }
+
+  private func markdownSelectedRange() -> NSRange {
+    let length = ((markdownTextView.text ?? "") as NSString).length
+    var range = markdownTextView.selectedRange
+    if range.location == NSNotFound {
+      return NSRange(location: length, length: 0)
+    }
+    if range.location > length {
+      range.location = length
+      range.length = 0
+      return range
+    }
+    if range.location + range.length > length {
+      range.length = max(0, length - range.location)
+    }
+    return range
+  }
+
+  private func clampedMarkdownRange(_ range: NSRange, textLength: Int) -> NSRange {
+    let safeLocation = max(0, min(range.location, textLength))
+    let safeLength = max(0, min(range.length, textLength - safeLocation))
+    return NSRange(location: safeLocation, length: safeLength)
+  }
+
+  private func replaceMarkdownText(in range: NSRange, with replacement: String, selectedRangeAfter: NSRange) {
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let safeRange = clampedMarkdownRange(range, textLength: nsText.length)
+    let updated = nsText.replacingCharacters(in: safeRange, with: replacement)
+    markdownTextView.text = updated
+    markdownTextView.selectedRange = clampedMarkdownRange(selectedRangeAfter, textLength: (updated as NSString).length)
+    handleProgrammaticMarkdownTextChange()
+  }
+
+  private func handleProgrammaticMarkdownTextChange() {
+    let text = markdownTextView.text ?? ""
+    saveMarkdownDraftContent(text)
+    updateMarkdownPlaceholderState()
+    scheduleMarkdownPreviewRender()
+  }
+
+  private func wrapMarkdownSelectedText(prefix: String, suffix: String, placeholder: String) {
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let selection = markdownSelectedRange()
+
+    if selection.length > 0 {
+      let selected = nsText.substring(with: selection)
+      let replacement = "\(prefix)\(selected)\(suffix)"
+      let cursor = selection.location + (replacement as NSString).length
+      replaceMarkdownText(in: selection, with: replacement, selectedRangeAfter: NSRange(location: cursor, length: 0))
+      return
+    }
+
+    let replacement = "\(prefix)\(placeholder)\(suffix)"
+    let selectionAfter = NSRange(location: selection.location + (prefix as NSString).length, length: (placeholder as NSString).length)
+    replaceMarkdownText(in: selection, with: replacement, selectedRangeAfter: selectionAfter)
+  }
+
+  private func markdownLineRangeCoveringSelection(_ selection: NSRange, in text: NSString) -> NSRange {
+    if text.length == 0 { return NSRange(location: 0, length: 0) }
+    let safeSelection = clampedMarkdownRange(selection, textLength: text.length)
+    let startLine = text.lineRange(for: NSRange(location: safeSelection.location, length: 0))
+    let endAnchor: Int = {
+      let end = safeSelection.location + safeSelection.length
+      if end <= 0 { return 0 }
+      return min(max(0, end - 1), text.length - 1)
+    }()
+    let endLine = text.lineRange(for: NSRange(location: endAnchor, length: 0))
+    return NSRange(location: startLine.location, length: endLine.location + endLine.length - startLine.location)
+  }
+
+  private func applyMarkdownLinePrefixForSelectionOrInsert(prefix: String, placeholder: String) {
+    let selection = markdownSelectedRange()
+    if selection.length == 0 {
+      let template = "\(prefix)\(placeholder)"
+      let selected = NSRange(location: selection.location + (prefix as NSString).length, length: (placeholder as NSString).length)
+      replaceMarkdownText(in: selection, with: template, selectedRangeAfter: selected)
+      return
+    }
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let lineRange = markdownLineRangeCoveringSelection(selection, in: nsText)
+    let block = nsText.substring(with: lineRange)
+    let lines = block.components(separatedBy: "\n")
+    let prefixed = lines.map { line -> String in
+      let content = line.isEmpty ? placeholder : line
+      return "\(prefix)\(content)"
+    }.joined(separator: "\n")
+    let cursor = lineRange.location + (prefixed as NSString).length
+    replaceMarkdownText(in: lineRange, with: prefixed, selectedRangeAfter: NSRange(location: cursor, length: 0))
+  }
+
+  private func applyMarkdownOrderedListOrInsert() {
+    let selection = markdownSelectedRange()
+    if selection.length == 0 {
+      let template = "1. 项目"
+      replaceMarkdownText(in: selection, with: template, selectedRangeAfter: NSRange(location: selection.location + 3, length: 2))
+      return
+    }
+    let text = markdownTextView.text ?? ""
+    let nsText = text as NSString
+    let lineRange = markdownLineRangeCoveringSelection(selection, in: nsText)
+    let block = nsText.substring(with: lineRange)
+    let lines = block.components(separatedBy: "\n")
+    var index = 1
+    let prefixed = lines.map { line -> String in
+      let content = line.isEmpty ? "项目\(index)" : line
+      defer { index += 1 }
+      return "\(index). \(content)"
+    }.joined(separator: "\n")
+    let cursor = lineRange.location + (prefixed as NSString).length
+    replaceMarkdownText(in: lineRange, with: prefixed, selectedRangeAfter: NSRange(location: cursor, length: 0))
+  }
+
+  private func insertMarkdownTemplateAndPlaceCursor(_ template: String, cursorToken: String) {
+    let selection = markdownSelectedRange()
+    let nsTemplate = template as NSString
+    let tokenRange = nsTemplate.range(of: cursorToken)
+    let replacement: String
+    let cursorOffset: Int
+    if tokenRange.location == NSNotFound {
+      replacement = template
+      cursorOffset = nsTemplate.length
+    } else {
+      replacement = nsTemplate.replacingCharacters(in: tokenRange, with: "")
+      cursorOffset = tokenRange.location
+    }
+    replaceMarkdownText(in: selection, with: replacement, selectedRangeAfter: NSRange(location: selection.location + cursorOffset, length: 0))
+  }
+
+  private func waitForMarkdownRenderedContent(maxAttempts: Int, interval: TimeInterval, completion: @escaping (Bool) -> Void) {
+    guard maxAttempts > 0 else {
+      completion(false)
+      return
+    }
+    markdownPreviewWebView.evaluateJavaScript("window.isMarkdownReady && window.isMarkdownReady();") { [weak self] value, _ in
+      if let ready = value as? Bool, ready {
+        completion(true)
+        return
+      }
+      guard let self else {
+        completion(false)
+        return
+      }
+      if maxAttempts == 1 {
+        completion(false)
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + interval) {
+        self.waitForMarkdownRenderedContent(maxAttempts: maxAttempts - 1, interval: interval, completion: completion)
+      }
+    }
+  }
+
+  private func captureMarkdownPreviewImage(completion: @escaping (UIImage?) -> Void) {
+    view.layoutIfNeeded()
+    markdownPreviewContainerView.layoutIfNeeded()
+    let snapshotBounds = markdownPreviewWebView.bounds.integral
+    if snapshotBounds.width > 1, snapshotBounds.height > 1 {
+      let config = WKSnapshotConfiguration()
+      config.rect = snapshotBounds
+      config.afterScreenUpdates = true
+      markdownPreviewWebView.takeSnapshot(with: config) { [weak self] snapshot, _ in
+        guard let self else {
+          completion(nil)
+          return
+        }
+        if let snapshot {
+          completion(self.composeMarkdownImageWithBackground(snapshot))
+          return
+        }
+        completion(self.captureMarkdownContainerFallbackImage())
+      }
+      return
+    }
+    completion(captureMarkdownContainerFallbackImage())
+  }
+
+  private func renderPlainMarkdownImage(_ markdown: String) -> UIImage? {
+    let width = max(markdownPreviewContainerView.bounds.width, 360)
+    let height = max(markdownPreviewContainerView.bounds.height, 240)
+    let size = CGSize(width: width, height: height)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = UIScreen.main.scale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
+    let backgroundColor = resolvedMarkdownExportBackgroundColor()
+    let textColor = UIColor.label.resolvedColor(with: traitCollection)
+    return renderer.image { _ in
+      backgroundColor.setFill()
+      UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
+      let insetRect = CGRect(x: 14, y: 14, width: size.width - 28, height: size.height - 28)
+      let attributes: [NSAttributedString.Key: Any] = [
+        .font: selectedMarkdownFontOption.editorFont,
+        .foregroundColor: textColor
+      ]
+      NSString(string: markdown).draw(with: insetRect, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attributes, context: nil)
+    }
+  }
+
+  private func captureMarkdownContainerFallbackImage() -> UIImage? {
+    let bounds = markdownPreviewContainerView.bounds.integral
+    guard bounds.width > 1, bounds.height > 1 else { return nil }
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = UIScreen.main.scale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: bounds.size, format: format)
+    let backgroundColor = resolvedMarkdownExportBackgroundColor()
+    return renderer.image { context in
+      context.cgContext.setFillColor(backgroundColor.cgColor)
+      context.cgContext.fill(CGRect(origin: .zero, size: bounds.size))
+      markdownPreviewContainerView.drawHierarchy(in: CGRect(origin: .zero, size: bounds.size), afterScreenUpdates: true)
+    }
+  }
+
+  private func composeMarkdownImageWithBackground(_ snapshot: UIImage) -> UIImage {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = snapshot.scale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: snapshot.size, format: format)
+    let backgroundColor = resolvedMarkdownExportBackgroundColor()
+    return renderer.image { context in
+      context.cgContext.setFillColor(backgroundColor.cgColor)
+      context.cgContext.fill(CGRect(origin: .zero, size: snapshot.size))
+      snapshot.draw(in: CGRect(origin: .zero, size: snapshot.size))
+    }
+  }
+
+  private func resolvedMarkdownExportBackgroundColor() -> UIColor {
+    let baseColor = markdownPreviewContainerView.backgroundColor ?? .secondarySystemBackground
+    return baseColor.resolvedColor(with: traitCollection)
+  }
+
+  private func commitMarkdownExport(image: UIImage, markdown: String) {
+    do {
+      let item = try canvasStore.saveJPEG(image: image)
+      var pasteboardItem: [String: Any] = [UTType.plainText.identifier: markdown]
+      if let imageData = image.jpegData(compressionQuality: canvasStore.defaultJPEGQuality) {
+        pasteboardItem[UTType.jpeg.identifier] = imageData
+      }
+      UIPasteboard.general.setItems([pasteboardItem], options: [:])
+      if let requestId = activeRequestId {
+        let relativePath = canvasStore.relativePath(for: item)
+        canvasBridge.writeResult(requestId: requestId, imageRelativePath: relativePath)
+        canvasBridge.setState(requestId: requestId, state: .ready)
+        activeRequestId = nil
+        hasCompletedCurrentKeyboardSession = true
+        statusLabel.text = "已导出 Markdown 图片并复制原文。请返回宿主 App 后粘贴。"
+      } else {
+        statusLabel.text = "已导出 Markdown 图片并复制原文：\(item.fileName)"
+      }
+    } catch {
+      if let requestId = activeRequestId {
+        canvasBridge.setState(requestId: requestId, state: .failed, errorMessage: error.localizedDescription)
+      }
+      statusLabel.text = "导出失败：\(error.localizedDescription)"
+    }
+  }
+
   private func lockCanvasToVisibleBounds() {
     let size = canvasView.bounds.size
     guard size.width > 0, size.height > 0 else { return }
@@ -1111,6 +2085,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     switch mode {
     case .draw:
       canvasView.isHidden = false
+      markdownContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = !isToolPickerVisible
       canvasWakeHintLabel.isHidden = !isToolPickerVisible
       causalContainerView.isHidden = true
@@ -1122,17 +2097,28 @@ final class VoiceCanvasViewController: NibLessViewController {
       }
       statusLabel.text = activeRequestId == nil
         ? "你可以手绘示意图。画完后返回宿主 App，即可粘贴图片。"
-        : "已从键盘进入画布。画完后点击“完成”，返回宿主 App 即可粘贴图片。"
-      tipLabel.text = "导出默认压缩率：0.28（低质量，体积更小）。"
+        : "已从键盘进入画布。复制后返回宿主 App，即可粘贴图片。"
+    case .markdown:
+      setToolPickerVisible(false)
+      canvasView.isHidden = true
+      markdownContainerView.isHidden = false
+      canvasWakeOverlayView.isHidden = true
+      canvasWakeHintLabel.isHidden = true
+      causalContainerView.isHidden = true
+      historyButtonStackView.isHidden = true
+      statusLabel.text = activeRequestId == nil
+        ? "输入 Markdown 后可复制图片和原文，也可保存为 .md 文件。"
+        : "已从键盘进入 Markdown。复制后返回宿主 App 可粘贴图片。"
+      scheduleMarkdownPreviewRender()
     case .causal:
       setToolPickerVisible(false)
       canvasView.isHidden = true
+      markdownContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = true
       canvasWakeHintLabel.isHidden = true
       causalContainerView.isHidden = false
       historyButtonStackView.isHidden = true
-      statusLabel.text = "填写因果关系后，系统会自动生成关系图。完成后返回宿主 App 可直接粘贴图片。"
-      tipLabel.text = "点击完成导出 JPG；长按完成可导出 Mermaid 源文件。"
+      statusLabel.text = "填写因果关系后，系统会自动生成关系图。复制后返回宿主 App 可直接粘贴图片。"
       scheduleCausalRender()
     }
     updateHistoryButtonsState()
@@ -1191,7 +2177,9 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
 
     let tappedButtonArea = clearButton.frame.contains(point)
-      || doneButton.frame.contains(point)
+      || newDocumentButton.frame.contains(point)
+      || copyButton.frame.contains(point)
+      || saveToFileButton.frame.contains(point)
       || undoButton.frame.contains(point)
       || redoButton.frame.contains(point)
     if !tappedButtonArea {
@@ -1216,6 +2204,16 @@ final class VoiceCanvasViewController: NibLessViewController {
         ? "画布已清空，你可以继续绘制。"
         : "画布已清空，请重新绘制后点击“完成”。"
       updateHistoryButtonsState()
+      autosaveCurrentDocumentIfNeeded()
+      return
+    }
+
+    if currentMode == .markdown {
+      markdownTextView.text = ""
+      saveMarkdownDraftContent("")
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+      statusLabel.text = "Markdown 内容已清空。"
       autosaveCurrentDocumentIfNeeded()
       return
     }
@@ -1254,9 +2252,13 @@ final class VoiceCanvasViewController: NibLessViewController {
     redoButton.alpha = canRedo ? 1.0 : 0.4
   }
 
-  @objc private func handleDoneTap() {
+  @objc private func handleCopyTap() {
     if suppressDoneTapOnce {
       suppressDoneTapOnce = false
+      return
+    }
+    if currentMode == .markdown {
+      handleMarkdownCopyTap()
       return
     }
     if currentMode == .causal {
@@ -1265,6 +2267,31 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
 
     handleDrawDoneTap()
+  }
+
+  @objc private func handleSaveToFileTap() {
+    saveCurrentDocument(promptIfNeeded: true)
+  }
+
+  @objc private func handleNewUntitledDocumentTap() {
+    guard currentModeHasUnsavedChanges() else {
+      resetCurrentModeToUntitledDocument()
+      return
+    }
+
+    let alert = UIAlertController(
+      title: "保留当前内容？",
+      message: "新建未命名\(currentModeDisplayName())前，先保存当前内容。",
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: "不保存", style: .destructive) { [weak self] _ in
+      self?.resetCurrentModeToUntitledDocument()
+    })
+    alert.addAction(UIAlertAction(title: "保存", style: .default) { [weak self] _ in
+      self?.saveCurrentModeThenCreateUntitled()
+    })
+    present(alert, animated: true)
   }
 
   private func hasAnyCompleteCausalEdge() -> Bool {
@@ -1310,6 +2337,116 @@ final class VoiceCanvasViewController: NibLessViewController {
     commitExport(image)
   }
 
+  private func currentCanvasSignature() -> Data {
+    canvasView.drawing.dataRepresentation()
+  }
+
+  private func currentMarkdownSignature() -> String {
+    markdownTextView.text ?? ""
+  }
+
+  private func currentCausalSignature() -> Data? {
+    try? JSONEncoder().encode(causalEdges)
+  }
+
+  private func currentModeDisplayName() -> String {
+    switch currentMode {
+    case .draw:
+      return "画布"
+    case .markdown:
+      return "Markdown"
+    case .causal:
+      return "因果图"
+    }
+  }
+
+  private func currentModeHasContent() -> Bool {
+    switch currentMode {
+    case .draw:
+      return !canvasView.drawing.strokes.isEmpty
+    case .markdown:
+      return !(markdownTextView.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    case .causal:
+      return causalEdges.contains {
+        !$0.from.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          || !$0.to.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+          || !$0.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      }
+    }
+  }
+
+  private func currentModeHasUnsavedChanges() -> Bool {
+    switch currentMode {
+    case .draw:
+      guard activeCanvasDocumentURL != nil else { return currentModeHasContent() }
+      return currentCanvasSignature() != (lastSavedCanvasSignature ?? Data())
+    case .markdown:
+      guard activeMarkdownDocumentURL != nil else { return currentModeHasContent() }
+      return currentMarkdownSignature() != (lastSavedMarkdownSignature ?? "")
+    case .causal:
+      guard activeCausalDocumentURL != nil else { return currentModeHasContent() }
+      return currentCausalSignature() != lastSavedCausalSignature
+    }
+  }
+
+  private func resetCurrentModeToUntitledDocument() {
+    switch currentMode {
+    case .draw:
+      activeCanvasDocumentURL = nil
+      lastSavedCanvasSignature = nil
+      canvasView.drawing = PKDrawing()
+      canvasView.undoManager?.removeAllActions()
+      if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
+        canvasBridge.setState(requestId: requestId, state: .drawing)
+      }
+    case .markdown:
+      activeMarkdownDocumentURL = nil
+      lastSavedMarkdownSignature = nil
+      markdownTextView.text = ""
+      saveMarkdownDraftContent("")
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+    case .causal:
+      activeCausalDocumentURL = nil
+      lastSavedCausalSignature = nil
+      causalEdges = [VoiceCausalEdgeDraft()]
+      causalDraftStore.saveEdges(causalEdges)
+      rebuildCausalRows()
+      scheduleCausalRender()
+    }
+    reloadDocumentItems()
+    statusLabel.text = "已新建未命名\(currentModeDisplayName())。"
+  }
+
+  private func saveCurrentModeThenCreateUntitled() {
+    if let currentActiveDocumentURL {
+      do {
+        switch currentMode {
+        case .draw:
+          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL)
+          lastSavedCanvasSignature = currentCanvasSignature()
+        case .markdown:
+          try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
+          lastSavedMarkdownSignature = currentMarkdownSignature()
+        case .causal:
+          try workspaceStore.saveCausal(edges: causalEdges, to: currentActiveDocumentURL)
+          lastSavedCausalSignature = currentCausalSignature()
+        }
+        resetCurrentModeToUntitledDocument()
+      } catch {
+        statusLabel.text = "保存失败：\(error.localizedDescription)"
+      }
+      return
+    }
+
+    promptForName(title: "保存文件", message: "输入文件名后保存当前内容，再新建未命名\(currentModeDisplayName())。", actionTitle: "保存") { [weak self] name in
+      guard let self, !name.isEmpty else { return }
+      if self.createNewDocument(named: name) {
+        self.resetCurrentModeToUntitledDocument()
+      }
+    }
+  }
+
   private func handleCausalDoneTap() {
     guard hasAnyCompleteCausalEdge() else {
       statusLabel.text = "请至少填写一条完整因果关系（原因与结果都不能为空）。"
@@ -1317,15 +2454,47 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
 
     view.endEditing(true)
-    doneButton.isEnabled = false
+    copyButton.isEnabled = false
     renderCausalExportImage { [weak self] image in
       guard let self else { return }
-      self.doneButton.isEnabled = true
+      self.copyButton.isEnabled = true
       guard let image else {
         self.statusLabel.text = "因果图导出失败，请确认关系填写后重试。"
         return
       }
       self.commitExport(image)
+    }
+  }
+
+  private func handleMarkdownCopyTap() {
+    let markdown = markdownTextView.text ?? ""
+    guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      statusLabel.text = "请先输入 Markdown 后再复制。"
+      return
+    }
+
+    view.endEditing(true)
+    copyButton.isEnabled = false
+    waitForMarkdownRenderedContent(maxAttempts: 50, interval: 0.12) { [weak self] isReady in
+      guard let self else { return }
+      guard isReady else {
+        self.copyButton.isEnabled = true
+        guard let fallback = self.renderPlainMarkdownImage(markdown) else {
+          self.statusLabel.text = "Markdown 导出失败，请重试。"
+          return
+        }
+        self.commitMarkdownExport(image: fallback, markdown: markdown)
+        return
+      }
+
+      self.captureMarkdownPreviewImage { image in
+        self.copyButton.isEnabled = true
+        guard let image = image ?? self.renderPlainMarkdownImage(markdown) else {
+          self.statusLabel.text = "Markdown 导出失败，请重试。"
+          return
+        }
+        self.commitMarkdownExport(image: image, markdown: markdown)
+      }
     }
   }
 
@@ -1342,10 +2511,9 @@ final class VoiceCanvasViewController: NibLessViewController {
     do {
       let item = try canvasStore.saveTextFile(content: mermaidSource, fileExtension: "mmd", prefix: "causal_mermaid")
       statusLabel.text = "已导出 Mermaid 源文件并复制到剪贴板。"
-      tipLabel.text = "已保存：\(item.fileName)（.mmd）"
+      statusLabel.text = "已导出 Mermaid 源文件并复制到剪贴板：\(item.fileName)"
     } catch {
       statusLabel.text = "Mermaid 导出失败：\(error.localizedDescription)"
-      tipLabel.text = "已复制 Mermaid 文本到剪贴板。"
     }
   }
 
@@ -1361,10 +2529,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         activeRequestId = nil
         hasCompletedCurrentKeyboardSession = true
         statusLabel.text = "已完成并复制 JPG。请返回宿主 App 后直接粘贴图片。"
-        tipLabel.text = "已导出：\(item.fileName)（低质量 JPG）。"
       } else {
-        statusLabel.text = "已导出并复制 JPG。"
-        tipLabel.text = "已保存到：\(canvasStore.rootDisplayPath)"
+        statusLabel.text = "已导出并复制 JPG：\(item.fileName)"
       }
     } catch {
       if let requestId = activeRequestId {
@@ -1518,13 +2684,31 @@ extension VoiceCanvasViewController: PKCanvasViewDelegate {
   }
 }
 
+extension VoiceCanvasViewController: UITextViewDelegate {
+  func textViewDidChange(_ textView: UITextView) {
+    guard textView === markdownTextView else { return }
+    let text = textView.text ?? ""
+    saveMarkdownDraftContent(text)
+    updateMarkdownPlaceholderState()
+    scheduleMarkdownPreviewRender()
+    autosaveCurrentDocumentIfNeeded()
+  }
+}
+
 extension VoiceCanvasViewController: WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    isCausalRendererReady = true
-    if currentMode == .causal, statusLabel.text?.contains("渲染资源缺失") == true {
-      statusLabel.text = "填写因果关系后，系统会自动生成关系图。完成后返回宿主 App 可直接粘贴图片。"
+    if webView == causalPreviewWebView {
+      isCausalRendererReady = true
+      if currentMode == .causal, statusLabel.text?.contains("渲染资源缺失") == true {
+        statusLabel.text = "填写因果关系后，系统会自动生成关系图。复制后返回宿主 App 可直接粘贴图片。"
+      }
+      scheduleCausalRender()
+      return
     }
-    scheduleCausalRender()
+    if webView == markdownPreviewWebView {
+      isMarkdownRendererReady = true
+      scheduleMarkdownPreviewRender()
+    }
   }
 }
 
