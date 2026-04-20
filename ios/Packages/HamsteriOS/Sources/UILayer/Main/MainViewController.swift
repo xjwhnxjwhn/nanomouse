@@ -304,12 +304,10 @@ open class MainTabBarController: UITabBarController {
   private var pendingMarkdownRequestId: String?
   private var embeddedTabIndexMap: [String: Int] = [:]
   private var canvasTabIndex = 0
-  private var markdownTabIndex = 1
-  private var voiceTabIndex = 2
-  private var accountTabIndex = 3
+  private var voiceTabIndex = 1
+  private var accountTabIndex = 2
 
   private lazy var canvasController = VoiceCanvasViewController()
-  private lazy var markdownController = VoiceMarkdownViewController()
   private lazy var homeController = VoiceHomeViewController()
   private lazy var accountController = VoiceAccountViewController(
     mainViewModel: mainViewModel,
@@ -345,14 +343,6 @@ open class MainTabBarController: UITabBarController {
       title: "画布",
       image: UIImage(systemName: "scribble.variable"),
       selectedImage: UIImage(systemName: "scribble.variable")
-    )
-
-    let markdownNavigationController = UINavigationController(rootViewController: markdownController)
-    markdownNavigationController.navigationBar.isHidden = true
-    markdownNavigationController.tabBarItem = UITabBarItem(
-      title: "Markdown",
-      image: UIImage(systemName: "text.document"),
-      selectedImage: UIImage(systemName: "text.document.fill")
     )
 
     let homeNavigationController = UINavigationController(rootViewController: homeController)
@@ -391,9 +381,6 @@ open class MainTabBarController: UITabBarController {
     canvasTabIndex = tabs.count
     tabs.append(canvasNavigationController)
 
-    markdownTabIndex = tabs.count
-    tabs.append(markdownNavigationController)
-
     voiceTabIndex = tabs.count
     tabs.append(homeNavigationController)
 
@@ -431,7 +418,7 @@ open class MainTabBarController: UITabBarController {
 
   open func activateMarkdown(requestId: String) {
     pendingMarkdownRequestId = requestId
-    selectedIndex = markdownTabIndex
+    selectedIndex = canvasTabIndex
     deliverPendingRequestsIfNeeded()
   }
 
@@ -448,7 +435,7 @@ open class MainTabBarController: UITabBarController {
     }
     if let requestId = pendingMarkdownRequestId {
       pendingMarkdownRequestId = nil
-      markdownController.startMarkdownSession(requestId: requestId)
+      canvasController.startMarkdownSession(requestId: requestId)
     }
     if let requestId = pendingVoiceRequestId {
       pendingVoiceRequestId = nil

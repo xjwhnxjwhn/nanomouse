@@ -367,7 +367,8 @@ final class VoiceCanvasViewController: NibLessViewController {
     label.textColor = .tertiaryLabel
     label.textAlignment = .center
     label.numberOfLines = 0
-    label.text = "轻点此处以开始"
+    label.text = nil
+    label.isHidden = true
     return label
   }()
 
@@ -423,7 +424,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }()
 
   private lazy var modeSegmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["手绘", "Markdown", "因果图"])
+    let control = UISegmentedControl(items: ["画布", "Markdown", "因果图"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = CanvasMode.draw.rawValue
     control.addTarget(self, action: #selector(handleModeChanged(_:)), for: .valueChanged)
@@ -834,6 +835,16 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.drawing = PKDrawing()
       setToolPickerVisible(true)
       statusLabel.text = "已从键盘进入画布。复制后返回宿主 App，即可粘贴图片。"
+    }
+  }
+
+  func startMarkdownSession(requestId: String) {
+    activeRequestId = requestId
+    hasCompletedCurrentKeyboardSession = false
+    canvasBridge.setState(requestId: requestId, state: .drawing)
+    if isViewLoaded {
+      applyCanvasMode(.markdown, force: true)
+      statusLabel.text = "已从键盘进入 Markdown。复制后返回宿主 App 可粘贴图片。"
     }
   }
 
@@ -2084,6 +2095,7 @@ final class VoiceCanvasViewController: NibLessViewController {
 
     switch mode {
     case .draw:
+      titleLabel.text = "画布"
       canvasView.isHidden = false
       markdownContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = !isToolPickerVisible
@@ -2099,6 +2111,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         ? "你可以手绘示意图。画完后返回宿主 App，即可粘贴图片。"
         : "已从键盘进入画布。复制后返回宿主 App，即可粘贴图片。"
     case .markdown:
+      titleLabel.text = "Markdown"
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = false
@@ -2111,6 +2124,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         : "已从键盘进入 Markdown。复制后返回宿主 App 可粘贴图片。"
       scheduleMarkdownPreviewRender()
     case .causal:
+      titleLabel.text = "因果图"
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = true
@@ -2914,6 +2928,7 @@ private final class VoiceCausalEdgeRowView: UIView, UITextFieldDelegate {
 final class VoiceCanvasStorageViewController: NibLessViewController {
   private let rootView = VoiceCanvasStorageRootView()
   private let canvasStore: VoiceCanvasStorageStore = .shared
+  private let thumbnailProvider = VoiceCanvasExportThumbnailProvider()
   private var items: [VoiceCanvasFileItem] = []
 
   private lazy var dateFormatter: DateFormatter = {
@@ -2931,7 +2946,7 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
     super.viewDidLoad()
     rootView.tableView.dataSource = self
     rootView.tableView.delegate = self
-    rootView.tableView.register(UITableViewCell.self, forCellReuseIdentifier: "CanvasFileCell")
+    rootView.tableView.register(VoiceCanvasExportFileCell.self, forCellReuseIdentifier: VoiceCanvasExportFileCell.reuseIdentifier)
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       title: "清空",
       style: .plain,
@@ -2983,12 +2998,12 @@ extension VoiceCanvasStorageViewController: UITableViewDataSource, UITableViewDe
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    section == 0 ? "保存路径" : "已导出文件"
+    section == 0 ? "保存路径" : "已拷贝文件"
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
     if section == 0 {
-      return "默认导出为低质量 JPG（压缩率 0.28）。点击路径可复制。"
+      return "默认拷贝为低质量 JPG（压缩率 0.28）。点击路径可复制。"
     }
     return nil
   }
@@ -3008,16 +3023,16 @@ extension VoiceCanvasStorageViewController: UITableViewDataSource, UITableViewDe
       return cell
     }
 
-    let cell = tableView.dequeueReusableCell(withIdentifier: "CanvasFileCell", for: indexPath)
+    let cell = tableView.dequeueReusableCell(withIdentifier: VoiceCanvasExportFileCell.reuseIdentifier, for: indexPath) as! VoiceCanvasExportFileCell
     let item = items[indexPath.row]
-    var content = cell.defaultContentConfiguration()
-    content.text = item.fileName
     let sizeText = ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file)
-    content.secondaryText = "\(sizeText) · \(dateFormatter.string(from: item.modifiedAt))"
-    content.textProperties.font = .systemFont(ofSize: 14, weight: .medium)
-    content.secondaryTextProperties.font = .systemFont(ofSize: 12, weight: .regular)
-    content.secondaryTextProperties.color = .secondaryLabel
-    cell.contentConfiguration = content
+    let detailText = "\(sizeText) · \(dateFormatter.string(from: item.modifiedAt))"
+    cell.configure(item: item, detailText: detailText)
+    thumbnailProvider.loadThumbnail(for: item, targetSize: CGSize(width: 72, height: 72)) { [weak tableView] image in
+      guard let tableView,
+            let visibleCell = tableView.cellForRow(at: indexPath) as? VoiceCanvasExportFileCell else { return }
+      visibleCell.updateThumbnail(image)
+    }
     cell.selectionStyle = .none
     return cell
   }
@@ -3030,6 +3045,26 @@ extension VoiceCanvasStorageViewController: UITableViewDataSource, UITableViewDe
     present(alert, animated: true)
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
       alert.dismiss(animated: true)
+    }
+  }
+
+  func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath, point: CGPoint) -> UIContextMenuConfiguration? {
+    guard indexPath.section == 1 else { return nil }
+    let item = items[indexPath.row]
+    return UIContextMenuConfiguration(identifier: item.url as NSURL, previewProvider: nil) { [weak self, weak tableView] _ in
+      guard let self else { return UIMenu() }
+      let sourceView = tableView?.cellForRow(at: indexPath)
+      let copyAction = UIAction(title: "再次复制", image: UIImage(systemName: "doc.on.doc")) { _ in
+        self.copyExportedImage(item)
+      }
+      let shareAction = UIAction(title: "共享", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+        self.shareExportedImage(item, sourceView: sourceView)
+      }
+      let deleteAction = UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
+        self.canvasStore.deleteFile(item)
+        self.reloadItems()
+      }
+      return UIMenu(children: [copyAction, shareAction, deleteAction])
     }
   }
 
@@ -3047,12 +3082,28 @@ extension VoiceCanvasStorageViewController: UITableViewDataSource, UITableViewDe
     }
     return UISwipeActionsConfiguration(actions: [deleteAction])
   }
+
+  private func copyExportedImage(_ item: VoiceCanvasFileItem) {
+    guard let image = UIImage(contentsOfFile: item.url.path) else { return }
+    UIPasteboard.general.image = image
+  }
+
+  private func shareExportedImage(_ item: VoiceCanvasFileItem, sourceView: UIView?) {
+    let controller = UIActivityViewController(activityItems: [item.url], applicationActivities: nil)
+    if let popover = controller.popoverPresentationController, let sourceView {
+      popover.sourceView = sourceView
+      popover.sourceRect = sourceView.bounds
+    }
+    present(controller, animated: true)
+  }
 }
 
 final class VoiceCanvasStorageRootView: NibLessView {
   let tableView: UITableView = {
     let view = UITableView(frame: .zero, style: .insetGrouped)
     view.translatesAutoresizingMaskIntoConstraints = false
+    view.rowHeight = 88
+    view.estimatedRowHeight = 88
     return view
   }()
 
@@ -3060,7 +3111,7 @@ final class VoiceCanvasStorageRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 16, weight: .semibold)
-    label.text = "暂无画布文件"
+    label.text = "暂无拷贝文件"
     return label
   }()
 
@@ -3071,7 +3122,7 @@ final class VoiceCanvasStorageRootView: NibLessView {
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
     label.textAlignment = .center
-    label.text = "你在画布页点击“完成”后，导出的 JPG 会保存在这里。"
+    label.text = "你在画布页点击“拷贝”后，导出的 JPG 会保存在这里。"
     return label
   }()
 
@@ -3115,5 +3166,91 @@ final class VoiceCanvasStorageRootView: NibLessView {
   func updateEmptyState(isEmpty: Bool) {
     emptyTitleLabel.isHidden = !isEmpty
     emptySubtitleLabel.isHidden = !isEmpty
+  }
+}
+
+private final class VoiceCanvasExportThumbnailProvider {
+  private let cache = NSCache<NSString, UIImage>()
+
+  func loadThumbnail(for item: VoiceCanvasFileItem, targetSize: CGSize, completion: @escaping (UIImage?) -> Void) {
+    let key = "\(item.url.path)|\(item.modifiedAt.timeIntervalSince1970)|\(Int(targetSize.width))x\(Int(targetSize.height))" as NSString
+    if let cached = cache.object(forKey: key) {
+      completion(cached)
+      return
+    }
+    DispatchQueue.global(qos: .userInitiated).async { [cache] in
+      let image = UIImage(contentsOfFile: item.url.path)
+      if let image {
+        cache.setObject(image, forKey: key)
+      }
+      DispatchQueue.main.async {
+        completion(image)
+      }
+    }
+  }
+}
+
+private final class VoiceCanvasExportFileCell: UITableViewCell {
+  static let reuseIdentifier = "VoiceCanvasExportFileCell"
+
+  private let previewImageView = UIImageView(frame: .zero)
+  private let titleLabel = UILabel(frame: .zero)
+  private let detailLabel = UILabel(frame: .zero)
+
+  override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+    super.init(style: style, reuseIdentifier: reuseIdentifier)
+    backgroundColor = .clear
+    selectionStyle = .none
+
+    previewImageView.translatesAutoresizingMaskIntoConstraints = false
+    previewImageView.contentMode = .scaleAspectFill
+    previewImageView.clipsToBounds = true
+    previewImageView.layer.cornerRadius = 10
+    previewImageView.backgroundColor = .tertiarySystemFill
+
+    titleLabel.translatesAutoresizingMaskIntoConstraints = false
+    titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+    titleLabel.textColor = .label
+    titleLabel.numberOfLines = 1
+
+    detailLabel.translatesAutoresizingMaskIntoConstraints = false
+    detailLabel.font = .systemFont(ofSize: 12, weight: .regular)
+    detailLabel.textColor = .secondaryLabel
+    detailLabel.numberOfLines = 2
+
+    contentView.addSubview(previewImageView)
+    contentView.addSubview(titleLabel)
+    contentView.addSubview(detailLabel)
+
+    NSLayoutConstraint.activate([
+      previewImageView.leadingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.leadingAnchor),
+      previewImageView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+      previewImageView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+      previewImageView.widthAnchor.constraint(equalToConstant: 72),
+      previewImageView.heightAnchor.constraint(equalToConstant: 72),
+
+      titleLabel.leadingAnchor.constraint(equalTo: previewImageView.trailingAnchor, constant: 12),
+      titleLabel.trailingAnchor.constraint(equalTo: contentView.layoutMarginsGuide.trailingAnchor),
+      titleLabel.topAnchor.constraint(equalTo: previewImageView.topAnchor, constant: 4),
+
+      detailLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+      detailLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+      detailLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+    ])
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func configure(item: VoiceCanvasFileItem, detailText: String) {
+    titleLabel.text = item.fileName
+    detailLabel.text = detailText
+    previewImageView.image = UIImage(contentsOfFile: item.url.path)
+  }
+
+  func updateThumbnail(_ image: UIImage?) {
+    previewImageView.image = image
   }
 }

@@ -9,6 +9,11 @@ import HamsterUIKit
 import UIKit
 
 final class VoiceWorkspaceDocumentPanelView: NibLessView {
+  enum DisplayMode {
+    case list
+    case grid
+  }
+
   private lazy var headerStackView: UIStackView = {
     let view = UIStackView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -91,6 +96,16 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     symbol: "square.and.arrow.down"
   )
 
+  let displayModeControl: UISegmentedControl = {
+    let control = UISegmentedControl(items: [
+      UIImage(systemName: "list.bullet"),
+      UIImage(systemName: "square.grid.2x2"),
+    ])
+    control.translatesAutoresizingMaskIntoConstraints = false
+    control.selectedSegmentIndex = 0
+    return control
+  }()
+
   let tableView: UITableView = {
     let view = UITableView(frame: .zero, style: .plain)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -101,6 +116,19 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     view.register(UITableViewCell.self, forCellReuseIdentifier: "VoiceWorkspaceDocumentCell")
     view.separatorStyle = .singleLine
     view.separatorInset = UIEdgeInsets(top: 0, left: 52, bottom: 0, right: 14)
+    return view
+  }()
+
+  let collectionView: UICollectionView = {
+    let layout = UICollectionViewFlowLayout()
+    layout.minimumInteritemSpacing = 12
+    layout.minimumLineSpacing = 12
+    layout.sectionInset = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+    let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.alwaysBounceVertical = true
+    view.isHidden = true
     return view
   }()
 
@@ -129,11 +157,13 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     headerStackView.addArrangedSubview(actionsStackView)
     titleStackView.addArrangedSubview(titleLabel)
     titleStackView.addArrangedSubview(pathLabel)
+    actionsStackView.addArrangedSubview(displayModeControl)
     actionsStackView.addArrangedSubview(newDocumentButton)
     actionsStackView.addArrangedSubview(newFolderButton)
     actionsStackView.addArrangedSubview(saveButton)
     addSubview(separatorView)
     addSubview(tableView)
+    addSubview(collectionView)
     addSubview(emptyLabel)
   }
 
@@ -153,6 +183,11 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
       tableView.trailingAnchor.constraint(equalTo: trailingAnchor),
       tableView.bottomAnchor.constraint(equalTo: bottomAnchor),
 
+      collectionView.topAnchor.constraint(equalTo: separatorView.bottomAnchor, constant: 2),
+      collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      collectionView.bottomAnchor.constraint(equalTo: bottomAnchor),
+
       emptyLabel.centerXAnchor.constraint(equalTo: tableView.centerXAnchor),
       emptyLabel.centerYAnchor.constraint(equalTo: tableView.centerYAnchor),
       emptyLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 20),
@@ -168,11 +203,13 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     layer.borderColor = UIColor.separator.cgColor
   }
 
-  func updatePath(_ text: String, canGoBack: Bool, isEmpty: Bool) {
+  func updatePath(_ text: String, canGoBack: Bool, isEmpty: Bool, displayMode: DisplayMode) {
     pathLabel.text = text
     backButton.isHidden = !canGoBack
+    displayModeControl.selectedSegmentIndex = displayMode == .list ? 0 : 1
     emptyLabel.isHidden = !isEmpty
-    tableView.isHidden = isEmpty
+    tableView.isHidden = isEmpty || displayMode == .grid
+    collectionView.isHidden = isEmpty || displayMode == .list
   }
 
   private static func makeActionButton(title: String, symbol: String) -> UIButton {

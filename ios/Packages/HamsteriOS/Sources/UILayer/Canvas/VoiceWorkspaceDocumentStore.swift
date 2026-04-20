@@ -213,6 +213,34 @@ final class VoiceWorkspaceDocumentStore {
     try fileManager.removeItem(at: item.url)
   }
 
+  @discardableResult
+  func renameItem(_ item: VoiceWorkspaceDocumentItem, to rawName: String, kind: VoiceWorkspaceDocumentKind) throws -> VoiceWorkspaceDocumentItem {
+    let sanitizedBase = item.isDirectory ? sanitizeFolderName(rawName) : sanitizeFileName(rawName)
+    guard !sanitizedBase.isEmpty else { return item }
+
+    let targetURL: URL
+    if item.isDirectory {
+      targetURL = item.url.deletingLastPathComponent().appendingPathComponent(sanitizedBase, isDirectory: true)
+    } else {
+      let finalName: String
+      if sanitizedBase.lowercased().hasSuffix(".\(kind.fileExtension.lowercased())") {
+        finalName = sanitizedBase
+      } else {
+        finalName = "\(sanitizedBase).\(kind.fileExtension)"
+      }
+      targetURL = item.url.deletingLastPathComponent().appendingPathComponent(finalName, isDirectory: false)
+    }
+
+    if targetURL == item.url {
+      return item
+    }
+    if fileManager.fileExists(atPath: targetURL.path) {
+      throw CocoaError(.fileWriteFileExists)
+    }
+    try fileManager.moveItem(at: item.url, to: targetURL)
+    return try makeItem(for: targetURL, kind: kind) ?? item
+  }
+
   func relativeDisplayPath(for kind: VoiceWorkspaceDocumentKind, pathComponents: [String]) -> String {
     let suffix = pathComponents.joined(separator: "/")
     if suffix.isEmpty {
