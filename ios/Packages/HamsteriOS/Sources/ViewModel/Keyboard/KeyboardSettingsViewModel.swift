@@ -587,6 +587,20 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     UserDefaults.hamster.keyboardWeatherIndicatorCache?.attributionServiceName ?? "Apple Weather"
   }
 
+  public var weatherIndicatorCurrentSummaryText: String {
+    guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else {
+      return "暂无天气数据"
+    }
+    return "\(cache.resolvedLocationName) · \(cache.displayText(for: weatherIndicatorMetric))"
+  }
+
+  public var weatherIndicatorCurrentSummaryIcon: UIImage? {
+    guard let symbolName = UserDefaults.hamster.keyboardWeatherIndicatorCache?.symbolName else {
+      return nil
+    }
+    return UIImage(systemName: symbolName)
+  }
+
   public var weatherIndicatorFixedLocationDisplayText: String {
     let name = weatherIndicatorFixedLocationName.trimmingCharacters(in: .whitespacesAndNewlines)
     return name.isEmpty ? "未选择" : name
@@ -1271,6 +1285,11 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         secondaryText: weatherIndicatorCacheStatusText,
         type: .settings),
       .init(
+        icon: weatherIndicatorCurrentSummaryIcon,
+        text: "当前天气",
+        secondaryText: weatherIndicatorCurrentSummaryText,
+        type: .settings),
+      .init(
         text: "天气数据来源",
         secondaryText: weatherIndicatorAttributionSummaryText,
         type: .settings)
@@ -1292,11 +1311,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           text: "刷新天气缓存",
           type: .button,
           buttonAction: { [unowned self] in
-            _ = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
-            self.refreshToolbarSettings()
+            let cache = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
             await MainActor.run {
+              self.refreshToolbarSettings()
               ProgressHUD.success("天气缓存已更新")
+              DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.refreshToolbarSettings()
+              }
             }
+            Logger.statistics.debug("weather cache refreshed for \(cache.resolvedLocationName)")
           }))
     }
 

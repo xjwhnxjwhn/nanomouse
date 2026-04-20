@@ -723,9 +723,22 @@ class KeyboardToolbarView: NibLessView {
          fixedLongitude: fixedLongitude
        )
     {
-      return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: cache.displayText(for: metric))
+      return WeatherIndicatorPresentation(symbolName: cache.symbolName, text: compactWeatherIndicatorText(from: cache, metric: metric))
     }
     return WeatherIndicatorPresentation(symbolName: "arrow.clockwise", text: "天气")
+  }
+
+  private func compactWeatherIndicatorText(from cache: KeyboardWeatherIndicatorCache, metric: KeyboardWeatherIndicatorMetric) -> String {
+    switch metric {
+    case .temperature:
+      return "\(Int(cache.temperatureCelsius.rounded()))°"
+    case .apparentTemperature:
+      return "\(Int(cache.apparentTemperatureCelsius.rounded()))°"
+    case .uvIndex:
+      return "\(cache.uvIndexValue)"
+    case .humidity:
+      return "\(Int((cache.humidityFraction * 100).rounded()))%"
+    }
   }
 
   private func updateCenterIndicatorVisibility() {
