@@ -64,6 +64,13 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
     reloadItems()
   }
 
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+    thumbnailProvider.invalidateAll()
+    reloadItems()
+  }
+
   private func setupView() {
     view.backgroundColor = .systemGroupedBackground
     panelView.translatesAutoresizingMaskIntoConstraints = false
@@ -191,13 +198,15 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
       return
     }
 
-    do {
-      try loadDocument(item.url)
-      setActiveDocumentURL(item.url)
-      reloadItems()
-      dismiss(animated: true)
-    } catch {
-      alertConfirm(alertTitle: "打开失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+    dismiss(animated: true) { [weak self] in
+      guard let self else { return }
+      do {
+        try self.loadDocument(item.url)
+        self.setActiveDocumentURL(item.url)
+        self.reloadItems()
+      } catch {
+        self.alertConfirm(alertTitle: "打开失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+      }
     }
   }
 
@@ -337,7 +346,12 @@ extension VoiceWorkspaceDocumentBrowserViewController: UITableViewDataSource, UI
       let sizeText = ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file)
       content.secondaryText = "\(sizeText) · \(modifiedText)"
       content.image = thumbnailProvider.placeholderImage(for: item, kind: kind)
-      thumbnailProvider.loadThumbnail(for: item, kind: kind, targetSize: CGSize(width: 44, height: 44)) { [weak tableView] image in
+      thumbnailProvider.loadThumbnail(
+        for: item,
+        kind: kind,
+        targetSize: CGSize(width: 44, height: 44),
+        traitCollection: traitCollection
+      ) { [weak tableView] image in
         guard let tableView,
               let currentIndexPath = tableView.indexPath(for: cell),
               currentIndexPath == indexPath else { return }
@@ -406,7 +420,12 @@ extension VoiceWorkspaceDocumentBrowserViewController: UICollectionViewDataSourc
       isActive: item.url == activeDocumentURLProvider(),
       placeholderImage: thumbnailProvider.placeholderImage(for: item, kind: kind)
     )
-    thumbnailProvider.loadThumbnail(for: item, kind: kind, targetSize: CGSize(width: 140, height: 100)) { [weak collectionView] image in
+    thumbnailProvider.loadThumbnail(
+      for: item,
+      kind: kind,
+      targetSize: CGSize(width: 140, height: 100),
+      traitCollection: traitCollection
+    ) { [weak collectionView] image in
       guard let collectionView,
             let visibleCell = collectionView.cellForItem(at: indexPath) as? VoiceWorkspaceDocumentGridCell else { return }
       visibleCell.updateThumbnail(image)
@@ -439,6 +458,10 @@ extension VoiceWorkspaceDocumentBrowserViewController: UICollectionViewDataSourc
 private final class VoiceWorkspaceDocumentThumbnailProvider {
   private let cache = NSCache<NSString, UIImage>()
 
+  func invalidateAll() {
+    cache.removeAllObjects()
+  }
+
   func placeholderImage(for item: VoiceWorkspaceDocumentItem, kind: VoiceWorkspaceDocumentKind) -> UIImage? {
     let resolvedKind = resolvedKind(for: item, fallback: kind)
     if item.isDirectory {
@@ -458,9 +481,11 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
     for item: VoiceWorkspaceDocumentItem,
     kind: VoiceWorkspaceDocumentKind,
     targetSize: CGSize,
+    traitCollection: UITraitCollection,
     completion: @escaping (UIImage?) -> Void
   ) {
-    let sourceKey = "\(item.url.path)|\(item.modifiedAt?.timeIntervalSince1970 ?? 0)" as NSString
+    let appearanceToken = traitCollection.userInterfaceStyle == .dark ? "dark" : "light"
+    let sourceKey = "\(item.url.path)|\(item.modifiedAt?.timeIntervalSince1970 ?? 0)|\(appearanceToken)" as NSString
     if let cached = cache.object(forKey: sourceKey) {
       DispatchQueue.main.async {
         completion(self.scaledImage(from: cached, targetSize: targetSize))
@@ -475,7 +500,7 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
     }
     let resolvedKind = resolvedKind(for: item, fallback: kind)
     DispatchQueue.global(qos: .userInitiated).async { [cache] in
-      let image = self.generateThumbnail(for: item, kind: resolvedKind, targetSize: targetSize)
+      let image = self.generateThumbnail(for: item, kind: resolvedKind, targetSize: targetSize, traitCollection: traitCollection)
       if let image {
         cache.setObject(image, forKey: sourceKey)
       }
@@ -485,10 +510,15 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
     }
   }
 
-  private func generateThumbnail(for item: VoiceWorkspaceDocumentItem, kind: VoiceWorkspaceDocumentKind, targetSize: CGSize) -> UIImage? {
+  private func generateThumbnail(
+    for item: VoiceWorkspaceDocumentItem,
+    kind: VoiceWorkspaceDocumentKind,
+    targetSize: CGSize,
+    traitCollection: UITraitCollection
+  ) -> UIImage? {
     switch kind {
     case .canvas:
-      return VoiceWorkspaceDocumentStore.canvasPreviewImage(forCanvasAt: item.url, traitCollection: .current)
+      return VoiceWorkspaceDocumentStore.canvasPreviewImage(forCanvasAt: item.url, traitCollection: traitCollection)
         ?? placeholderImage(for: item, kind: kind)
     case .markdown:
       guard let markdown = try? String(contentsOf: item.url, encoding: .utf8) else {

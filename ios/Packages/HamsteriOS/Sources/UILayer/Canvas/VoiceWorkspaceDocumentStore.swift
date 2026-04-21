@@ -204,11 +204,61 @@ final class VoiceWorkspaceDocumentStore {
     try loadCanvas(from: url, traitCollection: .current)
   }
 
+  func loadRawCanvas(from url: URL) throws -> PKDrawing {
+    try prepareUbiquitousItemIfNeeded(at: url)
+    let data = try Data(contentsOf: url, options: [])
+    return try PKDrawing(data: data)
+  }
+
   func loadCanvas(from url: URL, traitCollection: UITraitCollection) throws -> PKDrawing {
     try prepareUbiquitousItemIfNeeded(at: url)
     let data = try Data(contentsOf: url, options: [])
     let drawing = try PKDrawing(data: data)
     return Self.drawingWithResolvedCanvasColors(drawing, canvasURL: url, traitCollection: traitCollection)
+  }
+
+  static func writeCanvasSemanticArtifacts(
+    for drawing: PKDrawing,
+    canvasURL: URL,
+    traitCollection: UITraitCollection
+  ) throws {
+    try drawing.dataRepresentation().write(to: canvasURL, options: .atomic)
+    try writeCanvasMetadata(for: drawing, canvasURL: canvasURL, traitCollection: traitCollection)
+    try writeCanvasPreview(for: drawing, canvasURL: canvasURL, traitCollection: traitCollection)
+  }
+
+  static func drawingWithResolvedCanvasColors(_ drawing: PKDrawing, traitCollection: UITraitCollection) -> PKDrawing {
+    guard !drawing.strokes.isEmpty else {
+      return drawing
+    }
+    let rebuilt = drawing.strokes.map { stroke in
+      guard let metadata = inferredCanvasColorMetadata(for: stroke) else {
+        return stroke
+      }
+      let resolvedColor: UIColor
+      switch metadata.semantic {
+      case .label:
+        resolvedColor = UIColor.label.resolvedColor(with: traitCollection).withAlphaComponent(metadata.alpha)
+      }
+      let ink = PKInk(stroke.ink.inkType, color: resolvedColor)
+      if #available(iOS 16.0, *) {
+        return PKStroke(
+          ink: ink,
+          path: stroke.path,
+          transform: stroke.transform,
+          mask: stroke.mask,
+          randomSeed: stroke.randomSeed
+        )
+      } else {
+        return PKStroke(
+          ink: ink,
+          path: stroke.path,
+          transform: stroke.transform,
+          mask: stroke.mask
+        )
+      }
+    }
+    return PKDrawing(strokes: rebuilt)
   }
 
   @discardableResult
@@ -332,6 +382,10 @@ final class VoiceWorkspaceDocumentStore {
 
   private func prepareUbiquitousItemIfNeeded(at url: URL) throws {
     try? fileManager.startDownloadingUbiquitousItem(at: url)
+    if url.pathExtension.lowercased() == VoiceWorkspaceDocumentKind.canvas.fileExtension {
+      try? fileManager.startDownloadingUbiquitousItem(at: Self.canvasMetadataSidecarURL(for: url))
+      try? fileManager.startDownloadingUbiquitousItem(at: Self.canvasPreviewSidecarURL(for: url))
+    }
   }
 
   private func makeItem(for url: URL, kind: VoiceWorkspaceDocumentKind) throws -> VoiceWorkspaceDocumentItem? {
@@ -374,8 +428,7 @@ final class VoiceWorkspaceDocumentStore {
   static func canvasPreviewImage(for drawing: PKDrawing, traitCollection: UITraitCollection) -> UIImage? {
     guard !drawing.bounds.isEmpty else { return nil }
     let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
-    let drawingImage = drawing.image(from: bounds, scale: UIScreen.main.scale)
-    let size = drawingImage.size
+    let size = bounds.size
     guard size.width > 1, size.height > 1 else { return nil }
     let format = UIGraphicsImageRendererFormat()
     format.scale = UIScreen.main.scale
@@ -385,7 +438,15 @@ final class VoiceWorkspaceDocumentStore {
     return renderer.image { context in
       context.cgContext.setFillColor(backgroundColor.cgColor)
       context.cgContext.fill(CGRect(origin: .zero, size: size))
-      drawingImage.draw(in: CGRect(origin: .zero, size: size))
+      context.cgContext.setShouldAntialias(true)
+      context.cgContext.setAllowsAntialiasing(true)
+      for stroke in drawing.strokes {
+        drawCanvasPreviewStroke(
+          stroke,
+          in: context.cgContext,
+          translatingBy: CGPoint(x: -bounds.origin.x, y: -bounds.origin.y)
+        )
+      }
     }
   }
 
@@ -475,6 +536,7 @@ final class VoiceWorkspaceDocumentStore {
     return PKDrawing(strokes: rebuilt)
   }
 
+
   private static func detectedCanvasColorMetadata(
     for stroke: PKStroke,
     traitCollection: UITraitCollection
@@ -515,21 +577,92 @@ final class VoiceWorkspaceDocumentStore {
   }
 
   private static func colorsMatchIgnoringAlpha(_ lhs: UIColor, _ rhs: UIColor, tolerance: CGFloat = 0.02) -> Bool {
-    var lr: CGFloat = 0
-    var lg: CGFloat = 0
-    var lb: CGFloat = 0
-    var la: CGFloat = 0
-    var rr: CGFloat = 0
-    var rg: CGFloat = 0
-    var rb: CGFloat = 0
-    var ra: CGFloat = 0
-    guard lhs.getRed(&lr, green: &lg, blue: &lb, alpha: &la),
-          rhs.getRed(&rr, green: &rg, blue: &rb, alpha: &ra) else {
+    guard let left = normalizedRGBAComponents(for: lhs),
+          let right = normalizedRGBAComponents(for: rhs) else {
       return false
     }
-    return abs(lr - rr) <= tolerance &&
-      abs(lg - rg) <= tolerance &&
-      abs(lb - rb) <= tolerance
+    return abs(left.red - right.red) <= tolerance &&
+      abs(left.green - right.green) <= tolerance &&
+      abs(left.blue - right.blue) <= tolerance
+  }
+
+  private static func normalizedRGBAComponents(for color: UIColor) -> (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat)? {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    if color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) {
+      return (red, green, blue, alpha)
+    }
+
+    var white: CGFloat = 0
+    if color.getWhite(&white, alpha: &alpha) {
+      return (white, white, white, alpha)
+    }
+
+    let cgColor = color.cgColor
+    let rgbSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    if let converted = cgColor.converted(to: rgbSpace, intent: .defaultIntent, options: nil),
+       let components = converted.components {
+      switch components.count {
+      case 2:
+        return (components[0], components[0], components[0], components[1])
+      case 4:
+        return (components[0], components[1], components[2], components[3])
+      default:
+        break
+      }
+    }
+
+    return nil
+  }
+
+  private static func drawCanvasPreviewStroke(
+    _ stroke: PKStroke,
+    in context: CGContext,
+    translatingBy translation: CGPoint
+  ) {
+    let lineWidth = canvasPreviewLineWidth(for: stroke)
+    let points = stroke.path
+      .interpolatedPoints(by: .distance(max(2, lineWidth / 2)))
+      .map(\.location)
+    guard points.count > 1 else { return }
+
+    context.saveGState()
+    context.setBlendMode(.normal)
+    context.setStrokeColor(stroke.ink.color.cgColor)
+    context.setLineWidth(lineWidth)
+    context.setLineCap(.round)
+    context.setLineJoin(.round)
+    context.beginPath()
+    context.move(to: CGPoint(x: points[0].x + translation.x, y: points[0].y + translation.y))
+    for point in points.dropFirst() {
+      context.addLine(to: CGPoint(x: point.x + translation.x, y: point.y + translation.y))
+    }
+    context.strokePath()
+    context.restoreGState()
+  }
+
+  private static func canvasPreviewLineWidth(for stroke: PKStroke) -> CGFloat {
+    if stroke.ink.inkType == .marker {
+      return 12
+    }
+    if stroke.ink.inkType == .pencil {
+      return 4
+    }
+    if #available(iOS 17.0, *), stroke.ink.inkType == .monoline {
+      return 7
+    }
+    if #available(iOS 17.0, *), stroke.ink.inkType == .fountainPen {
+      return 8
+    }
+    if #available(iOS 17.0, *), stroke.ink.inkType == .watercolor {
+      return 16
+    }
+    if #available(iOS 17.0, *), stroke.ink.inkType == .crayon {
+      return 10
+    }
+    return 6
   }
 }
   private struct CanvasColorMetadata: Codable {

@@ -112,12 +112,24 @@ final class VoiceCanvasStorageStore {
     Constants.defaultJPEGQuality
   }
 
+  static func canvasSourceDrawingURL(forExportAt exportURL: URL) -> URL {
+    let baseName = exportURL.deletingPathExtension().lastPathComponent
+    return exportURL
+      .deletingLastPathComponent()
+      .appendingPathComponent(".\(baseName).source.pkdrawing", isDirectory: false)
+  }
+
   func ensureDirectory() throws {
     try fileManager.createDirectory(at: rootDirectoryURL, withIntermediateDirectories: true)
   }
 
   @discardableResult
-  func saveJPEG(image: UIImage, compressionQuality: CGFloat = Constants.defaultJPEGQuality) throws -> VoiceCanvasFileItem {
+  func saveJPEG(
+    image: UIImage,
+    compressionQuality: CGFloat = Constants.defaultJPEGQuality,
+    sourceDrawing: PKDrawing? = nil,
+    traitCollection: UITraitCollection = .current
+  ) throws -> VoiceCanvasFileItem {
     try ensureDirectory()
     let quality = min(max(compressionQuality, 0.05), 0.95)
     guard let data = image.jpegData(compressionQuality: quality) else {
@@ -129,6 +141,14 @@ final class VoiceCanvasStorageStore {
     let name = "canvas_\(formatter.string(from: Date()))_\(UUID().uuidString.prefix(8)).jpg"
     let url = rootDirectoryURL.appendingPathComponent(name, isDirectory: false)
     try data.write(to: url, options: .atomic)
+    if let sourceDrawing {
+      let sourceURL = Self.canvasSourceDrawingURL(forExportAt: url)
+      try VoiceWorkspaceDocumentStore.writeCanvasSemanticArtifacts(
+        for: sourceDrawing,
+        canvasURL: sourceURL,
+        traitCollection: traitCollection
+      )
+    }
     return try makeFileItem(from: url)
   }
 
@@ -178,6 +198,10 @@ final class VoiceCanvasStorageStore {
 
   func deleteFile(_ item: VoiceCanvasFileItem) {
     try? fileManager.removeItem(at: item.url)
+    let sourceURL = Self.canvasSourceDrawingURL(forExportAt: item.url)
+    try? fileManager.removeItem(at: sourceURL)
+    try? fileManager.removeItem(at: VoiceWorkspaceDocumentStore.canvasPreviewSidecarURL(for: sourceURL))
+    try? fileManager.removeItem(at: VoiceWorkspaceDocumentStore.canvasMetadataSidecarURL(for: sourceURL))
   }
 
   func deleteAllFiles() {
@@ -234,6 +258,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var lastSavedCanvasSignature: Data?
   private var lastSavedMarkdownSignature: String?
   private var lastSavedCausalSignature: Data?
+  private var isApplyingCanvasProgrammatically = false
   private var markdownQuickActionButtons: [UIButton] = []
   private var availableMarkdownFontOptions: [MarkdownFontOption] = []
   private var selectedMarkdownFontOption: MarkdownFontOption = .systemDefault
@@ -839,6 +864,10 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    applyCanvasInterfaceStyle()
+    if currentMode == .draw {
+      refreshContentForCurrentAppearance()
+    }
     setupToolPickerIfNeeded()
     if currentMode == .draw {
       if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
@@ -864,8 +893,13 @@ final class VoiceCanvasViewController: NibLessViewController {
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+    applyCanvasInterfaceStyle()
+    refreshContentForCurrentAppearance()
     if currentMode == .causal {
       scheduleCausalRender()
+    }
+    if currentMode == .markdown {
+      scheduleMarkdownPreviewRender()
     }
   }
 
@@ -1007,11 +1041,12 @@ final class VoiceCanvasViewController: NibLessViewController {
         guard let self else { throw CocoaError(.userCancelled) }
         switch self.currentMode {
         case .draw:
+          let resolvedTraits = self.currentCanvasRenderingTraitCollection()
           let url = try self.workspaceStore.createCanvasDocument(
             named: name,
             drawing: self.canvasView.drawing,
             pathComponents: pathComponents,
-            traitCollection: self.traitCollection
+            traitCollection: resolvedTraits
           )
           self.activeCanvasDocumentURL = url
           self.statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
@@ -1038,9 +1073,10 @@ final class VoiceCanvasViewController: NibLessViewController {
       },
       saveDocument: { [weak self] url in
         guard let self else { return }
+        let resolvedTraits = self.currentCanvasRenderingTraitCollection()
         switch self.currentMode {
         case .draw:
-          try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url, traitCollection: self.traitCollection)
+          try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url, traitCollection: resolvedTraits)
         case .markdown:
           try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
         case .causal:
@@ -1050,14 +1086,18 @@ final class VoiceCanvasViewController: NibLessViewController {
       },
       loadDocument: { [weak self] url in
         guard let self else { return }
-        switch self.currentMode {
-        case .draw:
-          let drawing = try self.workspaceStore.loadCanvas(from: url, traitCollection: self.traitCollection)
-          self.canvasView.drawing = drawing
+      switch self.currentMode {
+      case .draw:
+          let drawing = try self.workspaceStore.loadRawCanvas(from: url)
+          let resolvedTraits = self.currentCanvasRenderingTraitCollection()
+          self.applyCanvasDrawing(drawing, traitCollection: resolvedTraits)
           self.canvasView.undoManager?.removeAllActions()
           self.activeCanvasDocumentURL = url
           self.setToolPickerVisible(false)
           self.statusLabel.text = "已打开画布文件：\(url.lastPathComponent)"
+          DispatchQueue.main.async { [weak self] in
+            self?.refreshContentForCurrentAppearance()
+          }
         case .markdown:
           let content = try self.workspaceStore.loadMarkdown(from: url)
           self.markdownTextView.text = content
@@ -1280,7 +1320,77 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasDocumentItems = workspaceStore.listItems(for: currentDocumentKind, pathComponents: currentPathComponents)
   }
 
+  private func refreshContentForCurrentAppearance() {
+    if !canvasView.drawing.strokes.isEmpty {
+      let hadSavedDocument = activeCanvasDocumentURL != nil
+      let hadUnsavedChanges =
+        if hadSavedDocument {
+          currentCanvasSignature() != (lastSavedCanvasSignature ?? Data())
+        } else {
+          !canvasView.drawing.strokes.isEmpty
+        }
+      let resolvedTraits = currentCanvasRenderingTraitCollection()
+      if let activeCanvasDocumentURL {
+        let resolvedDrawing =
+          (try? workspaceStore.loadRawCanvas(from: activeCanvasDocumentURL))
+          ?? canvasView.drawing
+        applyCanvasDrawing(resolvedDrawing, traitCollection: resolvedTraits)
+      } else {
+        applyCanvasDrawing(canvasView.drawing, traitCollection: resolvedTraits)
+      }
+      if hadSavedDocument, !hadUnsavedChanges {
+        lastSavedCanvasSignature = currentCanvasSignature()
+      }
+    }
+  }
+
   private func updateDocumentPanelState() {
+  }
+
+  private func currentCanvasRenderingTraitCollection() -> UITraitCollection {
+    let resolvedStyle: UIUserInterfaceStyle = {
+      let activeSceneStyle = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first { $0.activationState == .foregroundActive }?
+        .traitCollection.userInterfaceStyle
+      if let activeSceneStyle, activeSceneStyle != .unspecified {
+        return activeSceneStyle
+      }
+      let keyWindowStyle = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap(\.windows)
+        .first(where: \.isKeyWindow)?
+        .traitCollection.userInterfaceStyle
+      if let keyWindowStyle, keyWindowStyle != .unspecified {
+        return keyWindowStyle
+      }
+      let screenStyle = UIScreen.main.traitCollection.userInterfaceStyle
+      if screenStyle != .unspecified {
+        return screenStyle
+      }
+      return .light
+    }()
+    return UITraitCollection(userInterfaceStyle: resolvedStyle)
+  }
+
+  private func applyCanvasInterfaceStyle() {
+    let style = currentCanvasRenderingTraitCollection().userInterfaceStyle
+    guard style != .unspecified else { return }
+    canvasView.overrideUserInterfaceStyle = style
+  }
+
+  private func applyCanvasDrawing(_ drawing: PKDrawing, traitCollection: UITraitCollection) {
+    let style = traitCollection.userInterfaceStyle
+    if style != .unspecified {
+      canvasView.overrideUserInterfaceStyle = style
+    }
+    isApplyingCanvasProgrammatically = true
+    canvasView.drawing = drawing
+    canvasView.setNeedsDisplay()
+    canvasView.layoutIfNeeded()
+    DispatchQueue.main.async { [weak self] in
+      self?.isApplyingCanvasProgrammatically = false
+    }
   }
 
   private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
@@ -1334,7 +1444,7 @@ final class VoiceCanvasViewController: NibLessViewController {
           named: name,
           drawing: canvasView.drawing,
           pathComponents: currentPathComponents,
-          traitCollection: traitCollection
+          traitCollection: currentCanvasRenderingTraitCollection()
         )
         activeCanvasDocumentURL = url
         lastSavedCanvasSignature = currentCanvasSignature()
@@ -1363,7 +1473,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       do {
         switch currentMode {
         case .draw:
-          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL, traitCollection: traitCollection)
+          try workspaceStore.saveCanvas(
+            drawing: canvasView.drawing,
+            to: currentActiveDocumentURL,
+            traitCollection: currentCanvasRenderingTraitCollection()
+          )
           lastSavedCanvasSignature = currentCanvasSignature()
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
@@ -1402,13 +1516,17 @@ final class VoiceCanvasViewController: NibLessViewController {
     do {
       switch currentMode {
       case .draw:
-        let drawing = try workspaceStore.loadCanvas(from: item.url, traitCollection: traitCollection)
-        canvasView.drawing = drawing
+        let drawing = try workspaceStore.loadRawCanvas(from: item.url)
+        let resolvedTraits = currentCanvasRenderingTraitCollection()
+        applyCanvasDrawing(drawing, traitCollection: resolvedTraits)
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url
         lastSavedCanvasSignature = currentCanvasSignature()
         setToolPickerVisible(false)
         statusLabel.text = "已打开画布文件：\(item.fileName)"
+        DispatchQueue.main.async { [weak self] in
+          self?.refreshContentForCurrentAppearance()
+        }
       case .markdown:
         let content = try workspaceStore.loadMarkdown(from: item.url)
         markdownTextView.text = content
@@ -2629,7 +2747,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       do {
         switch currentMode {
         case .draw:
-          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL, traitCollection: traitCollection)
+          try workspaceStore.saveCanvas(
+            drawing: canvasView.drawing,
+            to: currentActiveDocumentURL,
+            traitCollection: currentCanvasRenderingTraitCollection()
+          )
           lastSavedCanvasSignature = currentCanvasSignature()
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
@@ -2725,7 +2847,11 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func commitExport(_ image: UIImage) {
     do {
-      let item = try canvasStore.saveJPEG(image: image)
+      let item = try canvasStore.saveJPEG(
+        image: image,
+        sourceDrawing: canvasView.drawing,
+        traitCollection: traitCollection
+      )
       UIPasteboard.general.image = image
 
       if let requestId = activeRequestId {
@@ -2885,6 +3011,10 @@ final class VoiceCanvasViewController: NibLessViewController {
 
 extension VoiceCanvasViewController: PKCanvasViewDelegate {
   func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+    if isApplyingCanvasProgrammatically {
+      updateHistoryButtonsState()
+      return
+    }
     updateHistoryButtonsState()
     autosaveCurrentDocumentIfNeeded()
   }
@@ -3156,6 +3286,13 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
     reloadItems()
   }
 
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+    thumbnailProvider.invalidateAll()
+    reloadItems()
+  }
+
   private func reloadItems() {
     items = canvasStore.loadFiles()
     rootView.updateEmptyState(isEmpty: items.isEmpty)
@@ -3230,7 +3367,11 @@ extension VoiceCanvasStorageViewController: UITableViewDataSource, UITableViewDe
     let sizeText = ByteCountFormatter.string(fromByteCount: item.fileSize, countStyle: .file)
     let detailText = "\(sizeText) · \(dateFormatter.string(from: item.modifiedAt))"
     cell.configure(item: item, detailText: detailText)
-    thumbnailProvider.loadThumbnail(for: item, targetSize: CGSize(width: 72, height: 72)) { [weak tableView] image in
+    thumbnailProvider.loadThumbnail(
+      for: item,
+      targetSize: CGSize(width: 72, height: 72),
+      traitCollection: traitCollection
+    ) { [weak tableView] image in
       guard let tableView,
             let visibleCell = tableView.cellForRow(at: indexPath) as? VoiceCanvasExportFileCell else { return }
       visibleCell.updateThumbnail(image)
@@ -3374,14 +3515,28 @@ final class VoiceCanvasStorageRootView: NibLessView {
 private final class VoiceCanvasExportThumbnailProvider {
   private let cache = NSCache<NSString, UIImage>()
 
-  func loadThumbnail(for item: VoiceCanvasFileItem, targetSize: CGSize, completion: @escaping (UIImage?) -> Void) {
-    let key = "\(item.url.path)|\(item.modifiedAt.timeIntervalSince1970)|\(Int(targetSize.width))x\(Int(targetSize.height))" as NSString
+  func invalidateAll() {
+    cache.removeAllObjects()
+  }
+
+  func loadThumbnail(
+    for item: VoiceCanvasFileItem,
+    targetSize: CGSize,
+    traitCollection: UITraitCollection,
+    completion: @escaping (UIImage?) -> Void
+  ) {
+    let appearanceToken = traitCollection.userInterfaceStyle == .dark ? "dark" : "light"
+    let key = "\(item.url.path)|\(item.modifiedAt.timeIntervalSince1970)|\(Int(targetSize.width))x\(Int(targetSize.height))|\(appearanceToken)" as NSString
     if let cached = cache.object(forKey: key) {
       completion(cached)
       return
     }
     DispatchQueue.global(qos: .userInitiated).async { [cache] in
-      let image = UIImage(contentsOfFile: item.url.path)
+      let sourceURL = VoiceCanvasStorageStore.canvasSourceDrawingURL(forExportAt: item.url)
+      try? FileManager.default.startDownloadingUbiquitousItem(at: sourceURL)
+      let image =
+        VoiceWorkspaceDocumentStore.canvasPreviewImage(forCanvasAt: sourceURL, traitCollection: traitCollection)
+        ?? UIImage(contentsOfFile: item.url.path)
       if let image {
         cache.setObject(image, forKey: key)
       }
