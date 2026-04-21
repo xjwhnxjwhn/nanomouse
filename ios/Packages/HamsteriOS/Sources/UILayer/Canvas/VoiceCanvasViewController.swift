@@ -77,7 +77,8 @@ final class VoiceCanvasStorageStore {
   static let shared = VoiceCanvasStorageStore()
 
   private enum Constants {
-    static let rootDirectoryName = "CanvasExports"
+    static let workspaceRootDirectoryName = "NanoMouse Studio"
+    static let exportDirectoryName = "CanvasExports"
     static let ubiquityContainerIdentifier = "iCloud.com.XiangqingZHANG.nanomouse"
     static let defaultJPEGQuality: CGFloat = 0.28
   }
@@ -97,7 +98,9 @@ final class VoiceCanvasStorageStore {
     let baseURL =
       ubiquityDocumentsURL
       ?? FileManager.sandboxDirectory.appendingPathComponent("iCloudDocumentsFallback", isDirectory: true)
-    return baseURL.appendingPathComponent(Constants.rootDirectoryName, isDirectory: true)
+    return baseURL
+      .appendingPathComponent(Constants.workspaceRootDirectoryName, isDirectory: true)
+      .appendingPathComponent(Constants.exportDirectoryName, isDirectory: true)
   }
 
   var rootDisplayPath: String {
@@ -143,11 +146,14 @@ final class VoiceCanvasStorageStore {
   }
 
   func relativePath(for item: VoiceCanvasFileItem) -> String {
-    "\(Constants.rootDirectoryName)/\(item.fileName)"
+    "\(Constants.workspaceRootDirectoryName)/\(Constants.exportDirectoryName)/\(item.fileName)"
   }
 
   func resolveURL(relativePath: String) -> URL {
-    FileManager.shareURL.appendingPathComponent(relativePath)
+    let baseURL =
+      ubiquityDocumentsURL
+      ?? FileManager.sandboxDirectory.appendingPathComponent("iCloudDocumentsFallback", isDirectory: true)
+    return baseURL.appendingPathComponent(relativePath)
   }
 
   func loadFiles() -> [VoiceCanvasFileItem] {
