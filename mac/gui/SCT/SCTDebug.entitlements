@@ -12,7 +12,12 @@
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
+		<string>CloudDocuments</string>
 		<string>CloudKit</string>
+	</array>
+	<key>com.apple.developer.ubiquity-container-identifiers</key>
+	<array>
+		<string>iCloud.com.XiangqingZHANG.nanomouse</string>
 	</array>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
