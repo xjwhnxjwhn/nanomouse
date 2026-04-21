@@ -31,7 +31,6 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
   private var displayMode: VoiceWorkspaceDocumentPanelView.DisplayMode = .list
   private let panelView = VoiceWorkspaceDocumentPanelView(frame: .zero)
   private let thumbnailProvider = VoiceWorkspaceDocumentThumbnailProvider()
-
   init(
     kind: VoiceWorkspaceDocumentKind,
     store: VoiceWorkspaceDocumentStore,
@@ -77,7 +76,7 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
     panelView.backButton.addTarget(self, action: #selector(handleBackTap), for: .touchUpInside)
     panelView.newDocumentButton.addTarget(self, action: #selector(handleNewDocumentTap), for: .touchUpInside)
     panelView.newFolderButton.addTarget(self, action: #selector(handleNewFolderTap), for: .touchUpInside)
-    panelView.saveButton.addTarget(self, action: #selector(handleSaveTap), for: .touchUpInside)
+    panelView.refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
     panelView.displayModeControl.addTarget(self, action: #selector(handleDisplayModeChanged), for: .valueChanged)
     view.addSubview(panelView)
 
@@ -105,7 +104,6 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
     )
     panelView.tableView.reloadData()
     panelView.collectionView.reloadData()
-    panelView.saveButton.accessibilityLabel = activeDocumentURLProvider() == nil ? "另存文件" : "保存当前文件"
   }
 
   private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
@@ -177,6 +175,10 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
 
   @objc private func handleDisplayModeChanged() {
     displayMode = panelView.displayModeControl.selectedSegmentIndex == 1 ? .grid : .list
+    reloadItems()
+  }
+
+  @objc private func handleRefresh() {
     reloadItems()
   }
 

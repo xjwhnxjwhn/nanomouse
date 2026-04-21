@@ -86,14 +86,14 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     symbol: "doc.badge.plus"
   )
 
+  let refreshButton: UIButton = VoiceWorkspaceDocumentPanelView.makeActionButton(
+    title: "刷新",
+    symbol: "arrow.clockwise"
+  )
+
   let newFolderButton: UIButton = VoiceWorkspaceDocumentPanelView.makeActionButton(
     title: "新建文件夹",
     symbol: "folder.badge.plus"
-  )
-
-  let saveButton: UIButton = VoiceWorkspaceDocumentPanelView.makeActionButton(
-    title: "保存",
-    symbol: "square.and.arrow.down"
   )
 
   let displayModeControl: UISegmentedControl = {
@@ -158,9 +158,9 @@ final class VoiceWorkspaceDocumentPanelView: NibLessView {
     titleStackView.addArrangedSubview(titleLabel)
     titleStackView.addArrangedSubview(pathLabel)
     actionsStackView.addArrangedSubview(displayModeControl)
+    actionsStackView.addArrangedSubview(refreshButton)
     actionsStackView.addArrangedSubview(newDocumentButton)
     actionsStackView.addArrangedSubview(newFolderButton)
-    actionsStackView.addArrangedSubview(saveButton)
     addSubview(separatorView)
     addSubview(tableView)
     addSubview(collectionView)

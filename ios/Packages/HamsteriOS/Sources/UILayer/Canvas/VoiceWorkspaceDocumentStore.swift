@@ -122,6 +122,7 @@ final class VoiceWorkspaceDocumentStore {
       try ensureWorkspaceDirectories()
       let directoryURL = directoryURL(for: kind, pathComponents: pathComponents)
       try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true, attributes: nil)
+      try? fileManager.startDownloadingUbiquitousItem(at: directoryURL)
       let urls = try fileManager.contentsOfDirectory(
         at: directoryURL,
         includingPropertiesForKeys: [
@@ -132,6 +133,9 @@ final class VoiceWorkspaceDocumentStore {
         ],
         options: [.skipsHiddenFiles]
       )
+      urls.forEach { url in
+        try? fileManager.startDownloadingUbiquitousItem(at: url)
+      }
       return urls
         .compactMap { url in
           try? makeItem(for: url, kind: kind)

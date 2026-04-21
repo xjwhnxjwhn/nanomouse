@@ -78,6 +78,7 @@ final class VoiceCanvasStorageStore {
 
   private enum Constants {
     static let rootDirectoryName = "CanvasExports"
+    static let ubiquityContainerIdentifier = "iCloud.com.XiangqingZHANG.nanomouse"
     static let defaultJPEGQuality: CGFloat = 0.28
   }
 
@@ -87,8 +88,16 @@ final class VoiceCanvasStorageStore {
     self.fileManager = fileManager
   }
 
+  private var ubiquityDocumentsURL: URL? {
+    fileManager.url(forUbiquityContainerIdentifier: Constants.ubiquityContainerIdentifier)?
+      .appendingPathComponent("Documents", isDirectory: true)
+  }
+
   var rootDirectoryURL: URL {
-    FileManager.shareURL.appendingPathComponent(Constants.rootDirectoryName, isDirectory: true)
+    let baseURL =
+      ubiquityDocumentsURL
+      ?? FileManager.sandboxDirectory.appendingPathComponent("iCloudDocumentsFallback", isDirectory: true)
+    return baseURL.appendingPathComponent(Constants.rootDirectoryName, isDirectory: true)
   }
 
   var rootDisplayPath: String {
@@ -143,12 +152,17 @@ final class VoiceCanvasStorageStore {
 
   func loadFiles() -> [VoiceCanvasFileItem] {
     try? ensureDirectory()
+    try? fileManager.startDownloadingUbiquitousItem(at: rootDirectoryURL)
     guard let fileURLs = try? fileManager.contentsOfDirectory(
       at: rootDirectoryURL,
       includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
       options: [.skipsHiddenFiles]
     ) else {
       return []
+    }
+
+    fileURLs.forEach { url in
+      try? fileManager.startDownloadingUbiquitousItem(at: url)
     }
 
     return fileURLs.compactMap { try? makeFileItem(from: $0) }
@@ -2929,6 +2943,7 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
   private let rootView = VoiceCanvasStorageRootView()
   private let canvasStore: VoiceCanvasStorageStore = .shared
   private let thumbnailProvider = VoiceCanvasExportThumbnailProvider()
+  private let refreshControl = UIRefreshControl()
   private var items: [VoiceCanvasFileItem] = []
 
   private lazy var dateFormatter: DateFormatter = {
@@ -2947,6 +2962,8 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
     rootView.tableView.dataSource = self
     rootView.tableView.delegate = self
     rootView.tableView.register(VoiceCanvasExportFileCell.self, forCellReuseIdentifier: VoiceCanvasExportFileCell.reuseIdentifier)
+    refreshControl.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
+    rootView.tableView.refreshControl = refreshControl
     navigationItem.rightBarButtonItem = UIBarButtonItem(
       title: "清空",
       style: .plain,
@@ -2966,6 +2983,9 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
     rootView.updateEmptyState(isEmpty: items.isEmpty)
     rootView.tableView.reloadData()
     navigationItem.rightBarButtonItem?.isEnabled = !items.isEmpty
+    if refreshControl.isRefreshing {
+      refreshControl.endRefreshing()
+    }
   }
 
   @objc private func handleDeleteAllTap() {
@@ -2982,6 +3002,10 @@ final class VoiceCanvasStorageViewController: NibLessViewController {
       self.reloadItems()
     })
     present(alert, animated: true)
+  }
+
+  @objc private func handleRefresh() {
+    reloadItems()
   }
 }
 
