@@ -49,6 +49,30 @@ public struct EmbeddedMainModuleHostSettingsDescriptor {
     }
 }
 
+public struct EmbeddedMainModuleHostSlotSummary {
+    public let index: Int
+    public let isLocked: Bool
+    public let previewText: String
+    public let isEmpty: Bool
+
+    public init(index: Int, isLocked: Bool, previewText: String, isEmpty: Bool) {
+        self.index = index
+        self.isLocked = isLocked
+        self.previewText = previewText
+        self.isEmpty = isEmpty
+    }
+}
+
+public struct EmbeddedMainModuleHostSlotImageImportPayload {
+    public let data: Data
+    public let preferredFilename: String
+
+    public init(data: Data, preferredFilename: String) {
+        self.data = data
+        self.preferredFilename = preferredFilename
+    }
+}
+
 public enum EmbeddedMainModuleHost {
     public static var isAvailable: Bool {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
@@ -157,6 +181,110 @@ public enum EmbeddedMainModuleHost {
         await EmbeddedMainModuleBridge.handleRemoteNotification(userInfo: userInfo)
         #else
         _ = userInfo
+        #endif
+    }
+
+    @MainActor
+    public static func fetchSlotSummaries() -> [EmbeddedMainModuleHostSlotSummary] {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.fetchSlotSummaries().map { summary in
+            EmbeddedMainModuleHostSlotSummary(
+                index: summary.index,
+                isLocked: summary.isLocked,
+                previewText: summary.previewText,
+                isEmpty: summary.isEmpty
+            )
+        }
+        #else
+        return []
+        #endif
+    }
+
+    @MainActor
+    public static func makeImageSlotImportViewController(
+        slotIndex: Int,
+        payload: EmbeddedMainModuleHostSlotImageImportPayload,
+        onFinish: (() -> Void)? = nil
+    ) -> UIViewController? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.makeImageSlotImportViewController(
+            slotIndex: slotIndex,
+            payload: EmbeddedMainSlotImageImportPayload(
+                data: payload.data,
+                preferredFilename: payload.preferredFilename
+            ),
+            onFinish: onFinish
+        )
+        #else
+        _ = slotIndex
+        _ = payload
+        _ = onFinish
+        return nil
+        #endif
+    }
+
+    @MainActor
+    public static func makeFileSlotImportViewController(
+        slotIndex: Int,
+        fileURLs: [URL],
+        onFinish: (() -> Void)? = nil
+    ) -> UIViewController? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.makeFileSlotImportViewController(
+            slotIndex: slotIndex,
+            fileURLs: fileURLs,
+            onFinish: onFinish
+        )
+        #else
+        _ = slotIndex
+        _ = fileURLs
+        _ = onFinish
+        return nil
+        #endif
+    }
+
+    @MainActor
+    @discardableResult
+    public static func storeImageInSlot(
+        slotIndex: Int,
+        data: Data,
+        preferredFilename: String
+    ) -> Bool {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.storeImageInSlot(
+            slotIndex: slotIndex,
+            data: data,
+            preferredFilename: preferredFilename
+        )
+        #else
+        _ = slotIndex
+        _ = data
+        _ = preferredFilename
+        return false
+        #endif
+    }
+
+    @MainActor
+    @discardableResult
+    public static func storeFileInSlot(
+        slotIndex: Int,
+        data: Data,
+        preferredFilename: String,
+        uti: String?
+    ) -> Bool {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.storeFileInSlot(
+            slotIndex: slotIndex,
+            data: data,
+            preferredFilename: preferredFilename,
+            uti: uti
+        )
+        #else
+        _ = slotIndex
+        _ = data
+        _ = preferredFilename
+        _ = uti
+        return false
         #endif
     }
 }

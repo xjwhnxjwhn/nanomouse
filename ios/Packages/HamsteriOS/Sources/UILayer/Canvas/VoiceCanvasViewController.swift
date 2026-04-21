@@ -7,6 +7,7 @@
 
 import HamsterKit
 import HamsterUIKit
+import EmbeddedMainModuleHost
 import PencilKit
 import UniformTypeIdentifiers
 import UIKit
@@ -740,6 +741,28 @@ final class VoiceCanvasViewController: NibLessViewController {
     return button
   }()
 
+  private lazy var fillToSlotButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "square.grid.3x3.topleft.filled")
+    configuration.title = nil
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+    button.configuration = configuration
+    button.setTitle(nil, for: .normal)
+    button.setTitle(nil, for: .highlighted)
+    button.setTitle(nil, for: .selected)
+    button.setTitle(nil, for: .disabled)
+    button.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    button.accessibilityLabel = "格纳到字节粘贴格子"
+    button.addTarget(self, action: #selector(handleFillToSlotTap), for: .touchUpInside)
+    return button
+  }()
+
   private lazy var newDocumentButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
@@ -888,6 +911,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     bottomBarView.addSubview(clearButton)
     bottomBarView.addSubview(historyButtonStackView)
     bottomBarView.addSubview(newDocumentButton)
+    bottomBarView.addSubview(fillToSlotButton)
     bottomBarView.addSubview(copyButton)
     bottomBarView.addSubview(saveToFileButton)
     canvasView.delegate = self
@@ -940,8 +964,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       saveToFileButton.topAnchor.constraint(equalTo: bottomBarDividerView.bottomAnchor, constant: 10),
       saveToFileButton.bottomAnchor.constraint(equalTo: bottomBarView.bottomAnchor, constant: -10),
 
-      newDocumentButton.trailingAnchor.constraint(equalTo: copyButton.leadingAnchor, constant: -10),
-      newDocumentButton.centerYAnchor.constraint(equalTo: copyButton.centerYAnchor),
+      newDocumentButton.trailingAnchor.constraint(equalTo: fillToSlotButton.leadingAnchor, constant: -10),
+      newDocumentButton.centerYAnchor.constraint(equalTo: fillToSlotButton.centerYAnchor),
+
+      fillToSlotButton.trailingAnchor.constraint(equalTo: copyButton.leadingAnchor, constant: -10),
+      fillToSlotButton.centerYAnchor.constraint(equalTo: copyButton.centerYAnchor),
 
       copyButton.trailingAnchor.constraint(equalTo: saveToFileButton.leadingAnchor, constant: -10),
       copyButton.centerYAnchor.constraint(equalTo: saveToFileButton.centerYAnchor),
@@ -983,7 +1010,8 @@ final class VoiceCanvasViewController: NibLessViewController {
           let url = try self.workspaceStore.createCanvasDocument(
             named: name,
             drawing: self.canvasView.drawing,
-            pathComponents: pathComponents
+            pathComponents: pathComponents,
+            traitCollection: self.traitCollection
           )
           self.activeCanvasDocumentURL = url
           self.statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
@@ -1012,7 +1040,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         guard let self else { return }
         switch self.currentMode {
         case .draw:
-          try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url)
+          try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url, traitCollection: self.traitCollection)
         case .markdown:
           try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
         case .causal:
@@ -1024,7 +1052,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         guard let self else { return }
         switch self.currentMode {
         case .draw:
-          let drawing = try self.workspaceStore.loadCanvas(from: url)
+          let drawing = try self.workspaceStore.loadCanvas(from: url, traitCollection: self.traitCollection)
           self.canvasView.drawing = drawing
           self.canvasView.undoManager?.removeAllActions()
           self.activeCanvasDocumentURL = url
@@ -1302,7 +1330,12 @@ final class VoiceCanvasViewController: NibLessViewController {
     do {
       switch currentMode {
       case .draw:
-        let url = try workspaceStore.createCanvasDocument(named: name, drawing: canvasView.drawing, pathComponents: currentPathComponents)
+        let url = try workspaceStore.createCanvasDocument(
+          named: name,
+          drawing: canvasView.drawing,
+          pathComponents: currentPathComponents,
+          traitCollection: traitCollection
+        )
         activeCanvasDocumentURL = url
         lastSavedCanvasSignature = currentCanvasSignature()
         statusLabel.text = "已创建画布文件：\(url.lastPathComponent)"
@@ -1330,7 +1363,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       do {
         switch currentMode {
         case .draw:
-          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL)
+          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL, traitCollection: traitCollection)
           lastSavedCanvasSignature = currentCanvasSignature()
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
@@ -1369,7 +1402,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     do {
       switch currentMode {
       case .draw:
-        let drawing = try workspaceStore.loadCanvas(from: item.url)
+        let drawing = try workspaceStore.loadCanvas(from: item.url, traitCollection: traitCollection)
         canvasView.drawing = drawing
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url
@@ -2212,6 +2245,7 @@ final class VoiceCanvasViewController: NibLessViewController {
 
     let tappedButtonArea = clearButton.frame.contains(point)
       || newDocumentButton.frame.contains(point)
+      || fillToSlotButton.frame.contains(point)
       || copyButton.frame.contains(point)
       || saveToFileButton.frame.contains(point)
       || undoButton.frame.contains(point)
@@ -2303,6 +2337,20 @@ final class VoiceCanvasViewController: NibLessViewController {
     handleDrawDoneTap()
   }
 
+  @objc private func handleFillToSlotTap() {
+    guard EmbeddedMainModuleHost.isAvailable else {
+      statusLabel.text = "字节粘贴模块不可用，无法格纳。"
+      return
+    }
+    guard currentModeHasContent() else {
+      statusLabel.text = "当前\(currentModeDisplayName())没有可格纳的内容。"
+      return
+    }
+    presentBytePasteSlotPicker { [weak self] slotIndex in
+      self?.presentCurrentModeImportEditor(for: slotIndex)
+    }
+  }
+
   @objc private func handleSaveToFileTap() {
     saveCurrentDocument(promptIfNeeded: true)
   }
@@ -2369,6 +2417,130 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
     let image = renderExportImage(from: exportBounds)
     commitExport(image)
+  }
+
+  private func presentBytePasteSlotPicker(onSelect: @escaping (Int) -> Void) {
+    let picker = VoiceBytePasteSlotPickerViewController(
+      summaries: EmbeddedMainModuleHost.fetchSlotSummaries(),
+      onSelect: onSelect
+    )
+    if let sheet = picker.sheetPresentationController {
+      sheet.detents = [.medium(), .large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    present(picker, animated: true)
+  }
+
+  private func presentCurrentModeImportEditor(for slotIndex: Int) {
+    switch currentMode {
+    case .draw:
+      guard let payload = currentCanvasSlotImagePayload() else {
+        statusLabel.text = "画布导出失败，无法格纳。"
+        return
+      }
+      presentBytePasteImageImportEditor(slotIndex: slotIndex, payload: payload)
+    case .markdown:
+      let markdown = markdownTextView.text ?? ""
+      guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        statusLabel.text = "请先输入 Markdown 后再格纳。"
+        return
+      }
+      fillToSlotButton.isEnabled = false
+      waitForMarkdownRenderedContent(maxAttempts: 50, interval: 0.12) { [weak self] isReady in
+        guard let self else { return }
+        let finalize: (UIImage?) -> Void = { [weak self] image in
+          guard let self else { return }
+          self.fillToSlotButton.isEnabled = true
+          let fallback = self.renderPlainMarkdownImage(markdown)
+          guard let finalImage = image ?? fallback else {
+            self.statusLabel.text = "Markdown 导出失败，无法格纳。"
+            return
+          }
+          guard let data = finalImage.jpegData(compressionQuality: self.canvasStore.defaultJPEGQuality) else {
+            self.statusLabel.text = "Markdown 图片编码失败，无法格纳。"
+            return
+          }
+          self.presentBytePasteImageImportEditor(
+            slotIndex: slotIndex,
+            payload: (data, self.makeSlotImageFilename(prefix: "markdown"))
+          )
+        }
+        if isReady {
+          self.captureMarkdownPreviewImage(completion: finalize)
+        } else {
+          finalize(nil)
+        }
+      }
+    case .causal:
+      guard hasAnyCompleteCausalEdge() else {
+        statusLabel.text = "请先填写完整因果关系后再格纳。"
+        return
+      }
+      fillToSlotButton.isEnabled = false
+      renderCausalExportImage { [weak self] image in
+        guard let self else { return }
+        self.fillToSlotButton.isEnabled = true
+        let fallback = self.captureCausalPreviewImage()
+        guard let finalImage = image ?? fallback else {
+          self.statusLabel.text = "因果图导出失败，无法格纳。"
+          return
+        }
+        guard let data = finalImage.jpegData(compressionQuality: self.canvasStore.defaultJPEGQuality) else {
+          self.statusLabel.text = "因果图图片编码失败，无法格纳。"
+          return
+        }
+        self.presentBytePasteImageImportEditor(
+          slotIndex: slotIndex,
+          payload: (data, self.makeSlotImageFilename(prefix: "causal"))
+        )
+      }
+    }
+  }
+
+  private func currentCanvasSlotImagePayload() -> (Data, String)? {
+    let drawingBounds = canvasView.drawing.bounds
+    let visibleRect = CGRect(origin: canvasView.contentOffset, size: canvasView.bounds.size)
+    let exportBounds: CGRect
+    if !visibleRect.isEmpty {
+      exportBounds = visibleRect
+    } else if !drawingBounds.isEmpty {
+      exportBounds = drawingBounds.insetBy(dx: -24, dy: -24)
+    } else {
+      exportBounds = CGRect(x: 0, y: 0, width: 1024, height: 768)
+    }
+    guard !exportBounds.isEmpty else { return nil }
+    let image = renderExportImage(from: exportBounds)
+    guard let data = image.jpegData(compressionQuality: canvasStore.defaultJPEGQuality) else {
+      return nil
+    }
+    return (data, makeSlotImageFilename(prefix: "canvas"))
+  }
+
+  private func presentBytePasteImageImportEditor(slotIndex: Int, payload: (Data, String)) {
+    guard let controller = EmbeddedMainModuleHost.makeImageSlotImportViewController(
+      slotIndex: slotIndex,
+      payload: EmbeddedMainModuleHostSlotImageImportPayload(
+        data: payload.0,
+        preferredFilename: payload.1
+      )
+    ) else {
+      statusLabel.text = "格纳失败：无法打开格子编辑器。"
+      return
+    }
+    if let sheet = controller.sheetPresentationController {
+      sheet.detents = [.large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    statusLabel.text = "正在打开格子 \(String(format: "%02X", slotIndex)) 的编辑界面。"
+    present(controller, animated: true)
+  }
+
+  private func makeSlotImageFilename(prefix: String) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyyMMdd_HHmmss"
+    return "\(prefix)_\(formatter.string(from: Date())).jpg"
   }
 
   private func currentCanvasSignature() -> Data {
@@ -2457,7 +2629,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       do {
         switch currentMode {
         case .draw:
-          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL)
+          try workspaceStore.saveCanvas(drawing: canvasView.drawing, to: currentActiveDocumentURL, traitCollection: traitCollection)
           lastSavedCanvasSignature = currentCanvasSignature()
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)

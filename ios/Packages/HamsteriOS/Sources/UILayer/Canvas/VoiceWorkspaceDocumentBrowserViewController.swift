@@ -5,9 +5,11 @@
 //  Created by Codex on 2026/4/20.
 //
 
+import EmbeddedMainModuleHost
 import HamsterUIKit
 import PencilKit
 import UIKit
+import UniformTypeIdentifiers
 
 @MainActor
 final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
@@ -261,13 +263,51 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
     let renameAction = UIAction(title: "重命名", image: UIImage(systemName: "pencil")) { [weak self] _ in
       self?.promptRename(for: item)
     }
+    let storeAction = UIAction(title: "格纳", image: UIImage(systemName: "square.grid.3x3.topleft.filled")) { [weak self] _ in
+      self?.presentSlotPickerForFile(item)
+    }
     let shareAction = UIAction(title: "共享", image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in
       self?.presentShareSheet(for: item, sourceView: sourceView)
     }
     let deleteAction = UIAction(title: "删除", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
       self?.deleteItem(item)
     }
-    return UIMenu(children: [renameAction, shareAction, deleteAction])
+    if item.isDirectory {
+      return UIMenu(children: [renameAction, shareAction, deleteAction])
+    }
+    return UIMenu(children: [renameAction, storeAction, shareAction, deleteAction])
+  }
+
+  private func presentSlotPickerForFile(_ item: VoiceWorkspaceDocumentItem) {
+    guard EmbeddedMainModuleHost.isAvailable else { return }
+    let picker = VoiceBytePasteSlotPickerViewController(
+      summaries: EmbeddedMainModuleHost.fetchSlotSummaries()
+    ) { [weak self] slotIndex in
+      self?.presentFileImportEditor(for: item, slotIndex: slotIndex)
+    }
+    if let sheet = picker.sheetPresentationController {
+      sheet.detents = [.medium(), .large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    present(picker, animated: true)
+  }
+
+  private func presentFileImportEditor(for item: VoiceWorkspaceDocumentItem, slotIndex: Int) {
+    guard !item.isDirectory else { return }
+    guard let controller = EmbeddedMainModuleHost.makeFileSlotImportViewController(
+      slotIndex: slotIndex,
+      fileURLs: [item.url]
+    ) else {
+      alertConfirm(alertTitle: "格纳失败", message: "无法打开格子编辑器。", confirmTitle: "知道了") {}
+      return
+    }
+    if let sheet = controller.sheetPresentationController {
+      sheet.detents = [.large()]
+      sheet.prefersGrabberVisible = true
+      sheet.preferredCornerRadius = 20
+    }
+    present(controller, animated: true)
   }
 }
 
@@ -448,12 +488,8 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
   private func generateThumbnail(for item: VoiceWorkspaceDocumentItem, kind: VoiceWorkspaceDocumentKind, targetSize: CGSize) -> UIImage? {
     switch kind {
     case .canvas:
-      guard let data = try? Data(contentsOf: item.url),
-            let drawing = try? PKDrawing(data: data) else {
-        return placeholderImage(for: item, kind: kind)
-      }
-      let bounds = drawing.bounds.isEmpty ? CGRect(x: 0, y: 0, width: targetSize.width, height: targetSize.height) : drawing.bounds
-      return drawing.image(from: bounds, scale: UIScreen.main.scale)
+      return VoiceWorkspaceDocumentStore.canvasPreviewImage(forCanvasAt: item.url, traitCollection: .current)
+        ?? placeholderImage(for: item, kind: kind)
     case .markdown:
       guard let markdown = try? String(contentsOf: item.url, encoding: .utf8) else {
         return placeholderImage(for: item, kind: kind)
