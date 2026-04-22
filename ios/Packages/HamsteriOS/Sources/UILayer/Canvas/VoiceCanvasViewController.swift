@@ -1090,7 +1090,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       case .draw:
           let drawing = try self.workspaceStore.loadRawCanvas(from: url)
           let resolvedTraits = self.currentCanvasRenderingTraitCollection()
-          self.applyCanvasDrawing(drawing, traitCollection: resolvedTraits)
+          self.applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
           self.canvasView.undoManager?.removeAllActions()
           self.activeCanvasDocumentURL = url
           self.setToolPickerVisible(false)
@@ -1334,7 +1334,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         let resolvedDrawing =
           (try? workspaceStore.loadRawCanvas(from: activeCanvasDocumentURL))
           ?? canvasView.drawing
-        applyCanvasDrawing(resolvedDrawing, traitCollection: resolvedTraits)
+        applyCanvasDrawing(resolvedDrawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
       } else {
         applyCanvasDrawing(canvasView.drawing, traitCollection: resolvedTraits)
       }
@@ -1379,18 +1379,50 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasView.overrideUserInterfaceStyle = style
   }
 
-  private func applyCanvasDrawing(_ drawing: PKDrawing, traitCollection: UITraitCollection) {
+  private func applyCanvasDrawing(
+    _ drawing: PKDrawing,
+    traitCollection: UITraitCollection,
+    fitToVisibleBounds: Bool = false
+  ) {
     let style = traitCollection.userInterfaceStyle
     if style != .unspecified {
       canvasView.overrideUserInterfaceStyle = style
     }
+    let displayDrawing = fitToVisibleBounds ? fittedCanvasDrawingToVisibleBounds(drawing) : drawing
     isApplyingCanvasProgrammatically = true
-    canvasView.drawing = drawing
+    canvasView.drawing = displayDrawing
     canvasView.setNeedsDisplay()
     canvasView.layoutIfNeeded()
     DispatchQueue.main.async { [weak self] in
       self?.isApplyingCanvasProgrammatically = false
     }
+  }
+
+  private func fittedCanvasDrawingToVisibleBounds(_ drawing: PKDrawing) -> PKDrawing {
+    guard !drawing.bounds.isEmpty else { return drawing }
+    let viewport = canvasView.bounds.size == .zero ? canvasContainerView.bounds.size : canvasView.bounds.size
+    let padding: CGFloat = 24
+    let availableWidth = viewport.width - padding * 2
+    let availableHeight = viewport.height - padding * 2
+    guard availableWidth > 0, availableHeight > 0 else { return drawing }
+
+    let bounds = drawing.bounds
+    let scale = min(availableWidth / bounds.width, availableHeight / bounds.height, 1)
+    guard scale.isFinite, scale > 0 else { return drawing }
+    if scale >= 0.999,
+      bounds.minX >= padding,
+      bounds.maxX <= viewport.width - padding,
+      bounds.minY >= padding,
+      bounds.maxY <= viewport.height - padding {
+      return drawing
+    }
+
+    let scaledWidth = bounds.width * scale
+    let scaledHeight = bounds.height * scale
+    let offsetX = padding + (availableWidth - scaledWidth) / 2 - bounds.minX * scale
+    let offsetY = padding + (availableHeight - scaledHeight) / 2 - bounds.minY * scale
+    let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offsetX, ty: offsetY)
+    return drawing.transformed(using: transform)
   }
 
   private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
@@ -1518,7 +1550,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       case .draw:
         let drawing = try workspaceStore.loadRawCanvas(from: item.url)
         let resolvedTraits = currentCanvasRenderingTraitCollection()
-        applyCanvasDrawing(drawing, traitCollection: resolvedTraits)
+        applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url
         lastSavedCanvasSignature = currentCanvasSignature()
