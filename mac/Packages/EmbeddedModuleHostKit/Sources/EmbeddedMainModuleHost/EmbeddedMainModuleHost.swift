@@ -53,12 +53,14 @@ public struct EmbeddedMainModuleHostSlotSummary {
     public let index: Int
     public let isLocked: Bool
     public let previewText: String
+    public let previewSymbolName: String?
     public let isEmpty: Bool
 
-    public init(index: Int, isLocked: Bool, previewText: String, isEmpty: Bool) {
+    public init(index: Int, isLocked: Bool, previewText: String, previewSymbolName: String?, isEmpty: Bool) {
         self.index = index
         self.isLocked = isLocked
         self.previewText = previewText
+        self.previewSymbolName = previewSymbolName
         self.isEmpty = isEmpty
     }
 }
@@ -192,6 +194,7 @@ public enum EmbeddedMainModuleHost {
                 index: summary.index,
                 isLocked: summary.isLocked,
                 previewText: summary.previewText,
+                previewSymbolName: summary.previewSymbolName,
                 isEmpty: summary.isEmpty
             )
         }

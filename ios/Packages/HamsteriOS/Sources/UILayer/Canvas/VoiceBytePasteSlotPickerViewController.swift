@@ -94,7 +94,14 @@ final class VoiceBytePasteSlotPickerViewController: NibLessViewController {
   }
 
   private func slotLabel(for index: Int) -> String {
-    String(format: "%02X", index)
+    if index < 10 {
+      return "\(index)"
+    }
+    let letterIndex = index - 10
+    guard let scalar = UnicodeScalar(65 + letterIndex) else {
+      return "#\(index)"
+    }
+    return String(Character(scalar))
   }
 }
 
@@ -112,6 +119,7 @@ extension VoiceBytePasteSlotPickerViewController: UICollectionViewDataSource, UI
     cell.configure(
       title: slotLabel(for: summary.index),
       previewText: summary.isEmpty ? "空格子" : summary.previewText,
+      previewSymbolName: summary.previewSymbolName,
       isLocked: summary.isLocked
     )
     return cell
@@ -127,9 +135,9 @@ extension VoiceBytePasteSlotPickerViewController: UICollectionViewDataSource, UI
 
   func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
     let horizontalInset: CGFloat = 16 * 2
-    let spacing: CGFloat = 12 * 3
-    let width = floor((collectionView.bounds.width - horizontalInset - spacing) / 4)
-    return CGSize(width: max(width, 72), height: 88)
+    let spacing: CGFloat = 12 * 2
+    let width = floor((collectionView.bounds.width - horizontalInset - spacing) / 3)
+    return CGSize(width: max(width, 96), height: 104)
   }
 }
 
@@ -138,6 +146,7 @@ private final class VoiceBytePasteSlotPickerCell: UICollectionViewCell {
 
   private let titleLabel = UILabel()
   private let previewLabel = UILabel()
+  private let previewIconView = UIImageView()
   private let lockView = UIImageView(image: UIImage(systemName: "lock.fill"))
 
   override init(frame: CGRect) {
@@ -156,10 +165,15 @@ private final class VoiceBytePasteSlotPickerCell: UICollectionViewCell {
     previewLabel.textColor = .label
     previewLabel.numberOfLines = 2
 
+    previewIconView.translatesAutoresizingMaskIntoConstraints = false
+    previewIconView.tintColor = .secondaryLabel
+    previewIconView.contentMode = .scaleAspectFit
+
     lockView.translatesAutoresizingMaskIntoConstraints = false
     lockView.tintColor = .secondaryLabel
 
     contentView.addSubview(titleLabel)
+    contentView.addSubview(previewIconView)
     contentView.addSubview(previewLabel)
     contentView.addSubview(lockView)
 
@@ -173,8 +187,13 @@ private final class VoiceBytePasteSlotPickerCell: UICollectionViewCell {
       lockView.widthAnchor.constraint(equalToConstant: 12),
       lockView.heightAnchor.constraint(equalToConstant: 12),
 
-      previewLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-      previewLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
+      previewIconView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 10),
+      previewIconView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+      previewIconView.widthAnchor.constraint(equalToConstant: 14),
+      previewIconView.heightAnchor.constraint(equalToConstant: 14),
+
+      previewLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+      previewLabel.leadingAnchor.constraint(equalTo: previewIconView.trailingAnchor, constant: 6),
       previewLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -10),
       previewLabel.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -10),
     ])
@@ -185,9 +204,11 @@ private final class VoiceBytePasteSlotPickerCell: UICollectionViewCell {
     fatalError("init(coder:) has not been implemented")
   }
 
-  func configure(title: String, previewText: String, isLocked: Bool) {
+  func configure(title: String, previewText: String, previewSymbolName: String?, isLocked: Bool) {
     titleLabel.text = title
     previewLabel.text = previewText
+    previewIconView.image = previewSymbolName.flatMap { UIImage(systemName: $0) }
+    previewIconView.isHidden = previewSymbolName == nil
     lockView.isHidden = !isLocked
     contentView.alpha = isLocked ? 0.45 : 1.0
   }
