@@ -425,11 +425,15 @@ final class VoiceWorkspaceDocumentStore {
       .appendingPathComponent(".\(baseName).canvasmeta.json", isDirectory: false)
   }
 
-  static func canvasPreviewImage(for drawing: PKDrawing, traitCollection: UITraitCollection) -> UIImage? {
+  static func canvasPreviewImage(
+    for drawing: PKDrawing,
+    traitCollection: UITraitCollection,
+    targetSize: CGSize = CGSize(width: 640, height: 420)
+  ) -> UIImage? {
     guard !drawing.bounds.isEmpty else { return nil }
-    let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
-    let size = bounds.size
+    let size = targetSize
     guard size.width > 1, size.height > 1 else { return nil }
+    let fitted = fittedCanvasPreviewDrawing(drawing, targetSize: size)
     let format = UIGraphicsImageRendererFormat()
     format.scale = UIScreen.main.scale
     format.opaque = true
@@ -440,23 +444,27 @@ final class VoiceWorkspaceDocumentStore {
       context.cgContext.fill(CGRect(origin: .zero, size: size))
       context.cgContext.setShouldAntialias(true)
       context.cgContext.setAllowsAntialiasing(true)
-      for stroke in drawing.strokes {
+      for stroke in fitted.strokes {
         drawCanvasPreviewStroke(
           stroke,
           in: context.cgContext,
-          translatingBy: CGPoint(x: -bounds.origin.x, y: -bounds.origin.y)
+          translatingBy: .zero
         )
       }
     }
   }
 
-  static func canvasPreviewImage(forCanvasAt url: URL, traitCollection: UITraitCollection) -> UIImage? {
+  static func canvasPreviewImage(
+    forCanvasAt url: URL,
+    traitCollection: UITraitCollection,
+    targetSize: CGSize = CGSize(width: 640, height: 420)
+  ) -> UIImage? {
     guard let data = try? Data(contentsOf: url),
           let drawing = try? PKDrawing(data: data) else {
       return UIImage(contentsOfFile: canvasPreviewSidecarURL(for: url).path)
     }
     let resolvedDrawing = drawingWithResolvedCanvasColors(drawing, canvasURL: url, traitCollection: traitCollection)
-    return canvasPreviewImage(for: resolvedDrawing, traitCollection: traitCollection)
+    return canvasPreviewImage(for: resolvedDrawing, traitCollection: traitCollection, targetSize: targetSize)
   }
 
   private static func writeCanvasPreview(for drawing: PKDrawing, canvasURL: URL, traitCollection: UITraitCollection) throws {
@@ -534,6 +542,33 @@ final class VoiceWorkspaceDocumentStore {
       }
     }
     return PKDrawing(strokes: rebuilt)
+  }
+
+  private static func fittedCanvasPreviewDrawing(_ drawing: PKDrawing, targetSize: CGSize) -> PKDrawing {
+    guard !drawing.bounds.isEmpty else { return drawing }
+    let minDimension = min(targetSize.width, targetSize.height)
+    let padding: CGFloat = max(4, min(18, floor(minDimension * 0.08)))
+    let sourceBuffer: CGFloat = 28
+    let availableWidth = targetSize.width - padding * 2
+    let availableHeight = targetSize.height - padding * 2
+    guard availableWidth > 0, availableHeight > 0 else { return drawing }
+
+    let bufferedBounds = drawing.bounds.insetBy(dx: -sourceBuffer, dy: -sourceBuffer)
+    let side = max(bufferedBounds.width, bufferedBounds.height)
+    let bounds = CGRect(
+      x: bufferedBounds.midX - side / 2,
+      y: bufferedBounds.midY - side / 2,
+      width: side,
+      height: side
+    )
+    let scale = min(availableWidth / side, availableHeight / side, 1)
+    guard scale.isFinite, scale > 0 else { return drawing }
+    let scaledWidth = side * scale
+    let scaledHeight = side * scale
+    let offsetX = padding + (availableWidth - scaledWidth) / 2 - bounds.minX * scale
+    let offsetY = padding + (availableHeight - scaledHeight) / 2 - bounds.minY * scale
+    let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offsetX, ty: offsetY)
+    return drawing.transformed(using: transform)
   }
 
 
@@ -622,10 +657,14 @@ final class VoiceWorkspaceDocumentStore {
     in context: CGContext,
     translatingBy translation: CGPoint
   ) {
-    let lineWidth = canvasPreviewLineWidth(for: stroke)
+    let transform = stroke.transform
+    let scaleX = sqrt(transform.a * transform.a + transform.c * transform.c)
+    let scaleY = sqrt(transform.b * transform.b + transform.d * transform.d)
+    let transformScale = max(scaleX, scaleY)
+    let lineWidth = max(canvasPreviewLineWidth(for: stroke) * transformScale, 1)
     let points = stroke.path
       .interpolatedPoints(by: .distance(max(2, lineWidth / 2)))
-      .map(\.location)
+      .map { $0.location.applying(transform) }
     guard points.count > 1 else { return }
 
     context.saveGState()

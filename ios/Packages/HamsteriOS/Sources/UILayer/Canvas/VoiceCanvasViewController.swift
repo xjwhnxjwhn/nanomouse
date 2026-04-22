@@ -1088,8 +1088,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         guard let self else { return }
       switch self.currentMode {
       case .draw:
-          let drawing = try self.workspaceStore.loadRawCanvas(from: url)
           let resolvedTraits = self.currentCanvasRenderingTraitCollection()
+          let drawing = try self.workspaceStore.loadRawCanvas(from: url)
           self.applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
           self.canvasView.undoManager?.removeAllActions()
           self.activeCanvasDocumentURL = url
@@ -1349,26 +1349,16 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func currentCanvasRenderingTraitCollection() -> UITraitCollection {
     let resolvedStyle: UIUserInterfaceStyle = {
-      let activeSceneStyle = UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .first { $0.activationState == .foregroundActive }?
-        .traitCollection.userInterfaceStyle
-      if let activeSceneStyle, activeSceneStyle != .unspecified {
-        return activeSceneStyle
+      let controllerStyle = traitCollection.userInterfaceStyle
+      if controllerStyle != .unspecified {
+        return controllerStyle
       }
-      let keyWindowStyle = UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .flatMap(\.windows)
-        .first(where: \.isKeyWindow)?
-        .traitCollection.userInterfaceStyle
-      if let keyWindowStyle, keyWindowStyle != .unspecified {
-        return keyWindowStyle
+      if let windowStyle = viewIfLoaded?.window?.traitCollection.userInterfaceStyle,
+         windowStyle != .unspecified {
+        return windowStyle
       }
       let screenStyle = UIScreen.main.traitCollection.userInterfaceStyle
-      if screenStyle != .unspecified {
-        return screenStyle
-      }
-      return .light
+      return screenStyle == .unspecified ? .light : screenStyle
     }()
     return UITraitCollection(userInterfaceStyle: resolvedStyle)
   }
@@ -1548,8 +1538,8 @@ final class VoiceCanvasViewController: NibLessViewController {
     do {
       switch currentMode {
       case .draw:
-        let drawing = try workspaceStore.loadRawCanvas(from: item.url)
         let resolvedTraits = currentCanvasRenderingTraitCollection()
+        let drawing = try workspaceStore.loadRawCanvas(from: item.url)
         applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url

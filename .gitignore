@@ -52,3 +52,6 @@ mac/.env
 ConfirmTrash/private_spm_backup_*/
 
 shared/NanomouseReviewKit/.build/
+
+# Agent guidance files should stay local
+**/AGENTS.md

@@ -486,6 +486,7 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
   ) {
     let appearanceToken = traitCollection.userInterfaceStyle == .dark ? "dark" : "light"
     let sourceKey = "\(item.url.path)|\(item.modifiedAt?.timeIntervalSince1970 ?? 0)|\(appearanceToken)" as NSString
+    let resolvedKind = resolvedKind(for: item, fallback: kind)
     if let cached = cache.object(forKey: sourceKey) {
       DispatchQueue.main.async {
         completion(self.scaledImage(from: cached, targetSize: targetSize))
@@ -498,7 +499,6 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
       }
       return
     }
-    let resolvedKind = resolvedKind(for: item, fallback: kind)
     DispatchQueue.global(qos: .userInitiated).async { [cache] in
       let image = self.generateThumbnail(for: item, kind: resolvedKind, targetSize: targetSize, traitCollection: traitCollection)
       if let image {
@@ -518,7 +518,11 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
   ) -> UIImage? {
     switch kind {
     case .canvas:
-      return VoiceWorkspaceDocumentStore.canvasPreviewImage(forCanvasAt: item.url, traitCollection: traitCollection)
+      return VoiceWorkspaceDocumentStore.canvasPreviewImage(
+        forCanvasAt: item.url,
+        traitCollection: traitCollection,
+        targetSize: targetSize
+      )
         ?? placeholderImage(for: item, kind: kind)
     case .markdown:
       guard let markdown = try? String(contentsOf: item.url, encoding: .utf8) else {
@@ -605,7 +609,6 @@ private final class VoiceWorkspaceDocumentGridCell: UICollectionViewCell {
   private let titleLabel = UILabel(frame: .zero)
   private let detailLabel = UILabel(frame: .zero)
   private let activeBadge = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
-
   override init(frame: CGRect) {
     super.init(frame: frame)
     contentView.backgroundColor = .secondarySystemGroupedBackground
