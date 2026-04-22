@@ -767,6 +767,11 @@ final class VoiceMarkdownViewController: NibLessViewController {
 
   private func setupRendererIfNeeded() {
     let bundle = Bundle.module
+    if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
+      isRendererReady = false
+      previewWebView.loadHTMLString(rendererHTML, baseURL: bundle.bundleURL)
+      return
+    }
     guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
       isRendererReady = false
       previewWebView.loadHTMLString(Self.fallbackRendererHTML, baseURL: nil)
@@ -796,6 +801,64 @@ final class VoiceMarkdownViewController: NibLessViewController {
     }
     return bundle.urls(forResourcesWithExtension: "html", subdirectory: nil)?
       .first(where: { $0.lastPathComponent == "markdown_renderer.html" })
+  }
+
+  private func makeInlineMarkdownRendererHTML(in bundle: Bundle) -> String? {
+    guard let htmlURL = resolveMarkdownRendererURL(in: bundle),
+          var html = try? String(contentsOf: htmlURL, encoding: .utf8),
+          let markdownItSource = loadMarkdownRendererResource(
+            named: "markdown-it.min",
+            withExtension: "js",
+            in: bundle
+          ),
+          let mermaidSource = loadMarkdownRendererResource(
+            named: "mermaid-markdown.min",
+            withExtension: "js",
+            in: bundle
+          ) else {
+      return nil
+    }
+
+    html = html.replacingOccurrences(
+      of: #"<script src="markdown-it.min.js"></script>"#,
+      with: "<script>\(htmlSafeInlineScript(markdownItSource))</script>"
+    )
+    html = html.replacingOccurrences(
+      of: #"<script src="mermaid-markdown.min.js"></script>"#,
+      with: "<script>\(htmlSafeInlineScript(mermaidSource))</script>"
+    )
+    return html
+  }
+
+  private func loadMarkdownRendererResource(
+    named name: String,
+    withExtension ext: String,
+    in bundle: Bundle
+  ) -> String? {
+    if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: "Markdown"),
+       let content = try? String(contentsOf: url, encoding: .utf8) {
+      return content
+    }
+    if let url = bundle.url(forResource: name, withExtension: ext),
+       let content = try? String(contentsOf: url, encoding: .utf8) {
+      return content
+    }
+    let candidate = bundle.bundleURL
+      .appendingPathComponent("Markdown")
+      .appendingPathComponent("\(name).\(ext)")
+    if FileManager.default.fileExists(atPath: candidate.path),
+       let content = try? String(contentsOf: candidate, encoding: .utf8) {
+      return content
+    }
+    return nil
+  }
+
+  private func htmlSafeInlineScript(_ source: String) -> String {
+    source.replacingOccurrences(
+      of: "</script>",
+      with: #"<\/script>"#,
+      options: .caseInsensitive
+    )
   }
 
   private func restoreDraftIfNeeded() {
