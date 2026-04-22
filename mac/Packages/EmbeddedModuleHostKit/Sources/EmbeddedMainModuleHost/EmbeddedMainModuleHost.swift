@@ -287,4 +287,22 @@ public enum EmbeddedMainModuleHost {
         return false
         #endif
     }
+
+    @MainActor
+    @discardableResult
+    public static func storePlainTextInSlot(
+        slotIndex: Int,
+        text: String
+    ) -> Bool {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        return EmbeddedMainModuleBridge.storePlainTextInSlot(
+            slotIndex: slotIndex,
+            text: text
+        )
+        #else
+        _ = slotIndex
+        _ = text
+        return false
+        #endif
+    }
 }

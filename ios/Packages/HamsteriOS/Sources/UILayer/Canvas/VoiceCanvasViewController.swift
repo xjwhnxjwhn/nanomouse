@@ -259,6 +259,9 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var lastSavedMarkdownSignature: String?
   private var lastSavedCausalSignature: Data?
   private var isApplyingCanvasProgrammatically = false
+  private var causalUndoHistory: [[VoiceCausalEdgeDraft]] = []
+  private var causalRedoHistory: [[VoiceCausalEdgeDraft]] = []
+  private var isApplyingCausalHistory = false
   private var markdownQuickActionButtons: [UIButton] = []
   private var availableMarkdownFontOptions: [MarkdownFontOption] = []
   private var selectedMarkdownFontOption: MarkdownFontOption = .systemDefault
@@ -1101,19 +1104,24 @@ final class VoiceCanvasViewController: NibLessViewController {
         case .markdown:
           let content = try self.workspaceStore.loadMarkdown(from: url)
           self.markdownTextView.text = content
+          self.markdownTextView.undoManager?.removeAllActions()
           self.saveMarkdownDraftContent(content)
           self.activeMarkdownDocumentURL = url
           self.updateMarkdownPlaceholderState()
           self.scheduleMarkdownPreviewRender()
           self.statusLabel.text = "已打开 Markdown 文件：\(url.lastPathComponent)"
+          self.updateHistoryButtonsState()
         case .causal:
           let edges = try self.workspaceStore.loadCausal(from: url)
+          self.causalUndoHistory.removeAll()
+          self.causalRedoHistory.removeAll()
           self.causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
           self.causalDraftStore.saveEdges(self.causalEdges)
           self.rebuildCausalRows()
           self.scheduleCausalRender()
           self.activeCausalDocumentURL = url
           self.statusLabel.text = "已打开因果图文件：\(url.lastPathComponent)"
+          self.updateHistoryButtonsState()
         }
       },
       didDeleteDocument: { [weak self] url in
@@ -1552,14 +1560,18 @@ final class VoiceCanvasViewController: NibLessViewController {
       case .markdown:
         let content = try workspaceStore.loadMarkdown(from: item.url)
         markdownTextView.text = content
+        markdownTextView.undoManager?.removeAllActions()
         saveMarkdownDraftContent(content)
         activeMarkdownDocumentURL = item.url
         lastSavedMarkdownSignature = currentMarkdownSignature()
         updateMarkdownPlaceholderState()
         scheduleMarkdownPreviewRender()
         statusLabel.text = "已打开 Markdown 文件：\(item.fileName)"
+        updateHistoryButtonsState()
       case .causal:
         let edges = try workspaceStore.loadCausal(from: item.url)
+        causalUndoHistory.removeAll()
+        causalRedoHistory.removeAll()
         causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
         causalDraftStore.saveEdges(causalEdges)
         rebuildCausalRows()
@@ -1567,6 +1579,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         activeCausalDocumentURL = item.url
         lastSavedCausalSignature = currentCausalSignature()
         statusLabel.text = "已打开因果图文件：\(item.fileName)"
+        updateHistoryButtonsState()
       }
       reloadDocumentItems()
     } catch {
@@ -1624,6 +1637,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     for edge in causalEdges {
       addRowView(for: edge)
     }
+    updateHistoryButtonsState()
   }
 
   private func addRowView(for edge: VoiceCausalEdgeDraft) {
@@ -1643,14 +1657,20 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func updateEdgeFromRow(_ row: VoiceCausalEdgeRowView) {
     guard let idx = causalRows.firstIndex(where: { $0 === row }) else { return }
-    causalEdges[idx] = row.currentEdgeDraft(id: causalEdges[idx].id)
+    let previous = causalEdges
+    let updatedEdge = row.currentEdgeDraft(id: causalEdges[idx].id)
+    guard updatedEdge != causalEdges[idx] else { return }
+    registerCausalUndoSnapshot(previous)
+    causalEdges[idx] = updatedEdge
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
     autosaveCurrentDocumentIfNeeded()
+    updateHistoryButtonsState()
   }
 
   private func removeEdgeRow(_ row: VoiceCausalEdgeRowView) {
     guard let idx = causalRows.firstIndex(where: { $0 === row }) else { return }
+    registerCausalUndoSnapshot(causalEdges)
     if causalRows.count == 1 {
       row.apply(edge: VoiceCausalEdgeDraft(id: causalEdges[idx].id))
       causalEdges[idx] = VoiceCausalEdgeDraft(id: causalEdges[idx].id)
@@ -1662,6 +1682,42 @@ final class VoiceCanvasViewController: NibLessViewController {
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
     autosaveCurrentDocumentIfNeeded()
+    updateHistoryButtonsState()
+  }
+
+  private func registerCausalUndoSnapshot(_ snapshot: [VoiceCausalEdgeDraft]) {
+    guard !isApplyingCausalHistory else { return }
+    guard snapshot != causalEdges else { return }
+    causalUndoHistory.append(snapshot)
+    if causalUndoHistory.count > 100 {
+      causalUndoHistory.removeFirst(causalUndoHistory.count - 100)
+    }
+    causalRedoHistory.removeAll()
+  }
+
+  private func applyCausalEdges(_ edges: [VoiceCausalEdgeDraft], autosave: Bool) {
+    isApplyingCausalHistory = true
+    causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
+    causalDraftStore.saveEdges(causalEdges)
+    rebuildCausalRows()
+    scheduleCausalRender()
+    isApplyingCausalHistory = false
+    if autosave {
+      autosaveCurrentDocumentIfNeeded()
+    }
+    updateHistoryButtonsState()
+  }
+
+  private func performCausalUndo() {
+    guard let snapshot = causalUndoHistory.popLast() else { return }
+    causalRedoHistory.append(causalEdges)
+    applyCausalEdges(snapshot, autosave: true)
+  }
+
+  private func performCausalRedo() {
+    guard let snapshot = causalRedoHistory.popLast() else { return }
+    causalUndoHistory.append(causalEdges)
+    applyCausalEdges(snapshot, autosave: true)
   }
 
   private func scheduleCausalRender() {
@@ -2372,7 +2428,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasWakeOverlayView.isHidden = true
       canvasWakeHintLabel.isHidden = true
       causalContainerView.isHidden = true
-      historyButtonStackView.isHidden = true
+      historyButtonStackView.isHidden = false
       statusLabel.text = activeRequestId == nil
         ? "输入 Markdown 后可复制图片和原文，也可保存为 .md 文件。"
         : "已从键盘进入 Markdown。复制后返回宿主 App 可粘贴图片。"
@@ -2385,7 +2441,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasWakeOverlayView.isHidden = true
       canvasWakeHintLabel.isHidden = true
       causalContainerView.isHidden = false
-      historyButtonStackView.isHidden = true
+      historyButtonStackView.isHidden = false
       statusLabel.text = "填写因果关系后，系统会自动生成关系图。复制后返回宿主 App 可直接粘贴图片。"
       scheduleCausalRender()
     }
@@ -2423,12 +2479,14 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   @objc private func handleAddCausalEdgeTap() {
+    registerCausalUndoSnapshot(causalEdges)
     let edge = VoiceCausalEdgeDraft()
     causalEdges.append(edge)
     addRowView(for: edge)
     causalDraftStore.saveEdges(causalEdges)
     scheduleCausalRender()
     autosaveCurrentDocumentIfNeeded()
+    updateHistoryButtonsState()
   }
 
   @objc private func handleScreenTap(_ recognizer: UITapGestureRecognizer) {
@@ -2464,8 +2522,8 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   @objc private func handleClearTap() {
     if currentMode == .draw {
-      canvasView.drawing = PKDrawing()
-      canvasView.undoManager?.removeAllActions()
+      replaceCanvasDrawingUndoable(with: PKDrawing())
+      canvasView.undoManager?.setActionName("清空画布")
       if let requestId = activeRequestId, !hasCompletedCurrentKeyboardSession {
         canvasBridge.setState(requestId: requestId, state: .drawing)
       }
@@ -2473,48 +2531,60 @@ final class VoiceCanvasViewController: NibLessViewController {
         ? "画布已清空，你可以继续绘制。"
         : "画布已清空，请重新绘制后点击“完成”。"
       updateHistoryButtonsState()
-      autosaveCurrentDocumentIfNeeded()
       return
     }
 
     if currentMode == .markdown {
-      markdownTextView.text = ""
-      saveMarkdownDraftContent("")
-      updateMarkdownPlaceholderState()
-      scheduleMarkdownPreviewRender()
+      replaceMarkdownTextUndoable(with: "")
+      markdownTextView.undoManager?.setActionName("清空 Markdown")
       statusLabel.text = "Markdown 内容已清空。"
-      autosaveCurrentDocumentIfNeeded()
+      updateHistoryButtonsState()
       return
     }
 
-    causalEdges = [VoiceCausalEdgeDraft()]
-    causalDraftStore.saveEdges(causalEdges)
-    rebuildCausalRows()
-    scheduleCausalRender()
+    registerCausalUndoSnapshot(causalEdges)
+    applyCausalEdges([VoiceCausalEdgeDraft()], autosave: false)
     statusLabel.text = "因果关系已清空，请重新填写后再完成。"
-    autosaveCurrentDocumentIfNeeded()
   }
 
   @objc private func handleUndoTap() {
-    canvasView.undoManager?.undo()
+    switch currentMode {
+    case .draw:
+      canvasView.undoManager?.undo()
+    case .markdown:
+      markdownTextView.undoManager?.undo()
+    case .causal:
+      performCausalUndo()
+    }
     updateHistoryButtonsState()
   }
 
   @objc private func handleRedoTap() {
-    canvasView.undoManager?.redo()
+    switch currentMode {
+    case .draw:
+      canvasView.undoManager?.redo()
+    case .markdown:
+      markdownTextView.undoManager?.redo()
+    case .causal:
+      performCausalRedo()
+    }
     updateHistoryButtonsState()
   }
 
   private func updateHistoryButtonsState() {
-    guard currentMode == .draw else {
-      undoButton.isEnabled = false
-      redoButton.isEnabled = false
-      undoButton.alpha = 0.4
-      redoButton.alpha = 0.4
-      return
+    let canUndo: Bool
+    let canRedo: Bool
+    switch currentMode {
+    case .draw:
+      canUndo = canvasView.undoManager?.canUndo ?? false
+      canRedo = canvasView.undoManager?.canRedo ?? false
+    case .markdown:
+      canUndo = markdownTextView.undoManager?.canUndo ?? false
+      canRedo = markdownTextView.undoManager?.canRedo ?? false
+    case .causal:
+      canUndo = !causalUndoHistory.isEmpty
+      canRedo = !causalRedoHistory.isEmpty
     }
-    let canUndo = canvasView.undoManager?.canUndo ?? false
-    let canRedo = canvasView.undoManager?.canRedo ?? false
     undoButton.isEnabled = canUndo
     redoButton.isEnabled = canRedo
     undoButton.alpha = canUndo ? 1.0 : 0.4
@@ -2527,7 +2597,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       return
     }
     if currentMode == .markdown {
-      handleMarkdownCopyTap()
+      presentMarkdownCopyActionSheet()
       return
     }
     if currentMode == .causal {
@@ -2545,6 +2615,10 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
     guard currentModeHasContent() else {
       statusLabel.text = "当前\(currentModeDisplayName())没有可格纳的内容。"
+      return
+    }
+    if currentMode == .markdown {
+      presentMarkdownStoreActionSheet()
       return
     }
     presentBytePasteSlotPicker { [weak self] slotIndex in
@@ -2699,6 +2773,54 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
   }
 
+  private func presentMarkdownCopyActionSheet() {
+    let alert = UIAlertController(title: "复制 Markdown", message: "选择复制图片还是纯文本。", preferredStyle: .actionSheet)
+    alert.addAction(UIAlertAction(title: "图片", style: .default) { [weak self] _ in
+      self?.handleMarkdownCopyAsImageTap()
+    })
+    alert.addAction(UIAlertAction(title: "文本", style: .default) { [weak self] _ in
+      self?.handleMarkdownCopyAsTextTap()
+    })
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = copyButton
+      popover.sourceRect = copyButton.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func presentMarkdownStoreActionSheet() {
+    let alert = UIAlertController(title: "格纳 Markdown", message: "选择格纳图片还是纯文本。", preferredStyle: .actionSheet)
+    alert.addAction(UIAlertAction(title: "图片", style: .default) { [weak self] _ in
+      self?.presentBytePasteSlotPicker { [weak self] slotIndex in
+        self?.presentCurrentModeImportEditor(for: slotIndex)
+      }
+    })
+    alert.addAction(UIAlertAction(title: "文本", style: .default) { [weak self] _ in
+      self?.presentBytePasteSlotPicker { [weak self] slotIndex in
+        self?.storeMarkdownTextInSlot(slotIndex)
+      }
+    })
+    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    if let popover = alert.popoverPresentationController {
+      popover.sourceView = fillToSlotButton
+      popover.sourceRect = fillToSlotButton.bounds
+    }
+    present(alert, animated: true)
+  }
+
+  private func storeMarkdownTextInSlot(_ slotIndex: Int) {
+    let markdown = markdownTextView.text ?? ""
+    guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      statusLabel.text = "请先输入 Markdown 后再格纳。"
+      return
+    }
+    let stored = EmbeddedMainModuleHost.storePlainTextInSlot(slotIndex: slotIndex, text: markdown)
+    statusLabel.text = stored
+      ? "已将 Markdown 文本格纳到格子 \(String(format: "%02X", slotIndex))。"
+      : "格纳失败：无法写入纯文本格子内容。"
+  }
+
   private func currentCanvasSlotImagePayload() -> (Data, String)? {
     let drawingBounds = canvasView.drawing.bounds
     let visibleRect = CGRect(origin: canvasView.contentOffset, size: canvasView.bounds.size)
@@ -2716,6 +2838,35 @@ final class VoiceCanvasViewController: NibLessViewController {
       return nil
     }
     return (data, makeSlotImageFilename(prefix: "canvas"))
+  }
+
+  private func replaceCanvasDrawingUndoable(with drawing: PKDrawing) {
+    let previousDrawing = canvasView.drawing
+    guard previousDrawing != drawing else { return }
+    isApplyingCanvasProgrammatically = true
+    canvasView.drawing = drawing
+    canvasView.setNeedsDisplay()
+    canvasView.layoutIfNeeded()
+    canvasView.undoManager?.registerUndo(withTarget: self) { target in
+      target.replaceCanvasDrawingUndoable(with: previousDrawing)
+    }
+    DispatchQueue.main.async { [weak self] in
+      self?.isApplyingCanvasProgrammatically = false
+      self?.updateHistoryButtonsState()
+    }
+  }
+
+  private func replaceMarkdownTextUndoable(with text: String) {
+    let previousText = markdownTextView.text ?? ""
+    guard previousText != text else { return }
+    markdownTextView.text = text
+    saveMarkdownDraftContent(text)
+    updateMarkdownPlaceholderState()
+    scheduleMarkdownPreviewRender()
+    markdownTextView.undoManager?.registerUndo(withTarget: self) { target in
+      target.replaceMarkdownTextUndoable(with: previousText)
+    }
+    updateHistoryButtonsState()
   }
 
   private func presentBytePasteImageImportEditor(slotIndex: Int, payload: (Data, String)) {
@@ -2810,12 +2961,16 @@ final class VoiceCanvasViewController: NibLessViewController {
       activeMarkdownDocumentURL = nil
       lastSavedMarkdownSignature = nil
       markdownTextView.text = ""
+      markdownTextView.undoManager?.removeAllActions()
       saveMarkdownDraftContent("")
       updateMarkdownPlaceholderState()
       scheduleMarkdownPreviewRender()
+      updateHistoryButtonsState()
     case .causal:
       activeCausalDocumentURL = nil
       lastSavedCausalSignature = nil
+      causalUndoHistory.removeAll()
+      causalRedoHistory.removeAll()
       causalEdges = [VoiceCausalEdgeDraft()]
       causalDraftStore.saveEdges(causalEdges)
       rebuildCausalRows()
@@ -2878,6 +3033,20 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func handleMarkdownCopyTap() {
+    handleMarkdownCopyAsImageTap()
+  }
+
+  private func handleMarkdownCopyAsTextTap() {
+    let markdown = markdownTextView.text ?? ""
+    guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+      statusLabel.text = "请先输入 Markdown 后再复制。"
+      return
+    }
+    UIPasteboard.general.setItems([[UTType.plainText.identifier: markdown]], options: [:])
+    statusLabel.text = "已复制 Markdown 纯文本。"
+  }
+
+  private func handleMarkdownCopyAsImageTap() {
     let markdown = markdownTextView.text ?? ""
     guard !markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       statusLabel.text = "请先输入 Markdown 后再复制。"
@@ -3111,6 +3280,7 @@ extension VoiceCanvasViewController: UITextViewDelegate {
     updateMarkdownPlaceholderState()
     scheduleMarkdownPreviewRender()
     autosaveCurrentDocumentIfNeeded()
+    updateHistoryButtonsState()
   }
 }
 
