@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
   typealias CreateHandler = (_ fileName: String, _ pathComponents: [String]) throws -> URL
   typealias SaveHandler = (_ url: URL) throws -> Void
-  typealias LoadHandler = (_ url: URL) throws -> Void
+  typealias LoadHandler = (_ url: URL, _ traitCollection: UITraitCollection) throws -> Void
   typealias DeleteHandler = (_ url: URL) -> Void
 
   private let kind: VoiceWorkspaceDocumentKind
@@ -198,10 +198,11 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
       return
     }
 
+    let loadingTraitCollection = UITraitCollection(userInterfaceStyle: traitCollection.userInterfaceStyle)
     dismiss(animated: true) { [weak self] in
       guard let self else { return }
       do {
-        try self.loadDocument(item.url)
+        try self.loadDocument(item.url, loadingTraitCollection)
         self.setActiveDocumentURL(item.url)
         self.reloadItems()
       } catch {

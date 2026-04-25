@@ -204,17 +204,11 @@ final class VoiceWorkspaceDocumentStore {
     try loadCanvas(from: url, traitCollection: .current)
   }
 
-  func loadRawCanvas(from url: URL) throws -> PKDrawing {
-    try prepareUbiquitousItemIfNeeded(at: url)
-    let data = try Data(contentsOf: url, options: [])
-    return try PKDrawing(data: data)
-  }
-
   func loadCanvas(from url: URL, traitCollection: UITraitCollection) throws -> PKDrawing {
     try prepareUbiquitousItemIfNeeded(at: url)
     let data = try Data(contentsOf: url, options: [])
     let drawing = try PKDrawing(data: data)
-    return Self.drawingWithResolvedCanvasColors(drawing, canvasURL: url, traitCollection: traitCollection)
+    return Self.drawingWithCanvasEditingColors(drawing, canvasURL: url, traitCollection: traitCollection)
   }
 
   static func writeCanvasSemanticArtifacts(
@@ -228,37 +222,21 @@ final class VoiceWorkspaceDocumentStore {
   }
 
   static func drawingWithResolvedCanvasColors(_ drawing: PKDrawing, traitCollection: UITraitCollection) -> PKDrawing {
-    guard !drawing.strokes.isEmpty else {
-      return drawing
-    }
-    let rebuilt = drawing.strokes.map { stroke in
-      guard let metadata = inferredCanvasColorMetadata(for: stroke) else {
-        return stroke
-      }
-      let resolvedColor: UIColor
-      switch metadata.semantic {
-      case .label:
-        resolvedColor = UIColor.label.resolvedColor(with: traitCollection).withAlphaComponent(metadata.alpha)
-      }
-      let ink = PKInk(stroke.ink.inkType, color: resolvedColor)
-      if #available(iOS 16.0, *) {
-        return PKStroke(
-          ink: ink,
-          path: stroke.path,
-          transform: stroke.transform,
-          mask: stroke.mask,
-          randomSeed: stroke.randomSeed
-        )
-      } else {
-        return PKStroke(
-          ink: ink,
-          path: stroke.path,
-          transform: stroke.transform,
-          mask: stroke.mask
-        )
-      }
-    }
-    return PKDrawing(strokes: rebuilt)
+    drawingWithCanvasColors(
+      drawing,
+      sidecar: nil,
+      traitCollection: traitCollection,
+      outputMode: .resolved
+    )
+  }
+
+  static func drawingWithCanvasEditingColors(_ drawing: PKDrawing, traitCollection: UITraitCollection) -> PKDrawing {
+    drawingWithCanvasColors(
+      drawing,
+      sidecar: nil,
+      traitCollection: traitCollection,
+      outputMode: .editing
+    )
   }
 
   @discardableResult
@@ -487,7 +465,7 @@ final class VoiceWorkspaceDocumentStore {
       try? FileManager.default.removeItem(at: metadataURL)
       return
     }
-    let sidecar = CanvasMetadataSidecar(version: 1, strokes: strokes)
+    let sidecar = CanvasMetadataSidecar(version: 2, strokes: strokes)
     let data = try JSONEncoder().encode(sidecar)
     try data.write(to: metadataURL, options: .atomic)
   }
@@ -504,24 +482,60 @@ final class VoiceWorkspaceDocumentStore {
     canvasURL: URL,
     traitCollection: UITraitCollection
   ) -> PKDrawing {
+    drawingWithCanvasColors(
+      drawing,
+      sidecar: loadCanvasMetadata(for: canvasURL),
+      traitCollection: traitCollection,
+      outputMode: .resolved
+    )
+  }
+
+  private static func drawingWithCanvasEditingColors(
+    _ drawing: PKDrawing,
+    canvasURL: URL,
+    traitCollection: UITraitCollection
+  ) -> PKDrawing {
+    drawingWithCanvasColors(
+      drawing,
+      sidecar: loadCanvasMetadata(for: canvasURL),
+      traitCollection: traitCollection,
+      outputMode: .editing
+    )
+  }
+
+  private static func drawingWithCanvasColors(
+    _ drawing: PKDrawing,
+    sidecar: CanvasMetadataSidecar?,
+    traitCollection: UITraitCollection,
+    outputMode: CanvasColorOutputMode
+  ) -> PKDrawing {
     guard !drawing.strokes.isEmpty else {
       return drawing
     }
-    let sidecar = loadCanvasMetadata(for: canvasURL)
     let rebuilt = drawing.strokes.enumerated().map { index, stroke in
-      let metadata =
-        if let sidecar, index < sidecar.strokes.count, let stored = sidecar.strokes[index] {
-          stored
-        } else {
-          inferredCanvasColorMetadata(for: stroke)
-        }
-      guard let metadata else {
+      let metadataSource: (metadata: CanvasColorMetadata, sidecarVersion: Int?)?
+      if let sidecar, index < sidecar.strokes.count, let stored = sidecar.strokes[index] {
+        metadataSource = (stored, sidecar.version)
+      } else if let inferred = inferredCanvasColorMetadata(for: stroke, traitCollection: traitCollection) {
+        metadataSource = (inferred, nil)
+      } else {
+        metadataSource = nil
+      }
+      guard let metadataSource else {
         return stroke
       }
-      let resolvedColor: UIColor
-      switch metadata.semantic {
-      case .label:
-        resolvedColor = UIColor.label.resolvedColor(with: traitCollection).withAlphaComponent(metadata.alpha)
+      let effectiveMetadata =
+        if let version = metadataSource.sidecarVersion, version < 2 {
+          normalizedCanvasColorMetadata(metadataSource.metadata, for: stroke)
+        } else {
+          metadataSource.metadata
+        }
+      guard let resolvedColor = canvasStrokeColor(
+        for: effectiveMetadata,
+        traitCollection: traitCollection,
+        outputMode: outputMode
+      ) else {
+        return stroke
       }
       let ink = PKInk(stroke.ink.inkType, color: resolvedColor)
       if #available(iOS 16.0, *) {
@@ -542,6 +556,42 @@ final class VoiceWorkspaceDocumentStore {
       }
     }
     return PKDrawing(strokes: rebuilt)
+  }
+
+  private static func canvasStrokeColor(
+    for metadata: CanvasColorMetadata,
+    traitCollection: UITraitCollection,
+    outputMode: CanvasColorOutputMode
+  ) -> UIColor? {
+    switch metadata.semantic {
+    case .label:
+      switch outputMode {
+      case .editing:
+        return UIColor.black.withAlphaComponent(metadata.alpha)
+      case .resolved:
+        return UIColor.label.resolvedColor(with: traitCollection).withAlphaComponent(metadata.alpha)
+      }
+    case nil:
+      guard let red = metadata.red, let green = metadata.green, let blue = metadata.blue else {
+        return nil
+      }
+      return UIColor(red: red, green: green, blue: blue, alpha: metadata.alpha)
+    }
+  }
+
+  private static func normalizedCanvasColorMetadata(
+    _ metadata: CanvasColorMetadata,
+    for stroke: PKStroke
+  ) -> CanvasColorMetadata {
+    guard metadata.semantic == nil,
+          inferredSemanticColor(for: stroke.ink.inkType) != nil,
+          let red = metadata.red,
+          let green = metadata.green,
+          let blue = metadata.blue,
+          isNearSemanticGrayscale(red: red, green: green, blue: blue) else {
+      return metadata
+    }
+    return CanvasColorMetadata(semantic: .label, alpha: metadata.alpha)
   }
 
   private static func fittedCanvasPreviewDrawing(_ drawing: PKDrawing, targetSize: CGSize) -> PKDrawing {
@@ -568,7 +618,30 @@ final class VoiceWorkspaceDocumentStore {
     let offsetX = padding + (availableWidth - scaledWidth) / 2 - bounds.minX * scale
     let offsetY = padding + (availableHeight - scaledHeight) / 2 - bounds.minY * scale
     let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offsetX, ty: offsetY)
-    return drawing.transformed(using: transform)
+    return transformedCanvasDrawing(drawing, using: transform)
+  }
+
+  private static func transformedCanvasDrawing(_ drawing: PKDrawing, using transform: CGAffineTransform) -> PKDrawing {
+    let rebuilt = drawing.strokes.map { stroke in
+      let combinedTransform = stroke.transform.concatenating(transform)
+      if #available(iOS 16.0, *) {
+        return PKStroke(
+          ink: stroke.ink,
+          path: stroke.path,
+          transform: combinedTransform,
+          mask: stroke.mask,
+          randomSeed: stroke.randomSeed
+        )
+      } else {
+        return PKStroke(
+          ink: stroke.ink,
+          path: stroke.path,
+          transform: combinedTransform,
+          mask: stroke.mask
+        )
+      }
+    }
+    return PKDrawing(strokes: rebuilt)
   }
 
 
@@ -576,15 +649,41 @@ final class VoiceWorkspaceDocumentStore {
     for stroke: PKStroke,
     traitCollection: UITraitCollection
   ) -> CanvasColorMetadata? {
-    inferredCanvasColorMetadata(for: stroke)
-      ?? detectDynamicCanvasColorMetadata(for: stroke.ink.color, traitCollection: traitCollection)
+    detectDynamicCanvasColorMetadata(for: stroke.ink.color, traitCollection: traitCollection)
+      ?? inferredCanvasColorMetadata(for: stroke, traitCollection: traitCollection)
+      ?? staticCanvasColorMetadata(for: stroke.ink.color, traitCollection: traitCollection)
   }
 
-  private static func inferredCanvasColorMetadata(for stroke: PKStroke) -> CanvasColorMetadata? {
-    guard inferredSemanticColor(for: stroke.ink.inkType) != nil else {
+  private static func inferredCanvasColorMetadata(for stroke: PKStroke, traitCollection: UITraitCollection) -> CanvasColorMetadata? {
+    guard inferredSemanticColor(for: stroke.ink.inkType) != nil,
+          let rgba = normalizedRGBAComponents(for: stroke.ink.color.resolvedColor(with: traitCollection)) else {
       return nil
     }
-    return CanvasColorMetadata(semantic: .label, alpha: stroke.ink.color.cgColor.alpha)
+    guard isNearSemanticGrayscale(red: rgba.red, green: rgba.green, blue: rgba.blue) else {
+      return nil
+    }
+    return CanvasColorMetadata(semantic: .label, alpha: rgba.alpha)
+  }
+
+  private static func isNearSemanticGrayscale(red: CGFloat, green: CGFloat, blue: CGFloat) -> Bool {
+    let maxChannel = max(red, green, blue)
+    let minChannel = min(red, green, blue)
+    let chroma = maxChannel - minChannel
+    let isNearBlackOrWhite = maxChannel <= 0.12 || minChannel >= 0.88
+    return chroma <= 0.04 && isNearBlackOrWhite
+  }
+
+  private static func staticCanvasColorMetadata(for color: UIColor, traitCollection: UITraitCollection) -> CanvasColorMetadata? {
+    guard let rgba = normalizedRGBAComponents(for: color.resolvedColor(with: traitCollection)) else {
+      return nil
+    }
+    return CanvasColorMetadata(
+      semantic: nil,
+      alpha: rgba.alpha,
+      red: rgba.red,
+      green: rgba.green,
+      blue: rgba.blue
+    )
   }
 
   private static func inferredSemanticColor(for inkType: PKInk.InkType) -> CanvasColorMetadata.Semantic? {
@@ -709,11 +808,28 @@ final class VoiceWorkspaceDocumentStore {
       case label
     }
 
-    let semantic: Semantic
+    let semantic: Semantic?
     let alpha: CGFloat
+    let red: CGFloat?
+    let green: CGFloat?
+    let blue: CGFloat?
+
+    init(semantic: Semantic?, alpha: CGFloat, red: CGFloat? = nil, green: CGFloat? = nil, blue: CGFloat? = nil) {
+      self.semantic = semantic
+      self.alpha = alpha
+      self.red = red
+      self.green = green
+      self.blue = blue
+    }
+
   }
 
   private struct CanvasMetadataSidecar: Codable {
     let version: Int
     let strokes: [CanvasColorMetadata?]
+  }
+
+  private enum CanvasColorOutputMode {
+    case editing
+    case resolved
   }

@@ -523,7 +523,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
         try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
         self.tipLabel.text = "已保存：\(url.lastPathComponent)"
       },
-      loadDocument: { [weak self] url in
+      loadDocument: { [weak self] url, _ in
         guard let self else { return }
         let content = try self.workspaceStore.loadMarkdown(from: url)
         self.markdownTextView.text = content

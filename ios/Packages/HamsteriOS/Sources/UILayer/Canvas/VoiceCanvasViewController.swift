@@ -1087,20 +1087,18 @@ final class VoiceCanvasViewController: NibLessViewController {
         }
         self.statusLabel.text = "已保存：\(url.lastPathComponent)"
       },
-      loadDocument: { [weak self] url in
+      loadDocument: { [weak self] url, loadingTraitCollection in
         guard let self else { return }
       switch self.currentMode {
       case .draw:
-          let resolvedTraits = self.currentCanvasRenderingTraitCollection()
-          let drawing = try self.workspaceStore.loadRawCanvas(from: url)
+          let resolvedTraits = self.normalizedCanvasTraitCollection(loadingTraitCollection)
+          let drawing = try self.workspaceStore.loadCanvas(from: url, traitCollection: resolvedTraits)
           self.applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
           self.canvasView.undoManager?.removeAllActions()
           self.activeCanvasDocumentURL = url
+          self.lastSavedCanvasSignature = self.currentCanvasSignature()
           self.setToolPickerVisible(false)
           self.statusLabel.text = "已打开画布文件：\(url.lastPathComponent)"
-          DispatchQueue.main.async { [weak self] in
-            self?.refreshContentForCurrentAppearance()
-          }
         case .markdown:
           let content = try self.workspaceStore.loadMarkdown(from: url)
           self.markdownTextView.text = content
@@ -1338,13 +1336,17 @@ final class VoiceCanvasViewController: NibLessViewController {
           !canvasView.drawing.strokes.isEmpty
         }
       let resolvedTraits = currentCanvasRenderingTraitCollection()
-      if let activeCanvasDocumentURL {
+      if let activeCanvasDocumentURL, !hadUnsavedChanges {
         let resolvedDrawing =
-          (try? workspaceStore.loadRawCanvas(from: activeCanvasDocumentURL))
+          (try? workspaceStore.loadCanvas(from: activeCanvasDocumentURL, traitCollection: resolvedTraits))
           ?? canvasView.drawing
         applyCanvasDrawing(resolvedDrawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
       } else {
-        applyCanvasDrawing(canvasView.drawing, traitCollection: resolvedTraits)
+        let editableDrawing = VoiceWorkspaceDocumentStore.drawingWithCanvasEditingColors(
+          canvasView.drawing,
+          traitCollection: resolvedTraits
+        )
+        applyCanvasDrawing(editableDrawing, traitCollection: resolvedTraits)
       }
       if hadSavedDocument, !hadUnsavedChanges {
         lastSavedCanvasSignature = currentCanvasSignature()
@@ -1356,17 +1358,53 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func currentCanvasRenderingTraitCollection() -> UITraitCollection {
+    normalizedCanvasTraitCollection(traitCollection)
+  }
+
+  private func normalizedCanvasTraitCollection(_ preferredTraitCollection: UITraitCollection) -> UITraitCollection {
     let resolvedStyle: UIUserInterfaceStyle = {
+      let preferredStyle = preferredTraitCollection.userInterfaceStyle
+      if preferredStyle != .unspecified {
+        return preferredStyle
+      }
       let controllerStyle = traitCollection.userInterfaceStyle
       if controllerStyle != .unspecified {
         return controllerStyle
+      }
+      if let viewStyle = viewIfLoaded?.traitCollection.userInterfaceStyle,
+         viewStyle != .unspecified {
+        return viewStyle
+      }
+      if isViewLoaded {
+        let canvasStyle = canvasView.traitCollection.userInterfaceStyle
+        if canvasStyle != .unspecified {
+          return canvasStyle
+        }
       }
       if let windowStyle = viewIfLoaded?.window?.traitCollection.userInterfaceStyle,
          windowStyle != .unspecified {
         return windowStyle
       }
+      let activeSceneStyle = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first { $0.activationState == .foregroundActive }?
+        .traitCollection.userInterfaceStyle
+      if let activeSceneStyle, activeSceneStyle != .unspecified {
+        return activeSceneStyle
+      }
+      let keyWindowStyle = UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap(\.windows)
+        .first(where: \.isKeyWindow)?
+        .traitCollection.userInterfaceStyle
+      if let keyWindowStyle, keyWindowStyle != .unspecified {
+        return keyWindowStyle
+      }
       let screenStyle = UIScreen.main.traitCollection.userInterfaceStyle
-      return screenStyle == .unspecified ? .light : screenStyle
+      if screenStyle != .unspecified {
+        return screenStyle
+      }
+      return .light
     }()
     return UITraitCollection(userInterfaceStyle: resolvedStyle)
   }
@@ -1420,7 +1458,26 @@ final class VoiceCanvasViewController: NibLessViewController {
     let offsetX = padding + (availableWidth - scaledWidth) / 2 - bounds.minX * scale
     let offsetY = padding + (availableHeight - scaledHeight) / 2 - bounds.minY * scale
     let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offsetX, ty: offsetY)
-    return drawing.transformed(using: transform)
+    let rebuilt = drawing.strokes.map { stroke in
+      let combinedTransform = stroke.transform.concatenating(transform)
+      if #available(iOS 16.0, *) {
+        return PKStroke(
+          ink: stroke.ink,
+          path: stroke.path,
+          transform: combinedTransform,
+          mask: stroke.mask,
+          randomSeed: stroke.randomSeed
+        )
+      } else {
+        return PKStroke(
+          ink: stroke.ink,
+          path: stroke.path,
+          transform: combinedTransform,
+          mask: stroke.mask
+        )
+      }
+    }
+    return PKDrawing(strokes: rebuilt)
   }
 
   private func promptForName(title: String, message: String? = nil, actionTitle: String, completion: @escaping (String) -> Void) {
@@ -1547,16 +1604,13 @@ final class VoiceCanvasViewController: NibLessViewController {
       switch currentMode {
       case .draw:
         let resolvedTraits = currentCanvasRenderingTraitCollection()
-        let drawing = try workspaceStore.loadRawCanvas(from: item.url)
+        let drawing = try workspaceStore.loadCanvas(from: item.url, traitCollection: resolvedTraits)
         applyCanvasDrawing(drawing, traitCollection: resolvedTraits, fitToVisibleBounds: true)
         canvasView.undoManager?.removeAllActions()
         activeCanvasDocumentURL = item.url
         lastSavedCanvasSignature = currentCanvasSignature()
         setToolPickerVisible(false)
         statusLabel.text = "已打开画布文件：\(item.fileName)"
-        DispatchQueue.main.async { [weak self] in
-          self?.refreshContentForCurrentAppearance()
-        }
       case .markdown:
         let content = try workspaceStore.loadMarkdown(from: item.url)
         markdownTextView.text = content
