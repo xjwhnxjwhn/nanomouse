@@ -106,6 +106,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
   private var markdownDocumentItems: [VoiceWorkspaceDocumentItem] = []
   private var markdownPathComponents: [String] = []
   private var activeMarkdownDocumentURL: URL?
+  private var pendingColorRange: NSRange?
 
   private enum MarkdownQuickAction: CaseIterable {
     case h1
@@ -122,6 +123,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
     case image
     case table
     case mermaid
+    case textColor
 
     var title: String {
       switch self {
@@ -139,6 +141,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
       case .image: return "图"
       case .table: return "表"
       case .mermaid: return "Mer"
+      case .textColor: return "色"
       }
     }
   }
@@ -998,9 +1001,44 @@ final class VoiceMarkdownViewController: NibLessViewController {
         "```mermaid\nflowchart TD\n  A[起点] --> B[__CURSOR__]\n```",
         cursorToken: "__CURSOR__"
       )
+    case .textColor:
+      presentTextColorPicker()
     }
 
     markdownTextView.scrollRangeToVisible(markdownTextView.selectedRange)
+  }
+
+  private func presentTextColorPicker() {
+    pendingColorRange = selectedRangeInText()
+    let picker = UIColorPickerViewController()
+    picker.delegate = self
+    picker.supportsAlpha = false
+    picker.selectedColor = .systemRed
+    present(picker, animated: true)
+  }
+
+  private func applyTextColor(_ color: UIColor) {
+    if let pendingColorRange {
+      markdownTextView.selectedRange = pendingColorRange
+    }
+    let hex = hexColor(from: color)
+    wrapSelectedText(prefix: "<span style=\"color: \(hex);\">", suffix: "</span>", placeholder: "文本")
+    pendingColorRange = nil
+  }
+
+  private func hexColor(from color: UIColor) -> String {
+    let resolved = color.resolvedColor(with: traitCollection)
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+      return "#FF3B30"
+    }
+    func byte(_ component: CGFloat) -> Int {
+      max(0, min(255, Int(round(component * 255))))
+    }
+    return String(format: "#%02X%02X%02X", byte(red), byte(green), byte(blue))
   }
 
   private var hasSelectedText: Bool {
@@ -1440,5 +1478,11 @@ extension VoiceMarkdownViewController: WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     isRendererReady = true
     schedulePreviewRender()
+  }
+}
+
+extension VoiceMarkdownViewController: UIColorPickerViewControllerDelegate {
+  func colorPickerViewControllerDidFinish(_ viewController: UIColorPickerViewController) {
+    applyTextColor(viewController.selectedColor)
   }
 }
