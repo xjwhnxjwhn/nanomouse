@@ -266,6 +266,8 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var availableMarkdownFontOptions: [MarkdownFontOption] = []
   private var selectedMarkdownFontOption: MarkdownFontOption = .systemDefault
   private var pendingMarkdownColorRange: NSRange?
+  private var pendingMarkdownFontRange: NSRange?
+  private var isMarkdownTextInsetShiftedForSelection = false
 
   private enum MarkdownDraftConstants {
     static let contentKey = "voice.markdown.draft.content"
@@ -277,6 +279,8 @@ final class VoiceCanvasViewController: NibLessViewController {
     case h2
     case bold
     case italic
+    case underline
+    case strikethrough
     case blockquote
     case unorderedList
     case orderedList
@@ -295,6 +299,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       case .h2: return "H2"
       case .bold: return "B"
       case .italic: return "I"
+      case .underline: return "U"
+      case .strikethrough: return "S"
       case .blockquote: return "引"
       case .unorderedList: return "•"
       case .orderedList: return "1."
@@ -306,6 +312,50 @@ final class VoiceCanvasViewController: NibLessViewController {
       case .table: return "表"
       case .mermaid: return "Mer"
       case .textColor: return "色"
+      }
+    }
+
+    var symbolName: String {
+      switch self {
+      case .h1: return "textformat.size.larger"
+      case .h2: return "textformat.size.smaller"
+      case .bold: return "bold"
+      case .italic: return "italic"
+      case .underline: return "underline"
+      case .strikethrough: return "strikethrough"
+      case .blockquote: return "quote.opening"
+      case .unorderedList: return "list.bullet"
+      case .orderedList: return "list.number"
+      case .todo: return "checklist"
+      case .inlineCode: return "chevron.left.forwardslash.chevron.right"
+      case .codeBlock: return "curlybraces.square"
+      case .link: return "link"
+      case .image: return "photo"
+      case .table: return "tablecells"
+      case .mermaid: return "point.3.connected.trianglepath.dotted"
+      case .textColor: return "paintpalette"
+      }
+    }
+
+    var accessibilityLabel: String {
+      switch self {
+      case .h1: return "一级标题"
+      case .h2: return "二级标题"
+      case .bold: return "加粗"
+      case .italic: return "斜体"
+      case .underline: return "下划线"
+      case .strikethrough: return "删除线"
+      case .blockquote: return "引用"
+      case .unorderedList: return "无序列表"
+      case .orderedList: return "有序列表"
+      case .todo: return "待办"
+      case .inlineCode: return "行内代码"
+      case .codeBlock: return "代码块"
+      case .link: return "链接"
+      case .image: return "图片"
+      case .table: return "表格"
+      case .mermaid: return "Mermaid"
+      case .textColor: return "文字颜色"
       }
     }
   }
@@ -556,12 +606,14 @@ final class VoiceCanvasViewController: NibLessViewController {
   private lazy var markdownFontPickerButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("字体", for: .normal)
-    button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
-    button.setTitleColor(.label, for: .normal)
-    button.backgroundColor = .tertiarySystemFill
-    button.layer.cornerRadius = 10
-    button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "textformat")
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10)
+    button.configuration = configuration
+    button.accessibilityLabel = "字体"
     button.addTarget(self, action: #selector(handleMarkdownFontPickerTap(_:)), for: .touchUpInside)
     return button
   }()
@@ -1994,26 +2046,40 @@ final class VoiceCanvasViewController: NibLessViewController {
     markdownFontPickerButton.removeFromSuperview()
     markdownToolbarStackView.addArrangedSubview(markdownFontPickerButton)
     NSLayoutConstraint.activate([
-      markdownFontPickerButton.heightAnchor.constraint(equalToConstant: 34)
+      markdownFontPickerButton.heightAnchor.constraint(equalToConstant: 34),
+      markdownFontPickerButton.widthAnchor.constraint(equalToConstant: 34)
     ])
 
     for (index, action) in MarkdownQuickAction.allCases.enumerated() {
-      let button = UIButton(type: .system)
-      button.translatesAutoresizingMaskIntoConstraints = false
+      let button = makeMarkdownToolbarButton(action: action)
       button.tag = index
-      button.setTitle(action.title, for: .normal)
-      button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
-      button.setTitleColor(.label, for: .normal)
-      button.backgroundColor = .tertiarySystemFill
-      button.layer.cornerRadius = 10
-      button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 10, bottom: 7, right: 10)
       button.addTarget(self, action: #selector(handleMarkdownQuickActionTap(_:)), for: .touchUpInside)
       NSLayoutConstraint.activate([
-        button.heightAnchor.constraint(equalToConstant: 34)
+        button.heightAnchor.constraint(equalToConstant: 34),
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 34)
       ])
       markdownToolbarStackView.addArrangedSubview(button)
       markdownQuickActionButtons.append(button)
     }
+  }
+
+  private func makeMarkdownToolbarButton(action: MarkdownQuickAction) -> UIButton {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    let imageConfiguration = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+    if let image = UIImage(systemName: action.symbolName, withConfiguration: imageConfiguration) {
+      configuration.image = image
+    } else {
+      configuration.title = action.title
+    }
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 7, leading: 10, bottom: 7, trailing: 10)
+    button.configuration = configuration
+    button.accessibilityLabel = action.accessibilityLabel
+    return button
   }
 
   private func updateMarkdownPlaceholderState() {
@@ -2034,7 +2100,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     let markdown = markdownTextView.text ?? ""
     let payload = jsonStringLiteral(markdown)
     let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
-    let fontFamily = jsonStringLiteral(selectedMarkdownFontOption.cssFontFamily)
+    let fontFamily = jsonStringLiteral(MarkdownFontOption.systemDefault.cssFontFamily)
     let script = """
     window.renderMarkdown(\(payload), \(isDark), \(fontFamily));
     null;
@@ -2050,6 +2116,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   @objc private func handleMarkdownFontPickerTap(_ sender: UIButton) {
+    pendingMarkdownFontRange = markdownSelectedRange()
     if availableMarkdownFontOptions.isEmpty {
       availableMarkdownFontOptions = buildMarkdownFontOptions()
     }
@@ -2114,16 +2181,25 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func applyMarkdownFontOption(_ option: MarkdownFontOption, persist: Bool, updateStatus: Bool) {
     selectedMarkdownFontOption = option
-    markdownTextView.font = option.editorFont
-    markdownPlaceholderLabel.font = option.editorFont
-    markdownFontPickerButton.setTitle("字体·\(option.displayName)", for: .normal)
     if persist {
-      saveMarkdownDraftFontIdentifier(option.identifier)
+      applyMarkdownFontToSelection(option)
     }
     if updateStatus {
-      statusLabel.text = "字体已切换为：\(option.displayName)。"
+      statusLabel.text = "已为选区应用字体：\(option.displayName)。"
     }
     scheduleMarkdownPreviewRender()
+  }
+
+  private func applyMarkdownFontToSelection(_ option: MarkdownFontOption) {
+    if let pendingMarkdownFontRange {
+      markdownTextView.selectedRange = pendingMarkdownFontRange
+    }
+    wrapMarkdownSelectedText(
+      prefix: "<span style=\"font-family: \(option.cssFontFamily);\">",
+      suffix: "</span>",
+      placeholder: "文本"
+    )
+    pendingMarkdownFontRange = nil
   }
 
   private func cssQuoted(_ value: String) -> String {
@@ -2150,6 +2226,10 @@ final class VoiceCanvasViewController: NibLessViewController {
       wrapMarkdownSelectedText(prefix: "**", suffix: "**", placeholder: "文本")
     case .italic:
       wrapMarkdownSelectedText(prefix: "*", suffix: "*", placeholder: "文本")
+    case .underline:
+      wrapMarkdownSelectedText(prefix: "<u>", suffix: "</u>", placeholder: "文本")
+    case .strikethrough:
+      wrapMarkdownSelectedText(prefix: "~~", suffix: "~~", placeholder: "文本")
     case .blockquote:
       applyMarkdownLinePrefixForSelectionOrInsert(prefix: "> ", placeholder: "引用")
     case .unorderedList:
@@ -2255,6 +2335,44 @@ final class VoiceCanvasViewController: NibLessViewController {
     saveMarkdownDraftContent(text)
     updateMarkdownPlaceholderState()
     scheduleMarkdownPreviewRender()
+  }
+
+  private var markdownBaseTextContainerInset: UIEdgeInsets {
+    UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+  }
+
+  private func updateMarkdownSelectionToolbarAvoidance() {
+    guard currentMode == .markdown, markdownTextView.isFirstResponder else {
+      setMarkdownSelectionToolbarAvoidance(false)
+      return
+    }
+    let selection = markdownSelectedRange()
+    guard selection.length > 0,
+          let selectedTextRange = markdownTextView.selectedTextRange else {
+      setMarkdownSelectionToolbarAvoidance(false)
+      return
+    }
+
+    let rects = markdownTextView.selectionRects(for: selectedTextRange)
+      .map(\.rect)
+      .filter { !$0.isNull && !$0.isEmpty }
+    let selectionTop = rects.map(\.minY).min() ?? markdownTextView.caretRect(for: selectedTextRange.start).minY
+    let lineHeight = markdownTextView.font?.lineHeight ?? 18
+    let isNearEditorTop = selectionTop <= markdownBaseTextContainerInset.top + lineHeight * 1.25
+    setMarkdownSelectionToolbarAvoidance(isNearEditorTop)
+  }
+
+  private func setMarkdownSelectionToolbarAvoidance(_ enabled: Bool) {
+    guard isMarkdownTextInsetShiftedForSelection != enabled else { return }
+    isMarkdownTextInsetShiftedForSelection = enabled
+    var inset = markdownBaseTextContainerInset
+    if enabled {
+      let lineHeight = markdownTextView.font?.lineHeight ?? 18
+      inset.top += ceil(lineHeight + 8)
+    }
+    UIView.animate(withDuration: 0.18, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
+      self.markdownTextView.textContainerInset = inset
+    }
   }
 
   private func wrapMarkdownSelectedText(prefix: String, suffix: String, placeholder: String) {
@@ -2410,7 +2528,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       UIBezierPath(rect: CGRect(origin: .zero, size: size)).fill()
       let insetRect = CGRect(x: 14, y: 14, width: size.width - 28, height: size.height - 28)
       let attributes: [NSAttributedString.Key: Any] = [
-        .font: selectedMarkdownFontOption.editorFont,
+        .font: MarkdownFontOption.systemDefault.editorFont,
         .foregroundColor: textColor
       ]
       NSString(string: markdown).draw(with: insetRect, options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: attributes, context: nil)
@@ -3373,6 +3491,19 @@ extension VoiceCanvasViewController: UITextViewDelegate {
     scheduleMarkdownPreviewRender()
     autosaveCurrentDocumentIfNeeded()
     updateHistoryButtonsState()
+    updateMarkdownSelectionToolbarAvoidance()
+  }
+
+  func textViewDidChangeSelection(_ textView: UITextView) {
+    guard textView === markdownTextView else { return }
+    DispatchQueue.main.async { [weak self] in
+      self?.updateMarkdownSelectionToolbarAvoidance()
+    }
+  }
+
+  func textViewDidEndEditing(_ textView: UITextView) {
+    guard textView === markdownTextView else { return }
+    setMarkdownSelectionToolbarAvoidance(false)
   }
 }
 
