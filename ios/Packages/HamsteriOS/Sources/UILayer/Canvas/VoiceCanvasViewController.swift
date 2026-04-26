@@ -3450,24 +3450,42 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func renderExportImage(from bounds: CGRect) -> UIImage {
     let scale = UIScreen.main.scale
-    let drawingImage = canvasView.drawing.image(from: bounds, scale: scale)
-    let size = drawingImage.size
+    let exportBounds = pixelAlignedCanvasExportBounds(bounds, scale: scale)
+    let renderingTraits = currentCanvasRenderingTraitCollection()
+    let backgroundColor = resolvedCanvasExportBackgroundColor(traitCollection: renderingTraits)
+    if let image = VoiceWorkspaceDocumentStore.canvasExportImage(
+      for: canvasView.drawing,
+      bounds: exportBounds,
+      traitCollection: renderingTraits,
+      backgroundColor: backgroundColor,
+      scale: scale
+    ) {
+      return image
+    }
+
+    let fallbackSize = CGSize(width: max(exportBounds.width, 1), height: max(exportBounds.height, 1))
     let format = UIGraphicsImageRendererFormat()
     format.scale = scale
     format.opaque = true
-    let renderer = UIGraphicsImageRenderer(size: size, format: format)
-    let backgroundColor = resolvedCanvasExportBackgroundColor()
+    let renderer = UIGraphicsImageRenderer(size: fallbackSize, format: format)
     return renderer.image { context in
-      // JPEG 不支持透明通道；先按当前外观填充背景色，再叠加笔迹，避免导出后固定白底。
       context.cgContext.setFillColor(backgroundColor.cgColor)
-      context.cgContext.fill(CGRect(origin: .zero, size: size))
-      drawingImage.draw(in: CGRect(origin: .zero, size: size))
+      context.cgContext.fill(CGRect(origin: .zero, size: fallbackSize))
     }
   }
 
-  private func resolvedCanvasExportBackgroundColor() -> UIColor {
+  private func pixelAlignedCanvasExportBounds(_ bounds: CGRect, scale: CGFloat) -> CGRect {
+    let safeScale = max(scale, 1)
+    let minX = floor(bounds.minX * safeScale) / safeScale
+    let minY = floor(bounds.minY * safeScale) / safeScale
+    let maxX = ceil(bounds.maxX * safeScale) / safeScale
+    let maxY = ceil(bounds.maxY * safeScale) / safeScale
+    return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+  }
+
+  private func resolvedCanvasExportBackgroundColor(traitCollection: UITraitCollection? = nil) -> UIColor {
     let baseColor = canvasContainerView.backgroundColor ?? .secondarySystemBackground
-    return baseColor.resolvedColor(with: traitCollection)
+    return baseColor.resolvedColor(with: traitCollection ?? currentCanvasRenderingTraitCollection())
   }
 }
 

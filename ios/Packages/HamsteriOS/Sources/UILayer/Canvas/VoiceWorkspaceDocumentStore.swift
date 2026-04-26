@@ -432,6 +432,41 @@ final class VoiceWorkspaceDocumentStore {
     }
   }
 
+  static func canvasExportImage(
+    for drawing: PKDrawing,
+    bounds: CGRect,
+    traitCollection: UITraitCollection,
+    backgroundColor: UIColor,
+    scale: CGFloat
+  ) -> UIImage? {
+    guard !drawing.bounds.isEmpty, !bounds.isEmpty else { return nil }
+    let safeScale = max(scale, 1)
+    let size = CGSize(
+      width: max(ceil(bounds.width * safeScale) / safeScale, 1 / safeScale),
+      height: max(ceil(bounds.height * safeScale) / safeScale, 1 / safeScale)
+    )
+    let resolvedDrawing = drawingWithResolvedCanvasColors(drawing, traitCollection: traitCollection)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = safeScale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: size, format: format)
+    let resolvedBackground = backgroundColor.resolvedColor(with: traitCollection)
+    return renderer.image { context in
+      context.cgContext.setFillColor(resolvedBackground.cgColor)
+      context.cgContext.fill(CGRect(origin: .zero, size: size))
+      context.cgContext.setShouldAntialias(true)
+      context.cgContext.setAllowsAntialiasing(true)
+      let translation = CGPoint(x: -bounds.minX, y: -bounds.minY)
+      for stroke in resolvedDrawing.strokes {
+        drawCanvasPreviewStroke(
+          stroke,
+          in: context.cgContext,
+          translatingBy: translation
+        )
+      }
+    }
+  }
+
   static func canvasPreviewImage(
     forCanvasAt url: URL,
     traitCollection: UITraitCollection,
