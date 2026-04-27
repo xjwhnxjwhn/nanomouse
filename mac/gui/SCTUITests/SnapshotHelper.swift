@@ -11,6 +11,7 @@ import XCTest
 
 func setupSnapshot(_ app: XCUIApplication) {
     app.launchEnvironment["FASTLANE_SNAPSHOT"] = "YES"
+    SnapshotOutput.application = app
 }
 
 func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 1) {
@@ -19,7 +20,7 @@ func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 1) {
     }
 
     XCTContext.runActivity(named: "Snapshot: \(name)") { activity in
-        let screenshot = XCUIScreen.main.screenshot()
+        let screenshot = SnapshotOutput.captureScreenshot()
         SnapshotOutput.write(screenshot, name: name)
 
         let attachment = XCTAttachment(screenshot: screenshot)
@@ -30,6 +31,8 @@ func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 1) {
 }
 
 private enum SnapshotOutput {
+    fileprivate static weak var application: XCUIApplication?
+
     private static let rootDirectory = URL(
         fileURLWithPath: "/Users/zhangxiangqing/Desktop/ipt/TESTProduct",
         isDirectory: true
@@ -53,6 +56,13 @@ private enum SnapshotOutput {
 
         return directory
     }()
+
+    static func captureScreenshot() -> XCUIScreenshot {
+        if let window = application?.windows.firstMatch, window.exists {
+            return window.screenshot()
+        }
+        return XCUIScreen.main.screenshot()
+    }
 
     static func write(_ screenshot: XCUIScreenshot, name: String) {
         let fileURL = runDirectory.appendingPathComponent("\(sanitizedFileName(name)).png")

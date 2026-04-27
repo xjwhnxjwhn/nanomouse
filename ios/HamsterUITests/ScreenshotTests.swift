@@ -23,6 +23,7 @@ final class ScreenshotTests: XCTestCase {
     Scenario(outputName: "06_canvas", id: "canvas", readyIdentifier: "screenshot_ready_canvas"),
     Scenario(outputName: "07_markdown", id: "markdown", readyIdentifier: "screenshot_ready_markdown"),
     Scenario(outputName: "08_causal", id: "causal", readyIdentifier: "screenshot_ready_causal"),
+    Scenario(outputName: "09_keyboard_extension", id: "keyboardExtension", readyIdentifier: "screenshot_ready_keyboardExtension"),
   ]
 
   override func setUpWithError() throws {

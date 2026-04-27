@@ -176,9 +176,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func openScreenshotWindow() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        _ = embeddedMenuBarHost.isAvailable
 
         if screenshotWindow == nil {
-            let controller = NSHostingController(rootView: ContentView())
+            let scenario = MacScreenshotMode.scenario ?? .bytePaste
+            let controller = NSHostingController(
+                rootView: MacScreenshotWindowRootView(scenario: scenario)
+                    .preferredColorScheme(MacScreenshotMode.theme?.colorScheme)
+            )
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -186,6 +191,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             window.title = L10n.appTitle
+            window.backgroundColor = .windowBackgroundColor
             window.center()
             window.contentViewController = controller
             window.isReleasedWhenClosed = false
@@ -193,6 +199,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         screenshotWindow?.makeKeyAndOrderFront(nil)
+    }
+}
+
+private struct MacScreenshotWindowRootView: View {
+    let scenario: MacScreenshotScenario
+    @State private var screenshotReady = false
+
+    var body: some View {
+        Group {
+            if let view = EmbeddedModuleMenuBarHost.makeScreenshotDetailView(scenarioID: scenario.rawValue) {
+                view
+            } else {
+                ContentView(screenshotScenario: scenario)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(alignment: .topLeading) {
+            if screenshotReady {
+                MacScreenshotReadyProbeView(identifier: scenario.readyIdentifier)
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
+            }
+        }
+        .task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            screenshotReady = true
+        }
+    }
+}
+
+private struct MacScreenshotReadyProbeView: NSViewRepresentable {
+    let identifier: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configure(nsView)
+    }
+
+    private func configure(_ view: NSView) {
+        view.setAccessibilityElement(true)
+        view.setAccessibilityIdentifier(identifier)
+        view.setAccessibilityLabel(identifier)
+        view.setAccessibilityRole(.group)
     }
 }
 

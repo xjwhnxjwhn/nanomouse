@@ -16,6 +16,7 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
   case canvas
   case markdown
   case causal
+  case keyboardExtension
   case premium
   case onboarding
   case emptyState
@@ -43,14 +44,16 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
       return "07_markdown"
     case .causal:
       return "08_causal"
+    case .keyboardExtension:
+      return "09_keyboard_extension"
     case .premium:
-      return "09_premium"
+      return "10_premium"
     case .onboarding:
-      return "10_onboarding"
+      return "11_onboarding"
     case .emptyState:
-      return "11_empty_state"
+      return "12_empty_state"
     case .errorState:
-      return "12_error_state"
+      return "13_error_state"
     }
   }
 

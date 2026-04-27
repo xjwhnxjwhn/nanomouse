@@ -402,6 +402,8 @@ open class MainTabBarController: UITabBarController {
       selectedIndex = accountTabIndex
     case .bytePaste, .bytePasteEditor:
       activateEmbeddedModuleTab(moduleIdentifier: "clipboard")
+    case .keyboardExtension:
+      selectedIndex = voiceTabIndex
     case .editor, .canvas, .markdown, .causal, .emptyState, .errorState:
       selectedIndex = canvasTabIndex
       canvasController.prepareForScreenshotScenario(scenario)

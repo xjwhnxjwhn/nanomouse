@@ -30,6 +30,10 @@ public final class ScreenshotRouter {
       tabBarController.activateScreenshotScenario(scenario)
     }
 
+    if scenario == .keyboardExtension {
+      installKeyboardExtensionScreenshotHost(on: rootViewController)
+    }
+
     if let rootView = rootViewController?.view {
       rootView.setNeedsLayout()
       rootView.layoutIfNeeded()
@@ -40,5 +44,24 @@ public final class ScreenshotRouter {
     }
 
     return true
+  }
+
+  private static func installKeyboardExtensionScreenshotHost(on rootViewController: UIViewController?) {
+    guard let rootViewController else { return }
+    guard rootViewController.children.contains(where: { $0 is KeyboardExtensionScreenshotHostViewController }) == false else {
+      return
+    }
+
+    let host = KeyboardExtensionScreenshotHostViewController()
+    rootViewController.addChild(host)
+    host.view.translatesAutoresizingMaskIntoConstraints = false
+    rootViewController.view.addSubview(host.view)
+    NSLayoutConstraint.activate([
+      host.view.leadingAnchor.constraint(equalTo: rootViewController.view.leadingAnchor),
+      host.view.trailingAnchor.constraint(equalTo: rootViewController.view.trailingAnchor),
+      host.view.topAnchor.constraint(equalTo: rootViewController.view.topAnchor),
+      host.view.bottomAnchor.constraint(equalTo: rootViewController.view.bottomAnchor),
+    ])
+    host.didMove(toParent: rootViewController)
   }
 }

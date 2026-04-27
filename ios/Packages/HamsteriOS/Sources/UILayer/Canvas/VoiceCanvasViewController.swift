@@ -1020,9 +1020,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       statusLabel.text = "Screenshot fixture: network unavailable"
     case .canvas:
       applyCanvasMode(.draw, force: true)
+      canvasView.drawing = ScreenshotFixtures.nanoMouseDrawing()
+      canvasView.undoManager?.removeAllActions()
       setToolPickerVisible(false)
       statusLabel.text = "Screenshot fixture: canvas editor"
-    case .home, .settings, .bytePaste, .bytePasteEditor, .premium, .onboarding:
+    case .home, .settings, .bytePaste, .bytePasteEditor, .keyboardExtension, .premium, .onboarding:
       break
     }
 

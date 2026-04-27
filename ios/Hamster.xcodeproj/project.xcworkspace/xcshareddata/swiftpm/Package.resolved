@@ -37,15 +37,6 @@
       }
     },
     {
-      "identity" : "richtextkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/danielsaidi/RichTextKit.git",
-      "state" : {
-        "revision" : "8aa44cfa645404ad84e52e3ab7723ecf4b82f92b",
-        "version" : "1.2.0"
-      }
-    },
-    {
       "identity" : "swift-algorithms",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-algorithms",
@@ -91,15 +82,6 @@
       }
     },
     {
-      "identity" : "swift-markdown-ui",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gonzalezreal/swift-markdown-ui",
-      "state" : {
-        "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
-        "version" : "2.4.1"
-      }
-    },
-    {
       "identity" : "swift-numerics",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-numerics.git",
@@ -124,15 +106,6 @@
       "state" : {
         "revision" : "664e1b5a65296cd957dfdf262cd120ca88f3b24b",
         "version" : "0.15.0"
-      }
-    },
-    {
-      "identity" : "yams",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jpsim/Yams.git",
-      "state" : {
-        "revision" : "0d9ee7ea8c4ebd4a489ad7a73d5c6cad55d6fed3",
-        "version" : "5.0.6"
       }
     },
     {
