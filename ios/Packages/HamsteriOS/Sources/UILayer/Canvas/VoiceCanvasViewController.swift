@@ -983,6 +983,53 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
   }
 
+  func prepareForScreenshotScenario(_ scenario: ScreenshotScenario) {
+    guard ScreenshotMode.isEnabled else { return }
+    loadViewIfNeeded()
+
+    switch scenario {
+    case .editor, .markdown:
+      applyCanvasMode(.markdown, force: true)
+      markdownTextView.text = ScreenshotFixtures.markdownDocument
+      markdownTextView.selectedRange = NSRange(location: 0, length: 0)
+      markdownTextView.undoManager?.removeAllActions()
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+      statusLabel.text = "Screenshot fixture: Markdown editor"
+    case .causal:
+      applyCanvasMode(.causal, force: true)
+      causalUndoHistory.removeAll()
+      causalRedoHistory.removeAll()
+      causalEdges = ScreenshotFixtures.causalEdges
+      rebuildCausalRows()
+      scheduleCausalRender()
+      statusLabel.text = "Screenshot fixture: causal diagram"
+    case .emptyState:
+      applyCanvasMode(.markdown, force: true)
+      markdownTextView.text = ""
+      markdownTextView.undoManager?.removeAllActions()
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+      statusLabel.text = "Screenshot fixture: empty state"
+    case .errorState:
+      applyCanvasMode(.markdown, force: true)
+      markdownTextView.text = ScreenshotFixtures.markdownDocument
+      markdownTextView.undoManager?.removeAllActions()
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+      statusLabel.text = "Screenshot fixture: network unavailable"
+    case .canvas:
+      applyCanvasMode(.draw, force: true)
+      setToolPickerVisible(false)
+      statusLabel.text = "Screenshot fixture: canvas editor"
+    case .home, .settings, .bytePaste, .bytePasteEditor, .premium, .onboarding:
+      break
+    }
+
+    view.setNeedsLayout()
+    view.layoutIfNeeded()
+  }
+
   private func setupView() {
     view.backgroundColor = .systemBackground
     view.addGestureRecognizer(screenTapGestureRecognizer)

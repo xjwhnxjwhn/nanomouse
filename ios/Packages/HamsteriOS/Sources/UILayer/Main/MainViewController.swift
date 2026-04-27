@@ -394,6 +394,20 @@ open class MainTabBarController: UITabBarController {
     selectedIndex = accountTabIndex
   }
 
+  func activateScreenshotScenario(_ scenario: ScreenshotScenario) {
+    switch scenario {
+    case .home, .onboarding:
+      selectedIndex = voiceTabIndex
+    case .settings, .premium:
+      selectedIndex = accountTabIndex
+    case .bytePaste, .bytePasteEditor:
+      activateEmbeddedModuleTab(moduleIdentifier: "clipboard")
+    case .editor, .canvas, .markdown, .causal, .emptyState, .errorState:
+      selectedIndex = canvasTabIndex
+      canvasController.prepareForScreenshotScenario(scenario)
+    }
+  }
+
   open func openKeyboardSettings(
     subView: KeyboardSettingsSubView? = nil,
     toolbarFocus: KeyboardToolbarSettingsFocus? = nil,

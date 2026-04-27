@@ -29,6 +29,9 @@
 		6611EB502F15B8E2005608B9 /* icuuc.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB482F15B8E2005608B9 /* icuuc.xcframework */; };
 		6EEB847DF307BC5D9D7BAAA6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797F32A514B42D5B4A3AC869 /* ContentView.swift */; };
 		7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = A583BF6DB266C2092B020A23 /* Yams */; };
+		7A2604260000000000000005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000002 /* ScreenshotTests.swift */; };
+		7A2604260000000000000006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000003 /* SnapshotHelper.swift */; };
+		7A2604260000000000000011 /* ScreenshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000010 /* ScreenshotSupport.swift */; };
 		7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */; };
 		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
 		80B7B9768052F3128A75BDE1 /* EmbeddedModuleHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */; };
@@ -139,6 +142,10 @@
 		6611EB462F15B8E2005608B9 /* icui18n.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icui18n.xcframework; sourceTree = "<group>"; };
 		6611EB472F15B8E2005608B9 /* icuio.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuio.xcframework; sourceTree = "<group>"; };
 		6611EB482F15B8E2005608B9 /* icuuc.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuuc.xcframework; sourceTree = "<group>"; };
+		7A2604260000000000000002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		7A2604260000000000000003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
+		7A2604260000000000000004 /* HamsterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HamsterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A2604260000000000000010 /* ScreenshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSupport.swift; sourceTree = "<group>"; };
 		686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterViewModel.swift; sourceTree = "<group>"; };
 		797F32A514B42D5B4A3AC869 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
@@ -198,6 +205,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		7A2604260000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C03E8022296D4F4C0083E53A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -273,6 +287,7 @@
 				3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */,
 				803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */,
 				A220479952655DE4C296084E /* SCTApp.swift */,
+				7A2604260000000000000010 /* ScreenshotSupport.swift */,
 				4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */,
 				446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */,
 				BE50FA39906F3610B691F36F /* SchemaValueFormatter.swift */,
@@ -367,12 +382,22 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		7A2604260000000000000001 /* HamsterUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7A2604260000000000000002 /* ScreenshotTests.swift */,
+				7A2604260000000000000003 /* SnapshotHelper.swift */,
+			);
+			path = HamsterUITests;
+			sourceTree = "<group>";
+		};
 		C03E801C296D4F4C0083E53A = {
 			isa = PBXGroup;
 			children = (
 				C00C26BA2B069D3500E92F89 /* Frameworks */,
 				C0C642812AC55E2E0084147F /* ci_scripts */,
 				C02435722A0490220080CFB4 /* Hamster */,
+				7A2604260000000000000001 /* HamsterUITests */,
 				C03E803D296D53650083E53A /* HamsterKeyboard */,
 				C08387E82A55101A00EA8082 /* Packages */,
 				C071BECC2970108000E21FBC /* Resources */,
@@ -385,6 +410,7 @@
 			isa = PBXGroup;
 			children = (
 				C03E8025296D4F4C0083E53A /* Hamster.app */,
+				7A2604260000000000000004 /* HamsterUITests.xctest */,
 				C03E803C296D53650083E53A /* HamsterKeyboard.appex */,
 				B8525A8107843174DE7A518A /* NanoMouse.app */,
 			);
@@ -460,6 +486,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		7A2604260000000000000007 /* HamsterUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7A260426000000000000000D /* Build configuration list for PBXNativeTarget "HamsterUITests" */;
+			buildPhases = (
+				7A2604260000000000000008 /* Sources */,
+				7A2604260000000000000009 /* Frameworks */,
+				7A260426000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HamsterUITests;
+			packageProductDependencies = (
+			);
+			productName = HamsterUITests;
+			productReference = 7A2604260000000000000004 /* HamsterUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		034DB19F16BC2B6AF3641873 /* SCT */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */;
@@ -536,6 +581,10 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
+					7A2604260000000000000007 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = C03E8024296D4F4C0083E53A;
+					};
 					C03E8024296D4F4C0083E53A = {
 						CreatedOnToolsVersion = 14.2;
 					};
@@ -569,6 +618,7 @@
 			projectRoot = "";
 			targets = (
 				C03E8024296D4F4C0083E53A /* Hamster */,
+				7A2604260000000000000007 /* HamsterUITests */,
 				C03E803B296D53650083E53A /* HamsterKeyboard */,
 				034DB19F16BC2B6AF3641873 /* SCT */,
 			);
@@ -576,6 +626,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		7A260426000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5D3832E36C966D002944B2B1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -612,6 +669,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7A2604260000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A2604260000000000000005 /* ScreenshotTests.swift in Sources */,
+				7A2604260000000000000006 /* SnapshotHelper.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C03E8021296D4F4C0083E53A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -650,6 +716,7 @@
 				ACA046B79F6CFD2C14D4155B /* RimeConfigManager+Nanomouse.swift in Sources */,
 				000AD9A7B8B7BF183239A494 /* RimeConfigManager.swift in Sources */,
 				5E84D052531658EAD03801D6 /* SCTApp.swift in Sources */,
+				7A2604260000000000000011 /* ScreenshotSupport.swift in Sources */,
 				7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */,
 				BF2D8D9467CD35CFFACF092D /* SchemaStore.swift in Sources */,
 				C3406F9822F77479D5C35195 /* SchemaValueFormatter.swift in Sources */,
@@ -695,6 +762,49 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		7A260426000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouseUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Hamster;
+			};
+			name = Debug;
+		};
+		7A260426000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouseUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Hamster;
+			};
+			name = Release;
+		};
 		C03E8031296D4F4D0083E53A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1077,6 +1187,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		7A260426000000000000000D /* Build configuration list for PBXNativeTarget "HamsterUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7A260426000000000000000B /* Debug */,
+				7A260426000000000000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

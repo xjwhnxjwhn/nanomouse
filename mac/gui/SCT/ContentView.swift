@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import AppKit
+import EmbeddedModuleHostKit
 
 enum SidebarItem: String, CaseIterable, Identifiable {
     case nanomouse
@@ -64,8 +66,15 @@ struct ContentView: View {
     @StateObject private var manager = RimeConfigManager()
     @StateObject private var schemaStore = SchemaStore()
     @StateObject private var embeddedRegistry = EmbeddedModuleRegistry.shared
-    @State private var selection: SidebarSelection? = .builtIn(.schemes)
+    @State private var selection: SidebarSelection?
+    @State private var screenshotReady = false
     @Environment(\.undoManager) var undoManager
+    private let screenshotScenario: MacScreenshotScenario?
+
+    init(screenshotScenario: MacScreenshotScenario? = MacScreenshotMode.scenario) {
+        self.screenshotScenario = screenshotScenario
+        _selection = State(initialValue: screenshotScenario == nil ? .builtIn(.schemes) : .embedded("clipboard"))
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -101,8 +110,15 @@ struct ContentView: View {
         }
         .frame(minWidth: 960, minHeight: 620)
         .overlay {
-            if !manager.hasAccess {
+            if !manager.hasAccess && !MacScreenshotMode.isEnabled {
                 AccessRequestView(manager: manager)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if let screenshotScenario, screenshotReady {
+                ScreenshotReadyProbeView(identifier: screenshotScenario.readyIdentifier)
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -111,9 +127,14 @@ struct ContentView: View {
                 .padding(.bottom, 8)
         }
         .task {
+            embeddedRegistry.registerDefaultPrivateProvidersIfNeeded()
             manager.undoManager = undoManager
             manager.reload()
             schemaStore.loadSchema()
+            if screenshotScenario != nil {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                screenshotReady = true
+            }
         }
         .onChange(of: undoManager) { _, newValue in
             manager.undoManager = newValue
@@ -124,7 +145,11 @@ struct ContentView: View {
     private func detailView(for selection: SidebarSelection) -> some View {
         switch selection {
         case .embedded(let moduleIdentifier):
-            if let view = embeddedRegistry.detailView(moduleIdentifier: moduleIdentifier) {
+            if let screenshotScenario,
+               moduleIdentifier == "clipboard",
+               let view = EmbeddedModuleMenuBarHost.makeScreenshotDetailView(scenarioID: screenshotScenario.rawValue) {
+                view
+            } else if let view = embeddedRegistry.detailView(moduleIdentifier: moduleIdentifier) {
                 view
             } else {
                 Text(L10n.selectItem)
@@ -145,6 +170,27 @@ struct ContentView: View {
                                  title: item.title)
             }
         }
+    }
+}
+
+private struct ScreenshotReadyProbeView: NSViewRepresentable {
+    let identifier: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        configure(nsView)
+    }
+
+    private func configure(_ view: NSView) {
+        view.setAccessibilityElement(true)
+        view.setAccessibilityIdentifier(identifier)
+        view.setAccessibilityLabel(identifier)
+        view.setAccessibilityRole(.group)
     }
 }
 

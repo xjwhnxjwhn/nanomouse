@@ -192,6 +192,15 @@ public final class EmbeddedModuleMenuBarHost {
         #endif
     }
 
+    public static func makeScreenshotDetailView(scenarioID: String) -> AnyView? {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
+        return EmbeddedMacModuleBridge.makeScreenshotDetailView(scenarioID: scenarioID)
+        #else
+        _ = scenarioID
+        return nil
+        #endif
+    }
+
     public static func defaultAboutSections() -> [EmbeddedModuleAboutSectionDescriptor] {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMacModuleBridge)
         return EmbeddedMacModuleBridge.defaultAboutSections().map { section in

@@ -21,13 +21,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
     guard let windowScene = (scene as? UIWindowScene) else { return }
-    AppReviewManager.shared.registerLaunchIfNeeded()
+    if !ScreenshotMode.isEnabled {
+      AppReviewManager.shared.registerLaunchIfNeeded()
+    }
 
     if window == nil {
       let window = UIWindow(windowScene: windowScene)
       window.rootViewController = HamsterAppDependencyContainer.shared.makeRootController()
       self.window = window
       window.makeKeyAndVisible()
+    }
+    if ScreenshotRouter.routeIfNeeded(from: window?.rootViewController) {
+      return
     }
     installNotificationRouteObserver()
     if let notificationResponse = connectionOptions.notificationResponse {

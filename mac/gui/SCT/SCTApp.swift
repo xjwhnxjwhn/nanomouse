@@ -50,12 +50,13 @@ private struct RootWindowContentView: View {
 
     var body: some View {
         Group {
-            if usesEmbeddedMenuBarHost {
+            if usesEmbeddedMenuBarHost && !MacScreenshotMode.isEnabled {
                 EmbeddedMenuBarPlaceholderView()
             } else {
                 ContentView()
             }
         }
+        .preferredColorScheme(MacScreenshotMode.theme?.colorScheme)
     }
 }
 
@@ -82,18 +83,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     )
     private var settingsWindow: NSWindow?
+    private var screenshotWindow: NSWindow?
 
     var usesEmbeddedMenuBarHost: Bool {
         embeddedMenuBarHost.isAvailable
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        AppReviewManager.shared.registerLaunchIfNeeded()
-        embeddedMenuBarHost.applicationDidFinishLaunching(notification)
+        if MacScreenshotMode.isEnabled {
+            openScreenshotWindow()
+            return
+        }
+
+        if !MacScreenshotMode.isEnabled {
+            AppReviewManager.shared.registerLaunchIfNeeded()
+            embeddedMenuBarHost.applicationDidFinishLaunching(notification)
+        }
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        AppReviewManager.shared.maybeRequestAutomaticReview()
+        if !MacScreenshotMode.isEnabled {
+            AppReviewManager.shared.maybeRequestAutomaticReview()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -160,6 +171,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    private func openScreenshotWindow() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if screenshotWindow == nil {
+            let controller = NSHostingController(rootView: ContentView())
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = L10n.appTitle
+            window.center()
+            window.contentViewController = controller
+            window.isReleasedWhenClosed = false
+            screenshotWindow = window
+        }
+
+        screenshotWindow?.makeKeyAndOrderFront(nil)
     }
 }
 

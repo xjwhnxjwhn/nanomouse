@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7B2604260000000000000005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000000002 /* ScreenshotTests.swift */; };
+		7B2604260000000000000006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000000003 /* SnapshotHelper.swift */; };
 		E3B7085B731E44C68C7D1A10 /* EmbeddedModuleHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = E3B7085B731E44C68C7D1A11 /* EmbeddedModuleHostKit */; };
 		A1B2C3D4E5F60718293A4B5C /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F60718293A4B5E /* NanomouseReviewKit */; };
 		B5AF88462EF3F1F2000868B9 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = B5AF88452EF3F1F2000868B9 /* Yams */; };
@@ -14,7 +16,21 @@
 		B5FD97A82EF7E9E4009CE14D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B5FD97A72EF7E9E4009CE14D /* Sparkle */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		7B260426000000000000000B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B5AF882E2EF3F059000868B9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B5AF88352EF3F059000868B9;
+			remoteInfo = SCT;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		7B2604260000000000000002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		7B2604260000000000000003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
+		7B2604260000000000000004 /* SCTUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SCTUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B2604260000000000000010 /* SCTUITests.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SCTUITests.entitlements; sourceTree = "<group>"; };
 		B5AF88362EF3F059000868B9 /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -40,6 +56,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		7B2604260000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B5AF88332EF3F059000868B9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -55,6 +78,16 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		7B2604260000000000000001 /* SCTUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7B2604260000000000000002 /* ScreenshotTests.swift */,
+				7B2604260000000000000003 /* SnapshotHelper.swift */,
+				7B2604260000000000000010 /* SCTUITests.entitlements */,
+			);
+			path = SCTUITests;
+			sourceTree = "<group>";
+		};
 		B54D0ADB2EF412FA00C68277 /* Recovered References */ = {
 			isa = PBXGroup;
 			children = (
@@ -66,6 +99,7 @@
 			isa = PBXGroup;
 			children = (
 				B5AF88382EF3F059000868B9 /* SCT */,
+				7B2604260000000000000001 /* SCTUITests */,
 				B5AF88372EF3F059000868B9 /* Products */,
 				B54D0ADB2EF412FA00C68277 /* Recovered References */,
 			);
@@ -75,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				B5AF88362EF3F059000868B9 /* NanoMouse.app */,
+				7B2604260000000000000004 /* SCTUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,6 +117,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		7B2604260000000000000007 /* SCTUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7B260426000000000000000D /* Build configuration list for PBXNativeTarget "SCTUITests" */;
+			buildPhases = (
+				7B2604260000000000000008 /* Sources */,
+				7B2604260000000000000009 /* Frameworks */,
+				7B260426000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7B260426000000000000000C /* PBXTargetDependency */,
+			);
+			name = SCTUITests;
+			productName = SCTUITests;
+			productReference = 7B2604260000000000000004 /* SCTUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		B5AF88352EF3F059000868B9 /* SCT */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B5AF88412EF3F05A000868B9 /* Build configuration list for PBXNativeTarget "SCT" */;
@@ -119,6 +172,10 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					7B2604260000000000000007 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = B5AF88352EF3F059000868B9;
+					};
 					B5AF88352EF3F059000868B9 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -146,11 +203,19 @@
 			projectRoot = "";
 			targets = (
 				B5AF88352EF3F059000868B9 /* SCT */,
+				7B2604260000000000000007 /* SCTUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		7B260426000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B5AF88342EF3F059000868B9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -161,6 +226,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		7B2604260000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B2604260000000000000005 /* ScreenshotTests.swift in Sources */,
+				7B2604260000000000000006 /* SnapshotHelper.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B5AF88322EF3F059000868B9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -170,7 +244,58 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		7B260426000000000000000C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B5AF88352EF3F059000868B9 /* SCT */;
+			targetProxy = 7B260426000000000000000B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		7B260426000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_ENTITLEMENTS = SCTUITests/SCTUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.macUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = SCT;
+			};
+			name = Debug;
+		};
+		7B260426000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_ENTITLEMENTS = SCTUITests/SCTUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.macUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = SCT;
+			};
+			name = Release;
+		};
 		B5AF883F2EF3F05A000868B9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -380,6 +505,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		7B260426000000000000000D /* Build configuration list for PBXNativeTarget "SCTUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7B260426000000000000000E /* Debug */,
+				7B260426000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B5AF88312EF3F059000868B9 /* Build configuration list for PBXProject "SCT" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
