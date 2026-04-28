@@ -63,5 +63,11 @@ public final class ScreenshotRouter {
       host.view.bottomAnchor.constraint(equalTo: rootViewController.view.bottomAnchor),
     ])
     host.didMove(toParent: rootViewController)
+    rootViewController.view.setNeedsLayout()
+    rootViewController.view.layoutIfNeeded()
+
+    guard rootViewController.view.window != nil else { return }
+    host.beginAppearanceTransition(true, animated: false)
+    host.endAppearanceTransition()
   }
 }

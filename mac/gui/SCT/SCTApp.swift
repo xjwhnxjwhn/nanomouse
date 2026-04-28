@@ -186,12 +186,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                styleMask: [.borderless],
                 backing: .buffered,
                 defer: false
             )
-            window.title = L10n.appTitle
             window.backgroundColor = .windowBackgroundColor
+            window.isOpaque = true
+            window.hasShadow = false
+            window.level = .normal
+            window.sharingType = .readOnly
+            window.setAccessibilityIdentifier("screenshot_window")
+            window.setAccessibilityLabel("screenshot_window")
             window.center()
             window.contentViewController = controller
             window.isReleasedWhenClosed = false
@@ -216,6 +221,8 @@ private struct MacScreenshotWindowRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screenshot_content")
         .overlay(alignment: .topLeading) {
             if screenshotReady {
                 MacScreenshotReadyProbeView(identifier: scenario.readyIdentifier)

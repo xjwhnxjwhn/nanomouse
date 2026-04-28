@@ -554,6 +554,15 @@ final class VoiceCanvasViewController: NibLessViewController {
     return view
   }()
 
+  private lazy var canvasScreenshotOverlayView: UIImageView = {
+    let view = UIImageView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFit
+    view.isUserInteractionEnabled = false
+    view.isHidden = true
+    return view
+  }()
+
   private lazy var causalContainerView: UIView = {
     let view = UIView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -952,6 +961,11 @@ final class VoiceCanvasViewController: NibLessViewController {
     super.traitCollectionDidChange(previousTraitCollection)
     guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
     applyCanvasInterfaceStyle()
+    if ScreenshotMode.isEnabled, ScreenshotMode.scenario == .canvas, !canvasScreenshotOverlayView.isHidden {
+      canvasScreenshotOverlayView.image = ScreenshotFixtures.nanoMouseCanvasImage(
+        color: UIColor.label.resolvedColor(with: currentCanvasRenderingTraitCollection())
+      )
+    }
     refreshContentForCurrentAppearance()
     if currentMode == .causal {
       scheduleCausalRender()
@@ -986,6 +1000,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   func prepareForScreenshotScenario(_ scenario: ScreenshotScenario) {
     guard ScreenshotMode.isEnabled else { return }
     loadViewIfNeeded()
+    canvasScreenshotOverlayView.isHidden = true
 
     switch scenario {
     case .editor, .markdown:
@@ -1020,7 +1035,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       statusLabel.text = "Screenshot fixture: network unavailable"
     case .canvas:
       applyCanvasMode(.draw, force: true)
-      canvasView.drawing = ScreenshotFixtures.nanoMouseDrawing()
+      canvasScreenshotOverlayView.image = ScreenshotFixtures.nanoMouseCanvasImage(
+        color: UIColor.label.resolvedColor(with: currentCanvasRenderingTraitCollection())
+      )
+      canvasScreenshotOverlayView.isHidden = false
+      applyCanvasDrawing(PKDrawing(), traitCollection: currentCanvasRenderingTraitCollection())
       canvasView.undoManager?.removeAllActions()
       setToolPickerVisible(false)
       statusLabel.text = "Screenshot fixture: canvas editor"
@@ -1043,6 +1062,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     view.addSubview(modeSegmentedControl)
     view.addSubview(canvasContainerView)
     canvasContainerView.addSubview(canvasView)
+    canvasContainerView.addSubview(canvasScreenshotOverlayView)
     canvasContainerView.addSubview(canvasWakeOverlayView)
     canvasWakeOverlayView.addSubview(canvasWakeHintLabel)
     setupCausalLayout()
@@ -1123,6 +1143,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
       canvasView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
       canvasView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
+
+      canvasScreenshotOverlayView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor, constant: 36),
+      canvasScreenshotOverlayView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor, constant: -36),
+      canvasScreenshotOverlayView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor, constant: 78),
+      canvasScreenshotOverlayView.heightAnchor.constraint(equalToConstant: 160),
 
       canvasWakeOverlayView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
       canvasWakeOverlayView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
@@ -1450,7 +1475,15 @@ final class VoiceCanvasViewController: NibLessViewController {
           canvasView.drawing,
           traitCollection: resolvedTraits
         )
-        applyCanvasDrawing(editableDrawing, traitCollection: resolvedTraits)
+        if ScreenshotMode.isEnabled, ScreenshotMode.scenario == .canvas {
+          let fittedDrawing = fittedCanvasDrawingToVisibleBounds(
+            editableDrawing,
+            allowUpscaling: true
+          )
+          applyCanvasDrawing(fittedDrawing, traitCollection: resolvedTraits)
+        } else {
+          applyCanvasDrawing(editableDrawing, traitCollection: resolvedTraits)
+        }
       }
       if hadSavedDocument, !hadUnsavedChanges {
         lastSavedCanvasSignature = currentCanvasSignature()
@@ -1538,7 +1571,10 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
   }
 
-  private func fittedCanvasDrawingToVisibleBounds(_ drawing: PKDrawing) -> PKDrawing {
+  private func fittedCanvasDrawingToVisibleBounds(
+    _ drawing: PKDrawing,
+    allowUpscaling: Bool = false
+  ) -> PKDrawing {
     guard !drawing.bounds.isEmpty else { return drawing }
     let viewport = canvasView.bounds.size == .zero ? canvasContainerView.bounds.size : canvasView.bounds.size
     let padding: CGFloat = 24
@@ -1547,9 +1583,11 @@ final class VoiceCanvasViewController: NibLessViewController {
     guard availableWidth > 0, availableHeight > 0 else { return drawing }
 
     let bounds = drawing.bounds
-    let scale = min(availableWidth / bounds.width, availableHeight / bounds.height, 1)
+    let fittingScale = min(availableWidth / bounds.width, availableHeight / bounds.height)
+    let scale = allowUpscaling ? fittingScale : min(fittingScale, 1)
     guard scale.isFinite, scale > 0 else { return drawing }
-    if scale >= 0.999,
+    if !allowUpscaling,
+      scale >= 0.999,
       bounds.minX >= padding,
       bounds.maxX <= viewport.width - padding,
       bounds.minY >= padding,

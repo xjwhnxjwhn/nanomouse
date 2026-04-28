@@ -87,16 +87,6 @@ struct ContentView: View {
                     }
                 }
 
-                let embeddedItems = embeddedRegistry.sidebarItems()
-                if !embeddedItems.isEmpty {
-                    Section("扩展模块") {
-                        ForEach(embeddedItems) { item in
-                            NavigationLink(value: SidebarSelection.embedded(item.id)) {
-                                Label(item.title, systemImage: item.iconSystemName)
-                            }
-                        }
-                    }
-                }
             }
             .listStyle(.sidebar)
             .navigationTitle(L10n.appTitle)

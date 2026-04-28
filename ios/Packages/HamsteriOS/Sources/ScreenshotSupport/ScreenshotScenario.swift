@@ -61,6 +61,8 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
     switch self {
     case .bytePasteEditor:
       return 1_500_000_000
+    case .keyboardExtension:
+      return 1_800_000_000
     default:
       return 700_000_000
     }

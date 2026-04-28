@@ -10,6 +10,7 @@ import UIKit
 final class KeyboardExtensionScreenshotHostViewController: UIViewController {
   private let textView = UITextView()
   private let keyboardController = KeyboardInputViewController()
+  private var didPrepareKeyboardFixture = false
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -22,7 +23,7 @@ final class KeyboardExtensionScreenshotHostViewController: UIViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    keyboardController.setKeyboardType(.chinese(.lowercased))
+    prepareKeyboardFixtureIfNeeded()
   }
 
   private func setupTextPreview() {
@@ -56,5 +57,22 @@ final class KeyboardExtensionScreenshotHostViewController: UIViewController {
       keyboardController.view.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.42),
     ])
     keyboardController.didMove(toParent: self)
+  }
+
+  private func prepareKeyboardFixtureIfNeeded() {
+    guard !didPrepareKeyboardFixture else { return }
+    didPrepareKeyboardFixture = true
+    keyboardController.setKeyboardType(.chinese(.lowercased))
+    keyboardController.view.setNeedsLayout()
+    keyboardController.view.layoutIfNeeded()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+      NotificationCenter.default.post(
+        name: KeyboardEmbeddedModuleNotification.toggle,
+        object: nil,
+        userInfo: [KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey: "clipboard"]
+      )
+      self.keyboardController.view.setNeedsLayout()
+      self.keyboardController.view.layoutIfNeeded()
+    }
   }
 }

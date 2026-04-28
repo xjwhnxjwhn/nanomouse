@@ -34,13 +34,16 @@ public enum ScreenshotFixtures {
     let strokes = nanoMouseStrokePointGroups().compactMap { points -> PKStroke? in
       guard points.count > 1 else { return nil }
       let fittedPoints = points.map { point in
-        CGPoint(x: 20 + point.x * 0.47, y: 96 + (point.y - 96) * 1.05)
+        CGPoint(
+          x: (point.x - 34) * 1.24,
+          y: (point.y - 96) * 1.75
+        )
       }
       let controlPoints = fittedPoints.enumerated().map { index, point in
         PKStrokePoint(
           location: point,
           timeOffset: TimeInterval(index) * 0.012,
-          size: CGSize(width: 8, height: 8),
+          size: CGSize(width: 12, height: 12),
           opacity: 0.96,
           force: 1,
           azimuth: 0,
@@ -51,6 +54,33 @@ public enum ScreenshotFixtures {
       return PKStroke(ink: PKInk(.pen, color: color), path: path)
     }
     return PKDrawing(strokes: strokes)
+  }
+
+  public static func nanoMouseCanvasImage(color: UIColor) -> UIImage {
+    let size = CGSize(width: 760, height: 180)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { _ in
+      color.setStroke()
+
+      for points in nanoMouseStrokePointGroups() where points.count > 1 {
+        let transformed = points.map { point in
+          CGPoint(
+            x: (point.x - 34) * 1.12,
+            y: 18 + (point.y - 96) * 1.48
+          )
+        }
+
+        let path = UIBezierPath()
+        path.move(to: transformed[0])
+        for point in transformed.dropFirst() {
+          path.addLine(to: point)
+        }
+        path.lineWidth = 10
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.stroke()
+      }
+    }
   }
 
   @MainActor
