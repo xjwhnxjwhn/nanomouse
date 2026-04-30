@@ -61,11 +61,12 @@ private enum SnapshotOutput {
     }()
 
     static func capturePNGData() -> Data {
-        if let pngData = preferredContentScreenshotPNGData() {
+        if !requiresScreenCropForSeparatePreviewWindow,
+           let pngData = preferredContentScreenshotPNGData() {
             return pngData
         }
         let screenScreenshot = XCUIScreen.main.screenshot()
-        if let windowBounds = screenshotWindowBounds(),
+        if let windowBounds = screenshotCaptureBounds(),
            let pngData = cropScreenScreenshot(screenScreenshot.pngRepresentation, to: windowBounds) {
             return pngData
         }
@@ -112,6 +113,18 @@ private enum SnapshotOutput {
         return contentElement.screenshot().pngRepresentation
     }
 
+    private static var requiresScreenCropForSeparatePreviewWindow: Bool {
+        let scenario = ProcessInfo.processInfo.environment["SCREENSHOT_SCENARIO"]
+        return scenario == "bytePasteImagePreview" || scenario == "bytePastePDFPreview"
+    }
+
+    private static func screenshotCaptureBounds() -> CGRect? {
+        if requiresScreenCropForSeparatePreviewWindow {
+            return screenshotWindowUnionBounds()
+        }
+        return screenshotWindowBounds()
+    }
+
     private static func screenshotWindowBounds() -> CGRect? {
         guard let screenFrame = NSScreen.main?.frame else {
             return nil
@@ -144,6 +157,42 @@ private enum SnapshotOutput {
             .max(by: { $0.area < $1.area })
 
         return candidate?.bounds
+    }
+
+    private static func screenshotWindowUnionBounds() -> CGRect? {
+        guard let screenFrame = NSScreen.main?.frame else {
+            return nil
+        }
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] else {
+            return nil
+        }
+
+        let bounds = windows.compactMap { info -> CGRect? in
+            guard let ownerName = info[kCGWindowOwnerName as String] as? String,
+                  ownerName == "NanoMouse",
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  layer == 0,
+                  let boundsValue = info[kCGWindowBounds as String],
+                  CFGetTypeID(boundsValue as CFTypeRef) == CFDictionaryGetTypeID(),
+                  var bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary),
+                  bounds.width >= 320,
+                  bounds.height >= 240 else {
+                return nil
+            }
+            bounds.origin.x = max(0, min(bounds.origin.x, screenFrame.width))
+            bounds.origin.y = max(0, min(bounds.origin.y, screenFrame.height))
+            bounds.size.width = min(bounds.width, screenFrame.width - bounds.minX)
+            bounds.size.height = min(bounds.height, screenFrame.height - bounds.minY)
+            guard bounds.width > 0, bounds.height > 0 else { return nil }
+            return bounds
+        }
+
+        guard var union = bounds.first else { return nil }
+        for bounds in bounds.dropFirst() {
+            union = union.union(bounds)
+        }
+        return union
     }
 
     private static func cropScreenScreenshot(_ pngData: Data, to windowBounds: CGRect) -> Data? {

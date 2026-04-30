@@ -86,18 +86,21 @@ public enum EmbeddedMainModuleHost {
 
     public static func configure(
         appGroupIdentifier: String,
-        cloudKitContainerIdentifier: String
+        cloudKitContainerIdentifier: String,
+        markdownPreviewViewControllerFactory: (@MainActor (String, Bool, String) -> UIViewController)? = nil
     ) {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
         EmbeddedMainModuleBridge.configure(
             EmbeddedMainRuntimeConfiguration(
                 appGroupIdentifier: appGroupIdentifier,
-                cloudKitContainerIdentifier: cloudKitContainerIdentifier
+                cloudKitContainerIdentifier: cloudKitContainerIdentifier,
+                markdownPreviewViewControllerFactory: markdownPreviewViewControllerFactory
             )
         )
         #else
         _ = appGroupIdentifier
         _ = cloudKitContainerIdentifier
+        _ = markdownPreviewViewControllerFactory
         #endif
     }
 

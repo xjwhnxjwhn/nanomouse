@@ -124,7 +124,15 @@ extension MainAppEmbeddedModuleRegistry {
 
     EmbeddedMainModuleHost.configure(
       appGroupIdentifier: HamsterConstants.appGroupName,
-      cloudKitContainerIdentifier: HamsterConstants.iCloudID
+      cloudKitContainerIdentifier: HamsterConstants.iCloudID,
+      markdownPreviewViewControllerFactory: { markdownText, isDark, fontFamily in
+        VoiceMarkdownPreviewRendererViewController(
+          markdownText: markdownText,
+          isDark: isDark,
+          fontFamily: fontFamily,
+          allowsScrolling: true
+        )
+      }
     )
     register(provider: EmbeddedMainRegistryAdapter())
   }

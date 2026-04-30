@@ -60,18 +60,35 @@
     <div id="root"><div id="content"></div></div>
     <script>
       const contentEl = document.getElementById("content");
-      const md = window.markdownit({
-        html: true,
-        linkify: true,
-        breaks: true,
-        typographer: true,
-      });
+      function makeMarkdownRenderer() {
+        if (typeof window.markdownit !== "function") {
+          return null;
+        }
+        return window.markdownit({
+          html: true,
+          linkify: true,
+          breaks: true,
+          typographer: true,
+        });
+      }
+      let md = makeMarkdownRenderer();
       window.__markdownRenderReady = false;
+
+      function escapeHTML(source) {
+        return String(source || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
 
       function normalizeSource(source) {
         const text = (source || "").trim();
         if (!text.length) {
           return "<p class=\"placeholder\">请在上方输入 Markdown。支持 mermaid 代码块。</p>";
+        }
+        md = md || makeMarkdownRenderer();
+        if (!md) {
+          return `<pre>${escapeHTML(source)}</pre>`;
         }
         return md.render(source);
       }

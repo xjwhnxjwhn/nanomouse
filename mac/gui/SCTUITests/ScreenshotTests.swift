@@ -20,6 +20,8 @@ final class ScreenshotTests: XCTestCase {
         Scenario(outputName: "03_canvas", id: "canvas", readyIdentifier: "screenshot_ready_canvas"),
         Scenario(outputName: "04_markdown", id: "markdown", readyIdentifier: "screenshot_ready_markdown"),
         Scenario(outputName: "05_causal", id: "causal", readyIdentifier: "screenshot_ready_causal"),
+        Scenario(outputName: "06_byte_paste_image_preview", id: "bytePasteImagePreview", readyIdentifier: "screenshot_ready_bytePasteImagePreview"),
+        Scenario(outputName: "07_byte_paste_pdf_preview", id: "bytePastePDFPreview", readyIdentifier: "screenshot_ready_bytePastePDFPreview"),
     ]
 
     override func setUpWithError() throws {

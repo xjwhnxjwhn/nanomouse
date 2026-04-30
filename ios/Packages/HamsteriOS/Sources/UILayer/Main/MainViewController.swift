@@ -400,9 +400,9 @@ open class MainTabBarController: UITabBarController {
       selectedIndex = voiceTabIndex
     case .settings, .premium:
       selectedIndex = accountTabIndex
-    case .bytePaste, .bytePasteEditor:
+    case .bytePaste, .bytePasteEditor, .bytePasteImagePreview, .bytePastePDFPreview:
       activateEmbeddedModuleTab(moduleIdentifier: "clipboard")
-    case .keyboardExtension:
+    case .keyboardExtension, .keyboardChinese, .keyboardLongPressA, .keyboardNumberPad:
       selectedIndex = voiceTabIndex
     case .editor, .canvas, .markdown, .causal, .emptyState, .errorState:
       selectedIndex = canvasTabIndex

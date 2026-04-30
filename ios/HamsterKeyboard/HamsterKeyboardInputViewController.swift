@@ -13,4 +13,9 @@ public class HamsterKeyboardInputViewController: KeyboardInputViewController {
     super.viewDidLoad()
     KeyboardEmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
   }
+
+  public override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    applySharedScreenshotStateIfNeeded()
+  }
 }

@@ -11,8 +11,6 @@
 		0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */ = {isa = PBXBuildFile; fileRef = 034D1299E7F66EFEFF108E4C /* ConfigSchema.json */; };
 		0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */; };
 		1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; };
-		E1F0A1B2C3D4E5F60718293A /* MarkdownUI in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 86A69570B6A620619716F664 /* MarkdownUI */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		E1F0A1B2C3D4E5F60718293D /* Yams in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A583BF6DB266C2092B020A23 /* Yams */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		282C1F4DD89D7255EA115E05 /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE9904051275841118E6EC8 /* HotkeyRecorder.swift */; };
 		4A438822FEFD4E6892DBDFC0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */; };
 		4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */ = {isa = PBXBuildFile; productRef = FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */; };
@@ -122,18 +120,6 @@
 				6611EB422F0ECE26005608B9 /* hamster.yaml in Copy Rime SharedSupport */,
 			);
 			name = "Copy Rime SharedSupport";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		E1F0A1B2C3D4E5F60718293B /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				E1F0A1B2C3D4E5F60718293A /* MarkdownUI in Embed Frameworks */,
-				E1F0A1B2C3D4E5F60718293D /* Yams in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -525,7 +511,6 @@
 			buildPhases = (
 				F56E6246A79D1C14864453B7 /* Sources */,
 				D288BC1A2E0B1EA6246540D7 /* Frameworks */,
-				E1F0A1B2C3D4E5F60718293B /* Embed Frameworks */,
 				5D3832E36C966D002944B2B1 /* Resources */,
 			);
 			buildRules = (

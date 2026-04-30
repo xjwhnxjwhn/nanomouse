@@ -17,6 +17,11 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
   case markdown
   case causal
   case keyboardExtension
+  case keyboardChinese
+  case keyboardLongPressA
+  case keyboardNumberPad
+  case bytePasteImagePreview
+  case bytePastePDFPreview
   case premium
   case onboarding
   case emptyState
@@ -46,25 +51,44 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
       return "08_causal"
     case .keyboardExtension:
       return "09_keyboard_extension"
+    case .keyboardChinese:
+      return "10_keyboard_chinese"
+    case .keyboardLongPressA:
+      return "11_keyboard_long_press_a"
+    case .keyboardNumberPad:
+      return "12_keyboard_number_pad"
+    case .bytePasteImagePreview:
+      return "13_byte_paste_image_preview"
+    case .bytePastePDFPreview:
+      return "14_byte_paste_pdf_preview"
     case .premium:
-      return "10_premium"
+      return "15_premium"
     case .onboarding:
-      return "11_onboarding"
+      return "16_onboarding"
     case .emptyState:
-      return "12_empty_state"
+      return "17_empty_state"
     case .errorState:
-      return "13_error_state"
+      return "18_error_state"
     }
   }
 
   public var readyDelayNanoseconds: UInt64 {
     switch self {
-    case .bytePasteEditor:
+    case .bytePasteEditor, .bytePasteImagePreview, .bytePastePDFPreview:
       return 1_500_000_000
-    case .keyboardExtension:
+    case .keyboardExtension, .keyboardChinese, .keyboardLongPressA, .keyboardNumberPad:
       return 1_800_000_000
     default:
       return 700_000_000
+    }
+  }
+
+  public var isKeyboardScreenshot: Bool {
+    switch self {
+    case .keyboardExtension, .keyboardChinese, .keyboardLongPressA, .keyboardNumberPad:
+      return true
+    default:
+      return false
     }
   }
 }

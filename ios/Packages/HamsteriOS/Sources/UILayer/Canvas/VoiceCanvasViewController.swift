@@ -1043,7 +1043,18 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.undoManager?.removeAllActions()
       setToolPickerVisible(false)
       statusLabel.text = "Screenshot fixture: canvas editor"
-    case .home, .settings, .bytePaste, .bytePasteEditor, .keyboardExtension, .premium, .onboarding:
+    case .home,
+         .settings,
+         .bytePaste,
+         .bytePasteEditor,
+         .bytePasteImagePreview,
+         .bytePastePDFPreview,
+         .keyboardExtension,
+         .keyboardChinese,
+         .keyboardLongPressA,
+         .keyboardNumberPad,
+         .premium,
+         .onboarding:
       break
     }
 
@@ -2017,16 +2028,27 @@ final class VoiceCanvasViewController: NibLessViewController {
     if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
       isMarkdownRendererReady = false
       markdownPreviewWebView.loadHTMLString(rendererHTML, baseURL: bundle.bundleURL)
+      scheduleMarkdownRendererReadinessFallback()
       return
     }
     guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
       isMarkdownRendererReady = false
       markdownPreviewWebView.loadHTMLString(Self.markdownRendererFallbackHTML, baseURL: nil)
       statusLabel.text = "Markdown 预览初始化失败，已切换基础模式。"
+      scheduleMarkdownRendererReadinessFallback()
       return
     }
     isMarkdownRendererReady = false
     markdownPreviewWebView.loadFileURL(htmlURL, allowingReadAccessTo: bundle.bundleURL)
+    scheduleMarkdownRendererReadinessFallback()
+  }
+
+  private func scheduleMarkdownRendererReadinessFallback() {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+      guard let self, !self.isMarkdownRendererReady else { return }
+      self.isMarkdownRendererReady = true
+      self.scheduleMarkdownPreviewRender()
+    }
   }
 
   private func resolveMarkdownRendererURL(in bundle: Bundle) -> URL? {

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import HamsterKit
 import PencilKit
 import UIKit
 
@@ -87,6 +88,24 @@ public enum ScreenshotFixtures {
   public static func install(for scenario: ScreenshotScenario) {
     guard ScreenshotMode.isEnabled else { return }
     UIView.setAnimationsEnabled(false)
+    disableSimulatorHardwareKeyboardIfNeeded()
+    configureKeyboardScreenshotRuntime(for: scenario)
+  }
+
+  private static func disableSimulatorHardwareKeyboardIfNeeded() {
+    #if DEBUG && targetEnvironment(simulator)
+    let selector = NSSelectorFromString("setHardwareLayout:")
+    for inputMode in UITextInputMode.activeInputModes where inputMode.responds(to: selector) {
+      _ = inputMode.perform(selector, with: nil)
+    }
+    #endif
+  }
+
+  private static func configureKeyboardScreenshotRuntime(for scenario: ScreenshotScenario) {
+    let defaults = UserDefaults(suiteName: HamsterConstants.appGroupName)
+    defaults?.set(scenario.isKeyboardScreenshot, forKey: "NanoMouseScreenshotKeyboardMode")
+    defaults?.set(scenario.rawValue, forKey: "NanoMouseScreenshotKeyboardScenario")
+    defaults?.synchronize()
   }
 
   private static func nanoMouseStrokePointGroups() -> [[CGPoint]] {

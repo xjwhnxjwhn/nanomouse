@@ -44,61 +44,12 @@ private final class VoiceMarkdownDraftStore {
 
 @MainActor
 final class VoiceMarkdownViewController: NibLessViewController {
-  private static let fallbackRendererHTML: String = """
-  <!doctype html>
-  <html lang="zh-CN">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <style>
-        html, body {
-          margin: 0;
-          padding: 0;
-          width: 100%;
-          height: 100%;
-          background: transparent;
-          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
-        }
-        #content {
-          box-sizing: border-box;
-          width: 100%;
-          height: 100%;
-          overflow: auto;
-          white-space: pre-wrap;
-          line-height: 1.55;
-          padding: 12px;
-          font-size: 14px;
-          color: #111827;
-        }
-      </style>
-    </head>
-    <body>
-      <div id="content"></div>
-      <script>
-        window.__markdownRenderReady = false;
-        window.renderMarkdown = function renderMarkdown(source, _isDark, fontFamily) {
-          const el = document.getElementById("content");
-          if (fontFamily && typeof fontFamily === "string") {
-            el.style.fontFamily = fontFamily;
-          }
-          el.textContent = source || "";
-          window.__markdownRenderReady = true;
-        };
-        window.isMarkdownReady = function isMarkdownReady() {
-          return window.__markdownRenderReady === true;
-        };
-      </script>
-    </body>
-  </html>
-  """
-
   private let canvasStore: VoiceCanvasStorageStore = .shared
   private let workspaceStore: VoiceWorkspaceDocumentStore = .shared
   private let canvasBridge: AppCanvasBridge = .shared
   private let draftStore: VoiceMarkdownDraftStore = .shared
   private var activeRequestId: String?
   private var hasCompletedCurrentKeyboardSession = false
-  private var isRendererReady = false
   private var pendingRenderWorkItem: DispatchWorkItem?
   private var quickActionButtons: [UIButton] = []
   private var availableFontOptions: [MarkdownFontOption] = []
@@ -375,18 +326,8 @@ final class VoiceMarkdownViewController: NibLessViewController {
     return view
   }()
 
-  private lazy var previewWebView: WKWebView = {
-    let configuration = WKWebViewConfiguration()
-    configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-    let view = WKWebView(frame: .zero, configuration: configuration)
-    view.translatesAutoresizingMaskIntoConstraints = false
-    view.navigationDelegate = self
-    view.isOpaque = false
-    view.backgroundColor = .clear
-    view.scrollView.backgroundColor = .clear
-    view.scrollView.isScrollEnabled = false
-    return view
-  }()
+  private lazy var previewRendererViewController = VoiceMarkdownPreviewRendererViewController(allowsScrolling: false)
+  private var previewWebView: WKWebView { previewRendererViewController.webView }
 
   private lazy var clearButton: UIButton = {
     let button = UIButton(type: .system)
@@ -432,7 +373,6 @@ final class VoiceMarkdownViewController: NibLessViewController {
     super.viewDidLoad()
     availableFontOptions = buildFontOptions()
     setupView()
-    setupRendererIfNeeded()
     restoreDraftIfNeeded()
     reloadMarkdownDocumentItems()
   }
@@ -467,7 +407,9 @@ final class VoiceMarkdownViewController: NibLessViewController {
     editorContainerView.addSubview(editorPlaceholderLabel)
     contentView.addSubview(previewTitleLabel)
     contentView.addSubview(previewContainerView)
+    addChild(previewRendererViewController)
     previewContainerView.addSubview(previewWebView)
+    previewRendererViewController.didMove(toParent: self)
     contentView.addSubview(clearButton)
     contentView.addSubview(doneButton)
     contentView.addSubview(tipLabel)
@@ -834,102 +776,6 @@ final class VoiceMarkdownViewController: NibLessViewController {
     }
   }
 
-  private func setupRendererIfNeeded() {
-    let bundle = Bundle.module
-    if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
-      isRendererReady = false
-      previewWebView.loadHTMLString(rendererHTML, baseURL: bundle.bundleURL)
-      return
-    }
-    guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
-      isRendererReady = false
-      previewWebView.loadHTMLString(Self.fallbackRendererHTML, baseURL: nil)
-      statusLabel.text = "Markdown 预览初始化失败，已切换基础模式。"
-      return
-    }
-    isRendererReady = false
-    previewWebView.loadFileURL(htmlURL, allowingReadAccessTo: bundle.bundleURL)
-  }
-
-  private func resolveMarkdownRendererURL(in bundle: Bundle) -> URL? {
-    if let url = bundle.url(forResource: "markdown_renderer", withExtension: "html", subdirectory: "Markdown") {
-      return url
-    }
-    if let url = bundle.url(forResource: "markdown_renderer", withExtension: "html") {
-      return url
-    }
-    let rootCandidate = bundle.bundleURL.appendingPathComponent("markdown_renderer.html")
-    if FileManager.default.fileExists(atPath: rootCandidate.path) {
-      return rootCandidate
-    }
-    let subdirCandidate = bundle.bundleURL
-      .appendingPathComponent("Markdown")
-      .appendingPathComponent("markdown_renderer.html")
-    if FileManager.default.fileExists(atPath: subdirCandidate.path) {
-      return subdirCandidate
-    }
-    return bundle.urls(forResourcesWithExtension: "html", subdirectory: nil)?
-      .first(where: { $0.lastPathComponent == "markdown_renderer.html" })
-  }
-
-  private func makeInlineMarkdownRendererHTML(in bundle: Bundle) -> String? {
-    guard let htmlURL = resolveMarkdownRendererURL(in: bundle),
-          var html = try? String(contentsOf: htmlURL, encoding: .utf8),
-          let markdownItSource = loadMarkdownRendererResource(
-            named: "markdown-it.min",
-            withExtension: "js",
-            in: bundle
-          ),
-          let mermaidSource = loadMarkdownRendererResource(
-            named: "mermaid-markdown.min",
-            withExtension: "js",
-            in: bundle
-          ) else {
-      return nil
-    }
-
-    html = html.replacingOccurrences(
-      of: #"<script src="markdown-it.min.js"></script>"#,
-      with: "<script>\(htmlSafeInlineScript(markdownItSource))</script>"
-    )
-    html = html.replacingOccurrences(
-      of: #"<script src="mermaid-markdown.min.js"></script>"#,
-      with: "<script>\(htmlSafeInlineScript(mermaidSource))</script>"
-    )
-    return html
-  }
-
-  private func loadMarkdownRendererResource(
-    named name: String,
-    withExtension ext: String,
-    in bundle: Bundle
-  ) -> String? {
-    if let url = bundle.url(forResource: name, withExtension: ext, subdirectory: "Markdown"),
-       let content = try? String(contentsOf: url, encoding: .utf8) {
-      return content
-    }
-    if let url = bundle.url(forResource: name, withExtension: ext),
-       let content = try? String(contentsOf: url, encoding: .utf8) {
-      return content
-    }
-    let candidate = bundle.bundleURL
-      .appendingPathComponent("Markdown")
-      .appendingPathComponent("\(name).\(ext)")
-    if FileManager.default.fileExists(atPath: candidate.path),
-       let content = try? String(contentsOf: candidate, encoding: .utf8) {
-      return content
-    }
-    return nil
-  }
-
-  private func htmlSafeInlineScript(_ source: String) -> String {
-    source.replacingOccurrences(
-      of: "</script>",
-      with: #"<\/script>"#,
-      options: .caseInsensitive
-    )
-  }
-
   private func restoreDraftIfNeeded() {
     let storedFont = resolveStoredFontOption(draftStore.loadFontIdentifier())
     applyFontOption(storedFont, persist: false, updateStatus: false)
@@ -953,31 +799,16 @@ final class VoiceMarkdownViewController: NibLessViewController {
   }
 
   private func renderMarkdownPreview() {
-    guard isRendererReady else { return }
     let markdown = markdownTextView.text ?? ""
-    let payload = jsonStringLiteral(markdown)
-    let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
-    let fontFamily = jsonStringLiteral(MarkdownFontOption.systemDefault.cssFontFamily)
-    let script = """
-    window.renderMarkdown(\(payload), \(isDark), \(fontFamily));
-    null;
-    """
-    previewWebView.evaluateJavaScript(script) { [weak self] _, error in
+    let isDark = traitCollection.userInterfaceStyle == .dark
+    previewRendererViewController.render(
+      markdownText: markdown,
+      isDark: isDark,
+      fontFamily: MarkdownFontOption.systemDefault.cssFontFamily
+    ) { [weak self] error in
       guard let self else { return }
-      if let error {
-        statusLabel.text = "Markdown 预览失败：\(error.localizedDescription)"
-      } else if statusLabel.text?.contains("Markdown 预览失败") == true {
-        statusLabel.text = nil
-      }
+      statusLabel.text = "Markdown 预览失败：\(error.localizedDescription)"
     }
-  }
-
-  private func jsonStringLiteral(_ value: String) -> String {
-    guard let data = try? JSONEncoder().encode(value),
-          let output = String(data: data, encoding: .utf8) else {
-      return "\"\""
-    }
-    return output
   }
 
   @objc private func handleFontPickerTap(_ sender: UIButton) {
@@ -1389,28 +1220,11 @@ final class VoiceMarkdownViewController: NibLessViewController {
   }
 
   private func waitForRenderedContent(maxAttempts: Int, interval: TimeInterval, completion: @escaping (Bool) -> Void) {
-    guard maxAttempts > 0 else {
-      completion(false)
-      return
-    }
-    let script = "window.isMarkdownReady && window.isMarkdownReady();"
-    previewWebView.evaluateJavaScript(script) { [weak self] value, _ in
-      if let ready = value as? Bool, ready {
-        completion(true)
-        return
-      }
-      guard let self else {
-        completion(false)
-        return
-      }
-      if maxAttempts == 1 {
-        completion(false)
-        return
-      }
-      DispatchQueue.main.asyncAfter(deadline: .now() + interval) {
-        self.waitForRenderedContent(maxAttempts: maxAttempts - 1, interval: interval, completion: completion)
-      }
-    }
+    previewRendererViewController.waitForRenderedContent(
+      maxAttempts: maxAttempts,
+      interval: interval,
+      completion: completion
+    )
   }
 
   private func capturePreviewImage(completion: @escaping (UIImage?) -> Void) {
@@ -1600,13 +1414,6 @@ extension VoiceMarkdownViewController: UITableViewDataSource, UITableViewDelegat
       }
     }
     return UISwipeActionsConfiguration(actions: [deleteAction])
-  }
-}
-
-extension VoiceMarkdownViewController: WKNavigationDelegate {
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    isRendererReady = true
-    schedulePreviewRender()
   }
 }
 

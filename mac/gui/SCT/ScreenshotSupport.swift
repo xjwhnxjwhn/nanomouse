@@ -20,6 +20,8 @@ enum MacScreenshotScenario: String, CaseIterable {
     case canvas
     case markdown
     case causal
+    case bytePasteImagePreview
+    case bytePastePDFPreview
 
     var readyIdentifier: String {
         "screenshot_ready_\(rawValue)"
@@ -37,6 +39,10 @@ enum MacScreenshotScenario: String, CaseIterable {
             return "04_markdown"
         case .causal:
             return "05_causal"
+        case .bytePasteImagePreview:
+            return "06_byte_paste_image_preview"
+        case .bytePastePDFPreview:
+            return "07_byte_paste_pdf_preview"
         }
     }
 }
@@ -78,4 +84,3 @@ enum MacScreenshotMode {
         return ProcessInfo.processInfo.environment[environmentKey]
     }
 }
-

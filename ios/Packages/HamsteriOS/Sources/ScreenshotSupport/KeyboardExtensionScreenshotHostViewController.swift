@@ -1,29 +1,36 @@
 //
 //  KeyboardExtensionScreenshotHostViewController.swift
 //
-//  Screenshot-only host for rendering the keyboard extension UI in UITests.
+//  Screenshot-only host that asks iOS to present the real keyboard extension.
 //
 
-import HamsterKeyboardKit
 import UIKit
 
 final class KeyboardExtensionScreenshotHostViewController: UIViewController {
+  private let scenario: ScreenshotScenario
   private let textView = UITextView()
-  private let keyboardController = KeyboardInputViewController()
-  private var didPrepareKeyboardFixture = false
+  private var didRequestKeyboard = false
+
+  init(scenario: ScreenshotScenario) {
+    self.scenario = scenario
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .systemGroupedBackground
 
-    KeyboardEmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
     setupTextPreview()
-    setupKeyboardPreview()
   }
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
-    prepareKeyboardFixtureIfNeeded()
+    presentSystemKeyboardIfNeeded()
   }
 
   private func setupTextPreview() {
@@ -33,46 +40,27 @@ final class KeyboardExtensionScreenshotHostViewController: UIViewController {
     textView.textColor = .label
     textView.backgroundColor = .secondarySystemGroupedBackground
     textView.layer.cornerRadius = 18
+    textView.layer.cornerCurve = .continuous
     textView.textContainerInset = UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-    textView.isEditable = false
+    textView.isEditable = true
+    textView.isSelectable = true
+    textView.accessibilityIdentifier = "screenshot_keyboard_text_view"
     view.addSubview(textView)
 
     NSLayoutConstraint.activate([
       textView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 18),
       textView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -18),
       textView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 18),
-      textView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.34),
+      textView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: scenario == .keyboardExtension ? 0.30 : 0.36),
     ])
   }
 
-  private func setupKeyboardPreview() {
-    addChild(keyboardController)
-    keyboardController.view.translatesAutoresizingMaskIntoConstraints = false
-    keyboardController.view.backgroundColor = .systemBackground
-    view.addSubview(keyboardController.view)
-    NSLayoutConstraint.activate([
-      keyboardController.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-      keyboardController.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-      keyboardController.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-      keyboardController.view.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.42),
-    ])
-    keyboardController.didMove(toParent: self)
-  }
-
-  private func prepareKeyboardFixtureIfNeeded() {
-    guard !didPrepareKeyboardFixture else { return }
-    didPrepareKeyboardFixture = true
-    keyboardController.setKeyboardType(.chinese(.lowercased))
-    keyboardController.view.setNeedsLayout()
-    keyboardController.view.layoutIfNeeded()
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-      NotificationCenter.default.post(
-        name: KeyboardEmbeddedModuleNotification.toggle,
-        object: nil,
-        userInfo: [KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey: "clipboard"]
-      )
-      self.keyboardController.view.setNeedsLayout()
-      self.keyboardController.view.layoutIfNeeded()
+  private func presentSystemKeyboardIfNeeded() {
+    guard !didRequestKeyboard else { return }
+    didRequestKeyboard = true
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+      guard let self else { return }
+      self.textView.becomeFirstResponder()
     }
   }
 }
