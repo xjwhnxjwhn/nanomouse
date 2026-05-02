@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 import XCTest
 
 func setupSnapshot(_ app: XCUIApplication) {
@@ -41,7 +42,7 @@ private enum SnapshotOutput {
     formatter.dateFormat = "yyyyMMdd-HHmmss-SSS"
 
     let directory = rootDirectory.appendingPathComponent(
-      "\(formatter.string(from: Date()))-iOS",
+      "\(formatter.string(from: Date()))-\(platformName)",
       isDirectory: true
     )
 
@@ -53,6 +54,10 @@ private enum SnapshotOutput {
 
     return directory
   }()
+
+  private static var platformName: String {
+    UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iOS"
+  }
 
   static func write(_ screenshot: XCUIScreenshot, name: String) {
     let fileURL = runDirectory.appendingPathComponent("\(sanitizedFileName(name)).png")

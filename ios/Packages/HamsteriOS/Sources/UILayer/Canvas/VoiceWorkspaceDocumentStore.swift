@@ -13,6 +13,7 @@ import UIKit
 enum VoiceWorkspaceDocumentKind: String {
   case markdown
   case canvas
+  case files
   case causal
 
   var directoryName: String {
@@ -21,6 +22,8 @@ enum VoiceWorkspaceDocumentKind: String {
       return "Markdown"
     case .canvas:
       return "Canvas"
+    case .files:
+      return "Share"
     case .causal:
       return "Causal"
     }
@@ -32,6 +35,8 @@ enum VoiceWorkspaceDocumentKind: String {
       return "Markdown 文件"
     case .canvas:
       return "画布文件"
+    case .files:
+      return "通用文件"
     case .causal:
       return "因果图文件"
     }
@@ -43,6 +48,8 @@ enum VoiceWorkspaceDocumentKind: String {
       return "Markdown"
     case .canvas:
       return "Canvas"
+    case .files:
+      return "File"
     case .causal:
       return "Causal"
     }
@@ -54,6 +61,8 @@ enum VoiceWorkspaceDocumentKind: String {
       return "md"
     case .canvas:
       return "pkdrawing"
+    case .files:
+      return ""
     case .causal:
       return "causal.json"
     }
@@ -65,6 +74,8 @@ enum VoiceWorkspaceDocumentKind: String {
       return ["md"]
     case .canvas:
       return ["pkdrawing"]
+    case .files:
+      return []
     case .causal:
       return ["causal.json"]
     }
@@ -103,7 +114,7 @@ final class VoiceWorkspaceDocumentStore {
 
   func ensureWorkspaceDirectories() throws {
     try fileManager.createDirectory(at: workspaceRootURL, withIntermediateDirectories: true, attributes: nil)
-    for kind in [VoiceWorkspaceDocumentKind.markdown, .canvas, .causal] {
+    for kind in [VoiceWorkspaceDocumentKind.markdown, .canvas, .files, .causal] {
       try fileManager.createDirectory(at: rootDirectoryURL(for: kind), withIntermediateDirectories: true, attributes: nil)
     }
   }
@@ -158,6 +169,34 @@ final class VoiceWorkspaceDocumentStore {
     guard !sanitized.isEmpty else { return }
     let url = directoryURL(for: kind, pathComponents: pathComponents).appendingPathComponent(sanitized, isDirectory: true)
     try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+  }
+
+  @discardableResult
+  func importFile(at sourceURL: URL, pathComponents: [String]) throws -> URL {
+    try ensureWorkspaceDirectories()
+    let targetDirectory = directoryURL(for: .files, pathComponents: pathComponents)
+    try fileManager.createDirectory(at: targetDirectory, withIntermediateDirectories: true, attributes: nil)
+
+    let didAccess = sourceURL.startAccessingSecurityScopedResource()
+    defer {
+      if didAccess {
+        sourceURL.stopAccessingSecurityScopedResource()
+      }
+    }
+
+    let sanitizedName = sanitizeFileName(sourceURL.lastPathComponent)
+    var targetURL = targetDirectory.appendingPathComponent(sanitizedName, isDirectory: false)
+    if fileManager.fileExists(atPath: targetURL.path) {
+      let base = targetURL.deletingPathExtension().lastPathComponent
+      let ext = targetURL.pathExtension
+      let uniqueBase = "\(base)-\(UUID().uuidString.prefix(6))"
+      targetURL = targetDirectory.appendingPathComponent(uniqueBase, isDirectory: false)
+      if !ext.isEmpty {
+        targetURL = targetURL.appendingPathExtension(ext)
+      }
+    }
+    try fileManager.copyItem(at: sourceURL, to: targetURL)
+    return targetURL
   }
 
   @discardableResult
@@ -276,7 +315,7 @@ final class VoiceWorkspaceDocumentStore {
       targetURL = item.url.deletingLastPathComponent().appendingPathComponent(sanitizedBase, isDirectory: true)
     } else {
       let finalName: String
-      if sanitizedBase.lowercased().hasSuffix(".\(kind.fileExtension.lowercased())") {
+      if kind.fileExtension.isEmpty || sanitizedBase.lowercased().hasSuffix(".\(kind.fileExtension.lowercased())") {
         finalName = sanitizedBase
       } else {
         finalName = "\(sanitizedBase).\(kind.fileExtension)"
@@ -335,7 +374,7 @@ final class VoiceWorkspaceDocumentStore {
     try fileManager.createDirectory(at: baseURL, withIntermediateDirectories: true, attributes: nil)
 
     let finalName: String
-    if sanitized.lowercased().hasSuffix(".\(kind.fileExtension.lowercased())") {
+    if kind.fileExtension.isEmpty || sanitized.lowercased().hasSuffix(".\(kind.fileExtension.lowercased())") {
       finalName = sanitized
     } else {
       finalName = "\(sanitized).\(kind.fileExtension)"
@@ -376,7 +415,7 @@ final class VoiceWorkspaceDocumentStore {
     let isDirectory = values.isDirectory ?? false
     if !isDirectory {
       let lowercasedName = url.lastPathComponent.lowercased()
-      guard kind.allowedExtensions.contains(where: { lowercasedName.hasSuffix(".\($0.lowercased())") }) else {
+      guard kind.allowedExtensions.isEmpty || kind.allowedExtensions.contains(where: { lowercasedName.hasSuffix(".\($0.lowercased())") }) else {
         return nil
       }
     }

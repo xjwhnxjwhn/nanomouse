@@ -306,6 +306,7 @@ open class MainTabBarController: UITabBarController {
   private var canvasTabIndex = 0
   private var voiceTabIndex = 1
   private var accountTabIndex = 2
+  private var subscriptions = Set<AnyCancellable>()
 
   private lazy var canvasController = VoiceCanvasViewController()
   private lazy var homeController = VoiceHomeViewController()
@@ -328,6 +329,7 @@ open class MainTabBarController: UITabBarController {
   override open func viewDidLoad() {
     super.viewDidLoad()
     setupTabs()
+    observeEmbeddedWorkspaceRequests()
     deliverPendingRequestsIfNeeded()
   }
 
@@ -458,6 +460,37 @@ open class MainTabBarController: UITabBarController {
       let launchedFromKeyboard = pendingVoiceLaunchedFromKeyboard
       pendingVoiceLaunchedFromKeyboard = false
       homeController.startDictation(requestId: requestId, launchedFromKeyboard: launchedFromKeyboard)
+    }
+  }
+
+  private func observeEmbeddedWorkspaceRequests() {
+    NotificationCenter.default.publisher(for: .nanomouseOpenWorkspaceFileFromEmbedded)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] notification in
+        self?.handleEmbeddedWorkspaceRequest(notification)
+      }
+      .store(in: &subscriptions)
+  }
+
+  private func handleEmbeddedWorkspaceRequest(_ notification: Notification) {
+    guard let url = notification.userInfo?["url"] as? URL,
+          let kind = notification.userInfo?["kind"] as? String else {
+      return
+    }
+
+    selectedViewController?.presentedViewController?.dismiss(animated: true)
+    selectedIndex = canvasTabIndex
+    canvasController.loadViewIfNeeded()
+
+    switch kind {
+    case "markdown":
+      canvasController.openExternalMarkdownDocument(url)
+    case "canvas":
+      canvasController.openExternalCanvasDocument(url)
+    case "causal":
+      canvasController.openExternalCausalDocument(url)
+    default:
+      break
     }
   }
 }

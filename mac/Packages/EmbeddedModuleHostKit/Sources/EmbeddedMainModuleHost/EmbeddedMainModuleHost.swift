@@ -87,20 +87,23 @@ public enum EmbeddedMainModuleHost {
     public static func configure(
         appGroupIdentifier: String,
         cloudKitContainerIdentifier: String,
-        markdownPreviewViewControllerFactory: (@MainActor (String, Bool, String) -> UIViewController)? = nil
+        markdownPreviewViewControllerFactory: (@MainActor (String, Bool, String) -> UIViewController)? = nil,
+        openWorkspaceFileHandler: (@MainActor (URL, String) -> Void)? = nil
     ) {
         #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
         EmbeddedMainModuleBridge.configure(
             EmbeddedMainRuntimeConfiguration(
                 appGroupIdentifier: appGroupIdentifier,
                 cloudKitContainerIdentifier: cloudKitContainerIdentifier,
-                markdownPreviewViewControllerFactory: markdownPreviewViewControllerFactory
+                markdownPreviewViewControllerFactory: markdownPreviewViewControllerFactory,
+                openWorkspaceFileHandler: openWorkspaceFileHandler
             )
         )
         #else
         _ = appGroupIdentifier
         _ = cloudKitContainerIdentifier
         _ = markdownPreviewViewControllerFactory
+        _ = openWorkspaceFileHandler
         #endif
     }
 
@@ -309,6 +312,15 @@ public enum EmbeddedMainModuleHost {
         _ = slotIndex
         _ = text
         return false
+        #endif
+    }
+
+    @MainActor
+    public static func refreshStoredFilePreviews(for url: URL) {
+        #if EMBEDDED_MODULE_BRIDGE_ENABLED && canImport(EmbeddedMainModuleBridge)
+        EmbeddedMainModuleBridge.refreshStoredFilePreviews(for: url)
+        #else
+        _ = url
         #endif
     }
 }

@@ -54,7 +54,7 @@ public extension KeyboardInputViewController {
           self?.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
         }
       }
-      for delay in [2.2, 3.0] {
+      for delay in [2.2, 3.0, 4.2] {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
           self?.showScreenshotLongPressWhenReady(for: "a")
         }
@@ -114,7 +114,7 @@ private extension KeyboardInputViewController {
     }
   }
 
-  func showScreenshotLongPressWhenReady(for text: String, remainingRetries: Int = 8) {
+  func showScreenshotLongPressWhenReady(for text: String, remainingRetries: Int = 18) {
     guard showScreenshotLongPress(for: text) else {
       guard remainingRetries > 0 else { return }
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
@@ -147,7 +147,7 @@ private extension KeyboardInputViewController {
   }
 
   func findKeyboardButton(displaying text: String) -> KeyboardButton? {
-    findKeyboardButton { $0.buttonText == text }
+    findKeyboardButton { $0.buttonText.caseInsensitiveCompare(text) == .orderedSame }
   }
 
   func findKeyboardButton(where predicate: (KeyboardButton) -> Bool) -> KeyboardButton? {

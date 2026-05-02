@@ -100,6 +100,15 @@ class KeyboardToolbarView: NibLessView {
     return label
   }()
 
+  private lazy var traditionalizeHotspotView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.isUserInteractionEnabled = true
+    view.accessibilityLabel = "繁简切换"
+    return view
+  }()
+
   lazy var logoContainer: RoundedContainer = {
     let view = RoundedContainer(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -267,7 +276,7 @@ class KeyboardToolbarView: NibLessView {
     constructViewHierarchy()
     activateViewConstraints()
     setupAppearance()
-    commonFunctionBar.addGestureRecognizer(traditionalizeLongPressGesture)
+    traditionalizeHotspotView.addGestureRecognizer(traditionalizeLongPressGesture)
     if embeddedModuleEntry != nil {
       embeddedModuleButton.addGestureRecognizer(embeddedModuleLongPressGesture)
     }
@@ -310,6 +319,7 @@ class KeyboardToolbarView: NibLessView {
     weatherIndicatorContainer.addArrangedSubview(weatherIndicatorIconView)
     weatherIndicatorContainer.addArrangedSubview(weatherIndicatorLabel)
     commonFunctionBar.addSubview(weatherIndicatorContainer)
+    commonFunctionBar.addSubview(traditionalizeHotspotView)
     commonFunctionBar.addSubview(traditionalizeHintLabel)
   }
 
@@ -393,7 +403,15 @@ class KeyboardToolbarView: NibLessView {
       weatherIndicatorContainer.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -6),
       weatherIndicatorIconView.widthAnchor.constraint(equalToConstant: 15),
       weatherIndicatorIconView.heightAnchor.constraint(equalTo: weatherIndicatorIconView.widthAnchor),
+      traditionalizeHotspotView.leadingAnchor.constraint(equalTo: weatherIndicatorContainer.trailingAnchor, constant: 4),
+      traditionalizeHotspotView.trailingAnchor.constraint(equalTo: rightButtonsStack.leadingAnchor, constant: -4),
+      traditionalizeHotspotView.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
+      traditionalizeHotspotView.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
     ])
+
+    let traditionalizeHotspotMinWidth = traditionalizeHotspotView.widthAnchor.constraint(greaterThanOrEqualToConstant: 28)
+    traditionalizeHotspotMinWidth.priority = .defaultHigh
+    constraints.append(traditionalizeHotspotMinWidth)
 
     if keyboardContext.displayAppIconButton {
       constraints.append(weatherIndicatorContainer.leadingAnchor.constraint(equalTo: logoContainer.trailingAnchor, constant: 6))

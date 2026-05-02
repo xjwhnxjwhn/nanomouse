@@ -20,6 +20,20 @@
                ReferencedContainer = "container:Hamster.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7B2604260000000000001007"
+               BuildableName = "SCTUITests.xctest"
+               BlueprintName = "SCTUITests"
+               ReferencedContainer = "container:Hamster.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -37,6 +51,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7B2604260000000000001007"
+               BuildableName = "SCTUITests.xctest"
+               BlueprintName = "SCTUITests"
+               ReferencedContainer = "container:Hamster.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

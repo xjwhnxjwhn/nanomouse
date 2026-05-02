@@ -228,7 +228,8 @@ final class VoiceCanvasViewController: NibLessViewController {
   private enum CanvasMode: Int {
     case draw = 0
     case markdown = 1
-    case causal = 2
+    case files = 2
+    case causal = 3
   }
 
   private let canvasStore: VoiceCanvasStorageStore = .shared
@@ -246,14 +247,17 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
   private var pendingMarkdownRenderWorkItem: DispatchWorkItem?
+  private var pendingMarkdownAutosaveWorkItem: DispatchWorkItem?
   private var isMarkdownRendererReady = false
   private var suppressDoneTapOnce = false
   private var canvasDocumentItems: [VoiceWorkspaceDocumentItem] = []
   private var canvasPathComponents: [String] = []
   private var markdownPathComponents: [String] = []
+  private var filesPathComponents: [String] = []
   private var causalPathComponents: [String] = []
   private var activeCanvasDocumentURL: URL?
   private var activeMarkdownDocumentURL: URL?
+  private var activeFilesDocumentURL: URL?
   private var activeCausalDocumentURL: URL?
   private var lastSavedCanvasSignature: Data?
   private var lastSavedMarkdownSignature: String?
@@ -268,6 +272,14 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var pendingMarkdownColorRange: NSRange?
   private var pendingMarkdownFontRange: NSRange?
   private var isMarkdownTextInsetShiftedForSelection = false
+  private var titleTopConstraint: NSLayoutConstraint?
+  private var statusTopConstraint: NSLayoutConstraint?
+  private var statusHeightConstraint: NSLayoutConstraint?
+  private var modeTopConstraint: NSLayoutConstraint?
+  private var canvasTopConstraint: NSLayoutConstraint?
+  private var markdownPortraitConstraints: [NSLayoutConstraint] = []
+  private var markdownLandscapeConstraints: [NSLayoutConstraint] = []
+  private var isMarkdownUsingLandscapeLayout = false
 
   private enum MarkdownDraftConstants {
     static let contentKey = "voice.markdown.draft.content"
@@ -526,7 +538,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }()
 
   private lazy var modeSegmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["画布", "Markdown", "因果图"])
+    let control = UISegmentedControl(items: ["画布", "Markdown", "文件", "因果图"])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = CanvasMode.draw.rawValue
     control.addTarget(self, action: #selector(handleModeChanged(_:)), for: .valueChanged)
@@ -577,6 +589,57 @@ final class VoiceCanvasViewController: NibLessViewController {
     view.backgroundColor = .clear
     view.isHidden = true
     return view
+  }()
+
+  private lazy var filesContainerView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .clear
+    view.isHidden = true
+    return view
+  }()
+
+  private lazy var filesHintStackView: UIStackView = {
+    let stack = UIStackView(frame: .zero)
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .vertical
+    stack.alignment = .center
+    stack.spacing = 14
+    return stack
+  }()
+
+  private lazy var filesIconView: UIImageView = {
+    let view = UIImageView(image: UIImage(systemName: "folder.fill"))
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFit
+    view.tintColor = .secondaryLabel
+    return view
+  }()
+
+  private lazy var filesHintLabel: UILabel = {
+    let label = UILabel(frame: .zero)
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .systemFont(ofSize: 15, weight: .medium)
+    label.textColor = .secondaryLabel
+    label.textAlignment = .center
+    label.numberOfLines = 0
+    label.text = "通用文件会保存到 NanoMouse 的 iCloud 文件夹，可在 iPhone、iPad、Mac 与“文件”App 中同步访问。"
+    return label
+  }()
+
+  private lazy var filesOpenButton: UIButton = {
+    let button = UIButton(type: .system)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    var configuration = UIButton.Configuration.tinted()
+    configuration.image = UIImage(systemName: "square.and.arrow.down")
+    configuration.title = "导入或管理文件"
+    configuration.imagePadding = 6
+    configuration.baseForegroundColor = .label
+    configuration.baseBackgroundColor = .secondarySystemFill
+    configuration.cornerStyle = .capsule
+    button.configuration = configuration
+    button.addTarget(self, action: #selector(handleDocumentsTap), for: .touchUpInside)
+    return button
   }()
 
   private lazy var markdownEditorContainerView: UIView = {
@@ -954,6 +1017,7 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    updateResponsiveLayoutMetrics()
     lockCanvasToVisibleBounds()
   }
 
@@ -1078,6 +1142,7 @@ final class VoiceCanvasViewController: NibLessViewController {
     canvasWakeOverlayView.addSubview(canvasWakeHintLabel)
     setupCausalLayout()
     setupMarkdownLayout()
+    setupFilesLayout()
     view.addSubview(bottomBarView)
     bottomBarView.addSubview(bottomBarDividerView)
     bottomBarView.addSubview(clearButton)
@@ -1088,18 +1153,29 @@ final class VoiceCanvasViewController: NibLessViewController {
     bottomBarView.addSubview(saveToFileButton)
     canvasView.delegate = self
 
+    let titleTopConstraint = titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12)
+    let statusTopConstraint = statusScrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8)
+    let statusHeightConstraint = statusScrollView.heightAnchor.constraint(equalToConstant: 20)
+    let modeTopConstraint = modeSegmentedControl.topAnchor.constraint(equalTo: statusScrollView.bottomAnchor, constant: 10)
+    let canvasTopConstraint = canvasContainerView.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 12)
+    self.titleTopConstraint = titleTopConstraint
+    self.statusTopConstraint = statusTopConstraint
+    self.statusHeightConstraint = statusHeightConstraint
+    self.modeTopConstraint = modeTopConstraint
+    self.canvasTopConstraint = canvasTopConstraint
+
     NSLayoutConstraint.activate([
-      titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+      titleTopConstraint,
       titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: documentsButton.leadingAnchor, constant: -12),
 
       documentsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
       documentsButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
 
-      statusScrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
+      statusTopConstraint,
       statusScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
       statusScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-      statusScrollView.heightAnchor.constraint(equalToConstant: 20),
+      statusHeightConstraint,
 
       statusContentView.topAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.topAnchor),
       statusContentView.leadingAnchor.constraint(equalTo: statusScrollView.contentLayoutGuide.leadingAnchor),
@@ -1112,7 +1188,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       statusLabel.trailingAnchor.constraint(equalTo: statusContentView.trailingAnchor),
       statusLabel.centerYAnchor.constraint(equalTo: statusContentView.centerYAnchor),
 
-      modeSegmentedControl.topAnchor.constraint(equalTo: statusScrollView.bottomAnchor, constant: 10),
+      modeTopConstraint,
       modeSegmentedControl.leadingAnchor.constraint(equalTo: statusScrollView.leadingAnchor),
       modeSegmentedControl.trailingAnchor.constraint(equalTo: statusScrollView.trailingAnchor),
 
@@ -1145,7 +1221,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       copyButton.trailingAnchor.constraint(equalTo: saveToFileButton.leadingAnchor, constant: -10),
       copyButton.centerYAnchor.constraint(equalTo: saveToFileButton.centerYAnchor),
 
-      canvasContainerView.topAnchor.constraint(equalTo: modeSegmentedControl.bottomAnchor, constant: 12),
+      canvasTopConstraint,
       canvasContainerView.leadingAnchor.constraint(equalTo: statusScrollView.leadingAnchor),
       canvasContainerView.trailingAnchor.constraint(equalTo: statusScrollView.trailingAnchor),
       canvasContainerView.bottomAnchor.constraint(equalTo: bottomBarView.topAnchor, constant: -12),
@@ -1203,6 +1279,8 @@ final class VoiceCanvasViewController: NibLessViewController {
           self.activeMarkdownDocumentURL = url
           self.statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
           return url
+        case .files:
+          throw CocoaError(.userCancelled)
         case .causal:
           let url = try self.workspaceStore.createCausalDocument(
             named: name,
@@ -1222,6 +1300,8 @@ final class VoiceCanvasViewController: NibLessViewController {
           try self.workspaceStore.saveCanvas(drawing: self.canvasView.drawing, to: url, traitCollection: resolvedTraits)
         case .markdown:
           try self.workspaceStore.saveMarkdown(content: self.markdownTextView.text ?? "", to: url)
+        case .files:
+          break
         case .causal:
           try self.workspaceStore.saveCausal(edges: self.causalEdges, to: url)
         }
@@ -1249,6 +1329,9 @@ final class VoiceCanvasViewController: NibLessViewController {
           self.scheduleMarkdownPreviewRender()
           self.statusLabel.text = "已打开 Markdown 文件：\(url.lastPathComponent)"
           self.updateHistoryButtonsState()
+        case .files:
+          self.activeFilesDocumentURL = url
+          self.statusLabel.text = "已选择文件：\(url.lastPathComponent)"
         case .causal:
           let edges = try self.workspaceStore.loadCausal(from: url)
           self.causalUndoHistory.removeAll()
@@ -1269,6 +1352,9 @@ final class VoiceCanvasViewController: NibLessViewController {
         }
         if self.activeMarkdownDocumentURL == url {
           self.activeMarkdownDocumentURL = nil
+        }
+        if self.activeFilesDocumentURL == url {
+          self.activeFilesDocumentURL = nil
         }
         if self.activeCausalDocumentURL == url {
           self.activeCausalDocumentURL = nil
@@ -1351,16 +1437,11 @@ final class VoiceCanvasViewController: NibLessViewController {
     markdownContainerView.addSubview(markdownPreviewContainerView)
     markdownPreviewContainerView.addSubview(markdownPreviewWebView)
 
-    NSLayoutConstraint.activate([
+    let commonConstraints = [
       markdownContainerView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
       markdownContainerView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
       markdownContainerView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
       markdownContainerView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
-
-      markdownEditorContainerView.topAnchor.constraint(equalTo: markdownContainerView.topAnchor, constant: 12),
-      markdownEditorContainerView.leadingAnchor.constraint(equalTo: markdownContainerView.leadingAnchor, constant: 12),
-      markdownEditorContainerView.trailingAnchor.constraint(equalTo: markdownContainerView.trailingAnchor, constant: -12),
-      markdownEditorContainerView.heightAnchor.constraint(equalTo: markdownContainerView.heightAnchor, multiplier: 0.42),
 
       markdownToolbarScrollView.topAnchor.constraint(equalTo: markdownEditorContainerView.topAnchor, constant: 8),
       markdownToolbarScrollView.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor, constant: 8),
@@ -1387,6 +1468,18 @@ final class VoiceCanvasViewController: NibLessViewController {
       markdownPlaceholderLabel.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor, constant: 16),
       markdownPlaceholderLabel.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor, constant: -16),
 
+      markdownPreviewWebView.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
+      markdownPreviewWebView.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
+      markdownPreviewWebView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
+      markdownPreviewWebView.bottomAnchor.constraint(equalTo: markdownPreviewContainerView.bottomAnchor),
+    ]
+
+    markdownPortraitConstraints = [
+      markdownEditorContainerView.topAnchor.constraint(equalTo: markdownContainerView.topAnchor, constant: 12),
+      markdownEditorContainerView.leadingAnchor.constraint(equalTo: markdownContainerView.leadingAnchor, constant: 12),
+      markdownEditorContainerView.trailingAnchor.constraint(equalTo: markdownContainerView.trailingAnchor, constant: -12),
+      markdownEditorContainerView.heightAnchor.constraint(equalTo: markdownContainerView.heightAnchor, multiplier: 0.42),
+
       markdownPreviewTitleLabel.topAnchor.constraint(equalTo: markdownEditorContainerView.bottomAnchor, constant: 10),
       markdownPreviewTitleLabel.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor),
       markdownPreviewTitleLabel.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor),
@@ -1395,14 +1488,53 @@ final class VoiceCanvasViewController: NibLessViewController {
       markdownPreviewContainerView.leadingAnchor.constraint(equalTo: markdownPreviewTitleLabel.leadingAnchor),
       markdownPreviewContainerView.trailingAnchor.constraint(equalTo: markdownPreviewTitleLabel.trailingAnchor),
       markdownPreviewContainerView.bottomAnchor.constraint(equalTo: markdownContainerView.bottomAnchor, constant: -12),
+    ]
 
-      markdownPreviewWebView.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
-      markdownPreviewWebView.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
-      markdownPreviewWebView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
-      markdownPreviewWebView.bottomAnchor.constraint(equalTo: markdownPreviewContainerView.bottomAnchor),
-    ])
+    markdownLandscapeConstraints = [
+      markdownEditorContainerView.topAnchor.constraint(equalTo: markdownContainerView.topAnchor, constant: 12),
+      markdownEditorContainerView.leadingAnchor.constraint(equalTo: markdownContainerView.leadingAnchor, constant: 12),
+      markdownEditorContainerView.bottomAnchor.constraint(equalTo: markdownContainerView.bottomAnchor, constant: -12),
+      markdownEditorContainerView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor, constant: -12),
+
+      markdownPreviewContainerView.topAnchor.constraint(equalTo: markdownEditorContainerView.topAnchor),
+      markdownPreviewContainerView.trailingAnchor.constraint(equalTo: markdownContainerView.trailingAnchor, constant: -12),
+      markdownPreviewContainerView.bottomAnchor.constraint(equalTo: markdownEditorContainerView.bottomAnchor),
+      markdownPreviewContainerView.widthAnchor.constraint(equalTo: markdownEditorContainerView.widthAnchor),
+
+      markdownPreviewTitleLabel.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
+      markdownPreviewTitleLabel.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
+      markdownPreviewTitleLabel.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
+      markdownPreviewTitleLabel.heightAnchor.constraint(equalToConstant: 0),
+    ]
+
+    NSLayoutConstraint.activate(commonConstraints)
+    NSLayoutConstraint.activate(markdownPortraitConstraints)
 
     setupMarkdownQuickActionButtons()
+  }
+
+  private func setupFilesLayout() {
+    canvasContainerView.addSubview(filesContainerView)
+    filesContainerView.addSubview(filesHintStackView)
+    filesHintStackView.addArrangedSubview(filesIconView)
+    filesHintStackView.addArrangedSubview(filesHintLabel)
+    filesHintStackView.addArrangedSubview(filesOpenButton)
+
+    NSLayoutConstraint.activate([
+      filesContainerView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
+      filesContainerView.leadingAnchor.constraint(equalTo: canvasContainerView.leadingAnchor),
+      filesContainerView.trailingAnchor.constraint(equalTo: canvasContainerView.trailingAnchor),
+      filesContainerView.bottomAnchor.constraint(equalTo: canvasContainerView.bottomAnchor),
+
+      filesHintStackView.centerXAnchor.constraint(equalTo: filesContainerView.centerXAnchor),
+      filesHintStackView.centerYAnchor.constraint(equalTo: filesContainerView.centerYAnchor),
+      filesHintStackView.leadingAnchor.constraint(greaterThanOrEqualTo: filesContainerView.leadingAnchor, constant: 24),
+      filesHintStackView.trailingAnchor.constraint(lessThanOrEqualTo: filesContainerView.trailingAnchor, constant: -24),
+
+      filesIconView.widthAnchor.constraint(equalToConstant: 58),
+      filesIconView.heightAnchor.constraint(equalTo: filesIconView.widthAnchor),
+      filesHintLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
+    ])
   }
 
   private var currentDocumentKind: VoiceWorkspaceDocumentKind {
@@ -1411,6 +1543,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       return .canvas
     case .markdown:
       return .markdown
+    case .files:
+      return .files
     case .causal:
       return .causal
     }
@@ -1423,6 +1557,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         return canvasPathComponents
       case .markdown:
         return markdownPathComponents
+      case .files:
+        return filesPathComponents
       case .causal:
         return causalPathComponents
       }
@@ -1433,6 +1569,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         canvasPathComponents = newValue
       case .markdown:
         markdownPathComponents = newValue
+      case .files:
+        filesPathComponents = newValue
       case .causal:
         causalPathComponents = newValue
       }
@@ -1446,6 +1584,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         return activeCanvasDocumentURL
       case .markdown:
         return activeMarkdownDocumentURL
+      case .files:
+        return activeFilesDocumentURL
       case .causal:
         return activeCausalDocumentURL
       }
@@ -1456,6 +1596,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         activeCanvasDocumentURL = newValue
       case .markdown:
         activeMarkdownDocumentURL = newValue
+      case .files:
+        activeFilesDocumentURL = newValue
       case .causal:
         activeCausalDocumentURL = newValue
       }
@@ -1464,6 +1606,126 @@ final class VoiceCanvasViewController: NibLessViewController {
 
   private func reloadDocumentItems() {
     canvasDocumentItems = workspaceStore.listItems(for: currentDocumentKind, pathComponents: currentPathComponents)
+  }
+
+  func openExternalMarkdownDocument(_ url: URL) {
+    loadViewIfNeeded()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      applyCanvasMode(.markdown, force: true)
+      statusLabel.text = "未找到 Markdown 文件：\(url.lastPathComponent)"
+      alertConfirm(alertTitle: "未找到文件", message: url.lastPathComponent, confirmTitle: "知道了") {}
+      return
+    }
+
+    do {
+      applyCanvasMode(.markdown, force: true)
+      let content = try workspaceStore.loadMarkdown(from: url)
+      markdownTextView.text = content
+      markdownTextView.undoManager?.removeAllActions()
+      saveMarkdownDraftContent(content)
+      activeMarkdownDocumentURL = url
+      lastSavedMarkdownSignature = currentMarkdownSignature()
+      updateMarkdownPlaceholderState()
+      scheduleMarkdownPreviewRender()
+      statusLabel.text = "已打开 Markdown 文件：\(url.lastPathComponent)"
+      updateHistoryButtonsState()
+      reloadDocumentItems()
+    } catch {
+      statusLabel.text = "打开 Markdown 失败：\(error.localizedDescription)"
+      alertConfirm(alertTitle: "打开失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+    }
+  }
+
+  func openExternalCanvasDocument(_ url: URL) {
+    loadViewIfNeeded()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      applyCanvasMode(.draw, force: true)
+      statusLabel.text = "未找到画布文件：\(url.lastPathComponent)"
+      alertConfirm(alertTitle: "未找到文件", message: url.lastPathComponent, confirmTitle: "知道了") {}
+      return
+    }
+
+    do {
+      applyCanvasMode(.draw, force: true)
+      let traits = currentCanvasRenderingTraitCollection()
+      let drawing = try workspaceStore.loadCanvas(from: url, traitCollection: traits)
+      applyCanvasDrawing(drawing, traitCollection: traits, fitToVisibleBounds: true)
+      canvasView.undoManager?.removeAllActions()
+      activeCanvasDocumentURL = url
+      lastSavedCanvasSignature = currentCanvasSignature()
+      setToolPickerVisible(false)
+      statusLabel.text = "已打开画布文件：\(url.lastPathComponent)"
+      updateHistoryButtonsState()
+      reloadDocumentItems()
+    } catch {
+      statusLabel.text = "打开画布失败：\(error.localizedDescription)"
+      alertConfirm(alertTitle: "打开失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+    }
+  }
+
+  func openExternalCausalDocument(_ url: URL) {
+    loadViewIfNeeded()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      applyCanvasMode(.causal, force: true)
+      statusLabel.text = "未找到因果图文件：\(url.lastPathComponent)"
+      alertConfirm(alertTitle: "未找到文件", message: url.lastPathComponent, confirmTitle: "知道了") {}
+      return
+    }
+
+    do {
+      applyCanvasMode(.causal, force: true)
+      let edges = try workspaceStore.loadCausal(from: url)
+      causalUndoHistory.removeAll()
+      causalRedoHistory.removeAll()
+      causalEdges = edges.isEmpty ? [VoiceCausalEdgeDraft()] : edges
+      causalDraftStore.saveEdges(causalEdges)
+      rebuildCausalRows()
+      scheduleCausalRender()
+      activeCausalDocumentURL = url
+      lastSavedCausalSignature = currentCausalSignature()
+      statusLabel.text = "已打开因果图文件：\(url.lastPathComponent)"
+      updateHistoryButtonsState()
+      reloadDocumentItems()
+    } catch {
+      statusLabel.text = "打开因果图失败：\(error.localizedDescription)"
+      alertConfirm(alertTitle: "打开失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+    }
+  }
+
+  private func updateResponsiveLayoutMetrics() {
+    let isCompactLandscape = view.bounds.width > view.bounds.height && view.bounds.height < 520
+    titleLabel.font = .systemFont(ofSize: isCompactLandscape ? 24 : 34, weight: .bold)
+    statusScrollView.isHidden = isCompactLandscape
+    titleTopConstraint?.constant = isCompactLandscape ? 6 : 12
+    statusTopConstraint?.constant = isCompactLandscape ? 2 : 8
+    statusHeightConstraint?.constant = isCompactLandscape ? 0 : 20
+    modeTopConstraint?.constant = isCompactLandscape ? 6 : 10
+    canvasTopConstraint?.constant = isCompactLandscape ? 6 : 12
+    modeSegmentedControl.setContentPositionAdjustment(
+      UIOffset(horizontal: 0, vertical: isCompactLandscape ? -1 : 0),
+      forSegmentType: .any,
+      barMetrics: .default
+    )
+    updateMarkdownResponsiveLayout()
+  }
+
+  private func updateMarkdownResponsiveLayout() {
+    guard !markdownPortraitConstraints.isEmpty, !markdownLandscapeConstraints.isEmpty else { return }
+    let useLandscape = view.bounds.width > view.bounds.height
+    guard useLandscape != isMarkdownUsingLandscapeLayout else {
+      markdownPreviewTitleLabel.isHidden = useLandscape
+      return
+    }
+    if useLandscape {
+      NSLayoutConstraint.deactivate(markdownPortraitConstraints)
+      NSLayoutConstraint.activate(markdownLandscapeConstraints)
+    } else {
+      NSLayoutConstraint.deactivate(markdownLandscapeConstraints)
+      NSLayoutConstraint.activate(markdownPortraitConstraints)
+    }
+    isMarkdownUsingLandscapeLayout = useLandscape
+    markdownPreviewTitleLabel.isHidden = useLandscape
+    scheduleMarkdownPreviewRender()
   }
 
   private func refreshContentForCurrentAppearance() {
@@ -1694,6 +1956,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         activeMarkdownDocumentURL = url
         lastSavedMarkdownSignature = currentMarkdownSignature()
         statusLabel.text = "已创建 Markdown 文件：\(url.lastPathComponent)"
+      case .files:
+        statusLabel.text = "通用文件请通过文件面板导入。"
       case .causal:
         let url = try workspaceStore.createCausalDocument(named: name, edges: causalEdges, pathComponents: currentPathComponents)
         activeCausalDocumentURL = url
@@ -1722,11 +1986,14 @@ final class VoiceCanvasViewController: NibLessViewController {
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
           lastSavedMarkdownSignature = currentMarkdownSignature()
+        case .files:
+          break
         case .causal:
           try workspaceStore.saveCausal(edges: causalEdges, to: currentActiveDocumentURL)
           lastSavedCausalSignature = currentCausalSignature()
         }
         statusLabel.text = "已保存：\(currentActiveDocumentURL.lastPathComponent)"
+        EmbeddedMainModuleHost.refreshStoredFilePreviews(for: currentActiveDocumentURL)
         reloadDocumentItems()
       } catch {
         statusLabel.text = "保存失败：\(error.localizedDescription)"
@@ -1744,6 +2011,24 @@ final class VoiceCanvasViewController: NibLessViewController {
   private func autosaveCurrentDocumentIfNeeded() {
     guard currentActiveDocumentURL != nil else { return }
     saveCurrentDocument(promptIfNeeded: false)
+  }
+
+  private func scheduleMarkdownAutosaveIfNeeded() {
+    pendingMarkdownAutosaveWorkItem?.cancel()
+    guard currentMode == .markdown, activeMarkdownDocumentURL != nil else { return }
+
+    let delay: TimeInterval = markdownTextView.markedTextRange == nil ? 0.85 : 1.15
+    let item = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      guard self.currentMode == .markdown, self.activeMarkdownDocumentURL != nil else { return }
+      guard self.markdownTextView.markedTextRange == nil else {
+        self.scheduleMarkdownAutosaveIfNeeded()
+        return
+      }
+      self.saveCurrentDocument(promptIfNeeded: false)
+    }
+    pendingMarkdownAutosaveWorkItem = item
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
   }
 
   private func loadDocumentItem(_ item: VoiceWorkspaceDocumentItem) {
@@ -1775,6 +2060,9 @@ final class VoiceCanvasViewController: NibLessViewController {
         scheduleMarkdownPreviewRender()
         statusLabel.text = "已打开 Markdown 文件：\(item.fileName)"
         updateHistoryButtonsState()
+      case .files:
+        activeFilesDocumentURL = item.url
+        statusLabel.text = "已选择文件：\(item.fileName)"
       case .causal:
         let edges = try workspaceStore.loadCausal(from: item.url)
         causalUndoHistory.removeAll()
@@ -2201,11 +2489,16 @@ final class VoiceCanvasViewController: NibLessViewController {
       self?.renderMarkdownPreview()
     }
     pendingMarkdownRenderWorkItem = item
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: item)
+    let delay: TimeInterval = markdownTextView.markedTextRange == nil ? 0.2 : 0.45
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
   }
 
   private func renderMarkdownPreview() {
     guard isMarkdownRendererReady else { return }
+    guard markdownTextView.markedTextRange == nil else {
+      scheduleMarkdownPreviewRender()
+      return
+    }
     let markdown = markdownTextView.text ?? ""
     let payload = jsonStringLiteral(markdown)
     let isDark = traitCollection.userInterfaceStyle == .dark ? "true" : "false"
@@ -2727,6 +3020,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       titleLabel.text = "画布"
       canvasView.isHidden = false
       markdownContainerView.isHidden = true
+      filesContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = !isToolPickerVisible
       canvasWakeHintLabel.isHidden = !isToolPickerVisible
       causalContainerView.isHidden = true
@@ -2744,6 +3038,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = false
+      filesContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = true
       canvasWakeHintLabel.isHidden = true
       causalContainerView.isHidden = true
@@ -2752,11 +3047,23 @@ final class VoiceCanvasViewController: NibLessViewController {
         ? "输入 Markdown 后可复制图片和原文，也可保存为 .md 文件。"
         : "已从键盘进入 Markdown。复制后返回宿主 App 可粘贴图片。"
       scheduleMarkdownPreviewRender()
+    case .files:
+      titleLabel.text = "文件"
+      setToolPickerVisible(false)
+      canvasView.isHidden = true
+      markdownContainerView.isHidden = true
+      filesContainerView.isHidden = false
+      canvasWakeOverlayView.isHidden = true
+      canvasWakeHintLabel.isHidden = true
+      causalContainerView.isHidden = true
+      historyButtonStackView.isHidden = true
+      statusLabel.text = "导入任意文件到 NanoMouse 的 iCloud 文件夹，并在各端同步使用。"
     case .causal:
       titleLabel.text = "因果图"
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = true
+      filesContainerView.isHidden = true
       canvasWakeOverlayView.isHidden = true
       canvasWakeHintLabel.isHidden = true
       causalContainerView.isHidden = false
@@ -2861,6 +3168,11 @@ final class VoiceCanvasViewController: NibLessViewController {
       return
     }
 
+    if currentMode == .files {
+      statusLabel.text = "通用文件请在文件面板中删除或管理。"
+      return
+    }
+
     registerCausalUndoSnapshot(causalEdges)
     applyCausalEdges([VoiceCausalEdgeDraft()], autosave: false)
     statusLabel.text = "因果关系已清空，请重新填写后再完成。"
@@ -2872,6 +3184,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.undoManager?.undo()
     case .markdown:
       markdownTextView.undoManager?.undo()
+    case .files:
+      break
     case .causal:
       performCausalUndo()
     }
@@ -2884,6 +3198,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       canvasView.undoManager?.redo()
     case .markdown:
       markdownTextView.undoManager?.redo()
+    case .files:
+      break
     case .causal:
       performCausalRedo()
     }
@@ -2900,6 +3216,9 @@ final class VoiceCanvasViewController: NibLessViewController {
     case .markdown:
       canUndo = markdownTextView.undoManager?.canUndo ?? false
       canRedo = markdownTextView.undoManager?.canRedo ?? false
+    case .files:
+      canUndo = false
+      canRedo = false
     case .causal:
       canUndo = !causalUndoHistory.isEmpty
       canRedo = !causalRedoHistory.isEmpty
@@ -2921,6 +3240,10 @@ final class VoiceCanvasViewController: NibLessViewController {
     }
     if currentMode == .causal {
       handleCausalDoneTap()
+      return
+    }
+    if currentMode == .files {
+      handleDocumentsTap()
       return
     }
 
@@ -3066,6 +3389,8 @@ final class VoiceCanvasViewController: NibLessViewController {
           finalize(nil)
         }
       }
+    case .files:
+      statusLabel.text = "通用文件请在文件面板中长按文件后格纳。"
     case .causal:
       guard hasAnyCompleteCausalEdge() else {
         statusLabel.text = "请先填写完整因果关系后再格纳。"
@@ -3232,6 +3557,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       return "画布"
     case .markdown:
       return "Markdown"
+    case .files:
+      return "文件"
     case .causal:
       return "因果图"
     }
@@ -3243,6 +3570,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       return !canvasView.drawing.strokes.isEmpty
     case .markdown:
       return !(markdownTextView.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    case .files:
+      return activeFilesDocumentURL != nil
     case .causal:
       return causalEdges.contains {
         !$0.from.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3260,6 +3589,8 @@ final class VoiceCanvasViewController: NibLessViewController {
     case .markdown:
       guard activeMarkdownDocumentURL != nil else { return currentModeHasContent() }
       return currentMarkdownSignature() != (lastSavedMarkdownSignature ?? "")
+    case .files:
+      return false
     case .causal:
       guard activeCausalDocumentURL != nil else { return currentModeHasContent() }
       return currentCausalSignature() != lastSavedCausalSignature
@@ -3285,6 +3616,8 @@ final class VoiceCanvasViewController: NibLessViewController {
       updateMarkdownPlaceholderState()
       scheduleMarkdownPreviewRender()
       updateHistoryButtonsState()
+    case .files:
+      activeFilesDocumentURL = nil
     case .causal:
       activeCausalDocumentURL = nil
       lastSavedCausalSignature = nil
@@ -3313,6 +3646,8 @@ final class VoiceCanvasViewController: NibLessViewController {
         case .markdown:
           try workspaceStore.saveMarkdown(content: markdownTextView.text ?? "", to: currentActiveDocumentURL)
           lastSavedMarkdownSignature = currentMarkdownSignature()
+        case .files:
+          break
         case .causal:
           try workspaceStore.saveCausal(edges: causalEdges, to: currentActiveDocumentURL)
           lastSavedCausalSignature = currentCausalSignature()
@@ -3616,7 +3951,7 @@ extension VoiceCanvasViewController: UITextViewDelegate {
     saveMarkdownDraftContent(text)
     updateMarkdownPlaceholderState()
     scheduleMarkdownPreviewRender()
-    autosaveCurrentDocumentIfNeeded()
+    scheduleMarkdownAutosaveIfNeeded()
     updateHistoryButtonsState()
     updateMarkdownSelectionToolbarAvoidance()
   }

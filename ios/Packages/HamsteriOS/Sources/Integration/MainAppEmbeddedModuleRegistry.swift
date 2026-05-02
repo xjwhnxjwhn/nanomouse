@@ -9,6 +9,10 @@ import UIKit
 import HamsterKit
 import EmbeddedMainModuleHost
 
+extension Notification.Name {
+  static let nanomouseOpenWorkspaceFileFromEmbedded = Notification.Name("NanoMouseOpenWorkspaceFileFromEmbedded")
+}
+
 /// 私有 SPM 模块在主 App 中挂载为独立 Tab 的描述。
 public struct MainAppEmbeddedTabDescriptor {
   public let moduleIdentifier: String
@@ -131,6 +135,16 @@ extension MainAppEmbeddedModuleRegistry {
           isDark: isDark,
           fontFamily: fontFamily,
           allowsScrolling: true
+        )
+      },
+      openWorkspaceFileHandler: { url, kind in
+        NotificationCenter.default.post(
+          name: .nanomouseOpenWorkspaceFileFromEmbedded,
+          object: nil,
+          userInfo: [
+            "url": url,
+            "kind": kind
+          ]
         )
       }
     )

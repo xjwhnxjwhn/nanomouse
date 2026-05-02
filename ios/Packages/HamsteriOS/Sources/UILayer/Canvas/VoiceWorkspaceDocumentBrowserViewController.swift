@@ -33,6 +33,7 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
   private var displayMode: VoiceWorkspaceDocumentPanelView.DisplayMode = .list
   private let panelView = VoiceWorkspaceDocumentPanelView(frame: .zero)
   private let thumbnailProvider = VoiceWorkspaceDocumentThumbnailProvider()
+  private var pendingImportPathComponents: [String] = []
   init(
     kind: VoiceWorkspaceDocumentKind,
     store: VoiceWorkspaceDocumentStore,
@@ -88,6 +89,8 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
     panelView.refreshButton.addTarget(self, action: #selector(handleRefresh), for: .touchUpInside)
     panelView.displayModeControl.addTarget(self, action: #selector(handleDisplayModeChanged), for: .valueChanged)
     view.addSubview(panelView)
+    panelView.newDocumentButton.accessibilityLabel = kind == .files ? "导入文件" : "新建文件"
+    panelView.newDocumentButton.configuration?.image = UIImage(systemName: kind == .files ? "square.and.arrow.down" : "doc.badge.plus")
 
     NSLayoutConstraint.activate([
       panelView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
@@ -147,6 +150,15 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
   }
 
   @objc private func handleNewDocumentTap() {
+    if kind == .files {
+      pendingImportPathComponents = pathComponents
+      let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
+      picker.delegate = self
+      picker.allowsMultipleSelection = true
+      present(picker, animated: true)
+      return
+    }
+
     promptForName(title: "新建文件", message: "会在当前文件夹下创建可继续编辑的源文件。", actionTitle: "创建") { [weak self] name in
       guard let self, !name.isEmpty else { return }
       do {
@@ -321,6 +333,24 @@ final class VoiceWorkspaceDocumentBrowserViewController: NibLessViewController {
   }
 }
 
+extension VoiceWorkspaceDocumentBrowserViewController: UIDocumentPickerDelegate {
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+    guard kind == .files else { return }
+    var importedCount = 0
+    for url in urls {
+      do {
+        _ = try store.importFile(at: url, pathComponents: pendingImportPathComponents)
+        importedCount += 1
+      } catch {
+        alertConfirm(alertTitle: "导入失败", message: error.localizedDescription, confirmTitle: "知道了") {}
+      }
+    }
+    if importedCount > 0 {
+      reloadItems()
+    }
+  }
+}
+
 extension VoiceWorkspaceDocumentBrowserViewController: UITableViewDataSource, UITableViewDelegate {
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     items.count
@@ -473,6 +503,8 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
       return UIImage(systemName: "doc.text.fill")
     case .canvas:
       return UIImage(systemName: "scribble.variable")
+    case .files:
+      return UIImage(systemName: "doc.fill")
     case .causal:
       return UIImage(systemName: "point.3.connected.trianglepath.dotted")
     }
@@ -525,15 +557,21 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
         targetSize: targetSize
       )
         ?? placeholderImage(for: item, kind: kind)
+    case .files:
+      return renderTextThumbnail(
+        lines: [item.fileName],
+        title: item.url.pathExtension.isEmpty ? "FILE" : item.url.pathExtension.uppercased(),
+        targetSize: targetSize,
+        accentColor: .systemGray
+      )
     case .markdown:
       guard let markdown = try? String(contentsOf: item.url, encoding: .utf8) else {
         return placeholderImage(for: item, kind: kind)
       }
-      return renderTextThumbnail(
-        lines: markdown.split(whereSeparator: \.isNewline).prefix(5).map(String.init),
-        title: item.fileName,
+      return VoiceMarkdownDocumentThumbnailRenderer.image(
+        markdownText: markdown,
         targetSize: targetSize,
-        accentColor: .systemBlue
+        traitCollection: traitCollection
       )
     case .causal:
       guard let data = try? Data(contentsOf: item.url),
@@ -603,6 +641,246 @@ private final class VoiceWorkspaceDocumentThumbnailProvider {
   }
 }
 
+private enum VoiceMarkdownDocumentThumbnailRenderer {
+  static func image(markdownText: String, targetSize: CGSize, traitCollection: UITraitCollection) -> UIImage? {
+    guard targetSize.width > 1, targetSize.height > 1 else { return nil }
+    let html = markdownHTMLDocument(from: markdownText, targetSize: targetSize, traitCollection: traitCollection)
+    guard let attributed = attributedString(fromHTML: html) else { return nil }
+
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = UIScreen.main.scale
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+    return renderer.image { context in
+      let rect = CGRect(origin: .zero, size: targetSize)
+      let isDark = traitCollection.userInterfaceStyle == .dark
+      let background = UIColor.secondarySystemGroupedBackground.resolvedColor(with: traitCollection)
+      let page = (isDark ? UIColor.black : UIColor.white).resolvedColor(with: traitCollection)
+
+      background.setFill()
+      UIBezierPath(roundedRect: rect, cornerRadius: 14).fill()
+
+      let horizontalPageInset = min(max(rect.width * 0.045, 4), 8)
+      let verticalPageInset = min(max(rect.height * 0.045, 4), 7)
+      let pageRect = rect.insetBy(dx: horizontalPageInset, dy: verticalPageInset)
+      let pagePath = UIBezierPath(roundedRect: pageRect, cornerRadius: 5)
+      page.setFill()
+      pagePath.fill()
+      UIColor.separator.resolvedColor(with: traitCollection).setStroke()
+      pagePath.lineWidth = 1
+      pagePath.stroke()
+
+      let textInset = min(max(rect.width * 0.04, 4), 8)
+      let textRect = pageRect.insetBy(dx: textInset, dy: textInset)
+      attributed.draw(
+        with: textRect,
+        options: [.usesLineFragmentOrigin, .usesFontLeading, .truncatesLastVisibleLine],
+        context: nil
+      )
+      context.cgContext.setStrokeColor(UIColor.separator.resolvedColor(with: traitCollection).cgColor)
+      context.cgContext.stroke(rect.insetBy(dx: 0.5, dy: 0.5), width: 1)
+    }
+  }
+
+  private static func attributedString(fromHTML html: String) -> NSAttributedString? {
+    guard let data = html.data(using: .utf8) else { return nil }
+    return try? NSAttributedString(
+      data: data,
+      options: [
+        .documentType: NSAttributedString.DocumentType.html,
+        .characterEncoding: String.Encoding.utf8.rawValue,
+      ],
+      documentAttributes: nil
+    )
+  }
+
+  private static func markdownHTMLDocument(from markdownText: String, targetSize: CGSize, traitCollection: UITraitCollection) -> String {
+    let isDark = traitCollection.userInterfaceStyle == .dark
+    let label = cssColor(UIColor.label.resolvedColor(with: traitCollection))
+    let secondary = cssColor(UIColor.secondaryLabel.resolvedColor(with: traitCollection))
+    let codeBackground = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"
+    let baseFontSize = min(max(targetSize.width / 18, 7.0), 9.8)
+    let h1Size = baseFontSize * 1.35
+    let h2Size = baseFontSize * 1.22
+    let h3Size = baseFontSize * 1.12
+    let codeSize = max(baseFontSize - 1, 6.5)
+    return """
+    <!doctype html>
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <style>
+    body {
+      margin: 0;
+      padding: 0;
+      color: \(label);
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+      font-size: \(cssPoint(baseFontSize))px;
+      line-height: 1.38;
+    }
+    h1, h2, h3, p, blockquote, ul, ol, pre { margin-top: 0; margin-bottom: 5px; }
+    h1 { font-size: \(cssPoint(h1Size))px; line-height: 1.15; font-weight: 700; color: \(label); }
+    h2 { font-size: \(cssPoint(h2Size))px; line-height: 1.2; font-weight: 700; color: \(label); }
+    h3 { font-size: \(cssPoint(h3Size))px; line-height: 1.22; font-weight: 700; color: \(label); }
+    p { color: \(label); }
+    a { color: \(label); text-decoration: underline; }
+    blockquote { color: \(secondary); border-left: 2px solid \(secondary); padding-left: 6px; }
+    ul, ol { padding-left: 14px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: \(cssPoint(codeSize))px;
+      background: \(codeBackground);
+    }
+    pre {
+      white-space: pre-wrap;
+      background: \(codeBackground);
+      padding: 4px;
+    }
+    </style>
+    </head>
+    <body>\(markdownBodyHTML(from: markdownText))</body>
+    </html>
+    """
+  }
+
+  private static func cssPoint(_ value: CGFloat) -> String {
+    String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), Double(value))
+  }
+
+  private static func markdownBodyHTML(from markdownText: String) -> String {
+    let lines = markdownText.components(separatedBy: .newlines).prefix(160)
+    var output: [String] = []
+    var isInUnorderedList = false
+    var isInOrderedList = false
+    var isInCodeBlock = false
+    var codeLines: [String] = []
+
+    func closeLists() {
+      if isInUnorderedList {
+        output.append("</ul>")
+        isInUnorderedList = false
+      }
+      if isInOrderedList {
+        output.append("</ol>")
+        isInOrderedList = false
+      }
+    }
+
+    for rawLine in lines {
+      let trimmed = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+      if trimmed.hasPrefix("```") {
+        if isInCodeBlock {
+          output.append("<pre><code>\(escapeHTML(codeLines.joined(separator: "\n")))</code></pre>")
+          codeLines.removeAll()
+          isInCodeBlock = false
+        } else {
+          closeLists()
+          isInCodeBlock = true
+        }
+        continue
+      }
+      if isInCodeBlock {
+        codeLines.append(rawLine)
+        continue
+      }
+      if trimmed.isEmpty {
+        closeLists()
+        continue
+      }
+      if trimmed.hasPrefix("#") {
+        closeLists()
+        let level = min(max(trimmed.prefix(while: { $0 == "#" }).count, 1), 3)
+        let text = trimmed.dropFirst(level).trimmingCharacters(in: .whitespaces)
+        output.append("<h\(level)>\(inlineHTML(from: text))</h\(level)>")
+        continue
+      }
+      if let range = trimmed.range(of: #"^\d+\.\s+"#, options: .regularExpression) {
+        if !isInOrderedList {
+          closeLists()
+          output.append("<ol>")
+          isInOrderedList = true
+        }
+        output.append("<li>\(inlineHTML(from: String(trimmed[range.upperBound...])))</li>")
+        continue
+      }
+      if ["- ", "* ", "+ "].contains(where: { trimmed.hasPrefix($0) }) {
+        if !isInUnorderedList {
+          closeLists()
+          output.append("<ul>")
+          isInUnorderedList = true
+        }
+        output.append("<li>\(inlineHTML(from: String(trimmed.dropFirst(2))))</li>")
+        continue
+      }
+      closeLists()
+      if trimmed.hasPrefix(">") {
+        let quote = trimmed.drop(while: { $0 == ">" || $0 == " " })
+        output.append("<blockquote>\(inlineHTML(from: String(quote)))</blockquote>")
+      } else {
+        output.append("<p>\(inlineHTML(from: trimmed))</p>")
+      }
+    }
+    if isInCodeBlock {
+      output.append("<pre><code>\(escapeHTML(codeLines.joined(separator: "\n")))</code></pre>")
+    }
+    closeLists()
+    return output.joined(separator: "\n")
+  }
+
+  private static func inlineHTML(from raw: String) -> String {
+    var protected = raw
+    var fragments: [String: String] = [:]
+    let pattern = #"</?(span|u|strong|b|em|i|s|del|br|mark|sup|sub)(\s+[^>]*)?>"#
+    if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) {
+      let ns = protected as NSString
+      let matches = regex.matches(in: protected, range: NSRange(location: 0, length: ns.length))
+      for (index, match) in matches.enumerated().reversed() {
+        let token = "__QC_HTML_\(index)__"
+        fragments[token] = ns.substring(with: match.range)
+        protected = (protected as NSString).replacingCharacters(in: match.range, with: token)
+      }
+    }
+    var html = escapeHTML(protected)
+    for (token, fragment) in fragments {
+      html = html.replacingOccurrences(of: token, with: fragment)
+    }
+    html = html.replacingOccurrences(of: #"!\[([^\]]*)\]\([^\)]*\)"#, with: "$1", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"\[([^\]]+)\]\([^\)]*\)"#, with: "$1", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"`([^`]+)`"#, with: "<code>$1</code>", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"~~(.+?)~~"#, with: "<del>$1</del>", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"\*\*(.+?)\*\*"#, with: "<strong>$1</strong>", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"__(.+?)__"#, with: "<strong>$1</strong>", options: .regularExpression)
+    html = html.replacingOccurrences(of: #"\*(.+?)\*"#, with: "<em>$1</em>", options: .regularExpression)
+    return html
+  }
+
+  private static func escapeHTML(_ value: String) -> String {
+    value
+      .replacingOccurrences(of: "&", with: "&amp;")
+      .replacingOccurrences(of: "<", with: "&lt;")
+      .replacingOccurrences(of: ">", with: "&gt;")
+      .replacingOccurrences(of: "\"", with: "&quot;")
+  }
+
+  private static func cssColor(_ color: UIColor) -> String {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+      return "#000000"
+    }
+    return String(
+      format: "rgba(%d,%d,%d,%.3f)",
+      Int(round(red * 255)),
+      Int(round(green * 255)),
+      Int(round(blue * 255)),
+      Double(alpha)
+    )
+  }
+}
+
 private final class VoiceWorkspaceDocumentGridCell: UICollectionViewCell {
   static let reuseIdentifier = "VoiceWorkspaceDocumentGridCell"
 
@@ -610,6 +888,7 @@ private final class VoiceWorkspaceDocumentGridCell: UICollectionViewCell {
   private let titleLabel = UILabel(frame: .zero)
   private let detailLabel = UILabel(frame: .zero)
   private let activeBadge = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
+  private var prefersAspectFitThumbnail = false
   override init(frame: CGRect) {
     super.init(frame: frame)
     contentView.backgroundColor = .secondarySystemGroupedBackground
@@ -680,13 +959,14 @@ private final class VoiceWorkspaceDocumentGridCell: UICollectionViewCell {
       detailLabel.text = sizeText
     }
     thumbnailView.image = placeholderImage
-    thumbnailView.contentMode = item.isDirectory ? .scaleAspectFit : .scaleAspectFill
+    prefersAspectFitThumbnail = item.isDirectory || item.fileName.lowercased().hasSuffix(".md")
+    thumbnailView.contentMode = prefersAspectFitThumbnail ? .scaleAspectFit : .scaleAspectFill
     activeBadge.isHidden = !isActive
   }
 
   func updateThumbnail(_ image: UIImage?) {
     guard let image else { return }
     thumbnailView.image = image
-    thumbnailView.contentMode = .scaleAspectFill
+    thumbnailView.contentMode = prefersAspectFitThumbnail ? .scaleAspectFit : .scaleAspectFill
   }
 }

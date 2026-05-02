@@ -32,6 +32,8 @@
 		7A2604260000000000000005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000002 /* ScreenshotTests.swift */; };
 		7A2604260000000000000006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000003 /* SnapshotHelper.swift */; };
 		7A2604260000000000000011 /* ScreenshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000010 /* ScreenshotSupport.swift */; };
+		7B2604260000000000001005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000001002 /* ScreenshotTests.swift */; };
+		7B2604260000000000001006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000001003 /* SnapshotHelper.swift */; };
 		7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */; };
 		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
 		80B7B9768052F3128A75BDE1 /* EmbeddedModuleHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */; };
@@ -88,6 +90,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		7B260426000000000000100B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C03E801D296D4F4C0083E53A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 034DB19F16BC2B6AF3641873;
+			remoteInfo = SCT;
+		};
 		C03EC39B2B06491E00DB741E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C03E801D296D4F4C0083E53A /* Project object */;
@@ -142,12 +151,15 @@
 		6611EB462F15B8E2005608B9 /* icui18n.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icui18n.xcframework; sourceTree = "<group>"; };
 		6611EB472F15B8E2005608B9 /* icuio.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuio.xcframework; sourceTree = "<group>"; };
 		6611EB482F15B8E2005608B9 /* icuuc.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuuc.xcframework; sourceTree = "<group>"; };
+		686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterViewModel.swift; sourceTree = "<group>"; };
+		797F32A514B42D5B4A3AC869 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7A2604260000000000000002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		7A2604260000000000000003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		7A2604260000000000000004 /* HamsterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HamsterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A2604260000000000000010 /* ScreenshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSupport.swift; sourceTree = "<group>"; };
-		686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterViewModel.swift; sourceTree = "<group>"; };
-		797F32A514B42D5B4A3AC869 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		7B2604260000000000001002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
+		7B2604260000000000001003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
+		7B2604260000000000001004 /* SCTUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SCTUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
@@ -206,6 +218,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		7A2604260000000000000009 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7B2604260000000000001009 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -305,6 +324,7 @@
 			isa = PBXGroup;
 			children = (
 				18AFDF75770F5EBCB0D45C5F /* SCT */,
+				7B2604260000000000001010 /* SCTUITests */,
 			);
 			path = gui;
 			sourceTree = "<group>";
@@ -316,6 +336,24 @@
 			);
 			name = mac;
 			path = ../mac;
+			sourceTree = "<group>";
+		};
+		7A2604260000000000000001 /* HamsterUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7A2604260000000000000002 /* ScreenshotTests.swift */,
+				7A2604260000000000000003 /* SnapshotHelper.swift */,
+			);
+			path = HamsterUITests;
+			sourceTree = "<group>";
+		};
+		7B2604260000000000001010 /* SCTUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7B2604260000000000001002 /* ScreenshotTests.swift */,
+				7B2604260000000000001003 /* SnapshotHelper.swift */,
+			);
+			path = SCTUITests;
 			sourceTree = "<group>";
 		};
 		C00C26BA2B069D3500E92F89 /* Frameworks */ = {
@@ -382,15 +420,6 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		7A2604260000000000000001 /* HamsterUITests */ = {
-			isa = PBXGroup;
-			children = (
-				7A2604260000000000000002 /* ScreenshotTests.swift */,
-				7A2604260000000000000003 /* SnapshotHelper.swift */,
-			);
-			path = HamsterUITests;
-			sourceTree = "<group>";
-		};
 		C03E801C296D4F4C0083E53A = {
 			isa = PBXGroup;
 			children = (
@@ -411,6 +440,7 @@
 			children = (
 				C03E8025296D4F4C0083E53A /* Hamster.app */,
 				7A2604260000000000000004 /* HamsterUITests.xctest */,
+				7B2604260000000000001004 /* SCTUITests.xctest */,
 				C03E803C296D53650083E53A /* HamsterKeyboard.appex */,
 				B8525A8107843174DE7A518A /* NanoMouse.app */,
 			);
@@ -486,25 +516,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		7A2604260000000000000007 /* HamsterUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 7A260426000000000000000D /* Build configuration list for PBXNativeTarget "HamsterUITests" */;
-			buildPhases = (
-				7A2604260000000000000008 /* Sources */,
-				7A2604260000000000000009 /* Frameworks */,
-				7A260426000000000000000A /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = HamsterUITests;
-			packageProductDependencies = (
-			);
-			productName = HamsterUITests;
-			productReference = 7A2604260000000000000004 /* HamsterUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 		034DB19F16BC2B6AF3641873 /* SCT */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */;
@@ -527,6 +538,45 @@
 			productName = NanoMouse;
 			productReference = B8525A8107843174DE7A518A /* NanoMouse.app */;
 			productType = "com.apple.product-type.application";
+		};
+		7A2604260000000000000007 /* HamsterUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7A260426000000000000000D /* Build configuration list for PBXNativeTarget "HamsterUITests" */;
+			buildPhases = (
+				7A2604260000000000000008 /* Sources */,
+				7A2604260000000000000009 /* Frameworks */,
+				7A260426000000000000000A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HamsterUITests;
+			packageProductDependencies = (
+			);
+			productName = HamsterUITests;
+			productReference = 7A2604260000000000000004 /* HamsterUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		7B2604260000000000001007 /* SCTUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7B260426000000000000100D /* Build configuration list for PBXNativeTarget "SCTUITests" */;
+			buildPhases = (
+				7B2604260000000000001008 /* Sources */,
+				7B2604260000000000001009 /* Frameworks */,
+				7B260426000000000000100A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7B260426000000000000100C /* PBXTargetDependency */,
+			);
+			name = SCTUITests;
+			packageProductDependencies = (
+			);
+			productName = SCTUITests;
+			productReference = 7B2604260000000000001004 /* SCTUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		C03E8024296D4F4C0083E53A /* Hamster */ = {
 			isa = PBXNativeTarget;
@@ -585,6 +635,10 @@
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = C03E8024296D4F4C0083E53A;
 					};
+					7B2604260000000000001007 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 034DB19F16BC2B6AF3641873;
+					};
 					C03E8024296D4F4C0083E53A = {
 						CreatedOnToolsVersion = 14.2;
 					};
@@ -610,7 +664,7 @@
 			packageReferences = (
 				3181DBEA0F47713243CEC55F /* XCLocalSwiftPackageReference "../mac/Packages/EmbeddedModuleHostKit" */,
 				0F1A2B3C4D5E6F708192A3B6 /* XCLocalSwiftPackageReference "../shared/NanomouseReviewKit" */,
-		705D517CFE924CB240C3044D /* XCLocalSwiftPackageReference "../.private/vendor/Yams" */,
+				705D517CFE924CB240C3044D /* XCLocalSwiftPackageReference "../.private/vendor/Yams" */,
 				65D1E028EB1D6CAC9B1541E3 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
 			productRefGroup = C03E8026296D4F4C0083E53A /* Products */;
@@ -621,18 +675,12 @@
 				7A2604260000000000000007 /* HamsterUITests */,
 				C03E803B296D53650083E53A /* HamsterKeyboard */,
 				034DB19F16BC2B6AF3641873 /* SCT */,
+				7B2604260000000000001007 /* SCTUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		7A260426000000000000000A /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		5D3832E36C966D002944B2B1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -640,6 +688,20 @@
 				CAB4CF2795F7E8CF88CD1580 /* Assets.xcassets in Resources */,
 				0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */,
 				953C7FAB4F9E5F4305BA83AD /* Help.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A260426000000000000000A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7B260426000000000000100A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -675,6 +737,15 @@
 			files = (
 				7A2604260000000000000005 /* ScreenshotTests.swift in Sources */,
 				7A2604260000000000000006 /* SnapshotHelper.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7B2604260000000000001008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B2604260000000000001005 /* ScreenshotTests.swift in Sources */,
+				7B2604260000000000001006 /* SnapshotHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -727,6 +798,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		7B260426000000000000100C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 034DB19F16BC2B6AF3641873 /* SCT */;
+			targetProxy = 7B260426000000000000100B /* PBXContainerItemProxy */;
+		};
 		C03EC39C2B06491E00DB741E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = C03E803B296D53650083E53A /* HamsterKeyboard */;
@@ -802,6 +878,49 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Hamster;
+			};
+			name = Release;
+		};
+		7B260426000000000000100E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCTUITests/SCTUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.macUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = SCT;
+			};
+			name = Debug;
+		};
+		7B260426000000000000100F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCTUITests/SCTUITests.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BG5QAG9M95;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.macUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = SCT;
 			};
 			name = Release;
 		};
@@ -964,7 +1083,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 3.0;
 				OTHER_LDFLAGS = "";
 				OTHER_SWIFT_FLAGS = "$(inherited) -cxx-interoperability-mode=default";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
@@ -1009,7 +1128,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0.1;
+				MARKETING_VERSION = 3.0;
 				OTHER_LDFLAGS = "";
 				OTHER_SWIFT_FLAGS = "$(inherited) -cxx-interoperability-mode=default";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
@@ -1186,6 +1305,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCB68ACF401775F5E8F5D587 /* Release */,
+				F43FFA2BC159491DF6C45863 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		7A260426000000000000000D /* Build configuration list for PBXNativeTarget "HamsterUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1195,11 +1323,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */ = {
+		7B260426000000000000100D /* Build configuration list for PBXNativeTarget "SCTUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				CCB68ACF401775F5E8F5D587 /* Release */,
-				F43FFA2BC159491DF6C45863 /* Debug */,
+				7B260426000000000000100E /* Debug */,
+				7B260426000000000000100F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
