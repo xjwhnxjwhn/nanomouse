@@ -56,7 +56,7 @@ private enum SnapshotOutput {
   }()
 
   private static var platformName: String {
-    UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iOS"
+    UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
   }
 
   static func write(_ screenshot: XCUIScreenshot, name: String) {
