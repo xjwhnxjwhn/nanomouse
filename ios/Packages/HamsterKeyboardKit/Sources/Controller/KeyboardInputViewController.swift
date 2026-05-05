@@ -150,6 +150,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     hasEstablishedHostConnection = true
     startVoiceResultPollingIfNeeded()
     _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
+    applySharedScreenshotStateIfNeeded()
   }
 
   override open func viewWillDisappear(_ animated: Bool) {

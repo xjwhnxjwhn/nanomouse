@@ -121,8 +121,8 @@ struct ContentView: View {
             manager.undoManager = undoManager
             manager.reload()
             schemaStore.loadSchema()
-            if screenshotScenario != nil {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if let screenshotScenario {
+                try? await Task.sleep(nanoseconds: screenshotScenario.readyDelayNanoseconds)
                 screenshotReady = true
             }
         }

@@ -45,6 +45,17 @@ enum MacScreenshotScenario: String, CaseIterable {
             return "07_byte_paste_pdf_preview"
         }
     }
+
+    var readyDelayNanoseconds: UInt64 {
+        switch self {
+        case .bytePaste:
+            return 12_000_000_000
+        case .bytePasteImagePreview, .bytePastePDFPreview:
+            return 3_000_000_000
+        default:
+            return 1_500_000_000
+        }
+    }
 }
 
 enum MacScreenshotMode {

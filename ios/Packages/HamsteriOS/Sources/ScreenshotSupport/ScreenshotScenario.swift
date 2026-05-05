@@ -74,8 +74,12 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
 
   public var readyDelayNanoseconds: UInt64 {
     switch self {
-    case .bytePasteEditor, .bytePasteImagePreview, .bytePastePDFPreview:
+    case .bytePasteEditor:
       return 1_500_000_000
+    case .bytePasteImagePreview:
+      return 2_500_000_000
+    case .bytePastePDFPreview:
+      return 3_500_000_000
     case .keyboardExtension, .keyboardChinese, .keyboardNumberPad:
       return 2_400_000_000
     case .keyboardLongPressA:
