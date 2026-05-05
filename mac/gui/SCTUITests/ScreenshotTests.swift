@@ -26,10 +26,16 @@ final class ScreenshotTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        try openSnapshotDesktopBackgroundFullScreen()
+        addTeardownBlock {
+            closeSnapshotDesktopBackground()
+        }
     }
 
     func testAppStoreScreenshots() throws {
         for scenario in scenarios {
+            try openSnapshotDesktopBackgroundFullScreen()
+
             let app = XCUIApplication()
             setupSnapshot(app)
 

@@ -190,8 +190,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.backgroundColor = .windowBackgroundColor
-            window.isOpaque = true
+            window.backgroundColor = .clear
+            window.isOpaque = false
             window.hasShadow = false
             window.level = .normal
             window.sharingType = .readOnly
@@ -220,7 +220,7 @@ private struct MacScreenshotWindowRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.clear)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screenshot_content")
         .overlay(alignment: .topLeading) {

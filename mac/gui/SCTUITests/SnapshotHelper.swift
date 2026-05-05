@@ -8,13 +8,20 @@
 
 import Foundation
 import AppKit
-import UniformTypeIdentifiers
 import ImageIO
+import UniformTypeIdentifiers
 import XCTest
 
 func setupSnapshot(_ app: XCUIApplication) {
     app.launchEnvironment["FASTLANE_SNAPSHOT"] = "YES"
-    SnapshotOutput.application = app
+}
+
+func openSnapshotDesktopBackgroundFullScreen() throws {
+    try SnapshotDesktopBackground.shared.openFullScreen()
+}
+
+func closeSnapshotDesktopBackground() {
+    SnapshotDesktopBackground.shared.close()
 }
 
 func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 1) {
@@ -33,9 +40,119 @@ func snapshot(_ name: String, timeWaitingForIdle timeout: TimeInterval = 1) {
     }
 }
 
-private enum SnapshotOutput {
-    fileprivate static weak var application: XCUIApplication?
+private final class SnapshotDesktopBackground {
+    static let shared = SnapshotDesktopBackground()
 
+    private let imageURL = URL(
+        fileURLWithPath: "/Users/zhangxiangqing/Desktop/ipt/TESTProduct/desktop_no_icons.png",
+        isDirectory: false
+    )
+    private var window: NSWindow?
+
+    private init() {}
+
+    func openFullScreen() throws {
+        try runOnMain {
+            guard FileManager.default.fileExists(atPath: self.imageURL.path) else {
+                throw SnapshotDesktopBackgroundError.missingImage(self.imageURL.path)
+            }
+            guard let image = NSImage(contentsOf: self.imageURL) else {
+                throw SnapshotDesktopBackgroundError.unreadableImage(self.imageURL.path)
+            }
+            guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+                throw SnapshotDesktopBackgroundError.missingScreen
+            }
+
+            let screenFrame = screen.frame
+            let backgroundWindow: NSWindow
+            if let existingWindow = self.window {
+                backgroundWindow = existingWindow
+                if let imageView = existingWindow.contentView as? NSImageView {
+                    imageView.image = image
+                }
+            } else {
+                let imageView = NSImageView(frame: NSRect(origin: .zero, size: screenFrame.size))
+                imageView.image = image
+                imageView.imageScaling = .scaleAxesIndependently
+
+                backgroundWindow = NSWindow(
+                    contentRect: screenFrame,
+                    styleMask: [.borderless],
+                    backing: .buffered,
+                    defer: false
+                )
+                backgroundWindow.backgroundColor = .black
+                backgroundWindow.isOpaque = true
+                backgroundWindow.hasShadow = false
+                backgroundWindow.ignoresMouseEvents = true
+                backgroundWindow.level = .normal
+                backgroundWindow.collectionBehavior = [
+                    .canJoinAllSpaces,
+                    .fullScreenAuxiliary,
+                    .stationary,
+                    .ignoresCycle
+                ]
+                backgroundWindow.setAccessibilityIdentifier("snapshot_desktop_background")
+                backgroundWindow.setAccessibilityLabel("snapshot_desktop_background")
+                backgroundWindow.contentView = imageView
+                backgroundWindow.isReleasedWhenClosed = false
+                self.window = backgroundWindow
+            }
+
+            backgroundWindow.setFrame(screenFrame, display: true)
+            backgroundWindow.contentView?.frame = NSRect(origin: .zero, size: screenFrame.size)
+            backgroundWindow.orderFrontRegardless()
+        }
+    }
+
+    func close() {
+        runOnMain {
+            self.window?.orderOut(nil)
+            self.window = nil
+        }
+    }
+
+    private func runOnMain<T>(_ work: @escaping () throws -> T) throws -> T {
+        if Thread.isMainThread {
+            return try work()
+        }
+
+        var result: Result<T, Error>!
+        DispatchQueue.main.sync {
+            result = Result {
+                try work()
+            }
+        }
+        return try result.get()
+    }
+
+    private func runOnMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.sync(execute: work)
+        }
+    }
+}
+
+private enum SnapshotDesktopBackgroundError: LocalizedError {
+    case missingImage(String)
+    case unreadableImage(String)
+    case missingScreen
+
+    var errorDescription: String? {
+        switch self {
+        case .missingImage(let path):
+            return "Missing no-icon desktop background image: \(path)"
+        case .unreadableImage(let path):
+            return "Failed to read no-icon desktop background image: \(path)"
+        case .missingScreen:
+            return "No screen is available for the no-icon desktop background."
+        }
+    }
+}
+
+private enum SnapshotOutput {
     private static let rootDirectory = URL(
         fileURLWithPath: "/Users/zhangxiangqing/Desktop/ipt/TESTProduct",
         isDirectory: true
@@ -61,16 +178,8 @@ private enum SnapshotOutput {
     }()
 
     static func capturePNGData() -> Data {
-        if !requiresScreenCropForSeparatePreviewWindow,
-           let pngData = preferredContentScreenshotPNGData() {
-            return pngData
-        }
-        let screenScreenshot = XCUIScreen.main.screenshot()
-        if let windowBounds = screenshotCaptureBounds(),
-           let pngData = cropScreenScreenshot(screenScreenshot.pngRepresentation, to: windowBounds) {
-            return pngData
-        }
-        return fallbackScreenshot(screenScreenshot).pngRepresentation
+        let fullScreenPNGData = XCUIScreen.main.screenshot().pngRepresentation
+        return SnapshotImageProcessor.cropAndResizePNGData(fullScreenPNGData)
     }
 
     static func write(_ pngData: Data, name: String) {
@@ -83,144 +192,6 @@ private enum SnapshotOutput {
         }
     }
 
-    private static func fallbackScreenshot(_ screenScreenshot: XCUIScreenshot) -> XCUIScreenshot {
-        if let window = application?.windows
-            .matching(identifier: "screenshot_window")
-            .firstMatch,
-           window.exists {
-            return window.screenshot()
-        }
-        if let window = application?.windows.firstMatch, window.exists {
-            return window.screenshot()
-        }
-        return screenScreenshot
-    }
-
-    private static func preferredContentScreenshotPNGData() -> Data? {
-        guard let application else { return nil }
-        let contentElement = application.descendants(matching: .any)
-            .matching(identifier: "screenshot_content")
-            .firstMatch
-        guard contentElement.waitForExistence(timeout: 1) else {
-            return nil
-        }
-
-        let frame = contentElement.frame
-        guard frame.width >= 600, frame.height >= 400 else {
-            return nil
-        }
-
-        return contentElement.screenshot().pngRepresentation
-    }
-
-    private static var requiresScreenCropForSeparatePreviewWindow: Bool {
-        let scenario = ProcessInfo.processInfo.environment["SCREENSHOT_SCENARIO"]
-        return scenario == "bytePasteImagePreview" || scenario == "bytePastePDFPreview"
-    }
-
-    private static func screenshotCaptureBounds() -> CGRect? {
-        if requiresScreenCropForSeparatePreviewWindow {
-            return screenshotWindowUnionBounds()
-        }
-        return screenshotWindowBounds()
-    }
-
-    private static func screenshotWindowBounds() -> CGRect? {
-        guard let screenFrame = NSScreen.main?.frame else {
-            return nil
-        }
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]] else {
-            return nil
-        }
-
-        let candidate = windows
-            .compactMap { info -> (bounds: CGRect, area: CGFloat)? in
-                guard let ownerName = info[kCGWindowOwnerName as String] as? String,
-                      ownerName == "NanoMouse",
-                      let layer = info[kCGWindowLayer as String] as? Int,
-                      layer == 0,
-                      let boundsValue = info[kCGWindowBounds as String],
-                      CFGetTypeID(boundsValue as CFTypeRef) == CFDictionaryGetTypeID(),
-                      var bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary),
-                      bounds.width >= 700,
-                      bounds.height >= 500 else {
-                    return nil
-                }
-                bounds.origin.x = max(0, min(bounds.origin.x, screenFrame.width))
-                bounds.origin.y = max(0, min(bounds.origin.y, screenFrame.height))
-                bounds.size.width = min(bounds.width, screenFrame.width - bounds.minX)
-                bounds.size.height = min(bounds.height, screenFrame.height - bounds.minY)
-                guard bounds.width > 0, bounds.height > 0 else { return nil }
-                return (bounds, bounds.width * bounds.height)
-            }
-            .max(by: { $0.area < $1.area })
-
-        return candidate?.bounds
-    }
-
-    private static func screenshotWindowUnionBounds() -> CGRect? {
-        guard let screenFrame = NSScreen.main?.frame else {
-            return nil
-        }
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]] else {
-            return nil
-        }
-
-        let bounds = windows.compactMap { info -> CGRect? in
-            guard let ownerName = info[kCGWindowOwnerName as String] as? String,
-                  ownerName == "NanoMouse",
-                  let layer = info[kCGWindowLayer as String] as? Int,
-                  layer == 0,
-                  let boundsValue = info[kCGWindowBounds as String],
-                  CFGetTypeID(boundsValue as CFTypeRef) == CFDictionaryGetTypeID(),
-                  var bounds = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary),
-                  bounds.width >= 320,
-                  bounds.height >= 240 else {
-                return nil
-            }
-            bounds.origin.x = max(0, min(bounds.origin.x, screenFrame.width))
-            bounds.origin.y = max(0, min(bounds.origin.y, screenFrame.height))
-            bounds.size.width = min(bounds.width, screenFrame.width - bounds.minX)
-            bounds.size.height = min(bounds.height, screenFrame.height - bounds.minY)
-            guard bounds.width > 0, bounds.height > 0 else { return nil }
-            return bounds
-        }
-
-        guard var union = bounds.first else { return nil }
-        for bounds in bounds.dropFirst() {
-            union = union.union(bounds)
-        }
-        return union
-    }
-
-    private static func cropScreenScreenshot(_ pngData: Data, to windowBounds: CGRect) -> Data? {
-        guard let screenFrame = NSScreen.main?.frame,
-              let source = CGImageSourceCreateWithData(pngData as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
-            return nil
-        }
-
-        let scaleX = CGFloat(image.width) / screenFrame.width
-        let scaleY = CGFloat(image.height) / screenFrame.height
-        let cropRect = CGRect(
-            x: windowBounds.minX * scaleX,
-            y: (screenFrame.height - windowBounds.maxY) * scaleY,
-            width: windowBounds.width * scaleX,
-            height: windowBounds.height * scaleY
-        ).integral
-
-        guard cropRect.width > 0,
-              cropRect.height > 0,
-              let cropped = image.cropping(to: cropRect) else {
-            return nil
-        }
-
-        let representation = NSBitmapImageRep(cgImage: cropped)
-        return representation.representation(using: .png, properties: [:])
-    }
-
     private static func sanitizedFileName(_ name: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
         let sanitized = name.unicodeScalars
@@ -228,5 +199,111 @@ private enum SnapshotOutput {
             .joined()
 
         return sanitized.isEmpty ? "snapshot" : sanitized
+    }
+}
+
+private enum SnapshotImageProcessor {
+    private static let outputWidth = 2560
+    private static let outputHeight = 1600
+    private static let outputSize = CGSize(width: CGFloat(outputWidth), height: CGFloat(outputHeight))
+    private static let outputAspectRatio = CGFloat(outputWidth) / CGFloat(outputHeight)
+
+    static func cropAndResizePNGData(_ pngData: Data) -> Data {
+        guard let imageSource = CGImageSourceCreateWithData(pngData as CFData, nil),
+              let sourceImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+            XCTFail("Failed to decode full-screen screenshot PNG data.")
+            return pngData
+        }
+
+        guard let croppedImage = sourceImage.cropping(to: cropRect(for: sourceImage)) else {
+            XCTFail("Failed to crop full-screen screenshot to 16:10.")
+            return pngData
+        }
+
+        guard let resizedImage = resizedImage(from: croppedImage) else {
+            XCTFail("Failed to resize screenshot to \(outputWidth)x\(outputHeight).")
+            return pngData
+        }
+
+        guard let outputData = encodedPNGData(from: resizedImage) else {
+            XCTFail("Failed to encode \(outputWidth)x\(outputHeight) screenshot PNG data.")
+            return pngData
+        }
+
+        return outputData
+    }
+
+    private static func cropRect(for image: CGImage) -> CGRect {
+        let sourceWidth = image.width
+        let sourceHeight = image.height
+        let sourceAspectRatio = CGFloat(sourceWidth) / CGFloat(sourceHeight)
+
+        if sourceAspectRatio > outputAspectRatio {
+            let cropWidth = min(
+                sourceWidth,
+                Int((CGFloat(sourceHeight) * outputAspectRatio).rounded(.toNearestOrAwayFromZero))
+            )
+            let cropX = max(0, (sourceWidth - cropWidth) / 2)
+            return CGRect(
+                x: CGFloat(cropX),
+                y: 0,
+                width: CGFloat(cropWidth),
+                height: CGFloat(sourceHeight)
+            )
+        }
+
+        let cropHeight = min(
+            sourceHeight,
+            Int((CGFloat(sourceWidth) / outputAspectRatio).rounded(.toNearestOrAwayFromZero))
+        )
+        // Full-screen macOS captures include the menu bar at the top. When the
+        // source is too tall, trimming from the top removes that bar first.
+        let cropY = max(0, sourceHeight - cropHeight)
+        return CGRect(
+            x: 0,
+            y: CGFloat(cropY),
+            width: CGFloat(sourceWidth),
+            height: CGFloat(cropHeight)
+        )
+    }
+
+    private static func resizedImage(from image: CGImage) -> CGImage? {
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+        guard let context = CGContext(
+            data: nil,
+            width: outputWidth,
+            height: outputHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
+            return nil
+        }
+
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(origin: .zero, size: outputSize))
+        return context.makeImage()
+    }
+
+    private static func encodedPNGData(from image: CGImage) -> Data? {
+        let outputData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            outputData,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            return nil
+        }
+
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            return nil
+        }
+
+        return outputData as Data
     }
 }
