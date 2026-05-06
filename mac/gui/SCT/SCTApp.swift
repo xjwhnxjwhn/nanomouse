@@ -185,7 +185,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     .preferredColorScheme(MacScreenshotMode.theme?.colorScheme)
             )
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1080, height: 780),
+                contentRect: NSRect(origin: .zero, size: scenario.windowSize),
                 styleMask: [.borderless],
                 backing: .buffered,
                 defer: false

@@ -56,6 +56,15 @@ enum MacScreenshotScenario: String, CaseIterable {
             return 1_500_000_000
         }
     }
+
+    var windowSize: CGSize {
+        switch self {
+        case .bytePaste, .bytePasteEditor, .bytePasteImagePreview, .bytePastePDFPreview:
+            return CGSize(width: 756, height: 760)
+        case .canvas, .markdown, .causal:
+            return CGSize(width: 840, height: 760)
+        }
+    }
 }
 
 enum MacScreenshotMode {
