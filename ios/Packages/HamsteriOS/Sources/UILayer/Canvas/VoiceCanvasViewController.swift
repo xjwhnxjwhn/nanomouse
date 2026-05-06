@@ -246,9 +246,11 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var causalRows: [VoiceCausalEdgeRowView] = []
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
+  private var hasStartedCausalRendererLoad = false
   private var pendingMarkdownRenderWorkItem: DispatchWorkItem?
   private var pendingMarkdownAutosaveWorkItem: DispatchWorkItem?
   private var isMarkdownRendererReady = false
+  private var hasStartedMarkdownRendererLoad = false
   private var suppressDoneTapOnce = false
   private var canvasDocumentItems: [VoiceWorkspaceDocumentItem] = []
   private var canvasPathComponents: [String] = []
@@ -984,8 +986,6 @@ final class VoiceCanvasViewController: NibLessViewController {
     super.viewDidLoad()
     availableMarkdownFontOptions = buildMarkdownFontOptions()
     setupView()
-    setupMarkdownRendererIfNeeded()
-    setupCausalRendererIfNeeded()
     restoreMarkdownDraftIfNeeded()
     loadCausalDraft()
     applyCanvasMode(.draw, force: true)
@@ -2093,6 +2093,8 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func setupCausalRendererIfNeeded() {
+    guard !hasStartedCausalRendererLoad else { return }
+    hasStartedCausalRendererLoad = true
     let bundle = Bundle.module
     let htmlURL =
       bundle.url(forResource: "causal_renderer", withExtension: "html", subdirectory: "Causal")
@@ -2312,6 +2314,8 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func setupMarkdownRendererIfNeeded() {
+    guard !hasStartedMarkdownRendererLoad else { return }
+    hasStartedMarkdownRendererLoad = true
     let bundle = Bundle.module
     if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
       isMarkdownRendererReady = false
@@ -3052,6 +3056,7 @@ final class VoiceCanvasViewController: NibLessViewController {
         : "已从键盘进入画布。复制后返回宿主 App，即可粘贴图片。"
     case .markdown:
       titleLabel.text = "Markdown"
+      setupMarkdownRendererIfNeeded()
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = false
@@ -3077,6 +3082,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       statusLabel.text = "导入任意文件到 NanoMouse 的 iCloud 文件夹，并在各端同步使用。"
     case .causal:
       titleLabel.text = "因果图"
+      setupCausalRendererIfNeeded()
       setToolPickerVisible(false)
       canvasView.isHidden = true
       markdownContainerView.isHidden = true
