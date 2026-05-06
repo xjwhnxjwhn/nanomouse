@@ -30,79 +30,74 @@ final class ScreenshotTests: XCTestCase {
     }
   }
 
-  private static let home = Scenario(outputName: "01_home", id: "home", readyIdentifier: "screenshot_ready_home")
-  private static let editor = Scenario(outputName: "02_editor", id: "editor", readyIdentifier: "screenshot_ready_editor")
-  private static let settings = Scenario(outputName: "03_settings", id: "settings", readyIdentifier: "screenshot_ready_settings")
-  private static let bytePaste = Scenario(outputName: "04_byte_paste", id: "bytePaste", readyIdentifier: "screenshot_ready_bytePaste", settleDelay: 8)
-  private static let bytePasteEditor = Scenario(outputName: "05_byte_paste_editor", id: "bytePasteEditor", readyIdentifier: "screenshot_ready_bytePasteEditor")
-  private static let canvas = Scenario(outputName: "06_canvas", id: "canvas", readyIdentifier: "screenshot_ready_canvas")
-  private static let markdown = Scenario(outputName: "07_markdown", id: "markdown", readyIdentifier: "screenshot_ready_markdown")
-  private static let causal = Scenario(outputName: "08_causal", id: "causal", readyIdentifier: "screenshot_ready_causal")
-  private static let keyboardExtension = Scenario(outputName: "09_keyboard_extension", id: "keyboardExtension", readyIdentifier: "screenshot_ready_keyboardExtension", settleDelay: 7)
-  private static let keyboardChinese = Scenario(outputName: "10_keyboard_chinese", id: "keyboardChinese", readyIdentifier: "screenshot_ready_keyboardChinese", settleDelay: 7)
-  private static let keyboardLongPressA = Scenario(outputName: "11_keyboard_long_press_a", id: "keyboardLongPressA", readyIdentifier: "screenshot_ready_keyboardLongPressA", settleDelay: 9)
-  private static let keyboardNumberPad = Scenario(outputName: "12_keyboard_number_pad", id: "keyboardNumberPad", readyIdentifier: "screenshot_ready_keyboardNumberPad", settleDelay: 7)
-  private static let bytePasteImagePreview = Scenario(outputName: "13_byte_paste_image_preview", id: "bytePasteImagePreview", readyIdentifier: "screenshot_ready_bytePasteImagePreview", settleDelay: 3.5)
-  private static let bytePastePDFPreview = Scenario(outputName: "14_byte_paste_pdf_preview", id: "bytePastePDFPreview", readyIdentifier: "screenshot_ready_bytePastePDFPreview", settleDelay: 4.5)
+  private static let bytePaste = Scenario(outputName: "01_byte_paste", id: "bytePaste", readyIdentifier: "screenshot_ready_bytePaste", settleDelay: 8)
+  private static let bytePasteEditor = Scenario(outputName: "02_byte_paste_editor", id: "bytePasteEditor", readyIdentifier: "screenshot_ready_bytePasteEditor")
+  private static let bytePasteImagePreview = Scenario(outputName: "03_byte_paste_image_preview", id: "bytePasteImagePreview", readyIdentifier: "screenshot_ready_bytePasteImagePreview", settleDelay: 3.5)
+  private static let bytePastePDFPreview = Scenario(outputName: "04_byte_paste_pdf_preview", id: "bytePastePDFPreview", readyIdentifier: "screenshot_ready_bytePastePDFPreview", settleDelay: 4.5)
+  private static let canvas = Scenario(outputName: "05_canvas", id: "canvas", readyIdentifier: "screenshot_ready_canvas")
+  private static let markdown = Scenario(outputName: "06_markdown", id: "markdown", readyIdentifier: "screenshot_ready_markdown")
+  private static let causal = Scenario(outputName: "07_causal", id: "causal", readyIdentifier: "screenshot_ready_causal")
+  private static let home = Scenario(outputName: "08_home", id: "home", readyIdentifier: "screenshot_ready_home")
+  private static let settings = Scenario(outputName: "09_settings", id: "settings", readyIdentifier: "screenshot_ready_settings")
+  private static let keyboardExtension = Scenario(outputName: "10_keyboard_extension", id: "keyboardExtension", readyIdentifier: "screenshot_ready_keyboardExtension", settleDelay: 7)
+  private static let keyboardChinese = Scenario(outputName: "11_keyboard_chinese", id: "keyboardChinese", readyIdentifier: "screenshot_ready_keyboardChinese", settleDelay: 7)
+  private static let keyboardLongPressA = Scenario(outputName: "12_keyboard_long_press_a", id: "keyboardLongPressA", readyIdentifier: "screenshot_ready_keyboardLongPressA", settleDelay: 9)
+  private static let keyboardNumberPad = Scenario(outputName: "13_keyboard_number_pad", id: "keyboardNumberPad", readyIdentifier: "screenshot_ready_keyboardNumberPad", settleDelay: 7)
 
   override func setUpWithError() throws {
     continueAfterFailure = false
   }
 
-  func test01Home() throws {
-    try capture(Self.home)
-  }
-
-  func test02Editor() throws {
-    try capture(Self.editor)
-  }
-
-  func test03Settings() throws {
-    try capture(Self.settings)
-  }
-
-  func test04BytePaste() throws {
+  func test01BytePaste() throws {
     try capture(Self.bytePaste)
   }
 
-  func test05BytePasteEditor() throws {
+  func test02BytePasteEditor() throws {
     try capture(Self.bytePasteEditor)
   }
 
-  func test06Canvas() throws {
-    try capture(Self.canvas)
-  }
-
-  func test07Markdown() throws {
-    try capture(Self.markdown)
-  }
-
-  func test08Causal() throws {
-    try capture(Self.causal)
-  }
-
-  func test09KeyboardExtension() throws {
-    try capture(Self.keyboardExtension)
-  }
-
-  func test10KeyboardChinese() throws {
-    try capture(Self.keyboardChinese)
-  }
-
-  func test11KeyboardLongPressA() throws {
-    try capture(Self.keyboardLongPressA)
-  }
-
-  func test12KeyboardNumberPad() throws {
-    try capture(Self.keyboardNumberPad)
-  }
-
-  func test13BytePasteImagePreview() throws {
+  func test03BytePasteImagePreview() throws {
     try capture(Self.bytePasteImagePreview)
   }
 
-  func test14BytePastePDFPreview() throws {
+  func test04BytePastePDFPreview() throws {
     try capture(Self.bytePastePDFPreview)
+  }
+
+  func test05Canvas() throws {
+    try capture(Self.canvas)
+  }
+
+  func test06Markdown() throws {
+    try capture(Self.markdown)
+  }
+
+  func test07Causal() throws {
+    try capture(Self.causal)
+  }
+
+  func test08Home() throws {
+    try capture(Self.home)
+  }
+
+  func test09Settings() throws {
+    try capture(Self.settings)
+  }
+
+  func test10KeyboardExtension() throws {
+    try capture(Self.keyboardExtension)
+  }
+
+  func test11KeyboardChinese() throws {
+    try capture(Self.keyboardChinese)
+  }
+
+  func test12KeyboardLongPressA() throws {
+    try capture(Self.keyboardLongPressA)
+  }
+
+  func test13KeyboardNumberPad() throws {
+    try capture(Self.keyboardNumberPad)
   }
 
   private func capture(_ scenario: Scenario) throws {

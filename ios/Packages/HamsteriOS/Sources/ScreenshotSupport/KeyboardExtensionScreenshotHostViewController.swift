@@ -39,6 +39,7 @@ final class KeyboardExtensionScreenshotHostViewController: UIViewController {
     textView.font = .preferredFont(forTextStyle: .title3)
     textView.textColor = .label
     textView.backgroundColor = .secondarySystemGroupedBackground
+    textView.keyboardType = .alphabet
     textView.layer.cornerRadius = 18
     textView.layer.cornerCurve = .continuous
     textView.textContainerInset = UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)

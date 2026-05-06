@@ -34,33 +34,33 @@ public enum ScreenshotScenario: String, CaseIterable, Sendable {
   public var outputName: String {
     switch self {
     case .home:
-      return "01_home"
+      return "08_home"
     case .editor:
       return "02_editor"
     case .settings:
-      return "03_settings"
+      return "09_settings"
     case .bytePaste:
-      return "04_byte_paste"
+      return "01_byte_paste"
     case .bytePasteEditor:
-      return "05_byte_paste_editor"
+      return "02_byte_paste_editor"
     case .canvas:
-      return "06_canvas"
+      return "05_canvas"
     case .markdown:
-      return "07_markdown"
+      return "06_markdown"
     case .causal:
-      return "08_causal"
+      return "07_causal"
     case .keyboardExtension:
-      return "09_keyboard_extension"
+      return "10_keyboard_extension"
     case .keyboardChinese:
-      return "10_keyboard_chinese"
+      return "11_keyboard_chinese"
     case .keyboardLongPressA:
-      return "11_keyboard_long_press_a"
+      return "12_keyboard_long_press_a"
     case .keyboardNumberPad:
-      return "12_keyboard_number_pad"
+      return "13_keyboard_number_pad"
     case .bytePasteImagePreview:
-      return "13_byte_paste_image_preview"
+      return "03_byte_paste_image_preview"
     case .bytePastePDFPreview:
-      return "14_byte_paste_pdf_preview"
+      return "04_byte_paste_pdf_preview"
     case .premium:
       return "15_premium"
     case .onboarding:

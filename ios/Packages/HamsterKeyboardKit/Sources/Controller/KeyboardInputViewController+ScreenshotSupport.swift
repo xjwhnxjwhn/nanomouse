@@ -39,33 +39,33 @@ public extension KeyboardInputViewController {
     guard KeyboardScreenshotRuntime.isEnabled else { return }
     let identifier = KeyboardScreenshotRuntime.scenarioIdentifier ?? "keyboardChinese"
 
-    if identifier == "keyboardExtension" {
-      for delay in [0.35, 0.9, 1.5] {
+    func schedule(_ delays: [TimeInterval], action: @escaping (KeyboardInputViewController) -> Void) {
+      for delay in delays {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
+          guard let self else { return }
+          guard KeyboardScreenshotRuntime.scenarioIdentifier == identifier else { return }
+          action(self)
         }
       }
-      for delay in [2.2, 3.0, 4.2] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.applyScreenshotKeyboardState(identifier: identifier)
-        }
+    }
+
+    if identifier == "keyboardExtension" {
+      schedule([0.35, 0.9, 1.5]) {
+        $0.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
+      }
+      schedule([2.2, 3.0, 4.2]) {
+        $0.applyScreenshotKeyboardState(identifier: identifier)
       }
     } else if identifier == "keyboardLongPressA" {
-      for delay in [0.35, 0.9, 1.5] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
-        }
+      schedule([0.35, 0.9, 1.5]) {
+        $0.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
       }
-      for delay in [2.2, 3.0, 4.2] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.showScreenshotLongPressWhenReady(for: "a")
-        }
+      schedule([2.2, 3.0, 4.2]) {
+        $0.showScreenshotLongPressWhenReady(for: "a")
       }
     } else {
-      for delay in [0.35, 0.9, 1.5, 2.2] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-          self?.prepareScreenshotKeyboardState(identifier: identifier, forceInputModeSwitchKey: false)
-        }
+      schedule([0.35, 0.9, 1.5, 2.2]) {
+        $0.prepareScreenshotKeyboardState(identifier: identifier, forceInputModeSwitchKey: false)
       }
     }
     #endif
@@ -193,11 +193,15 @@ private enum KeyboardScreenshotRuntime {
 
   static var scenarioIdentifier: String? {
     #if DEBUG
+    if let sharedValue = UserDefaults(suiteName: HamsterConstants.appGroupName)?.string(forKey: scenarioKey),
+       !sharedValue.isEmpty {
+      return sharedValue
+    }
     if let environmentValue = ProcessInfo.processInfo.environment["SCREENSHOT_SCENARIO"],
        !environmentValue.isEmpty {
       return environmentValue
     }
-    return UserDefaults(suiteName: HamsterConstants.appGroupName)?.string(forKey: scenarioKey)
+    return nil
     #else
     return nil
     #endif
