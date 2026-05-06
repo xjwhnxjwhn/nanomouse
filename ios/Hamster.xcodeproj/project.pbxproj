@@ -27,6 +27,8 @@
 		6611EB4E2F15B8E2005608B9 /* icui18n.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB462F15B8E2005608B9 /* icui18n.xcframework */; };
 		6611EB4F2F15B8E2005608B9 /* icuio.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB472F15B8E2005608B9 /* icuio.xcframework */; };
 		6611EB502F15B8E2005608B9 /* icuuc.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6611EB482F15B8E2005608B9 /* icuuc.xcframework */; };
+		662EB88E2FAB498500DEAAFD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 662EB88D2FAB498500DEAAFD /* StoreKit.framework */; };
+		662EB8902FAB499100DEAAFD /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 662EB88F2FAB499100DEAAFD /* StoreKit.framework */; };
 		6EEB847DF307BC5D9D7BAAA6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797F32A514B42D5B4A3AC869 /* ContentView.swift */; };
 		7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = A583BF6DB266C2092B020A23 /* Yams */; };
 		7A2604260000000000000005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000002 /* ScreenshotTests.swift */; };
@@ -151,6 +153,8 @@
 		6611EB462F15B8E2005608B9 /* icui18n.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icui18n.xcframework; sourceTree = "<group>"; };
 		6611EB472F15B8E2005608B9 /* icuio.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuio.xcframework; sourceTree = "<group>"; };
 		6611EB482F15B8E2005608B9 /* icuuc.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = icuuc.xcframework; sourceTree = "<group>"; };
+		662EB88D2FAB498500DEAAFD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = System/Library/Frameworks/StoreKit.framework; sourceTree = SDKROOT; };
+		662EB88F2FAB499100DEAAFD /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/System/Library/Frameworks/StoreKit.framework; sourceTree = DEVELOPER_DIR; };
 		686C61A48062B8FFD03E5002 /* UpdaterViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterViewModel.swift; sourceTree = "<group>"; };
 		797F32A514B42D5B4A3AC869 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7A2604260000000000000002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
@@ -238,6 +242,7 @@
 				C00C26C72B069D6A00E92F89 /* boost_filesystem.xcframework in Frameworks */,
 				C00C26D62B069D6A00E92F89 /* libleveldb.xcframework in Frameworks */,
 				C00C26D02B069D6A00E92F89 /* libglog.xcframework in Frameworks */,
+				662EB88E2FAB498500DEAAFD /* StoreKit.framework in Frameworks */,
 				C00C26D32B069D6A00E92F89 /* libyaml-cpp.xcframework in Frameworks */,
 				C00C26E52B069D6A00E92F89 /* libmarisa.xcframework in Frameworks */,
 				C00C26E22B069D6A00E92F89 /* boost_locale.xcframework in Frameworks */,
@@ -282,6 +287,7 @@
 				0F1A2B3C4D5E6F708192A3B4 /* NanomouseReviewKit in Frameworks */,
 				93574C47469B70B73C84AC1E /* Cocoa.framework in Frameworks */,
 				4E6A7E2E38D6AB8BC32C8422 /* EmbeddedModuleHostKit in Frameworks */,
+				662EB8902FAB499100DEAAFD /* StoreKit.framework in Frameworks */,
 				7434EF8D05A41F52DF8FD2A4 /* Yams in Frameworks */,
 				1C727EEE95267F4EB56B27A8 /* MarkdownUI in Frameworks */,
 			);
@@ -359,6 +365,8 @@
 		C00C26BA2B069D3500E92F89 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				662EB88F2FAB499100DEAAFD /* StoreKit.framework */,
+				662EB88D2FAB498500DEAAFD /* StoreKit.framework */,
 				6611EB452F15B8E2005608B9 /* icudata.xcframework */,
 				6611EB462F15B8E2005608B9 /* icui18n.xcframework */,
 				6611EB472F15B8E2005608B9 /* icuio.xcframework */,
@@ -1163,7 +1171,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 3.0;
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-all_load",
@@ -1200,7 +1208,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.0;
+				MARKETING_VERSION = 3.0;
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-all_load",
@@ -1226,7 +1234,7 @@
 				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCT/SCT.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1243,8 +1251,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.mac;
+				MARKETING_VERSION = 3.0;
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = NanoMouse;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;
@@ -1269,7 +1278,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				ENABLE_APP_SANDBOX = YES;
@@ -1287,8 +1296,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0.2;
-				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse.mac;
+				MARKETING_VERSION = 3.0;
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = NanoMouse;
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = macosx;

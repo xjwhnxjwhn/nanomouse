@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
    LastUpgradeVersion = "1600"
-   version = "1.3">
+   version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES">
@@ -65,7 +65,7 @@
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Release"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -74,6 +74,24 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
+      <PreActions>
+         <ExecutionAction
+            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
+            <ActionContent
+               title = "Sign SwiftPM Package Frameworks"
+               scriptText = "set -e&#10;&#10;PACKAGE_FRAMEWORKS_DIR=&quot;${BUILT_PRODUCTS_DIR}/PackageFrameworks&quot;&#10;[ -d &quot;${PACKAGE_FRAMEWORKS_DIR}&quot; ] || exit 0&#10;&#10;SIGN_IDENTITY=&quot;${EXPANDED_CODE_SIGN_IDENTITY:-}&quot;&#10;if [ -z &quot;${SIGN_IDENTITY}&quot; ] || [ &quot;${SIGN_IDENTITY}&quot; = &quot;-&quot; ] || [ &quot;${CODE_SIGNING_ALLOWED:-YES}&quot; = &quot;NO&quot; ]; then&#10;  exit 0&#10;fi&#10;&#10;for framework in &quot;${PACKAGE_FRAMEWORKS_DIR}&quot;/*.framework; do&#10;  [ -d &quot;${framework}&quot; ] || continue&#10;  /usr/bin/codesign --force --sign &quot;${SIGN_IDENTITY}&quot; --options runtime --timestamp=none &quot;${framework}&quot;&#10;done&#10;">
+               <EnvironmentBuildable>
+                  <BuildableReference
+                     BuildableIdentifier = "primary"
+                     BlueprintIdentifier = "034DB19F16BC2B6AF3641873"
+                     BuildableName = "NanoMouse.app"
+                     BlueprintName = "SCT"
+                     ReferencedContainer = "container:Hamster.xcodeproj">
+                  </BuildableReference>
+               </EnvironmentBuildable>
+            </ActionContent>
+         </ExecutionAction>
+      </PreActions>
       <BuildableProductRunnable
          runnableDebuggingMode = "0">
          <BuildableReference
