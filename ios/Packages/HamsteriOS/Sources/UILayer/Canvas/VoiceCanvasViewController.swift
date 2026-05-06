@@ -378,7 +378,7 @@ final class VoiceCanvasViewController: NibLessViewController {
       identifier: systemIdentifier,
       displayName: "系统默认",
       editorFont: .systemFont(ofSize: 15, weight: .regular),
-      cssFontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif"
+      cssFontFamily: "'PingFang SC', 'Hiragino Sans', 'Hiragino Sans W3', 'HiraginoSans-W3', 'Hiragino Kaku Gothic ProN', 'HiraKakuProN-W3', 'Apple Color Emoji', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
     )
 
     let identifier: String
@@ -406,7 +406,7 @@ final class VoiceCanvasViewController: NibLessViewController {
           width: 100%;
           height: 100%;
           background: transparent;
-          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+          font-family: "PingFang SC", "Hiragino Sans", "Hiragino Sans W3", "HiraginoSans-W3", "Hiragino Kaku Gothic ProN", "HiraKakuProN-W3", "Apple Color Emoji", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
         }
         #content {
           box-sizing: border-box;
@@ -442,12 +442,12 @@ final class VoiceCanvasViewController: NibLessViewController {
   """
 
   private static let markdownFontPresets: [MarkdownFontPreset] = [
-    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "-apple-system, sans-serif"),
-    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', -apple-system, sans-serif"),
+    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', -apple-system, sans-serif"),
     .init(displayName: "Songti SC", candidates: ["SongtiSC-Regular", "Songti SC"], cssFallback: "'Noto Serif CJK SC', serif"),
     .init(displayName: "Kaiti SC", candidates: ["KaitiSC-Regular", "Kaiti SC"], cssFallback: "'STKaiti', serif"),
     .init(displayName: "Heiti SC", candidates: ["STHeitiSC-Light", "Heiti SC"], cssFallback: "'Hiragino Sans GB', sans-serif"),
-    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'PingFang SC', sans-serif"),
+    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', 'PingFang SC', sans-serif"),
     .init(displayName: "STFangsong", candidates: ["STFangsong", "FangSong"], cssFallback: "'Songti SC', serif"),
     .init(displayName: "STSong", candidates: ["STSongti-SC-Regular", "STSong"], cssFallback: "'Songti SC', serif"),
     .init(displayName: "Helvetica Neue", candidates: ["HelveticaNeue", "Helvetica Neue"], cssFallback: "Helvetica, Arial, sans-serif"),
@@ -2315,13 +2315,13 @@ final class VoiceCanvasViewController: NibLessViewController {
     let bundle = Bundle.module
     if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
       isMarkdownRendererReady = false
-      markdownPreviewWebView.loadHTMLString(rendererHTML, baseURL: bundle.bundleURL)
+      loadMarkdownRendererHTML(rendererHTML, baseURL: bundle.bundleURL)
       scheduleMarkdownRendererReadinessFallback()
       return
     }
     guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
       isMarkdownRendererReady = false
-      markdownPreviewWebView.loadHTMLString(Self.markdownRendererFallbackHTML, baseURL: nil)
+      loadMarkdownRendererHTML(Self.markdownRendererFallbackHTML, baseURL: nil)
       statusLabel.text = "Markdown 预览初始化失败，已切换基础模式。"
       scheduleMarkdownRendererReadinessFallback()
       return
@@ -2329,6 +2329,23 @@ final class VoiceCanvasViewController: NibLessViewController {
     isMarkdownRendererReady = false
     markdownPreviewWebView.loadFileURL(htmlURL, allowingReadAccessTo: bundle.bundleURL)
     scheduleMarkdownRendererReadinessFallback()
+  }
+
+  private func loadMarkdownRendererHTML(_ html: String, baseURL: URL?) {
+    guard let data = html.data(using: .utf8) else {
+      markdownPreviewWebView.loadHTMLString(html, baseURL: baseURL)
+      return
+    }
+    markdownPreviewWebView.load(
+      data,
+      mimeType: "text/html",
+      characterEncodingName: "UTF-8",
+      baseURL: baseURL ?? Self.markdownRendererFallbackBaseURL
+    )
+  }
+
+  private static var markdownRendererFallbackBaseURL: URL {
+    URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
   }
 
   private func scheduleMarkdownRendererReadinessFallback() {

@@ -4056,6 +4056,11 @@ private extension KeyboardInputViewController {
               moduleIdentifier.isEmpty == false else {
           return
         }
+        if notification.userInfo?[KeyboardEmbeddedModuleNotification.forceOpenUserInfoKey] as? Bool == true {
+          guard self.activeEmbeddedModuleIdentifier != moduleIdentifier else { return }
+          self.toggleEmbeddedModule(moduleIdentifier: moduleIdentifier)
+          return
+        }
         self.toggleEmbeddedModule(moduleIdentifier: moduleIdentifier)
       }
       .store(in: &cancellables)

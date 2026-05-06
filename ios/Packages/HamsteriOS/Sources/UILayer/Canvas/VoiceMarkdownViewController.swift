@@ -153,7 +153,7 @@ final class VoiceMarkdownViewController: NibLessViewController {
       identifier: systemIdentifier,
       displayName: "系统默认",
       editorFont: .systemFont(ofSize: 15, weight: .regular),
-      cssFontFamily: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif"
+      cssFontFamily: "'PingFang SC', 'Hiragino Sans', 'Hiragino Sans W3', 'HiraginoSans-W3', 'Hiragino Kaku Gothic ProN', 'HiraKakuProN-W3', 'Apple Color Emoji', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
     )
 
     let identifier: String
@@ -169,12 +169,12 @@ final class VoiceMarkdownViewController: NibLessViewController {
   }
 
   private static let markdownFontPresets: [MarkdownFontPreset] = [
-    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "-apple-system, sans-serif"),
-    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "-apple-system, sans-serif"),
+    .init(displayName: "PingFang SC", candidates: ["PingFangSC-Regular", "PingFang SC"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', -apple-system, sans-serif"),
+    .init(displayName: "PingFang TC", candidates: ["PingFangTC-Regular", "PingFang TC"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', -apple-system, sans-serif"),
     .init(displayName: "Songti SC", candidates: ["SongtiSC-Regular", "Songti SC"], cssFallback: "'Noto Serif CJK SC', serif"),
     .init(displayName: "Kaiti SC", candidates: ["KaitiSC-Regular", "Kaiti SC"], cssFallback: "'STKaiti', serif"),
     .init(displayName: "Heiti SC", candidates: ["STHeitiSC-Light", "Heiti SC"], cssFallback: "'Hiragino Sans GB', sans-serif"),
-    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'PingFang SC', sans-serif"),
+    .init(displayName: "Hiragino Sans GB", candidates: ["HiraginoSansGB-W3", "Hiragino Sans GB"], cssFallback: "'Hiragino Sans', 'HiraginoSans-W3', 'PingFang SC', sans-serif"),
     .init(displayName: "STFangsong", candidates: ["STFangsong", "FangSong"], cssFallback: "'Songti SC', serif"),
     .init(displayName: "STSong", candidates: ["STSongti-SC-Regular", "STSong"], cssFallback: "'Songti SC', serif"),
     .init(displayName: "Helvetica Neue", candidates: ["HelveticaNeue", "Helvetica Neue"], cssFallback: "Helvetica, Arial, sans-serif"),

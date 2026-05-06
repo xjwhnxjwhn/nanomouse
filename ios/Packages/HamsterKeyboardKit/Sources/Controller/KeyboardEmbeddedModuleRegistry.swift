@@ -36,6 +36,7 @@ public struct KeyboardEmbeddedModuleEntry {
 public enum KeyboardEmbeddedModuleNotification {
   public static let toggle = Notification.Name("hamsterEmbeddedModuleToggle")
   public static let moduleIdentifierUserInfoKey = "moduleIdentifier"
+  public static let forceOpenUserInfoKey = "forceOpen"
 }
 
 /// 私有模块在键盘扩展中的注册协议。

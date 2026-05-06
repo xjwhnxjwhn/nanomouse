@@ -18,6 +18,7 @@ public enum ScreenshotFixtures {
   # NanoMouse Studio
 
   - Capture reusable notes.
+  - Render <span style="color: #ef4444; font-weight: 700;">red highlighted text</span> directly in Markdown.
   - Turn canvas sketches into files.
   - Send content into Byte Paste slots.
 

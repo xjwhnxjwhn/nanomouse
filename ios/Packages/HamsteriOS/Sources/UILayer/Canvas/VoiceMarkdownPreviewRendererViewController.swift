@@ -3,7 +3,7 @@ import WebKit
 
 @MainActor
 final class VoiceMarkdownPreviewRendererViewController: UIViewController {
-  nonisolated static let systemFontFamily = "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'SF Pro Text', sans-serif"
+  nonisolated static let systemFontFamily = "'PingFang SC', 'Hiragino Sans', 'Hiragino Sans W3', 'HiraginoSans-W3', 'Hiragino Kaku Gothic ProN', 'HiraKakuProN-W3', 'Apple Color Emoji', -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
 
   private static let fallbackRendererHTML: String = """
   <!doctype html>
@@ -18,7 +18,7 @@ final class VoiceMarkdownPreviewRendererViewController: UIViewController {
           width: 100%;
           height: 100%;
           background: transparent;
-          font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+          font-family: "PingFang SC", "Hiragino Sans", "Hiragino Sans W3", "HiraginoSans-W3", "Hiragino Kaku Gothic ProN", "HiraKakuProN-W3", "Apple Color Emoji", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
         }
         #content {
           box-sizing: border-box;
@@ -141,17 +141,34 @@ final class VoiceMarkdownPreviewRendererViewController: UIViewController {
     let bundle = Bundle.module
     isRendererReady = false
     if let rendererHTML = makeInlineMarkdownRendererHTML(in: bundle) {
-      webView.loadHTMLString(rendererHTML, baseURL: bundle.bundleURL)
+      loadRendererHTML(rendererHTML, baseURL: bundle.bundleURL)
       scheduleRendererReadinessFallback()
       return
     }
     guard let htmlURL = resolveMarkdownRendererURL(in: bundle) else {
-      webView.loadHTMLString(Self.fallbackRendererHTML, baseURL: nil)
+      loadRendererHTML(Self.fallbackRendererHTML, baseURL: nil)
       scheduleRendererReadinessFallback()
       return
     }
     webView.loadFileURL(htmlURL, allowingReadAccessTo: bundle.bundleURL)
     scheduleRendererReadinessFallback()
+  }
+
+  private func loadRendererHTML(_ html: String, baseURL: URL?) {
+    guard let data = html.data(using: .utf8) else {
+      webView.loadHTMLString(html, baseURL: baseURL)
+      return
+    }
+    webView.load(
+      data,
+      mimeType: "text/html",
+      characterEncodingName: "UTF-8",
+      baseURL: baseURL ?? Self.fallbackBaseURL
+    )
+  }
+
+  private static var fallbackBaseURL: URL {
+    URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
   }
 
   private func scheduleRendererReadinessFallback() {

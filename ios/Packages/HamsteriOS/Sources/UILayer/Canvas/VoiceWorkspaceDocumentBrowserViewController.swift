@@ -715,7 +715,7 @@ private enum VoiceMarkdownDocumentThumbnailRenderer {
       padding: 0;
       color: \(label);
       background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "SF Pro Text", sans-serif;
+      font-family: "PingFang SC", "Hiragino Sans", "Hiragino Sans W3", "HiraginoSans-W3", "Hiragino Kaku Gothic ProN", "HiraKakuProN-W3", "Apple Color Emoji", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
       font-size: \(cssPoint(baseFontSize))px;
       line-height: 1.38;
     }

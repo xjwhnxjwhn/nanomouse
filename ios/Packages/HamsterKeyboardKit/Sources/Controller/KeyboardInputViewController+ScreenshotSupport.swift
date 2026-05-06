@@ -45,8 +45,10 @@ public extension KeyboardInputViewController {
           self?.prepareScreenshotKeyboardState(identifier: "keyboardChinese", forceInputModeSwitchKey: false)
         }
       }
-      DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { [weak self] in
-        self?.applyScreenshotKeyboardState(identifier: identifier)
+      for delay in [2.2, 3.0, 4.2] {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+          self?.applyScreenshotKeyboardState(identifier: identifier)
+        }
       }
     } else if identifier == "keyboardLongPressA" {
       for delay in [0.35, 0.9, 1.5] {
@@ -90,7 +92,10 @@ private extension KeyboardInputViewController {
       NotificationCenter.default.post(
         name: KeyboardEmbeddedModuleNotification.toggle,
         object: nil,
-        userInfo: [KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey: "clipboard"]
+        userInfo: [
+          KeyboardEmbeddedModuleNotification.moduleIdentifierUserInfoKey: "clipboard",
+          KeyboardEmbeddedModuleNotification.forceOpenUserInfoKey: true
+        ]
       )
     case "keyboardLongPressA":
       showScreenshotLongPressWhenReady(for: "a")
