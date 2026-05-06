@@ -37,10 +37,16 @@
 	<string></string>
 	<key>NSCameraUsageDescription</key>
 	<string>Nanomouse 需要使用摄像头拍摄照片并保存到字节粘贴片段。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Nanomouse 需要访问照片库，以便把相册中的图片设置到字节粘贴片段。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Nanomouse 需要将字节粘贴片段中的图片导出到照片图库。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nanomouse 需要使用麦克风进行语音输入。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nanomouse 需要在主 App 中读取你的位置，以便获取键盘顶部天气指标。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Nanomouse 需要使用本地网络，让同一局域网内的设备通过浏览器上传和管理输入方案文件。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Nanomouse 需要语音识别权限将口述转换为文字。</string>
 	<key>NSUbiquitousContainers</key>
