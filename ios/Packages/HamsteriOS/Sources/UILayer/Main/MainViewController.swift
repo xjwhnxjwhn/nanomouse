@@ -178,7 +178,7 @@ extension MainViewController {
   }
 
   private func applyMainScreenTitleVisibility() {
-    let title = mainScreenTitleOverride ?? (hideMainScreenTitle ? "" : "输入法设置")
+    let title = mainScreenTitleOverride ?? (hideMainScreenTitle ? "" : AppL10n.text("输入法设置"))
     settingsViewController.setMainTitleVisible(!hideMainScreenTitle)
     settingsViewController.title = title
     settingsViewController.navigationItem.title = title
@@ -303,6 +303,7 @@ open class MainTabBarController: UITabBarController {
   private var pendingCanvasRequestId: String?
   private var pendingMarkdownRequestId: String?
   private var embeddedTabIndexMap: [String: Int] = [:]
+  private var embeddedTabTitleMap: [String: String] = [:]
   private var canvasTabIndex = 0
   private var voiceTabIndex = 1
   private var accountTabIndex = 2
@@ -329,12 +330,14 @@ open class MainTabBarController: UITabBarController {
   override open func viewDidLoad() {
     super.viewDidLoad()
     setupTabs()
+    observeLocalizationChanges()
     observeEmbeddedWorkspaceRequests()
     deliverPendingRequestsIfNeeded()
   }
 
   private func setupTabs() {
     embeddedTabIndexMap.removeAll()
+    embeddedTabTitleMap.removeAll()
     tabBar.backgroundColor = .systemBackground
     tabBar.tintColor = .label
     tabBar.unselectedItemTintColor = .secondaryLabel
@@ -342,7 +345,7 @@ open class MainTabBarController: UITabBarController {
     let canvasNavigationController = UINavigationController(rootViewController: canvasController)
     canvasNavigationController.navigationBar.isHidden = true
     canvasNavigationController.tabBarItem = UITabBarItem(
-      title: "画布",
+      title: AppL10n.text("画布"),
       image: UIImage(systemName: "scribble.variable"),
       selectedImage: UIImage(systemName: "scribble.variable")
     )
@@ -350,7 +353,7 @@ open class MainTabBarController: UITabBarController {
     let homeNavigationController = UINavigationController(rootViewController: homeController)
     homeNavigationController.navigationBar.isHidden = true
     homeNavigationController.tabBarItem = UITabBarItem(
-      title: "语音",
+      title: AppL10n.text("语音"),
       image: UIImage(systemName: "waveform"),
       selectedImage: UIImage(systemName: "waveform")
     )
@@ -358,7 +361,7 @@ open class MainTabBarController: UITabBarController {
     let accountNavigationController = UINavigationController(rootViewController: accountController)
     accountNavigationController.navigationBar.prefersLargeTitles = true
     accountNavigationController.tabBarItem = UITabBarItem(
-      title: "设置",
+      title: AppL10n.text("设置"),
       image: UIImage(systemName: "gearshape"),
       selectedImage: UIImage(systemName: "gearshape.fill")
     )
@@ -372,11 +375,12 @@ open class MainTabBarController: UITabBarController {
       navigationController.navigationBar.isHidden = item.hidesNavigationBar
       navigationController.navigationBar.prefersLargeTitles = item.prefersLargeTitles
       navigationController.tabBarItem = UITabBarItem(
-        title: item.title,
+        title: AppL10n.text(item.title),
         image: UIImage(systemName: item.iconSystemName),
         selectedImage: UIImage(systemName: item.selectedIconSystemName ?? item.iconSystemName)
       )
       embeddedTabIndexMap[item.moduleIdentifier] = tabs.count
+      embeddedTabTitleMap[item.moduleIdentifier] = item.title
       tabs.append(navigationController)
     }
 
@@ -390,6 +394,40 @@ open class MainTabBarController: UITabBarController {
     tabs.append(accountNavigationController)
 
     viewControllers = tabs
+  }
+
+  private func observeLocalizationChanges() {
+    NotificationCenter.default.publisher(for: AppLocalization.didChangeNotification)
+      .receive(on: RunLoop.main)
+      .sink { [weak self] _ in
+        self?.applyLocalizedText()
+      }
+      .store(in: &subscriptions)
+  }
+
+  private func applyLocalizedText() {
+    for (moduleIdentifier, index) in embeddedTabIndexMap {
+      guard viewControllers?.indices.contains(index) == true,
+            let title = embeddedTabTitleMap[moduleIdentifier] else { continue }
+      let localizedTitle = AppL10n.text(title)
+      viewControllers?[index].tabBarItem.title = localizedTitle
+      if let navigationController = viewControllers?[index] as? UINavigationController,
+         let rootController = navigationController.viewControllers.first {
+        rootController.title = localizedTitle
+        rootController.navigationItem.title = localizedTitle
+      }
+    }
+    if viewControllers?.indices.contains(canvasTabIndex) == true {
+      viewControllers?[canvasTabIndex].tabBarItem.title = AppL10n.text("画布")
+    }
+    if viewControllers?.indices.contains(voiceTabIndex) == true {
+      viewControllers?[voiceTabIndex].tabBarItem.title = AppL10n.text("语音")
+    }
+    if viewControllers?.indices.contains(accountTabIndex) == true {
+      viewControllers?[accountTabIndex].tabBarItem.title = AppL10n.text("设置")
+    }
+    homeController.applyLocalizedText()
+    accountController.applyLocalizedText()
   }
 
   open func activateSettingsTab() {
@@ -538,12 +576,18 @@ final class VoiceHomeViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
+    applyLocalizedText()
     refreshHomeDashboard()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    applyLocalizedText()
     refreshHomeDashboard()
+  }
+
+  func applyLocalizedText() {
+    homeRootView.applyLocalizedText()
   }
 
   func startDictation(requestId: String, launchedFromKeyboard: Bool = false) {
@@ -554,8 +598,8 @@ final class VoiceHomeViewController: NibLessViewController {
         refreshHomeDashboard()
       } else {
         presentSimpleAlert(
-          title: "语音输入已暂停",
-          message: "你当前关闭了语音输入，请先在首页开启后再继续听写。"
+          title: AppL10n.text("语音输入已暂停"),
+          message: AppL10n.text("你当前关闭了语音输入，请先在首页开启后再继续听写。")
         )
         return
       }
@@ -581,24 +625,28 @@ final class VoiceHomeViewController: NibLessViewController {
 
   private func presentStatusInfoAlert() {
     presentSimpleAlert(
-      title: "语音输入状态",
-      message: "你关闭开关后，首页入口会阻止新的听写会话；键盘入口会在启动时自动恢复语音状态。"
+      title: AppL10n.text("语音输入状态"),
+      message: AppL10n.text("你关闭开关后，首页入口会阻止新的听写会话；键盘入口会在启动时自动恢复语音状态。")
     )
   }
 
   private func presentAutoCloseOptions() {
     let current = homeSettingsStore.inactiveAutoCloseMinutes()
-    let alert = UIAlertController(title: "不活动自动关闭", message: "选择超过多久未使用后自动关闭语音输入。", preferredStyle: .actionSheet)
+    let alert = UIAlertController(
+      title: AppL10n.text("不活动自动关闭"),
+      message: AppL10n.text("选择超过多久未使用后自动关闭语音输入。"),
+      preferredStyle: .actionSheet
+    )
     for option in VoiceHomeSettingsStore.inactiveMinuteOptions {
       let optionText = VoiceHomeSettingsStore.displayText(forInactiveMinutes: option)
-      let title = option == current ? "\(optionText)（当前）" : optionText
+      let title = option == current ? "\(optionText)\(AppL10n.text("（当前）"))" : optionText
       alert.addAction(UIAlertAction(title: title, style: .default) { [weak self] _ in
         guard let self else { return }
         self.homeSettingsStore.setInactiveAutoCloseMinutes(option)
         self.refreshHomeDashboard()
       })
     }
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+    alert.addAction(UIAlertAction(title: AppL10n.text("取消"), style: .cancel))
     if let popover = alert.popoverPresentationController {
       popover.sourceView = view
       popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 40, width: 1, height: 1)
@@ -609,12 +657,12 @@ final class VoiceHomeViewController: NibLessViewController {
 
   private func copyDesktopDownloadLink() {
     guard let repositoryURL = gitHubStarsService.repositoryWebURL() else {
-      presentSimpleAlert(title: "复制失败", message: "桌面版链接暂不可用，请稍后重试。")
+      presentSimpleAlert(title: AppL10n.text("复制失败"), message: AppL10n.text("桌面版链接暂不可用，请稍后重试。"))
       return
     }
     let desktopURL = repositoryURL.appendingPathComponent("releases").absoluteString
     UIPasteboard.general.string = desktopURL
-    presentSimpleAlert(title: "已复制", message: "桌面版下载链接已复制到剪贴板。")
+    presentSimpleAlert(title: AppL10n.text("已复制"), message: AppL10n.text("桌面版下载链接已复制到剪贴板。"))
   }
 
   private func refreshHomeDashboard() {
@@ -705,7 +753,7 @@ final class VoiceHomeViewController: NibLessViewController {
 
   private func presentSimpleAlert(title: String, message: String) {
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    alert.addAction(UIAlertAction(title: AppL10n.text("知道了"), style: .default))
     present(alert, animated: true)
   }
 }
@@ -738,7 +786,7 @@ final class VoiceHomeRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 26, weight: .semibold)
-    label.text = "语音"
+    label.text = AppL10n.text("语音")
     return label
   }()
 
@@ -747,7 +795,7 @@ final class VoiceHomeRootView: NibLessView {
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 14, weight: .regular)
     label.textColor = .secondaryLabel
-    label.text = "AI 语音输入"
+    label.text = AppL10n.text("AI 语音输入")
     return label
   }()
 
@@ -760,19 +808,19 @@ final class VoiceHomeRootView: NibLessView {
 
   private lazy var totalTimeValueLabel = makeStatValueLabel(text: "0.0")
   private lazy var totalTimeUnitLabel = makeStatUnitLabel(text: "min")
-  private lazy var totalTimeTitleLabel = makeStatTitleLabel(text: "总听写时间")
+  private lazy var totalTimeTitleLabel = makeStatTitleLabel(text: AppL10n.text("总听写时间"))
 
   private lazy var totalCharactersValueLabel = makeStatValueLabel(text: "0")
-  private lazy var totalCharactersUnitLabel = makeStatUnitLabel(text: "字")
-  private lazy var totalCharactersTitleLabel = makeStatTitleLabel(text: "听写字数")
+  private lazy var totalCharactersUnitLabel = makeStatUnitLabel(text: AppL10n.text("字"))
+  private lazy var totalCharactersTitleLabel = makeStatTitleLabel(text: AppL10n.text("听写字数"))
 
   private lazy var savedTimeValueLabel = makeStatValueLabel(text: "0.0")
   private lazy var savedTimeUnitLabel = makeStatUnitLabel(text: "min")
-  private lazy var savedTimeTitleLabel = makeStatTitleLabel(text: "节省的时间")
+  private lazy var savedTimeTitleLabel = makeStatTitleLabel(text: AppL10n.text("节省的时间"))
 
   private lazy var speedValueLabel = makeStatValueLabel(text: "0")
-  private lazy var speedUnitLabel = makeStatUnitLabel(text: "每分钟字数")
-  private lazy var speedTitleLabel = makeStatTitleLabel(text: "平均听写速度")
+  private lazy var speedUnitLabel = makeStatUnitLabel(text: AppL10n.text("每分钟字数"))
+  private lazy var speedTitleLabel = makeStatTitleLabel(text: AppL10n.text("平均听写速度"))
 
   private lazy var statsGrid: UIStackView = {
     let topRow = UIStackView(arrangedSubviews: [
@@ -825,14 +873,14 @@ final class VoiceHomeRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 15, weight: .semibold)
-    label.text = "在桌面上使用 Nanomouse"
+    label.text = AppL10n.text("在桌面上使用 Nanomouse")
     return label
   }()
 
   private lazy var desktopButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("复制下载链接", for: .normal)
+    button.setTitle(AppL10n.text("复制下载链接"), for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 14, weight: .medium)
     button.backgroundColor = .systemBackground
     button.layer.cornerRadius = 12
@@ -846,7 +894,7 @@ final class VoiceHomeRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 16, weight: .semibold)
-    label.text = "Nanomouse 已开启"
+    label.text = AppL10n.text("Nanomouse 已开启")
     return label
   }()
 
@@ -874,7 +922,7 @@ final class VoiceHomeRootView: NibLessView {
     button.contentHorizontalAlignment = .left
     button.titleLabel?.font = .systemFont(ofSize: 13, weight: .regular)
     button.setTitleColor(.secondaryLabel, for: .normal)
-    button.setTitle("在不活动时关闭：12 小时 ▾", for: .normal)
+    button.setTitle(AppL10n.format("在不活动时关闭：%@ ▾", VoiceHomeSettingsStore.displayText(forInactiveMinutes: 12 * 60)), for: .normal)
     button.addTarget(self, action: #selector(handleAutoCloseTap), for: .touchUpInside)
     return button
   }()
@@ -882,7 +930,7 @@ final class VoiceHomeRootView: NibLessView {
   private lazy var startDictationButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("开始口述", for: .normal)
+    button.setTitle(AppL10n.text("开始口述"), for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
     button.setTitleColor(.white, for: .normal)
     button.backgroundColor = .systemBlue
@@ -897,7 +945,7 @@ final class VoiceHomeRootView: NibLessView {
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 13, weight: .regular)
     label.textColor = .secondaryLabel
-    label.text = "轻触开关可暂停语音输入"
+    label.text = AppL10n.text("轻触开关可暂停语音输入")
     return label
   }()
 
@@ -970,6 +1018,7 @@ final class VoiceHomeRootView: NibLessView {
 
   override func setupAppearance() {
     backgroundColor = .systemBackground
+    applyLocalizedText()
   }
 
   @objc private func handleStartDictationTap() {
@@ -1036,12 +1085,27 @@ final class VoiceHomeRootView: NibLessView {
 
   func updateVoiceStatus(isEnabled: Bool, inactiveMinutes: Int) {
     statusSwitch.setOn(isEnabled, animated: false)
-    statusTitleLabel.text = isEnabled ? "Nanomouse 已开启" : "Nanomouse 已暂停"
-    statusSubtitleLabel.text = isEnabled ? "轻触开关可暂停语音输入" : "语音输入已暂停，请先开启后再继续听写。"
-    statusFooterButton.setTitle("在不活动时关闭：\(VoiceHomeSettingsStore.displayText(forInactiveMinutes: inactiveMinutes)) ▾", for: .normal)
+    statusTitleLabel.text = isEnabled ? AppL10n.text("Nanomouse 已开启") : AppL10n.text("Nanomouse 已暂停")
+    statusSubtitleLabel.text = isEnabled ? AppL10n.text("轻触开关可暂停语音输入") : AppL10n.text("语音输入已暂停，请先开启后再继续听写。")
+    statusFooterButton.setTitle(AppL10n.format("在不活动时关闭：%@ ▾", VoiceHomeSettingsStore.displayText(forInactiveMinutes: inactiveMinutes)), for: .normal)
     startDictationButton.isEnabled = isEnabled
     startDictationButton.alpha = isEnabled ? 1 : 0.45
     startDictationButton.backgroundColor = isEnabled ? .systemBlue : .systemGray
+  }
+
+  func applyLocalizedText() {
+    brandLabel.text = AppL10n.text("语音")
+    brandSubtitleLabel.text = AppL10n.text("AI 语音输入")
+    totalTimeTitleLabel.text = AppL10n.text("总听写时间")
+    totalCharactersUnitLabel.text = AppL10n.text("字")
+    totalCharactersTitleLabel.text = AppL10n.text("听写字数")
+    savedTimeTitleLabel.text = AppL10n.text("节省的时间")
+    speedUnitLabel.text = AppL10n.text("每分钟字数")
+    speedTitleLabel.text = AppL10n.text("平均听写速度")
+    desktopTitleLabel.text = AppL10n.text("在桌面上使用 Nanomouse")
+    desktopButton.setTitle(AppL10n.text("复制下载链接"), for: .normal)
+    startDictationButton.setTitle(AppL10n.text("开始口述"), for: .normal)
+    updateVoiceStatus(isEnabled: statusSwitch.isOn, inactiveMinutes: VoiceHomeSettingsStore.shared.inactiveAutoCloseMinutes())
   }
 }
 
@@ -1109,12 +1173,12 @@ final class VoiceHomeSettingsStore {
 
   static func displayText(forInactiveMinutes minutes: Int) -> String {
     if minutes < 60 {
-      return "\(minutes) 分钟"
+      return AppL10n.format("%d 分钟", minutes)
     }
     if minutes % 60 == 0 {
-      return "\(minutes / 60) 小时"
+      return AppL10n.format("%d 小时", minutes / 60)
     }
-    return "\(minutes) 分钟"
+    return AppL10n.format("%d 分钟", minutes)
   }
 }
 
@@ -1225,7 +1289,7 @@ final class VoiceHistoryViewController: NibLessViewController {
   }()
 
   override func loadView() {
-    title = "历史记录"
+    title = AppL10n.text("历史记录")
     view = historyView
   }
 
@@ -1236,7 +1300,7 @@ final class VoiceHistoryViewController: NibLessViewController {
     historyView.tableView.tableHeaderView = historyView.makeHeaderView()
     historyView.tableView.register(VoiceHistoryCell.self, forCellReuseIdentifier: VoiceHistoryCell.identifier)
     navigationItem.rightBarButtonItem = UIBarButtonItem(
-      title: "清空",
+      title: AppL10n.text("清空"),
       style: .plain,
       target: self,
       action: #selector(handleClearTap)
@@ -1246,14 +1310,16 @@ final class VoiceHistoryViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    title = AppL10n.text("历史记录")
+    navigationItem.rightBarButtonItem?.title = AppL10n.text("清空")
     refreshItems()
   }
 
   @objc private func handleClearTap() {
     guard !items.isEmpty else { return }
-    let alert = UIAlertController(title: "清空历史记录", message: "该操作仅会删除本机记录，是否继续？", preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    alert.addAction(UIAlertAction(title: "清空", style: .destructive) { [weak self] _ in
+    let alert = UIAlertController(title: AppL10n.text("清空历史记录"), message: AppL10n.text("该操作仅会删除本机记录，是否继续？"), preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: AppL10n.text("取消"), style: .cancel))
+    alert.addAction(UIAlertAction(title: AppL10n.text("清空"), style: .destructive) { [weak self] _ in
       guard let self else { return }
       self.historyStore.clearAll()
       self.refreshItems()
@@ -1270,7 +1336,7 @@ final class VoiceHistoryViewController: NibLessViewController {
 
   private func displayText(for item: VoiceDictationHistoryEntry) -> String {
     if item.status == .failed {
-      let errorMessage = (item.errorMessage ?? "识别失败").trimmingCharacters(in: .whitespacesAndNewlines)
+      let errorMessage = (item.errorMessage ?? AppL10n.text("识别失败")).trimmingCharacters(in: .whitespacesAndNewlines)
       let partial = item.rawText.trimmingCharacters(in: .whitespacesAndNewlines)
       if partial.isEmpty {
         return errorMessage
@@ -1338,7 +1404,7 @@ extension VoiceHistoryViewController: UITableViewDataSource, UITableViewDelegate
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    let delete = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+    let delete = UIContextualAction(style: .destructive, title: AppL10n.text("删除")) { [weak self] _, _, completion in
       guard let self else {
         completion(false)
         return
@@ -1364,7 +1430,7 @@ final class VoiceHistoryRootView: NibLessView {
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 16, weight: .semibold)
     label.textColor = .label
-    label.text = "暂无历史记录"
+    label.text = AppL10n.text("暂无历史记录")
     label.isHidden = true
     return label
   }()
@@ -1376,7 +1442,7 @@ final class VoiceHistoryRootView: NibLessView {
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
     label.textAlignment = .center
-    label.text = "你完成一次语音输入后，历史记录会自动保存在本机。"
+    label.text = AppL10n.text("你完成一次语音输入后，历史记录会自动保存在本机。")
     label.isHidden = true
     return label
   }()
@@ -1422,6 +1488,8 @@ final class VoiceHistoryRootView: NibLessView {
   func updateEmptyState(isEmpty: Bool) {
     emptyTitleLabel.isHidden = !isEmpty
     emptySubtitleLabel.isHidden = !isEmpty
+    emptyTitleLabel.text = AppL10n.text("暂无历史记录")
+    emptySubtitleLabel.text = AppL10n.text("你完成一次语音输入后，历史记录会自动保存在本机。")
   }
 
   func makeHeaderView() -> UIView {
@@ -1434,13 +1502,13 @@ final class VoiceHistoryRootView: NibLessView {
     let titleLabel = UILabel()
     titleLabel.translatesAutoresizingMaskIntoConstraints = false
     titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
-    titleLabel.text = "保留历史"
+    titleLabel.text = AppL10n.text("保留历史")
 
     let trailingLabel = UILabel()
     trailingLabel.translatesAutoresizingMaskIntoConstraints = false
     trailingLabel.font = .systemFont(ofSize: 13, weight: .regular)
     trailingLabel.textColor = .secondaryLabel
-    trailingLabel.text = "永久"
+    trailingLabel.text = AppL10n.text("永久")
 
     let trailingChevron = UIImageView(image: UIImage(systemName: "chevron.right"))
     trailingChevron.translatesAutoresizingMaskIntoConstraints = false
@@ -1451,7 +1519,7 @@ final class VoiceHistoryRootView: NibLessView {
     subtitleLabel.font = .systemFont(ofSize: 13, weight: .regular)
     subtitleLabel.textColor = .secondaryLabel
     subtitleLabel.numberOfLines = 0
-    subtitleLabel.text = "您的数据保持私密，听写记录仅存储在设备上。"
+    subtitleLabel.text = AppL10n.text("您的数据保持私密，听写记录仅存储在设备上。")
 
     let headerRow = UIStackView(arrangedSubviews: [titleLabel, UIView(), trailingLabel, trailingChevron])
     headerRow.translatesAutoresizingMaskIntoConstraints = false
@@ -1509,7 +1577,7 @@ final class VoiceHistoryCell: UITableViewCell {
   private lazy var retryButton: UIButton = {
     let button = UIButton(type: .system)
     button.translatesAutoresizingMaskIntoConstraints = false
-    button.setTitle("重试", for: .normal)
+    button.setTitle(AppL10n.text("重试"), for: .normal)
     button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
     button.setTitleColor(.systemBlue, for: .normal)
     button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.12)
@@ -1572,7 +1640,7 @@ final class VoiceDictionaryViewController: NibLessViewController {
   private var words: [VoicePersonalWord] = []
 
   override func loadView() {
-    title = "词典"
+    title = AppL10n.text("词典")
     view = dictionaryView
   }
 
@@ -1587,16 +1655,17 @@ final class VoiceDictionaryViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    title = AppL10n.text("词典")
     refreshWords()
   }
 
   @objc private func handleAddWordTap() {
-    let alert = UIAlertController(title: "添加词条", message: "输入你想优先识别的词语。", preferredStyle: .alert)
+    let alert = UIAlertController(title: AppL10n.text("添加词条"), message: AppL10n.text("输入你想优先识别的词语。"), preferredStyle: .alert)
     alert.addTextField { textField in
-      textField.placeholder = "例如：Nanomouse、项目代号"
+      textField.placeholder = AppL10n.text("例如：Nanomouse、项目代号")
     }
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    alert.addAction(UIAlertAction(title: "保存", style: .default) { [weak self] _ in
+    alert.addAction(UIAlertAction(title: AppL10n.text("取消"), style: .cancel))
+    alert.addAction(UIAlertAction(title: AppL10n.text("保存"), style: .default) { [weak self] _ in
       guard let self else { return }
       let rawWord = alert.textFields?.first?.text ?? ""
       self.personalStore.addManualWord(rawWord)
@@ -1636,11 +1705,11 @@ extension VoiceDictionaryViewController: UITableViewDataSource, UITableViewDeleg
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    "词典仅包含手动词条，这些词会注入 Apple Speech、Whisper 与在线 ASR（按引擎能力）以提升专有名词识别稳定性。"
+    AppL10n.text("词典仅包含手动词条，这些词会注入 Apple Speech、Whisper 与在线 ASR（按引擎能力）以提升专有名词识别稳定性。")
   }
 
   func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-    let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
+    let deleteAction = UIContextualAction(style: .destructive, title: AppL10n.text("删除")) { [weak self] _, _, completion in
       self?.deleteWord(at: indexPath, completion: completion)
     }
     return UISwipeActionsConfiguration(actions: [deleteAction])
@@ -1706,7 +1775,7 @@ final class VoiceDictionaryRootView: NibLessView {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
     label.font = .systemFont(ofSize: 16, weight: .semibold)
-    label.text = "尚无单词"
+    label.text = AppL10n.text("尚无手动词条")
     return label
   }()
 
@@ -1717,7 +1786,7 @@ final class VoiceDictionaryRootView: NibLessView {
     label.textColor = .secondaryLabel
     label.numberOfLines = 0
     label.textAlignment = .center
-    label.text = "Nanomouse 会记住您独特的名称与单词，您也可以手动添加。"
+    label.text = AppL10n.text("点击右下角 + 添加你想优先识别的专有名词。")
     return label
   }()
 
@@ -1783,8 +1852,8 @@ final class VoiceDictionaryRootView: NibLessView {
     emptyTitleLabel.isHidden = !isEmpty
     emptySubtitleLabel.isHidden = !isEmpty
     if isEmpty {
-      emptyTitleLabel.text = "尚无手动词条"
-      emptySubtitleLabel.text = "点击右下角 + 添加你想优先识别的专有名词。"
+      emptyTitleLabel.text = AppL10n.text("尚无手动词条")
+      emptySubtitleLabel.text = AppL10n.text("点击右下角 + 添加你想优先识别的专有名词。")
     }
   }
 }
@@ -1801,7 +1870,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
   private var models: [VoiceWhisperModelStatus] = []
 
   override func loadView() {
-    title = "语音模型"
+    title = AppL10n.text("语音模型")
     view = modelView
   }
 
@@ -1815,6 +1884,7 @@ final class VoiceModelManagementViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    title = AppL10n.text("语音模型")
     refreshModels()
   }
 
@@ -1847,8 +1917,8 @@ final class VoiceModelManagementViewController: NibLessViewController {
   }
 
   private func presentErrorAlert(message: String) {
-    let controller = UIAlertController(title: "操作失败", message: message, preferredStyle: .alert)
-    controller.addAction(UIAlertAction(title: "知道了", style: .default))
+    let controller = UIAlertController(title: AppL10n.text("操作失败"), message: message, preferredStyle: .alert)
+    controller.addAction(UIAlertAction(title: AppL10n.text("知道了"), style: .default))
     present(controller, animated: true)
   }
 }
@@ -1886,11 +1956,11 @@ extension VoiceModelManagementViewController: UITableViewDataSource, UITableView
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    "识别引擎"
+    AppL10n.text("识别引擎")
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    "识别引擎是互斥单选：Apple / Whisper / 在线。若选择 Whisper，模型预热期间会临时使用 Apple，不改变你的勾选。点击 Whisper 或 在线可进入独立设置页面。"
+    AppL10n.text("识别引擎是互斥单选：Apple / Whisper / 在线。若选择 Whisper，模型预热期间会临时使用 Apple，不改变你的勾选。点击 Whisper 或 在线可进入独立设置页面。")
   }
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -2886,8 +2956,8 @@ final class KeyboardModuleHostViewController: NibLessViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     keyboardController.setMainScreenTitleHidden(false)
-    keyboardController.setMainScreenTitleOverride("键盘")
-    keyboardController.setEmbeddedBackButton(title: "<账户") { [weak self] in
+    keyboardController.setMainScreenTitleOverride(AppL10n.text("键盘"))
+    keyboardController.setEmbeddedBackButton(title: AppL10n.text("<账户")) { [weak self] in
       self?.navigationController?.popViewController(animated: true)
     }
     addChild(keyboardController)
@@ -2913,7 +2983,7 @@ final class KeyboardModuleHostViewController: NibLessViewController {
     navigationItem.largeTitleDisplayMode = .never
     keyboardController.presentMainViewController()
     keyboardController.setMainScreenTitleHidden(false)
-    keyboardController.setMainScreenTitleOverride("键盘")
+    keyboardController.setMainScreenTitleOverride(AppL10n.text("键盘"))
   }
 
   override func viewDidAppear(_ animated: Bool) {
@@ -2955,6 +3025,9 @@ final class VoiceAccountViewController: NibLessViewController {
   private lazy var dictionaryController = VoiceDictionaryViewController()
   private lazy var historyController = VoiceHistoryViewController()
   private lazy var canvasStorageController = VoiceCanvasStorageViewController()
+  private lazy var fullAccessGuideController: FullAccessGuideViewController = {
+    subViewControllerFactory.makeFullAccessGuideViewController()
+  }()
   private var embeddedSettingsEntries: [MainAppEmbeddedSettingsDescriptor] {
     MainAppEmbeddedModuleRegistry.shared.makeEmbeddedSettingsEntries()
   }
@@ -2966,6 +3039,8 @@ final class VoiceAccountViewController: NibLessViewController {
     return controller
   }()
   private var notificationStateObserver: NSObjectProtocol?
+  private var foregroundObserver: NSObjectProtocol?
+  private var languageObserver: NSObjectProtocol?
 
   init(mainViewModel: MainViewModel, subViewControllerFactory: SubViewControllerFactory) {
     self.mainViewModel = mainViewModel
@@ -2982,10 +3057,16 @@ final class VoiceAccountViewController: NibLessViewController {
     if let notificationStateObserver {
       NotificationCenter.default.removeObserver(notificationStateObserver)
     }
+    if let foregroundObserver {
+      NotificationCenter.default.removeObserver(foregroundObserver)
+    }
+    if let languageObserver {
+      NotificationCenter.default.removeObserver(languageObserver)
+    }
   }
 
   override func loadView() {
-    title = "账户"
+    title = AppL10n.text("账户")
     view = accountView
   }
 
@@ -3001,6 +3082,20 @@ final class VoiceAccountViewController: NibLessViewController {
     ) { [weak self] _ in
       self?.reloadNotificationCard()
     }
+    foregroundObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.reloadFullAccessCard()
+    }
+    languageObserver = NotificationCenter.default.addObserver(
+      forName: AppLocalization.didChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.applyLocalizedText()
+    }
     Task { @MainActor in
       await AppNotificationManager.shared.refreshAuthorizationStatus()
       await AppNotificationManager.shared.syncCurrentStatusIfPossible()
@@ -3009,10 +3104,18 @@ final class VoiceAccountViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    applyLocalizedText()
     accountView.tableView.reloadData()
     Task { @MainActor in
       await AppNotificationManager.shared.refreshAuthorizationStatus()
     }
+  }
+
+  func applyLocalizedText() {
+    title = AppL10n.text("账户")
+    navigationItem.title = AppL10n.text("账户")
+    guard isViewLoaded, view.window != nil else { return }
+    accountView.tableView.reloadData()
   }
 
   private func makeKeyboardHostController() -> KeyboardModuleHostViewController {
@@ -3057,8 +3160,26 @@ final class VoiceAccountViewController: NibLessViewController {
 
   private func reloadNotificationCard() {
     let section = 0
+    guard isViewLoaded, view.window != nil else { return }
     guard accountView.tableView.numberOfSections > section else { return }
     accountView.tableView.reloadSections(IndexSet(integer: section), with: .none)
+  }
+
+  private func reloadFullAccessCard() {
+    let section = 1
+    guard isViewLoaded, view.window != nil else { return }
+    guard accountView.tableView.numberOfSections > section else { return }
+    accountView.tableView.reloadSections(IndexSet(integer: section), with: .none)
+  }
+
+  private func makeFullAccessBadgeView() -> UIView {
+    let badge = UILabel()
+    let isEnabled = UserDefaults.hamster.keyboardExtensionHasFullAccess
+    badge.text = isEnabled ? AppL10n.text("已开启") : AppL10n.text("推荐")
+    badge.font = UIFont.systemFont(ofSize: 12, weight: .semibold)
+    badge.textColor = isEnabled ? .systemGreen : .systemOrange
+    badge.sizeToFit()
+    return badge
   }
 
   @objc private func handleNotificationSwitchChanged(_ sender: UISwitch) {
@@ -3098,17 +3219,18 @@ final class VoiceAccountViewController: NibLessViewController {
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    6
+    7
   }
 
-  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+ func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     switch section {
     case 0: return 1
     case 1: return 1
     case 2: return 1
-    case 3: return 5
-    case 4: return 1
-    case 5: return embeddedSettingsEntries.count
+    case 3: return 1
+    case 4: return 5
+    case 5: return 1
+    case 6: return embeddedSettingsEntries.count
     default: return 0
     }
   }
@@ -3118,7 +3240,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       let cellIdentifier = "AccountNotificationToggleCell"
       let cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
         ?? UITableViewCell(style: .default, reuseIdentifier: cellIdentifier)
-      cell.textLabel?.text = "产品通知"
+      cell.textLabel?.text = AppL10n.text("产品通知")
       cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
       cell.textLabel?.textColor = .label
       cell.imageView?.image = UIImage(systemName: "bell.badge")
@@ -3136,22 +3258,29 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     cell.accessoryType = .disclosureIndicator
     cell.accessoryView = nil
     cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
+    cell.detailTextLabel?.text = nil
+    cell.detailTextLabel?.textColor = .secondaryLabel
 
     switch (indexPath.section, indexPath.row) {
     case (1, 0):
-      cell.textLabel?.text = "账号与订阅（开发中）"
-      cell.imageView?.image = UIImage(systemName: "person.crop.circle")
+      cell.textLabel?.text = AppL10n.text("开启完全访问")
+      cell.imageView?.image = UIImage(systemName: "keyboard.badge.ellipsis")
+      cell.accessoryType = .none
+      cell.accessoryView = makeFullAccessBadgeView()
     case (2, 0):
-      cell.textLabel?.text = "键盘"
-      cell.imageView?.image = UIImage(systemName: "keyboard")
+      cell.textLabel?.text = AppL10n.text("账号与订阅")
+      cell.imageView?.image = UIImage(systemName: "person.crop.circle")
     case (3, 0):
-      cell.textLabel?.text = "语音模型"
+      cell.textLabel?.text = AppL10n.text("键盘")
+      cell.imageView?.image = UIImage(systemName: "keyboard")
+    case (4, 0):
+      cell.textLabel?.text = AppL10n.text("语音模型")
       cell.imageView?.image = UIImage(systemName: "waveform.badge.mic")
-    case (3, 1):
-      cell.textLabel?.text = "AI 处理配置"
+    case (4, 1):
+      cell.textLabel?.text = AppL10n.text("AI 处理配置")
       cell.imageView?.image = UIImage(systemName: "brain.head.profile")
-    case (3, 2):
-      cell.textLabel?.text = "启用键盘扩展语音界面"
+    case (4, 2):
+      cell.textLabel?.text = AppL10n.text("启用键盘扩展语音界面")
       cell.imageView?.image = makeVoiceModeCoinIcon()
       cell.imageView?.tintColor = .secondaryLabel
       cell.accessoryType = .none
@@ -3160,18 +3289,18 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       toggle.isOn = UserDefaults.hamster.enableKeyboardExtensionVoiceModeView
       toggle.addTarget(self, action: #selector(handleKeyboardVoiceModeSwitchChanged(_:)), for: .valueChanged)
       cell.accessoryView = toggle
-    case (3, 3):
-      cell.textLabel?.text = "词典"
+    case (4, 3):
+      cell.textLabel?.text = AppL10n.text("词典")
       cell.imageView?.image = UIImage(systemName: "book")
-    case (3, 4):
-      cell.textLabel?.text = "历史记录"
+    case (4, 4):
+      cell.textLabel?.text = AppL10n.text("历史记录")
       cell.imageView?.image = UIImage(systemName: "clock")
-    case (4, 0):
-      cell.textLabel?.text = "画布保存位置"
+    case (5, 0):
+      cell.textLabel?.text = AppL10n.text("画布保存位置")
       cell.imageView?.image = UIImage(systemName: "folder")
-    case (5, let row) where embeddedSettingsEntries.indices.contains(row):
+    case (6, let row) where embeddedSettingsEntries.indices.contains(row):
       let entry = embeddedSettingsEntries[row]
-      cell.textLabel?.text = entry.title
+      cell.textLabel?.text = AppL10n.text(entry.title)
       cell.imageView?.image = UIImage(systemName: entry.iconSystemName)
     default:
       cell.textLabel?.text = nil
@@ -3187,41 +3316,137 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     tableView.deselectRow(at: indexPath, animated: true)
     if indexPath.section == 1, indexPath.row == 0 {
-      navigationController?.pushViewController(accountProfileController, animated: true)
+      navigationController?.pushViewController(fullAccessGuideController, animated: true)
       return
     }
     if indexPath.section == 2, indexPath.row == 0 {
-      navigationController?.pushViewController(makeKeyboardHostController(), animated: true)
+      navigationController?.pushViewController(accountProfileController, animated: true)
       return
     }
     if indexPath.section == 3, indexPath.row == 0 {
-      navigationController?.pushViewController(modelManagementController, animated: true)
-      return
-    }
-    if indexPath.section == 3, indexPath.row == 1 {
-      navigationController?.pushViewController(llmSettingsController, animated: true)
-      return
-    }
-    if indexPath.section == 3, indexPath.row == 2 {
-      return
-    }
-    if indexPath.section == 3, indexPath.row == 3 {
-      navigationController?.pushViewController(dictionaryController, animated: true)
-      return
-    }
-    if indexPath.section == 3, indexPath.row == 4 {
-      navigationController?.pushViewController(historyController, animated: true)
+      navigationController?.pushViewController(makeKeyboardHostController(), animated: true)
       return
     }
     if indexPath.section == 4, indexPath.row == 0 {
+      navigationController?.pushViewController(modelManagementController, animated: true)
+      return
+    }
+    if indexPath.section == 4, indexPath.row == 1 {
+      navigationController?.pushViewController(llmSettingsController, animated: true)
+      return
+    }
+    if indexPath.section == 4, indexPath.row == 2 {
+      return
+    }
+    if indexPath.section == 4, indexPath.row == 3 {
+      navigationController?.pushViewController(dictionaryController, animated: true)
+      return
+    }
+    if indexPath.section == 4, indexPath.row == 4 {
+      navigationController?.pushViewController(historyController, animated: true)
+      return
+    }
+    if indexPath.section == 5, indexPath.row == 0 {
       navigationController?.pushViewController(canvasStorageController, animated: true)
       return
     }
-    if indexPath.section == 5 {
+    if indexPath.section == 6 {
       guard embeddedSettingsEntries.indices.contains(indexPath.row) else { return }
-      let controller = embeddedSettingsEntries[indexPath.row].makeRootViewController()
+      let entry = embeddedSettingsEntries[indexPath.row]
+      let controller = entry.makeRootViewController()
+      controller.title = AppL10n.text(entry.title)
+      controller.navigationItem.title = AppL10n.text(entry.title)
       navigationController?.pushViewController(controller, animated: true)
     }
+  }
+}
+
+final class VoiceAppLanguageViewController: NibLessViewController {
+  private let tableView: UITableView = {
+    let view = UITableView(frame: .zero, style: .insetGrouped)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }()
+  private let languages = AppDisplayLanguage.allCases
+  private var languageObserver: NSObjectProtocol?
+
+  deinit {
+    if let languageObserver {
+      NotificationCenter.default.removeObserver(languageObserver)
+    }
+  }
+
+  override func loadView() {
+    let rootView = UIView(frame: .zero)
+    rootView.backgroundColor = .systemBackground
+    rootView.addSubview(tableView)
+    NSLayoutConstraint.activate([
+      tableView.topAnchor.constraint(equalTo: rootView.safeAreaLayoutGuide.topAnchor),
+      tableView.leadingAnchor.constraint(equalTo: rootView.leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: rootView.trailingAnchor),
+      tableView.bottomAnchor.constraint(equalTo: rootView.bottomAnchor)
+    ])
+    view = rootView
+  }
+
+  override func viewDidLoad() {
+    super.viewDidLoad()
+    tableView.dataSource = self
+    tableView.delegate = self
+    tableView.register(UITableViewCell.self, forCellReuseIdentifier: "LanguageCell")
+    applyLocalizedText()
+    languageObserver = NotificationCenter.default.addObserver(
+      forName: AppLocalization.didChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.applyLocalizedText()
+    }
+  }
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    applyLocalizedText()
+  }
+
+  private func applyLocalizedText() {
+    title = AppL10n.text("显示语言")
+    navigationItem.title = AppL10n.text("显示语言")
+    tableView.reloadData()
+  }
+}
+
+extension VoiceAppLanguageViewController: UITableViewDataSource, UITableViewDelegate {
+  func numberOfSections(in tableView: UITableView) -> Int {
+    1
+  }
+
+  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    languages.count
+  }
+
+  func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    let cell = tableView.dequeueReusableCell(withIdentifier: "LanguageCell", for: indexPath)
+    let language = languages[indexPath.row]
+    var config = cell.defaultContentConfiguration()
+    config.text = language.nativeTitle
+    if language == .system {
+      config.secondaryText = AppL10n.format("系统当前会使用：%@", AppDisplayLanguage.resolveSystemLanguage().nativeTitle)
+    }
+    config.textProperties.font = .systemFont(ofSize: 15, weight: .regular)
+    config.secondaryTextProperties.color = .secondaryLabel
+    cell.contentConfiguration = config
+    cell.accessoryType = language == AppLocalization.shared.selectedLanguage ? .checkmark : .none
+    return cell
+  }
+
+  func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+    AppL10n.text("默认跟随手机的语言设置。这里仅改变 App 内显示和说明文字，不影响键盘输入方案。")
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    tableView.deselectRow(at: indexPath, animated: true)
+    AppLocalization.shared.selectedLanguage = languages[indexPath.row]
   }
 }
 
@@ -3266,6 +3491,7 @@ final class VoiceAccountRootView: NibLessView {
 final class VoiceAccountProfileViewController: NibLessViewController {
   var onAccountUpdated: (() -> Void)?
   private let rootView = VoiceAccountProfileRootView()
+  private lazy var languageController = VoiceAppLanguageViewController()
   private let gitHubStarsService = VoiceGitHubStarsService.shared
   private let subscriptionStore = VoiceSubscriptionStore.shared
   private var isLoadingGitHubStars = false
@@ -3273,7 +3499,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
   private var gitHubStarsErrorMessage: String?
 
   override func loadView() {
-    title = "账号与订阅"
+    title = AppL10n.text("账号与订阅")
     view = rootView
   }
 
@@ -3287,6 +3513,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    title = AppL10n.text("账号与订阅")
     rootView.tableView.reloadData()
   }
 
@@ -3299,7 +3526,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
   private func openGitHubRepository() {
     guard let url = gitHubStarsService.repositoryWebURL() else {
-      presentSimpleAlert(title: "打开失败", message: "GitHub 仓库地址无效。")
+      presentSimpleAlert(title: AppL10n.text("打开失败"), message: AppL10n.text("GitHub 仓库地址无效。"))
       return
     }
     UIApplication.shared.open(url)
@@ -3307,18 +3534,18 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
   private func presentAccountComingSoonAlert() {
     presentSimpleAlert(
-      title: "功能开发中",
-      message: "账号登录与订阅绑定正在开发中，请暂时不要输入任何账号信息。"
+      title: AppL10n.text("功能开发中"),
+      message: AppL10n.text("账号登录与订阅绑定正在开发中，请暂时不要输入任何账号信息。")
     )
   }
 
   private func presentPrivacyPermissionGuide() {
-    let message = "Nanomouse 仅在你点击“开始口述”后请求麦克风与语音识别权限。键盘扩展本身不直接录音。若你启用在线 ASR 或在线 LLM，文本或音频会按你的配置发送到对应服务商。你可以随时在系统设置中关闭权限。"
-    let alert = UIAlertController(title: "隐私与权限说明", message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "前往系统设置", style: .default) { _ in
+    let message = AppL10n.text("Nanomouse 仅在你点击“开始口述”后请求麦克风与语音识别权限。键盘扩展本身不直接录音。若你启用在线 ASR 或在线 LLM，文本或音频会按你的配置发送到对应服务商。你可以随时在系统设置中关闭权限。")
+    let alert = UIAlertController(title: AppL10n.text("隐私与权限说明"), message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: AppL10n.text("前往系统设置"), style: .default) { _ in
       self.openSystemSettings()
     })
-    alert.addAction(UIAlertAction(title: "知道了", style: .cancel))
+    alert.addAction(UIAlertAction(title: AppL10n.text("知道了"), style: .cancel))
     present(alert, animated: true)
   }
 
@@ -3334,7 +3561,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
   private func presentSimpleAlert(title: String, message: String) {
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "知道了", style: .default))
+    alert.addAction(UIAlertAction(title: AppL10n.text("知道了"), style: .default))
     present(alert, animated: true)
   }
 
@@ -3347,11 +3574,11 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 #endif
 
   private func reloadCommunitySection() {
-    guard rootView.tableView.numberOfSections > 2 else {
+    guard rootView.tableView.numberOfSections > 3 else {
       rootView.tableView.reloadData()
       return
     }
-    rootView.tableView.reloadSections(IndexSet(integer: 2), with: .none)
+    rootView.tableView.reloadSections(IndexSet(integer: 3), with: .none)
   }
 
   private func refreshGitHubStars(force: Bool) {
@@ -3396,12 +3623,12 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 
 extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    4
+    5
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
     switch section {
-    case 1:
+    case 2:
 #if DEBUG
       return 2
 #else
@@ -3415,48 +3642,64 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
     switch section {
     case 0:
-      return "账号"
+      return AppL10n.text("偏好设置")
     case 1:
-      return "订阅"
+      return AppL10n.text("账号")
     case 2:
-      return "社区支持"
+      return AppL10n.text("订阅")
+    case 3:
+      return AppL10n.text("社区支持")
     default:
-      return "隐私与权限"
+      return AppL10n.text("隐私与权限")
     }
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    if section == 1 {
+    if section == 2 {
 #if DEBUG
       return "Debug 构建支持“模拟已订阅”开关，便于验证 AI 认证模式显示逻辑。"
 #else
       return nil
 #endif
     }
-    if section == 2 {
-      return "如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。"
-    }
     if section == 3 {
-      return "上架审核提示：语音权限仅用于听写；你不使用语音输入时，应用不会主动录音。"
+      return AppL10n.text("如果你希望我加速推出订阅服务来使用在线大模型，请务必点赞让我看到；因为当前仅支持用户自带各厂商 API Key。")
+    }
+    if section == 4 {
+      return AppL10n.text("上架审核提示：语音权限仅用于听写；你不使用语音输入时，应用不会主动录音。")
     }
     return nil
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let cell = tableView.dequeueReusableCell(withIdentifier: "ProfileCell", for: indexPath)
+    let cell: UITableViewCell
+    if indexPath.section == 0 {
+      let cellIdentifier = "ProfileLanguageCell"
+      cell = tableView.dequeueReusableCell(withIdentifier: cellIdentifier)
+        ?? UITableViewCell(style: .value1, reuseIdentifier: cellIdentifier)
+    } else {
+      cell = tableView.dequeueReusableCell(withIdentifier: "ProfileCell", for: indexPath)
+    }
     cell.textLabel?.font = .systemFont(ofSize: 15, weight: .regular)
     cell.textLabel?.textColor = .label
+    cell.detailTextLabel?.text = nil
+    cell.detailTextLabel?.textColor = .secondaryLabel
     cell.selectionStyle = .default
     cell.accessoryType = .none
     cell.accessoryView = nil
 
     switch indexPath.section {
     case 0:
-      cell.textLabel?.text = "账号系统开发中（暂不开放登录）"
-      cell.imageView?.image = UIImage(systemName: "hourglass")
+      cell.textLabel?.text = AppL10n.text("显示语言")
+      cell.detailTextLabel?.text = AppLocalization.shared.selectedLanguage.nativeTitle
+      cell.imageView?.image = UIImage(systemName: "globe")
+      cell.accessoryType = .disclosureIndicator
     case 1:
+      cell.textLabel?.text = AppL10n.text("账号系统开发中（暂不开放登录）")
+      cell.imageView?.image = UIImage(systemName: "hourglass")
+    case 2:
       if indexPath.row == 0 {
-        cell.textLabel?.text = "管理订阅"
+        cell.textLabel?.text = AppL10n.text("管理订阅")
         cell.imageView?.image = UIImage(systemName: "creditcard")
         cell.accessoryType = .disclosureIndicator
       } else {
@@ -3471,21 +3714,21 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
         cell.accessoryView = toggle
 #endif
       }
-    case 2:
+    case 3:
       if isLoadingGitHubStars {
-        cell.textLabel?.text = "GitHub Stars 读取中..."
+        cell.textLabel?.text = AppL10n.text("GitHub Stars 读取中...")
         cell.textLabel?.textColor = .secondaryLabel
       } else if let stars = gitHubStarsCount {
-        cell.textLabel?.text = "GitHub Star 支持我们 ⭐（\(stars)）"
+        cell.textLabel?.text = AppL10n.format("GitHub Star 支持我们 ⭐（%d）", stars)
         cell.textLabel?.textColor = .systemGreen
       } else {
-        cell.textLabel?.text = "GitHub Star 支持我们 ⭐（点击查看）"
+        cell.textLabel?.text = AppL10n.text("GitHub Star 支持我们 ⭐（点击查看）")
         cell.textLabel?.textColor = gitHubStarsErrorMessage == nil ? .label : .systemOrange
       }
       cell.imageView?.image = UIImage(systemName: "star.fill")
       cell.accessoryType = .disclosureIndicator
     default:
-      cell.textLabel?.text = "查看隐私与权限说明"
+      cell.textLabel?.text = AppL10n.text("查看隐私与权限说明")
       cell.textLabel?.textColor = .label
       cell.imageView?.image = UIImage(systemName: "lock.shield")
       cell.accessoryType = .disclosureIndicator
@@ -3497,12 +3740,14 @@ extension VoiceAccountProfileViewController: UITableViewDataSource, UITableViewD
     tableView.deselectRow(at: indexPath, animated: true)
     switch indexPath.section {
     case 0:
-      presentAccountComingSoonAlert()
+      navigationController?.pushViewController(languageController, animated: true)
     case 1:
+      presentAccountComingSoonAlert()
+    case 2:
       if indexPath.row == 0 {
         openSubscriptionManagement()
       }
-    case 2:
+    case 3:
       openGitHubRepository()
       refreshGitHubStars(force: true)
     default:
