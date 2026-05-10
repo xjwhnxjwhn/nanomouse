@@ -229,17 +229,19 @@ class KeyboardRootView: NibLessView {
 
     super.init(frame: .zero)
 
+    KeyboardStartupDiagnostics.log("KeyboardRootView init keyboardType=\(keyboardContext.keyboardType.yamlString) toolbar=\(keyboardContext.enableToolbar) candidateState=\(keyboardContext.candidatesViewState) screen=\(keyboardContext.screenSize) orientation=\(keyboardContext.interfaceOrientation)")
     // Test
 //    let view = UIView()
 //    view.frame = CGRect(origin: .zero, size: CGSize(width: 100, height: 100))
 //    view.backgroundColor = .yellow
 //    addSubview(view)
 
-    constructViewHierarchy()
-    activateViewConstraints()
-    setupAppearance()
+    KeyboardStartupDiagnostics.measure("KeyboardRootView.constructViewHierarchy") { constructViewHierarchy() }
+    KeyboardStartupDiagnostics.measure("KeyboardRootView.activateViewConstraints") { activateViewConstraints() }
+    KeyboardStartupDiagnostics.measure("KeyboardRootView.setupAppearance") { setupAppearance() }
 
     combine()
+    KeyboardStartupDiagnostics.log("KeyboardRootView init end")
   }
 
   deinit {
@@ -255,6 +257,7 @@ class KeyboardRootView: NibLessView {
 
   /// 构建视图层次
   override func constructViewHierarchy() {
+    KeyboardStartupDiagnostics.log("KeyboardRootView.constructViewHierarchy toolbar=\(keyboardContext.enableToolbar) primary=\(type(of: primaryKeyboardView))")
     if keyboardContext.enableToolbar {
       addSubview(toolbarView)
       addSubview(primaryKeyboardView)
@@ -269,6 +272,7 @@ class KeyboardRootView: NibLessView {
     if keyboardContext.enableToolbar {
       // 工具栏高度约束，可随配置调整高度
       toolbarHeightConstraint = toolbarView.heightAnchor.constraint(equalToConstant: effectiveToolbarHeight)
+      KeyboardStartupDiagnostics.log("KeyboardRootView.activate constraints toolbarHeight=\(effectiveToolbarHeight) candidateState=\(keyboardContext.candidatesViewState)")
 
       // 工具栏静态约束
       let toolbarStaticConstraint = createToolbarStaticConstraints()
@@ -281,6 +285,7 @@ class KeyboardRootView: NibLessView {
 
       NSLayoutConstraint.activate(toolbarStaticConstraint + toolbarCollapseDynamicConstraints + [toolbarHeightConstraint!])
     } else {
+      KeyboardStartupDiagnostics.log("KeyboardRootView.activate constraints noToolbar")
       NSLayoutConstraint.activate(createNoToolbarConstraints())
     }
 
@@ -405,6 +410,10 @@ class KeyboardRootView: NibLessView {
   override func layoutSubviews() {
     super.layoutSubviews()
     // Logger.statistics.debug("KeyboardRootView: layoutSubviews()")
+    let summary = "bounds=\(bounds) primaryFrame=\(primaryKeyboardView.frame) toolbarFrame=\(toolbarView.frame) candidateState=\(keyboardContext.candidatesViewState) effectiveToolbarHeight=\(effectiveToolbarHeight)"
+    if KeyboardStartupDiagnostics.shouldLogLayoutSummary(object: self, summary: summary) {
+      KeyboardStartupDiagnostics.log("KeyboardRootView.layout \(summary)")
+    }
 
     // 检测候选栏状态是否发生变化
     guard candidateViewState != keyboardContext.candidatesViewState else { return }
@@ -412,12 +421,14 @@ class KeyboardRootView: NibLessView {
 
     // 候选栏收起
     if candidateViewState.isCollapse() {
+      KeyboardStartupDiagnostics.log("KeyboardRootView candidate collapsed; restore primary keyboard")
       // 键盘显示
       toolbarHeightConstraint?.constant = effectiveToolbarHeight
       addSubview(primaryKeyboardView)
       NSLayoutConstraint.deactivate(toolbarExpandDynamicConstraints)
       NSLayoutConstraint.activate(toolbarCollapseDynamicConstraints)
     } else {
+      KeyboardStartupDiagnostics.log("KeyboardRootView candidate expanded; hide primary keyboard primaryBounds=\(primaryKeyboardView.bounds)")
       // 键盘隐藏
       let toolbarHeight = primaryKeyboardView.bounds.height + effectiveToolbarHeight
       primaryKeyboardView.removeFromSuperview()
@@ -465,8 +476,10 @@ class KeyboardRootView: NibLessView {
   }
 
   private func updatePrimaryKeyboardView(for keyboardType: KeyboardType) {
+    KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView begin keyboardType=\(keyboardType.yamlString)")
     guard let keyboardView = chooseKeyboard(keyboardType: keyboardType) else {
       Logger.statistics.error("\(keyboardType.yamlString) cannot find keyboardView.")
+      KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView failed no view")
       return
     }
 
@@ -496,6 +509,7 @@ class KeyboardRootView: NibLessView {
       addSubview(primaryKeyboardView)
       NSLayoutConstraint.activate(createNoToolbarConstraints())
     }
+    KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView end primary=\(type(of: primaryKeyboardView)) subviews=\(primaryKeyboardView.subviews.count)")
   }
 
   /// 切换口述模式时隐藏键盘区域，避免误触

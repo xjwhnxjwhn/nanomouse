@@ -108,6 +108,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
     super.init(frame: .zero)
 
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard init keyboardType=\(keyboardContext.keyboardType.yamlString) screen=\(keyboardContext.screenSize) orientation=\(keyboardContext.interfaceOrientation)")
     setupKeyboardView()
   }
 
@@ -116,9 +117,9 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   }
 
   func setupKeyboardView() {
-    constructViewHierarchy()
-    activateViewConstraints()
-    setupAppearance()
+    KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.constructViewHierarchy") { constructViewHierarchy() }
+    KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.activateViewConstraints") { activateViewConstraints() }
+    KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.setupAppearance") { setupAppearance() }
   }
 
   override public func setupAppearance() {
@@ -133,7 +134,9 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     // addSubview(touchView)
 
     // 添加按键至 View
-    for (rowIndex, row) in layout.itemRows.enumerated() {
+    let itemRows = layout.itemRows
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard.construct rows=\(layoutRowsSummary(itemRows))")
+    for (rowIndex, row) in itemRows.enumerated() {
       var tempRow = [KeyboardButton]()
       for (itemIndex, item) in row.enumerated() {
         let buttonItem = KeyboardButton(
@@ -154,6 +157,9 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       }
 
       keyboardRows.append(tempRow)
+    }
+    if keyboardRows.count < 3 {
+      KeyboardStartupDiagnostics.log("SUSPICIOUS StanderSystemKeyboard constructed only \(keyboardRows.count) rows; keyboardType=\(keyboardContext.keyboardType.yamlString)")
     }
   }
 
@@ -189,6 +195,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
   /// 激活视图约束
   override public func activateViewConstraints() {
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard.activate constraints rows=\(keyboardRows.count) rowCounts=\(keyboardRows.map { $0.count }) bounds=\(bounds)")
     // 暂存同一行中 available 宽度类型按键集合
     var availableItems = [KeyboardButton]()
 
@@ -262,10 +269,16 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     }
 
     NSLayoutConstraint.activate(staticConstraints + dynamicConstraints)
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard.activate constraints done static=\(staticConstraints.count) dynamic=\(dynamicConstraints.count)")
   }
 
   override public func layoutSubviews() {
     super.layoutSubviews()
+    let currentRows = layout.itemRows
+    let summary = "bounds=\(bounds) frame=\(frame) keyboardRows=\(keyboardRows.count) rowCounts=\(keyboardRows.map { $0.count }) layoutRows=\(layoutRowsSummary(currentRows))"
+    if KeyboardStartupDiagnostics.shouldLogLayoutSummary(object: self, summary: summary) {
+      KeyboardStartupDiagnostics.log("StanderSystemKeyboard.layout \(summary)")
+    }
 
     if userInterfaceStyle != keyboardContext.colorScheme {
       userInterfaceStyle = keyboardContext.colorScheme
@@ -277,12 +290,14 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     isKeyboardFloating = keyboardContext.isKeyboardFloating
 
     // 当布局行列结构不一致时，直接重建，避免约束错位导致按键错乱
-    if keyboardRows.count != layout.itemRows.count {
+    if keyboardRows.count != currentRows.count {
+      KeyboardStartupDiagnostics.log("StanderSystemKeyboard row-count mismatch current=\(keyboardRows.count) expected=\(currentRows.count); rebuilding")
       rebuildKeyboardLayout()
       return
     }
-    for (rowIndex, row) in layout.itemRows.enumerated() {
+    for (rowIndex, row) in currentRows.enumerated() {
       if keyboardRows[rowIndex].count != row.count {
+        KeyboardStartupDiagnostics.log("StanderSystemKeyboard column-count mismatch row=\(rowIndex) current=\(keyboardRows[rowIndex].count) expected=\(row.count); rebuilding")
         rebuildKeyboardLayout()
         return
       }
@@ -293,7 +308,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
     // 约束索引
     var dynamicConstraintsIndex = 0
-    for (rowIndex, row) in layout.itemRows.enumerated() {
+    for (rowIndex, row) in currentRows.enumerated() {
       for (columnIndex, item) in row.enumerated() {
         let oldItem = keyboardRows[rowIndex][columnIndex].item
 
@@ -315,14 +330,17 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     }
 
     if resetConstraints {
+      KeyboardStartupDiagnostics.log("StanderSystemKeyboard reset constraints rows=\(layoutRowsSummary(currentRows))")
       NSLayoutConstraint.deactivate(staticConstraints + dynamicConstraints)
       staticConstraints.removeAll(keepingCapacity: true)
       dynamicConstraints.removeAll(keepingCapacity: true)
       activateViewConstraints()
     }
+    logSuspiciousButtonFramesIfNeeded()
   }
 
   private func rebuildKeyboardLayout() {
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard.rebuild begin")
     NSLayoutConstraint.deactivate(staticConstraints + dynamicConstraints)
     staticConstraints.removeAll(keepingCapacity: true)
     dynamicConstraints.removeAll(keepingCapacity: true)
@@ -333,5 +351,34 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     constructViewHierarchy()
     activateViewConstraints()
     setNeedsLayout()
+    KeyboardStartupDiagnostics.log("StanderSystemKeyboard.rebuild end rows=\(keyboardRows.count) rowCounts=\(keyboardRows.map { $0.count })")
+  }
+
+  private func layoutRowsSummary(_ rows: KeyboardLayoutItemRows) -> String {
+    rows.enumerated().map { rowIndex, row in
+      let labels = row.map { item in
+        appearance.buttonText(for: item.action) ?? item.action.lookupString ?? "_"
+      }.joined()
+      return "\(rowIndex):\(row.count)[\(labels)]"
+    }.joined(separator: " ")
+  }
+
+  private func logSuspiciousButtonFramesIfNeeded() {
+    guard bounds.height > 1 else { return }
+    let flattened = keyboardRows.flatMap { $0 }
+    let qButton = flattened.first { $0.buttonText.caseInsensitiveCompare("q") == .orderedSame }
+    let oversizedButtons = flattened.filter { !$0.isHidden && $0.frame.height > bounds.height * 0.55 }
+    guard qButton != nil || !oversizedButtons.isEmpty else { return }
+
+    let qFrame = qButton.map { "\($0.frame)" } ?? "nil"
+    if let qButton, qButton.frame.height <= bounds.height * 0.55, oversizedButtons.isEmpty {
+      return
+    }
+
+    let frameSummary = keyboardRows.enumerated().map { rowIndex, row in
+      let items = row.prefix(4).map { "\($0.buttonText):\($0.frame.integral)" }.joined(separator: "|")
+      return "row\(rowIndex){\(items)}"
+    }.joined(separator: " ")
+    KeyboardStartupDiagnostics.log("SUSPICIOUS button frames q=\(qFrame) oversized=\(oversizedButtons.map { $0.buttonText }) bounds=\(bounds) \(frameSummary)")
   }
 }

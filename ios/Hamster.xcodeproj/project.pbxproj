@@ -202,6 +202,7 @@
 		C03EC3AB2B06671900DB741E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3AC2B06671A00DB741E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C071BECB2970072100E21FBC /* HamsterKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboard.entitlements; sourceTree = "<group>"; };
+		C071BECC2970072100E21FBC /* HamsterKeyboardDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboardDebug.entitlements; sourceTree = "<group>"; };
 		C08387F52A5589DF00EA8082 /* HamsteriOS */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsteriOS; path = Packages/HamsteriOS; sourceTree = "<group>"; };
 		C0C642842AC561180084147F /* ci_post_clone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = ci_post_clone.sh; sourceTree = "<group>"; };
 		C0C7EAEE29E5A236008D4EE1 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
@@ -459,6 +460,7 @@
 			isa = PBXGroup;
 			children = (
 				C071BECB2970072100E21FBC /* HamsterKeyboard.entitlements */,
+				C071BECC2970072100E21FBC /* HamsterKeyboardDebug.entitlements */,
 				C03E8040296D53650083E53A /* Info.plist */,
 				113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */,
 				C000CA9D296EA72600EC5323 /* HamsterKeyboardInputViewController.swift */,
@@ -1155,7 +1157,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = HamsterKeyboard/HamsterKeyboard.entitlements;
+				CODE_SIGN_ENTITLEMENTS = HamsterKeyboard/HamsterKeyboardDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = BG5QAG9M95;

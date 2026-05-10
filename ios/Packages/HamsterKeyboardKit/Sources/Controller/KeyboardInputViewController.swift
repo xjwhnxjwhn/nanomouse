@@ -106,14 +106,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidLoad() {
     super.viewDidLoad()
+    KeyboardStartupDiagnostics.startMainThreadWatchdog()
+    KeyboardStartupDiagnostics.log("viewDidLoad begin bounds=\(view.bounds) hasFullAccess=\(hasFullAccess)")
     // setupInitialWidth()
     // setupLocaleObservation()
     // setupNextKeyboardBehavior()
     // KeyboardUrlOpener.shared.controller = self
-    setupCombineRIMEInput()
-    setupRIMELanguageObservation()
-    setupBackgroundCommitObservation()
-    setupEmbeddedModuleObservation()
+    KeyboardStartupDiagnostics.measure("setupCombineRIMEInput") { setupCombineRIMEInput() }
+    KeyboardStartupDiagnostics.measure("setupRIMELanguageObservation") { setupRIMELanguageObservation() }
+    KeyboardStartupDiagnostics.measure("setupBackgroundCommitObservation") { setupBackgroundCommitObservation() }
+    KeyboardStartupDiagnostics.measure("setupEmbeddedModuleObservation") { setupEmbeddedModuleObservation() }
     azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
       guard let self else { return }
       guard self.isAzooKeyInputActive else { return }
@@ -123,36 +125,49 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         self.clearAzooKeyState()
       }
     }
+    KeyboardStartupDiagnostics.log("viewDidLoad end")
   }
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    KeyboardStartupDiagnostics.log("viewWillAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = false
-    viewWillSetupKeyboard()
-    viewWillSyncWithContext()
-    setupRIME()
-    syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
+    KeyboardStartupDiagnostics.measure("viewWillSetupKeyboard") { viewWillSetupKeyboard() }
+    KeyboardStartupDiagnostics.measure("viewWillSyncWithContext") { viewWillSyncWithContext() }
+    KeyboardStartupDiagnostics.measure("setupRIME") { setupRIME() }
+    KeyboardStartupDiagnostics.measure("syncKeyboardTypeForJapaneseIfNeeded.willAppear") {
+      syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
+    }
     if shouldPrewarmAzooKeyOnAppear {
-      azooKeyEngine.prewarmIfNeeded()
+      KeyboardStartupDiagnostics.measure("azooKeyEngine.prewarmIfNeeded") {
+        azooKeyEngine.prewarmIfNeeded()
+      }
     }
 
     // 加载系统文本替换
     let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
     Logger.statistics.info("SystemTextReplacement: enableSystemTextReplacement = \(enableTextReplacement)")
     if enableTextReplacement {
-      systemTextReplacementManager.loadLexicon(from: self)
+      KeyboardStartupDiagnostics.measure("systemTextReplacementManager.loadLexicon") {
+        systemTextReplacementManager.loadLexicon(from: self)
+      }
     }
 
     // 这里不再修改 window 级手势识别器，避免在 Chrome 等宿主中触发系统级副作用。
+    KeyboardStartupDiagnostics.log("viewWillAppear end")
   }
 
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    KeyboardStartupDiagnostics.log("viewDidAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = true
     reportFullAccessStateIfNeeded()
-    startVoiceResultPollingIfNeeded()
-    _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
-    applySharedScreenshotStateIfNeeded()
+    KeyboardStartupDiagnostics.measure("startVoiceResultPollingIfNeeded") { startVoiceResultPollingIfNeeded() }
+    KeyboardStartupDiagnostics.measure("handlePendingBridgeResults") {
+      _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
+    }
+    KeyboardStartupDiagnostics.measure("applySharedScreenshotStateIfNeeded") { applySharedScreenshotStateIfNeeded() }
+    KeyboardStartupDiagnostics.log("viewDidAppear end")
   }
 
   override open func viewWillDisappear(_ animated: Bool) {
@@ -168,6 +183,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     super.viewDidLayoutSubviews()
     // Logger.statistics.debug("KeyboardInputViewController: viewDidLayoutSubviews()")
     keyboardContext.syncAfterLayout(with: self)
+    KeyboardStartupDiagnostics.markMainHeartbeat("viewDidLayoutSubviews bounds=\(view.bounds)")
   }
 
   override open func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -210,6 +226,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
    */
 
   open func viewWillSetupKeyboard() {
+    KeyboardStartupDiagnostics.log("viewWillSetupKeyboard enter rootExists=\(keyboardRootView != nil) keyboardType=\(keyboardContext.keyboardType.yamlString) bounds=\(view.bounds)")
     rimeContext.prefersTwoTierCandidateBar = isUnifiedCompositionBufferEnabled
     if !isUnifiedCompositionBufferEnabled {
       rimeContext.compositionPrefix = ""
@@ -225,6 +242,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           keyboardRootView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
       }
+      KeyboardStartupDiagnostics.log("viewWillSetupKeyboard reuse root superview=\(keyboardRootView.superview != nil)")
       return
     }
 
@@ -247,6 +265,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       keyboardRootView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyboardRootView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
     ])
+    KeyboardStartupDiagnostics.log("viewWillSetupKeyboard created root")
   }
 
   deinit {
@@ -4292,33 +4311,43 @@ private extension KeyboardInputViewController {
   func setupRIME() {
     guard let startupID = beginRimeStartupIfNeeded() else {
       Logger.statistics.info("RIME startup is already in progress, skip duplicate trigger.")
+      KeyboardStartupDiagnostics.log("setupRIME skip duplicate")
       return
     }
+    KeyboardStartupDiagnostics.log("setupRIME start id=\(startupID) isRunning=\(rimeContext.isRunning)")
 
     launchRimeStartupWatchdog(startupID: startupID)
 
     let startupTask = Task.detached(priority: .userInitiated) { [weak self] in
       guard let self else { return }
 
+      let started = Date()
       let startupConfig = await MainActor.run { self.currentRimeStartupConfig() }
+      KeyboardStartupDiagnostics.log("RIME detached begin id=\(startupID) maxCandidates=\(String(describing: startupConfig.maximumNumberOfCandidateWords)) contextPaging=\(String(describing: startupConfig.useContextPaging))")
       let startupSucceeded = await self.performRimeStartupSequence(config: startupConfig)
       guard !Task.isCancelled else {
+        KeyboardStartupDiagnostics.log(String(format: "RIME detached cancelled id=%d %.3fs", startupID, Date().timeIntervalSince(started)))
         self.finishRimeStartup(startupID: startupID, startupSucceeded: false)
         return
       }
 
       if startupSucceeded {
+        KeyboardStartupDiagnostics.log("RIME syncAsciiModeFromEngine begin id=\(startupID)")
         await self.rimeContext.syncAsciiModeFromEngine()
+        KeyboardStartupDiagnostics.log("RIME syncAsciiModeFromEngine end id=\(startupID)")
       }
 
       self.finishRimeStartup(startupID: startupID, startupSucceeded: startupSucceeded)
+      KeyboardStartupDiagnostics.log(String(format: "RIME detached finish id=%d success=%@ %.3fs", startupID, String(startupSucceeded), Date().timeIntervalSince(started)))
 
       if startupSucceeded {
         await MainActor.run { [weak self] in
+          KeyboardStartupDiagnostics.log("RIME applyDefaultLanguageIfNeeded id=\(startupID)")
           self?.applyDefaultLanguageIfNeeded(reason: "startupOrAlreadyRunning")
         }
       } else {
         await MainActor.run { [weak self] in
+          KeyboardStartupDiagnostics.log("RIME enter degraded mode id=\(startupID)")
           self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "startupFailed")
         }
       }
@@ -4327,19 +4356,32 @@ private extension KeyboardInputViewController {
   }
 
   private func performRimeStartupSequence(config: RimeStartupConfig) async -> Bool {
-    if rimeContext.isRunning { return true }
+    let started = Date()
+    KeyboardStartupDiagnostics.log("performRimeStartupSequence begin isRunning=\(rimeContext.isRunning)")
+    if rimeContext.isRunning {
+      KeyboardStartupDiagnostics.log("performRimeStartupSequence already running")
+      return true
+    }
 
     if let maximumNumberOfCandidateWords = config.maximumNumberOfCandidateWords {
+      KeyboardStartupDiagnostics.log("RIME setMaximumNumberOfCandidateWords begin")
       await rimeContext.setMaximumNumberOfCandidateWords(maximumNumberOfCandidateWords)
+      KeyboardStartupDiagnostics.log("RIME setMaximumNumberOfCandidateWords end")
     }
 
     if let useContextPaging = config.useContextPaging {
+      KeyboardStartupDiagnostics.log("RIME setUseContextPaging begin")
       await rimeContext.setUseContextPaging(useContextPaging)
+      KeyboardStartupDiagnostics.log("RIME setUseContextPaging end")
     }
 
+    KeyboardStartupDiagnostics.log("RIME start begin")
     await rimeContext.start(hasFullAccess: true)
+    KeyboardStartupDiagnostics.log("RIME start end isRunning=\(rimeContext.isRunning)")
 
+    KeyboardStartupDiagnostics.log("RIME syncTraditionalSimplifiedChineseMode begin")
     await rimeContext.syncTraditionalSimplifiedChineseMode(simplifiedModeKey: config.simplifiedModeKey)
+    KeyboardStartupDiagnostics.log(String(format: "performRimeStartupSequence end isRunning=%@ %.3fs", String(rimeContext.isRunning), Date().timeIntervalSince(started)))
     return rimeContext.isRunning
   }
 
@@ -4355,6 +4397,7 @@ private extension KeyboardInputViewController {
   }
 
   private func launchRimeStartupWatchdog(startupID: Int) {
+    KeyboardStartupDiagnostics.log("launchRimeStartupWatchdog id=\(startupID) timeout=\(rimeStartupTimeout)")
     Task.detached(priority: .utility) { [weak self] in
       guard let self else { return }
 
@@ -4369,9 +4412,11 @@ private extension KeyboardInputViewController {
 
       switch action {
       case .ignore:
+        KeyboardStartupDiagnostics.log("RIME watchdog ignore id=\(startupID)")
         return
       case .retry:
         Logger.statistics.error("RIME startup timeout, retry startup once.")
+        KeyboardStartupDiagnostics.log("RIME watchdog retry id=\(startupID)")
         await MainActor.run { [weak self] in
           guard let self else { return }
           DispatchQueue.main.asyncAfter(deadline: .now() + self.rimeStartupRetryDelay) { [weak self] in
@@ -4380,6 +4425,7 @@ private extension KeyboardInputViewController {
         }
       case .degrade:
         Logger.statistics.error("RIME startup timeout, fallback to degraded mode.")
+        KeyboardStartupDiagnostics.log("RIME watchdog degrade id=\(startupID)")
         await MainActor.run { [weak self] in
           self?.enterDegradedKeyboardModeForRimeStartupFailure(reason: "timeout")
         }
@@ -4393,6 +4439,7 @@ private extension KeyboardInputViewController {
       rimeStartupInProgress = true
       rimeStartupWatchdogTriggered = false
       rimeStartupSequenceID += 1
+      KeyboardStartupDiagnostics.log("beginRimeStartupIfNeeded id=\(rimeStartupSequenceID)")
       return rimeStartupSequenceID
     }
   }
@@ -4406,6 +4453,7 @@ private extension KeyboardInputViewController {
       if startupSucceeded {
         rimeStartupRetryCount = 0
       }
+      KeyboardStartupDiagnostics.log("finishRimeStartup id=\(startupID) success=\(startupSucceeded)")
     }
   }
 
@@ -4449,6 +4497,7 @@ private extension KeyboardInputViewController {
   @MainActor
   private func enterDegradedKeyboardModeForRimeStartupFailure(reason: String) {
     Logger.statistics.error("RIME startup failed, using degraded mode. reason: \(reason, privacy: .public)")
+    KeyboardStartupDiagnostics.log("enterDegradedKeyboardMode reason=\(reason)")
     rimeContext.reset()
     rimeContext.clearAsciiModeOverride()
     // 降级模式优先回到中文主键盘，避免宿主输入框中被永久拉到英语布局。
