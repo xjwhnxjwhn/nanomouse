@@ -247,10 +247,12 @@ final class VoiceCanvasViewController: NibLessViewController {
   private var pendingCausalRenderWorkItem: DispatchWorkItem?
   private var isCausalRendererReady = false
   private var hasStartedCausalRendererLoad = false
+  private var isCausalPreviewWebViewInstalled = false
   private var pendingMarkdownRenderWorkItem: DispatchWorkItem?
   private var pendingMarkdownAutosaveWorkItem: DispatchWorkItem?
   private var isMarkdownRendererReady = false
   private var hasStartedMarkdownRendererLoad = false
+  private var isMarkdownPreviewWebViewInstalled = false
   private var suppressDoneTapOnce = false
   private var canvasDocumentItems: [VoiceWorkspaceDocumentItem] = []
   private var canvasPathComponents: [String] = []
@@ -1378,7 +1380,6 @@ final class VoiceCanvasViewController: NibLessViewController {
     causalRowsContentView.addSubview(addCausalEdgeButton)
     causalContainerView.addSubview(causalPreviewTitleLabel)
     causalContainerView.addSubview(causalPreviewContainerView)
-    causalPreviewContainerView.addSubview(causalPreviewWebView)
 
     NSLayoutConstraint.activate([
       causalContainerView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
@@ -1417,11 +1418,6 @@ final class VoiceCanvasViewController: NibLessViewController {
       causalPreviewContainerView.leadingAnchor.constraint(equalTo: causalRowsScrollView.leadingAnchor),
       causalPreviewContainerView.trailingAnchor.constraint(equalTo: causalRowsScrollView.trailingAnchor),
       causalPreviewContainerView.bottomAnchor.constraint(equalTo: causalContainerView.bottomAnchor, constant: -12),
-
-      causalPreviewWebView.topAnchor.constraint(equalTo: causalPreviewContainerView.topAnchor),
-      causalPreviewWebView.leadingAnchor.constraint(equalTo: causalPreviewContainerView.leadingAnchor),
-      causalPreviewWebView.trailingAnchor.constraint(equalTo: causalPreviewContainerView.trailingAnchor),
-      causalPreviewWebView.bottomAnchor.constraint(equalTo: causalPreviewContainerView.bottomAnchor),
     ])
   }
 
@@ -1435,7 +1431,6 @@ final class VoiceCanvasViewController: NibLessViewController {
     markdownEditorContainerView.addSubview(markdownPlaceholderLabel)
     markdownContainerView.addSubview(markdownPreviewTitleLabel)
     markdownContainerView.addSubview(markdownPreviewContainerView)
-    markdownPreviewContainerView.addSubview(markdownPreviewWebView)
 
     let commonConstraints = [
       markdownContainerView.topAnchor.constraint(equalTo: canvasContainerView.topAnchor),
@@ -1467,11 +1462,6 @@ final class VoiceCanvasViewController: NibLessViewController {
       markdownPlaceholderLabel.topAnchor.constraint(equalTo: markdownTextView.topAnchor, constant: 12),
       markdownPlaceholderLabel.leadingAnchor.constraint(equalTo: markdownEditorContainerView.leadingAnchor, constant: 16),
       markdownPlaceholderLabel.trailingAnchor.constraint(equalTo: markdownEditorContainerView.trailingAnchor, constant: -16),
-
-      markdownPreviewWebView.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
-      markdownPreviewWebView.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
-      markdownPreviewWebView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
-      markdownPreviewWebView.bottomAnchor.constraint(equalTo: markdownPreviewContainerView.bottomAnchor),
     ]
 
     markdownPortraitConstraints = [
@@ -1534,6 +1524,30 @@ final class VoiceCanvasViewController: NibLessViewController {
       filesIconView.widthAnchor.constraint(equalToConstant: 58),
       filesIconView.heightAnchor.constraint(equalTo: filesIconView.widthAnchor),
       filesHintLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 520),
+    ])
+  }
+
+  private func installCausalPreviewWebViewIfNeeded() {
+    guard !isCausalPreviewWebViewInstalled else { return }
+    isCausalPreviewWebViewInstalled = true
+    causalPreviewContainerView.addSubview(causalPreviewWebView)
+    NSLayoutConstraint.activate([
+      causalPreviewWebView.topAnchor.constraint(equalTo: causalPreviewContainerView.topAnchor),
+      causalPreviewWebView.leadingAnchor.constraint(equalTo: causalPreviewContainerView.leadingAnchor),
+      causalPreviewWebView.trailingAnchor.constraint(equalTo: causalPreviewContainerView.trailingAnchor),
+      causalPreviewWebView.bottomAnchor.constraint(equalTo: causalPreviewContainerView.bottomAnchor)
+    ])
+  }
+
+  private func installMarkdownPreviewWebViewIfNeeded() {
+    guard !isMarkdownPreviewWebViewInstalled else { return }
+    isMarkdownPreviewWebViewInstalled = true
+    markdownPreviewContainerView.addSubview(markdownPreviewWebView)
+    NSLayoutConstraint.activate([
+      markdownPreviewWebView.topAnchor.constraint(equalTo: markdownPreviewContainerView.topAnchor),
+      markdownPreviewWebView.leadingAnchor.constraint(equalTo: markdownPreviewContainerView.leadingAnchor),
+      markdownPreviewWebView.trailingAnchor.constraint(equalTo: markdownPreviewContainerView.trailingAnchor),
+      markdownPreviewWebView.bottomAnchor.constraint(equalTo: markdownPreviewContainerView.bottomAnchor)
     ])
   }
 
@@ -2093,6 +2107,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func setupCausalRendererIfNeeded() {
+    installCausalPreviewWebViewIfNeeded()
     guard !hasStartedCausalRendererLoad else { return }
     hasStartedCausalRendererLoad = true
     let bundle = Bundle.module
@@ -2314,6 +2329,7 @@ final class VoiceCanvasViewController: NibLessViewController {
   }
 
   private func setupMarkdownRendererIfNeeded() {
+    installMarkdownPreviewWebViewIfNeeded()
     guard !hasStartedMarkdownRendererLoad else { return }
     hasStartedMarkdownRendererLoad = true
     let bundle = Bundle.module
@@ -3994,7 +4010,7 @@ extension VoiceCanvasViewController: UITextViewDelegate {
 
 extension VoiceCanvasViewController: WKNavigationDelegate {
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    if webView == causalPreviewWebView {
+    if isCausalPreviewWebViewInstalled, webView == causalPreviewWebView {
       isCausalRendererReady = true
       if currentMode == .causal, statusLabel.text?.contains("渲染资源缺失") == true {
         statusLabel.text = "填写因果关系后，系统会自动生成关系图。复制后返回宿主 App 可直接粘贴图片。"
@@ -4002,7 +4018,7 @@ extension VoiceCanvasViewController: WKNavigationDelegate {
       scheduleCausalRender()
       return
     }
-    if webView == markdownPreviewWebView {
+    if isMarkdownPreviewWebViewInstalled, webView == markdownPreviewWebView {
       isMarkdownRendererReady = true
       scheduleMarkdownPreviewRender()
     }

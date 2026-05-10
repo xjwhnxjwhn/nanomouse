@@ -18,7 +18,7 @@ public class SettingsViewModel: ObservableObject {
   private let rimeViewModel: RimeViewModel
   private let backupViewModel: BackupViewModel
   private var isLoadingAppData = false
-    private static let fullAccessGuideFooter = "未开启也可基础输入；开启“完全访问权限”后，可用完整词库写入、配置同步与键盘震动等功能。\n联网仅用于你的 iCloud 同步，不会上传到其他服务器。\n路径：点击“打开设置” -> 键盘 -> 开启“允许完全访问”"
+  private static let fullAccessGuideFooter = "未开启也可基础输入；开启“完全访问权限”后，可用完整词库写入、配置同步与键盘震动等功能。\n联网仅用于你的 iCloud 同步，不会上传到其他服务器。\n路径：点击“打开设置” -> 键盘 -> 开启“允许完全访问”"
 
   init(mainViewModel: MainViewModel, rimeViewModel: RimeViewModel, backupViewModel: BackupViewModel) {
     self.mainViewModel = mainViewModel
@@ -63,6 +63,11 @@ public class SettingsViewModel: ObservableObject {
     }
   }
 
+  func reloadLocalizedSections() {
+    sections = makeSections()
+    tableReloadSubject.send(true)
+  }
+
   func getFavoriteButtons(buttons: [FavoriteButton]) -> [SettingItemModel] {
     // 检测是否有收藏按钮，如果有则添加到初始化数据 settingsViewModel.sections 中
     // 注意：后续的动态变化将在 combine() 方法中，通过观测 UserDefaults.favoriteButtonSubject 值完成
@@ -71,7 +76,7 @@ public class SettingsViewModel: ObservableObject {
       .compactMap {
         switch $0 {
         case .rimeDeploy: return SettingItemModel(
-            text: "重新部署",
+            text: AppL10n.text("重新部署"),
             type: .button,
             buttonAction: { [weak self] in
               guard let self = self else { return }
@@ -81,7 +86,7 @@ public class SettingsViewModel: ObservableObject {
             favoriteButton: .rimeDeploy
           )
         case .rimeSync: return SettingItemModel(
-            text: "RIME同步",
+            text: AppL10n.text("RIME同步"),
             type: .button,
             buttonAction: { [weak self] in
               guard let self = self else { return }
@@ -90,7 +95,7 @@ public class SettingsViewModel: ObservableObject {
             favoriteButton: .rimeSync
           )
         case .appBackup: return SettingItemModel(
-            text: "应用备份",
+            text: AppL10n.text("应用备份"),
             type: .button,
             buttonAction: { [weak self] in
               guard let self = self else { return }
@@ -103,22 +108,24 @@ public class SettingsViewModel: ObservableObject {
   }
 
   /// 设置选项
-  public lazy var sections: [SettingSectionModel] = {
+  public lazy var sections: [SettingSectionModel] = makeSections()
+
+  private func makeSections() -> [SettingSectionModel] {
     let sections = [
-        SettingSectionModel(title: "键盘权限", footer: Self.fullAccessGuideFooter, items: [
+        SettingSectionModel(title: AppL10n.text("键盘权限"), footer: AppL10n.text(Self.fullAccessGuideFooter), items: [
             .init(
                 icon: UIImage(systemName: "gearshape")!,
-                text: "开启完全访问",
+                text: AppL10n.text("开启完全访问"),
                 accessoryType: .disclosureIndicator,
                 navigationAction: { [weak self] in
                     self?.mainViewModel.subViewSubject.send(.fullAccessGuide)
                 }
             )
         ]),
-      SettingSectionModel(title: "输入相关", items: [
+      SettingSectionModel(title: AppL10n.text("输入相关"), items: [
         .init(
           icon: UIImage(systemName: "highlighter")!.withTintColor(.yellow),
-          text: "输入方案设置",
+          text: AppL10n.text("输入方案设置"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.inputSchema)
@@ -126,7 +133,7 @@ public class SettingsViewModel: ObservableObject {
         ),
         .init(
           icon: UIImage(systemName: "wifi")!,
-          text: "Wi-Fi上传方案",
+          text: AppL10n.text("Wi-Fi上传方案"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.uploadInputSchema)
@@ -134,17 +141,17 @@ public class SettingsViewModel: ObservableObject {
         ),
         .init(
           icon: UIImage(systemName: "folder")!,
-          text: "文件管理",
+          text: AppL10n.text("文件管理"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.finder)
           }
         ),
       ]),
-      SettingSectionModel(title: "键盘相关", items: [
+      SettingSectionModel(title: AppL10n.text("键盘相关"), items: [
         .init(
           icon: UIImage(systemName: "keyboard")!,
-          text: "键盘设置",
+          text: AppL10n.text("键盘设置"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.navigationToKeyboardSettings()
@@ -152,7 +159,7 @@ public class SettingsViewModel: ObservableObject {
         ),
         .init(
           icon: UIImage(systemName: "square.grid.3x3")!,
-          text: "键盘布局",
+          text: AppL10n.text("键盘布局"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.keyboardLayout)
@@ -160,35 +167,35 @@ public class SettingsViewModel: ObservableObject {
         ),
         .init(
           icon: UIImage(systemName: "paintpalette")!,
-          text: "键盘配色",
+          text: AppL10n.text("键盘配色"),
           accessoryType: .disclosureIndicator,
-          navigationLinkLabel: { [unowned self] in enableColorSchema ? "启用" : "禁用" },
+          navigationLinkLabel: { [unowned self] in enableColorSchema ? AppL10n.text("启用") : AppL10n.text("禁用") },
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.colorSchema)
           }
         ),
         .init(
           icon: UIImage(systemName: "speaker.wave.3")!,
-          text: "按键音与震动",
+          text: AppL10n.text("按键音与震动"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.feedback)
           }
         ),
       ]),
-      SettingSectionModel(title: "同步与备份", items: [
+      SettingSectionModel(title: AppL10n.text("同步与备份"), items: [
         .init(
           icon: UIImage(systemName: "externaldrive.badge.icloud")!,
-          text: "iCloud同步",
+          text: AppL10n.text("iCloud同步"),
           accessoryType: .disclosureIndicator,
-          navigationLinkLabel: { [unowned self] in enableAppleCloud ? "启用" : "禁用" },
+          navigationLinkLabel: { [unowned self] in enableAppleCloud ? AppL10n.text("启用") : AppL10n.text("禁用") },
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.iCloud)
           }
         ),
         .init(
           icon: UIImage(systemName: "externaldrive.badge.timemachine")!,
-          text: "软件备份",
+          text: AppL10n.text("软件备份"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.backup)
@@ -205,10 +212,10 @@ public class SettingsViewModel: ObservableObject {
           }
         ),
       ]),
-      .init(title: "关于", items: [
+      .init(title: AppL10n.text("关于"), items: [
         .init(
           icon: UIImage(systemName: "info.circle")!,
-          text: "关于",
+          text: AppL10n.text("关于"),
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.subViewSubject.send(.about)
@@ -217,7 +224,7 @@ public class SettingsViewModel: ObservableObject {
       ]),
     ]
     return sections
-  }()
+  }
 }
 
 extension SettingsViewModel {
@@ -239,7 +246,7 @@ extension SettingsViewModel {
 
     // PATCH: 仓1.0版本处理
     if let v1FirstRunning = UserDefaults.hamster._firstRunningForV1, v1FirstRunning == false {
-      ProgressHUD.animate("迁移 1.0 配置中……", interaction: false)
+      ProgressHUD.animate(AppL10n.text("迁移 1.0 配置中……"), interaction: false)
 
       var appConfig = HamsterAppDependencyContainer.shared.applicationConfiguration
 
@@ -262,7 +269,7 @@ extension SettingsViewModel {
       HamsterAppDependencyContainer.shared.configuration = configuration
       HamsterAppDependencyContainer.shared.applicationConfiguration = appConfig
 
-      ProgressHUD.success("迁移完成", interaction: false, delay: 1.5)
+      ProgressHUD.success(AppL10n.text("迁移完成"), interaction: false, delay: 1.5)
       return
     }
 
@@ -270,7 +277,7 @@ extension SettingsViewModel {
     guard UserDefaults.standard.isFirstRunning else { return }
 
     // 判断是否首次运行
-    ProgressHUD.animate("初次启动，需要编译输入方案，请耐心等待……", interaction: false)
+    ProgressHUD.animate(AppL10n.text("初次启动，需要编译输入方案，请耐心等待……"), interaction: false)
 
     // 首次启动始化输入方案目录
     do {
@@ -304,7 +311,7 @@ extension SettingsViewModel {
 
     HamsterAppDependencyContainer.shared.configuration = configuration
 
-    ProgressHUD.success("部署完成", interaction: false, delay: 1.5)
+    ProgressHUD.success(AppL10n.text("部署完成"), interaction: false, delay: 1.5)
   }
 
   /// 仓1.0迁移配置参数

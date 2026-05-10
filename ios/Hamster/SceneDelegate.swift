@@ -18,37 +18,59 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
   private let voiceInputBridge: AppVoiceInputBridge = .shared
   private let canvasInputBridge: AppCanvasBridge = .shared
   private var notificationRouteObserver: NSObjectProtocol?
+  private var startupBuildConfiguration: String {
+    #if DEBUG
+    "DEBUG"
+    #else
+    "RELEASE"
+    #endif
+  }
 
   func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+    let sceneStart = CFAbsoluteTimeGetCurrent()
+    print("🧭 [StartupDebug][\(startupBuildConfiguration)] iOS.SceneDelegate.willConnect BEGIN")
     guard let windowScene = (scene as? UIWindowScene) else { return }
     if !ScreenshotMode.isEnabled {
+      let reviewStart = CFAbsoluteTimeGetCurrent()
       AppReviewManager.shared.registerLaunchIfNeeded()
+      print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.registerLaunch %.3fs", CFAbsoluteTimeGetCurrent() - reviewStart))
     }
 
     if window == nil {
+      let windowStart = CFAbsoluteTimeGetCurrent()
       let window = UIWindow(windowScene: windowScene)
       window.rootViewController = HamsterAppDependencyContainer.shared.makeRootController()
       self.window = window
       window.makeKeyAndVisible()
+      print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.createRootWindow %.3fs", CFAbsoluteTimeGetCurrent() - windowStart))
     }
     if ScreenshotRouter.routeIfNeeded(from: window?.rootViewController) {
+      print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.willConnect END screenshot %.3fs", CFAbsoluteTimeGetCurrent() - sceneStart))
       return
     }
+    let routeStart = CFAbsoluteTimeGetCurrent()
     installNotificationRouteObserver()
     if let notificationResponse = connectionOptions.notificationResponse {
       AppNotificationManager.shared.stageRoute(from: notificationResponse.notification.request.content.userInfo)
     }
     applyPendingNotificationRouteIfNeeded()
+    print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.notificationRoute %.3fs", CFAbsoluteTimeGetCurrent() - routeStart))
     let localeIdentifier = Locale.preferredLanguages.first
+    let whisperStart = CFAbsoluteTimeGetCurrent()
     voiceInputBridge.prewarmSelectedWhisperModelIfNeeded(localeIdentifier: localeIdentifier)
+    print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.prewarmWhisper %.3fs", CFAbsoluteTimeGetCurrent() - whisperStart))
 
     // 首次安装时主动触发首次编译，避免依赖进入特定页面
     if UserDefaults.standard.isFirstRunning {
+      print("🧭 [StartupDebug] iOS.SceneDelegate.firstRunLoadAppData scheduled")
       Task { @MainActor in
+        let taskStart = CFAbsoluteTimeGetCurrent()
         do {
           try await HamsterAppDependencyContainer.shared.settingsViewModel.loadAppData()
+          print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.firstRunLoadAppData END %.3fs", CFAbsoluteTimeGetCurrent() - taskStart))
         } catch {
           Logger.statistics.error("load app data error: \(error)")
+          print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.firstRunLoadAppData ERROR %.3fs %@", CFAbsoluteTimeGetCurrent() - taskStart, error.localizedDescription))
         }
       }
     }
@@ -74,6 +96,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
         return
       }
       if handleEmbeddedModuleURL(url) {
+        print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.willConnect END embeddedURL %.3fs", CFAbsoluteTimeGetCurrent() - sceneStart))
         return
       }
 
@@ -96,6 +119,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     Task { @MainActor in
       await KeyboardWeatherIndicatorService.shared.refreshIfNeeded()
     }
+    print(String(format: "🧭 [StartupDebug] iOS.SceneDelegate.willConnect END %.3fs", CFAbsoluteTimeGetCurrent() - sceneStart))
   }
 
   // 通过URL打开App
@@ -310,10 +334,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
 
   private func autoRedeployIfNeededOnVersionChange() {
     #if DEBUG
+    print("🧭 [StartupDebug][DEBUG] iOS.SceneDelegate.autoRedeploy skipped debug")
     return
     #endif
+    let redeployCheckStart = CFAbsoluteTimeGetCurrent()
     // 首次安装由 loadAppData 负责，避免并发部署
     if UserDefaults.standard.isFirstRunning {
+      print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy skipped firstRun %.3fs", CFAbsoluteTimeGetCurrent() - redeployCheckStart))
       return
     }
     let currentVersion = AppInfo.appVersion
@@ -324,10 +351,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
     let versionChanged = lastVersion != currentVersion
     let sharedSupportChanged = !sharedSupportVersion.isEmpty && sharedSupportVersion != lastSharedSupportVersion
 
-    guard versionChanged || sharedSupportChanged else { return }
+    guard versionChanged || sharedSupportChanged else {
+      print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy noChange %.3fs", CFAbsoluteTimeGetCurrent() - redeployCheckStart))
+      return
+    }
+    print("🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy scheduled versionChanged=\(versionChanged) sharedSupportChanged=\(sharedSupportChanged)")
     defaults.lastLaunchedAppVersion = currentVersion
 
     Task.detached(priority: .utility) {
+      let redeployStart = CFAbsoluteTimeGetCurrent()
       await MainActor.run {
         ProgressHUD.animate("RIME部署中, 请稍候……", AnimationType.circleRotateChase, interaction: false)
       }
@@ -335,23 +367,29 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       do {
         let fm = FileManager.default
         if !sharedSupportVersion.isEmpty, sharedSupportVersion != lastSharedSupportVersion {
+          let sharedSupportStart = CFAbsoluteTimeGetCurrent()
           try FileManager.initAppGroupSharedSupportDirectory(override: true)
           defaults.lastSharedSupportVersion = sharedSupportVersion
           let buildDir = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("build")
           if fm.fileExists(atPath: buildDir.path) {
             try? fm.removeItem(at: buildDir)
           }
+          print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy.sharedSupport %.3fs", CFAbsoluteTimeGetCurrent() - sharedSupportStart))
         }
         // 叠加解压内置方案，保留用户词库
+        let unzipStart = CFAbsoluteTimeGetCurrent()
         try FileManager.initAppGroupUserDataDirectory(override: false, unzip: true)
+        print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy.initUserData %.3fs", CFAbsoluteTimeGetCurrent() - unzipStart))
 
         // 清理旧版沙盒目录，减少重复占用
+        let cleanupStart = CFAbsoluteTimeGetCurrent()
         if fm.fileExists(atPath: FileManager.sandboxSharedSupportDirectory.path) {
           try? fm.removeItem(at: FileManager.sandboxSharedSupportDirectory)
         }
         if fm.fileExists(atPath: FileManager.sandboxUserDataDirectory.path) {
           try? fm.removeItem(at: FileManager.sandboxUserDataDirectory)
         }
+        print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy.cleanupSandbox %.3fs", CFAbsoluteTimeGetCurrent() - cleanupStart))
       } catch {
         Logger.statistics.error("auto redeploy initAppGroupUserDataDirectory error: \(error.localizedDescription)")
         deployError = error
@@ -360,7 +398,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
       var configuration = HamsterAppDependencyContainer.shared.configuration
       configuration.rime?.overrideDictFiles = false
       do {
+        let deploymentStart = CFAbsoluteTimeGetCurrent()
         try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &configuration)
+        print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy.deployment %.3fs", CFAbsoluteTimeGetCurrent() - deploymentStart))
         Logger.statistics.info("auto redeploy success for app version: \(currentVersion)")
       } catch {
         Logger.statistics.error("auto redeploy error: \(error.localizedDescription)")
@@ -375,6 +415,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
           ProgressHUD.success("部署成功", interaction: false, delay: 1.5)
         }
       }
+      print(String(format: "🧭 [StartupDebug][RELEASE] iOS.SceneDelegate.autoRedeploy END %.3fs error=%@", CFAbsoluteTimeGetCurrent() - redeployStart, deployError?.localizedDescription ?? "nil"))
     }
   }
 

@@ -3034,7 +3034,7 @@ final class VoiceAccountViewController: NibLessViewController {
   private lazy var accountProfileController: VoiceAccountProfileViewController = {
     let controller = VoiceAccountProfileViewController()
     controller.onAccountUpdated = { [weak self] in
-      self?.accountView.tableView.reloadData()
+      self?.reloadAccountTableIfVisible()
     }
     return controller
   }()
@@ -3114,6 +3114,11 @@ final class VoiceAccountViewController: NibLessViewController {
   func applyLocalizedText() {
     title = AppL10n.text("账户")
     navigationItem.title = AppL10n.text("账户")
+    guard isViewLoaded, view.window != nil else { return }
+    accountView.tableView.reloadData()
+  }
+
+  private func reloadAccountTableIfVisible() {
     guard isViewLoaded, view.window != nil else { return }
     accountView.tableView.reloadData()
   }
@@ -3568,12 +3573,18 @@ final class VoiceAccountProfileViewController: NibLessViewController {
 #if DEBUG
   @objc private func handleDebugSubscriptionSwitchChanged(_ sender: UISwitch) {
     subscriptionStore.setDebugSubscriptionOverrideEnabled(sender.isOn)
-    rootView.tableView.reloadData()
+    reloadProfileTableIfVisible()
     onAccountUpdated?()
   }
 #endif
 
+  private func reloadProfileTableIfVisible() {
+    guard isViewLoaded, view.window != nil else { return }
+    rootView.tableView.reloadData()
+  }
+
   private func reloadCommunitySection() {
+    guard isViewLoaded, view.window != nil else { return }
     guard rootView.tableView.numberOfSections > 3 else {
       rootView.tableView.reloadData()
       return

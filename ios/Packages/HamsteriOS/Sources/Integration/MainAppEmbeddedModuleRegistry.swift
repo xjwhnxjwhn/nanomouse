@@ -121,11 +121,20 @@ public final class MainAppEmbeddedModuleRegistry {
 
 extension MainAppEmbeddedModuleRegistry {
   public func registerDefaultPrivateProvidersIfNeeded() {
-    guard didRegisterDefaultPrivateProviders == false else { return }
+    let registerStart = CFAbsoluteTimeGetCurrent()
+    print("🧭 [StartupDebug] iOS.EmbeddedRegistry.registerDefaultPrivateProviders BEGIN")
+    guard didRegisterDefaultPrivateProviders == false else {
+      print(String(format: "🧭 [StartupDebug] iOS.EmbeddedRegistry.registerDefaultPrivateProviders alreadyRegistered %.3fs", CFAbsoluteTimeGetCurrent() - registerStart))
+      return
+    }
     didRegisterDefaultPrivateProviders = true
 
-    guard EmbeddedMainModuleHost.isAvailable else { return }
+    guard EmbeddedMainModuleHost.isAvailable else {
+      print(String(format: "🧭 [StartupDebug] iOS.EmbeddedRegistry.registerDefaultPrivateProviders unavailable %.3fs", CFAbsoluteTimeGetCurrent() - registerStart))
+      return
+    }
 
+    let configureStart = CFAbsoluteTimeGetCurrent()
     EmbeddedMainModuleHost.configure(
       appGroupIdentifier: HamsterConstants.appGroupName,
       cloudKitContainerIdentifier: HamsterConstants.iCloudID,
@@ -148,7 +157,11 @@ extension MainAppEmbeddedModuleRegistry {
         )
       }
     )
+    print(String(format: "🧭 [StartupDebug] iOS.EmbeddedRegistry.configureEmbeddedHost %.3fs", CFAbsoluteTimeGetCurrent() - configureStart))
+    let providerStart = CFAbsoluteTimeGetCurrent()
     register(provider: EmbeddedMainRegistryAdapter())
+    print(String(format: "🧭 [StartupDebug] iOS.EmbeddedRegistry.registerProvider %.3fs", CFAbsoluteTimeGetCurrent() - providerStart))
+    print(String(format: "🧭 [StartupDebug] iOS.EmbeddedRegistry.registerDefaultPrivateProviders END %.3fs", CFAbsoluteTimeGetCurrent() - registerStart))
   }
 }
 

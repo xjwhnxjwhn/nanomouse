@@ -753,8 +753,9 @@ extension KeyboardContext {
 //    if hasDictationKey != controller.hasDictationKey {
 //      hasDictationKey = controller.hasDictationKey
 //    }
-    if hasFullAccess != controller.hasFullAccess {
-      hasFullAccess = controller.hasFullAccess
+    let currentFullAccess = controller.hasFullAccess
+    if hasFullAccess != currentFullAccess {
+      hasFullAccess = currentFullAccess
     }
     if controller.canSafelyQueryInputModeSwitchKey {
       let needsInputSwitchKey = controller.needsInputModeSwitchKey

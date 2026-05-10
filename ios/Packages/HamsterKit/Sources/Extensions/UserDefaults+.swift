@@ -483,6 +483,19 @@ public extension UserDefaults {
       }
     }
   }
+
+  /// 键盘扩展最近一次上报的“允许完全访问”状态。
+  var keyboardExtensionHasFullAccess: Bool {
+    get {
+      guard object(forKey: Self.keyboardExtensionHasFullAccessKey) != nil else { return false }
+      return bool(forKey: Self.keyboardExtensionHasFullAccessKey)
+    }
+    set {
+      set(newValue, forKey: Self.keyboardExtensionHasFullAccessKey)
+      set(Date(), forKey: Self.keyboardExtensionFullAccessUpdatedAtKey)
+      Logger.statistics.debug("save keyboardExtensionHasFullAccess: \(newValue)")
+    }
+  }
 }
 
 extension UserDefaults {
@@ -547,6 +560,8 @@ extension UserDefaults {
   private static let enableKeyboardExtensionVoiceModeViewKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.enableKeyboardExtensionVoiceModeView"
   private static let keyboardWeatherIndicatorCacheKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardWeatherIndicatorCache"
   private static let keyboardWeatherIndicatorLastRefreshAtKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardWeatherIndicatorLastRefreshAt"
+  private static let keyboardExtensionHasFullAccessKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardExtensionHasFullAccess"
+  private static let keyboardExtensionFullAccessUpdatedAtKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardExtensionFullAccessUpdatedAt"
   private static let remotePackageInstalledVersionPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledVersion."
   private static let remotePackageInstalledSHA256Prefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageInstalledSHA256."
   private static let remotePackageLastCheckAtPrefix = "com.XiangqingZHANG.nanomouse.UserDefault.keys.remotePackageLastCheckAt."

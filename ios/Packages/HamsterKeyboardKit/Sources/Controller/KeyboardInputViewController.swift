@@ -73,6 +73,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private let rimeStartupTimeout: TimeInterval = 5.0
   private let rimeStartupWatchdogPollNanoseconds: UInt64 = 150_000_000
   private var hasEstablishedHostConnection = false
+  private var lastReportedFullAccessState: Bool?
 
   private struct RimeStartupConfig {
     let maximumNumberOfCandidateWords: Int?
@@ -148,6 +149,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
     hasEstablishedHostConnection = true
+    reportFullAccessStateIfNeeded()
     startVoiceResultPollingIfNeeded()
     _ = viewWillHandleVoiceInputResult() || viewWillHandleCanvasInputResult()
     applySharedScreenshotStateIfNeeded()
@@ -172,6 +174,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     // Logger.statistics.info("controller traitCollectionDidChange()")
     super.traitCollectionDidChange(previousTraitCollection)
     viewWillSyncWithContext()
+  }
+
+  private func reportFullAccessStateIfNeeded() {
+    let currentState = hasFullAccess
+    guard lastReportedFullAccessState != currentState else { return }
+    lastReportedFullAccessState = currentState
+    UserDefaults.hamster.keyboardExtensionHasFullAccess = currentState
   }
 
   /// 内存回收

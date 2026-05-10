@@ -4,6 +4,7 @@ import UIKit
 
 public class FullAccessGuideViewController: NibLessViewController {
   private let viewModel: FullAccessGuideViewModel
+  private var languageObserver: NSObjectProtocol?
 
   // MARK: - UI Components
 
@@ -48,7 +49,7 @@ public class FullAccessGuideViewController: NibLessViewController {
     return label
   }()
 
-  // 底部操作区域
+  // 操作引导区域
   private lazy var actionLabel: UILabel = {
     let label = UILabel()
     label.textAlignment = .center
@@ -59,10 +60,13 @@ public class FullAccessGuideViewController: NibLessViewController {
   }()
 
   private lazy var actionButton: UIButton = {
-    var config = UIButton.Configuration.filled()
+    var config = UIButton.Configuration.plain()
     config.cornerStyle = .capsule
     config.buttonSize = .large
-    config.title = "打开设置"
+    config.title = AppL10n.text("前往设置")
+    config.image = UIImage(systemName: "arrow.up.forward.app")
+    config.imagePlacement = .leading
+    config.imagePadding = 6
     
     let button = UIButton(configuration: config)
     button.addTarget(self, action: #selector(handleActionButton), for: .touchUpInside)
@@ -76,11 +80,23 @@ public class FullAccessGuideViewController: NibLessViewController {
     super.init()
   }
 
+  deinit {
+    if let languageObserver {
+      NotificationCenter.default.removeObserver(languageObserver)
+    }
+  }
+
   override public func viewDidLoad() {
     super.viewDidLoad()
-    title = viewModel.title
     setupView()
     configureContent()
+    languageObserver = NotificationCenter.default.addObserver(
+      forName: AppLocalization.didChangeNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      self?.configureContent()
+    }
   }
 
   private func setupView() {
@@ -99,14 +115,12 @@ public class FullAccessGuideViewController: NibLessViewController {
         stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
     ])
 
-    // Build hierarchy
-    // Action (顶部：按钮在上，提示文字在下)
+    // Action (顶部：系统设置入口优先出现)
     stackView.addArrangedSubview(actionButton)
     stackView.addArrangedSubview(actionLabel)
 
-    // Separator
     let separator = UIView()
-    separator.heightAnchor.constraint(equalToConstant: 24).isActive = true
+    separator.heightAnchor.constraint(equalToConstant: 12).isActive = true
     stackView.addArrangedSubview(separator)
 
     // Features (说明文案)
@@ -130,6 +144,15 @@ public class FullAccessGuideViewController: NibLessViewController {
   }
 
   private func configureContent() {
+    title = viewModel.title
+    navigationItem.title = viewModel.title
+    actionButton.configuration?.title = AppL10n.text("前往设置")
+
+    for view in featuresStack.arrangedSubviews {
+      featuresStack.removeArrangedSubview(view)
+      view.removeFromSuperview()
+    }
+
     // Fill Features
     for item in viewModel.guideItems {
       let itemStack = UIStackView()

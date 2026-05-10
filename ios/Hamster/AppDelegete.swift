@@ -11,13 +11,30 @@ import UIKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
+  private var startupBuildConfiguration: String {
+    #if DEBUG
+    "DEBUG"
+    #else
+    "RELEASE"
+    #endif
+  }
+
   func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    let launchStart = CFAbsoluteTimeGetCurrent()
+    print("🧭 [StartupDebug][\(startupBuildConfiguration)] iOS.AppDelegate.didFinishLaunching BEGIN")
+    let registerStart = CFAbsoluteTimeGetCurrent()
     MainAppEmbeddedModuleRegistry.shared.registerDefaultPrivateProvidersIfNeeded()
+    print(String(format: "🧭 [StartupDebug] iOS.AppDelegate.registerDefaultPrivateProviders %.3fs", CFAbsoluteTimeGetCurrent() - registerStart))
     // 字节粘贴的 CloudKit 静默推送不依赖用户可见通知授权。
     // 主 App 启动后先注册远程通知，确保后台同步具备被系统唤醒的条件。
+    let remoteStart = CFAbsoluteTimeGetCurrent()
     application.registerForRemoteNotifications()
+    print(String(format: "🧭 [StartupDebug] iOS.AppDelegate.registerForRemoteNotifications %.3fs", CFAbsoluteTimeGetCurrent() - remoteStart))
+    let notificationStart = CFAbsoluteTimeGetCurrent()
     AppNotificationManager.shared.start(application: application)
+    print(String(format: "🧭 [StartupDebug] iOS.AppDelegate.notificationManagerStart %.3fs", CFAbsoluteTimeGetCurrent() - notificationStart))
     // Override point for customization after application launch.
+    print(String(format: "🧭 [StartupDebug] iOS.AppDelegate.didFinishLaunching END %.3fs", CFAbsoluteTimeGetCurrent() - launchStart))
     return true
   }
 
