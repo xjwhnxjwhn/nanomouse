@@ -292,6 +292,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
 #if DEBUG
     return
 #else
+    guard currentCacheMatchesConfiguration() else { return }
     guard let lastRefreshAt = UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt else { return }
     let elapsed = Date().timeIntervalSince(lastRefreshAt)
     guard elapsed < Self.refreshCooldown else { return }
@@ -303,12 +304,24 @@ public final class KeyboardWeatherIndicatorService: NSObject {
 #if DEBUG
     return nil
 #else
+    guard currentCacheMatchesConfiguration() else { return nil }
     guard let lastRefreshAt = UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt else { return nil }
     let elapsed = Date().timeIntervalSince(lastRefreshAt)
     guard elapsed < Self.refreshCooldown else { return nil }
     let remaining = Self.refreshCooldown - elapsed
     return WeatherIndicatorError.cooldownText(for: remaining)
 #endif
+  }
+
+  private func currentCacheMatchesConfiguration() -> Bool {
+    let config = currentWeatherConfiguration()
+    guard let cache = UserDefaults.hamster.keyboardWeatherIndicatorCache else { return false }
+    return cache.matchesConfiguration(
+      locationMode: config.locationMode,
+      fixedLocationName: config.fixedLocationName,
+      fixedLatitude: config.fixedLatitude,
+      fixedLongitude: config.fixedLongitude
+    )
   }
 
   private func missingCacheReasonText(

@@ -622,6 +622,25 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     refreshToolbarSettings()
   }
 
+  public func selectWeatherIndicatorLocationMode(_ mode: KeyboardWeatherIndicatorLocationMode) {
+    weatherIndicatorLocationMode = mode
+    refreshToolbarSettings()
+
+    guard mode == .currentLocation, enableWeatherIndicator else { return }
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      do {
+        let cache = try await KeyboardWeatherIndicatorService.shared.refresh(forceAuthorizationPrompt: true)
+        self.refreshToolbarSettings()
+        ProgressHUD.success("天气缓存已更新")
+        Logger.statistics.debug("weather cache refreshed for \(cache.resolvedLocationName)")
+      } catch {
+        self.refreshToolbarSettings()
+        ProgressHUD.failed(error.localizedDescription, interaction: false, delay: 1.5)
+      }
+    }
+  }
+
   // 是否启用空格加载文本
   public var enableLoadingTextForSpaceButton: Bool {
     get {
@@ -1267,8 +1286,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         pullDownMenuActionsBuilder: { [unowned self] in
           KeyboardWeatherIndicatorLocationMode.allCases.map { mode in
             UIAction(title: mode.title, state: mode == self.weatherIndicatorLocationMode ? .on : .off) { _ in
-              self.weatherIndicatorLocationMode = mode
-              self.refreshToolbarSettings()
+              self.selectWeatherIndicatorLocationMode(mode)
             }
           }
         }),
