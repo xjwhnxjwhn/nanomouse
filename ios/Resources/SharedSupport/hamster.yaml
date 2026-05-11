@@ -85,6 +85,8 @@ keyboard:
   displayChineseEnglishSwitchButton: true
   # 按键位于空格左侧
   chineseEnglishSwitchButtonIsOnLeftOfSpaceButton: false
+  # 中文键盘数字/标点候选模式
+  enableNumericCandidateModeOnChineseKeyboard: false
   # 启用数字九宫格键盘
   enableNineGridOfNumericKeyboard: false
   # 数字九宫格键盘：数字键是否由 RIME 处理

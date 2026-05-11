@@ -675,7 +675,7 @@ class KeyboardToolbarView: NibLessView {
 
   private var canToggleTraditionalizationFromToolbar: Bool {
     guard !commonFunctionBar.isHidden else { return false }
-    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard || keyboardContext.keyboardType.isChineseNineGrid else { return false }
     guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
     guard rimeContext.asciiModeSnapshot == false else { return false }
     guard rimeContext.userInputKey.isEmpty else { return false }

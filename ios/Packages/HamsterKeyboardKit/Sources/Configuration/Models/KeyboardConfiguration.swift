@@ -256,7 +256,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = true,
     enableMultiLanguageQuickMix: Bool? = false,
-    enableNumericCandidateModeOnChineseKeyboard: Bool? = true,
+    enableNumericCandidateModeOnChineseKeyboard: Bool? = false,
     enableNumericCandidateModeOnJapaneseAzooKey: Bool? = true) {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode

@@ -134,6 +134,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     hasEstablishedHostConnection = false
     KeyboardStartupDiagnostics.measure("viewWillSetupKeyboard") { viewWillSetupKeyboard() }
     KeyboardStartupDiagnostics.measure("viewWillSyncWithContext") { viewWillSyncWithContext() }
+    KeyboardStartupDiagnostics.measure("syncChineseSchemaWithKeyboardType.willAppear") {
+      _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(keyboardContext.keyboardType)
+    }
     KeyboardStartupDiagnostics.measure("setupRIME") { setupRIME() }
     KeyboardStartupDiagnostics.measure("syncKeyboardTypeForJapaneseIfNeeded.willAppear") {
       syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
@@ -3626,6 +3629,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 //      rimeContext.reset()
 //    }
     keyboardContext.setKeyboardType(type)
+    _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
     if type.isAlphabetic {
       keyboardContext.isAutoCapitalizationEnabled = false
       keyboardContext.autocapitalizationTypeOverride = .none

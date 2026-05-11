@@ -337,6 +337,59 @@ public extension RimeContext {
     resetLatestSchema()
   }
 
+  @discardableResult
+  func syncChineseSchemaWithKeyboardTypeIfNeeded(_ keyboardType: KeyboardType) -> Bool {
+    guard keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid else { return false }
+
+    let shouldUseNineGrid = keyboardType.isChineseNineGrid
+    guard let targetSchema = preferredChineseSchema(useNineGrid: shouldUseNineGrid) else {
+      Logger.statistics.error(
+        "sync Chinese schema failed: target not found, nineGrid=\(shouldUseNineGrid)"
+      )
+      return false
+    }
+
+    let selectedChineseSchemas = selectSchemas.filter { !$0.isJapaneseSchema }
+    let needsSelectionUpdate = selectedChineseSchemas.count != 1 || selectedChineseSchemas.first != targetSchema
+    if needsSelectionUpdate {
+      let nonChineseSchemas = selectSchemas.filter { $0.isJapaneseSchema }
+      selectSchemas = orderedSelectSchemas(nonChineseSchemas + [targetSchema])
+    }
+
+    let needsCurrentUpdate = currentSchema != targetSchema
+    if needsCurrentUpdate {
+      latestSchema = currentSchema
+      currentSchema = targetSchema
+    }
+    resetLatestSchema()
+
+    if Rime.shared.isRunning() {
+      let handle = Rime.shared.setSchema(targetSchema.schemaId)
+      Logger.statistics.info(
+        "sync Chinese schema with keyboard: \(targetSchema.schemaId, privacy: .public), handle=\(handle)"
+      )
+      if handle {
+        Task { @MainActor [weak self] in
+          self?.reset()
+        }
+      }
+      return handle || needsSelectionUpdate || needsCurrentUpdate
+    }
+
+    return needsSelectionUpdate || needsCurrentUpdate
+  }
+
+  private func preferredChineseSchema(useNineGrid: Bool) -> RimeSchema? {
+    if let selected = selectSchemas.first(where: {
+      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+    }) {
+      return selected
+    }
+    return schemas.first(where: {
+      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+    })
+  }
+
   /// 统一排序用户已选输入方案：
   /// - 中文方案中优先把 rime_ice 放到首位
   /// - 其余保持按 schemaId 稳定排序
