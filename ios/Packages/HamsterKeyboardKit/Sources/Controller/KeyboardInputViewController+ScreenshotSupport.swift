@@ -115,7 +115,6 @@ private extension KeyboardInputViewController {
       button.updateButtonStyle(isPressed: false)
       button.removeInputCallout()
       button.superview?.viewWithTag(KeyboardButton.accentMenuOverlayTag)?.removeFromSuperview()
-      button.superview?.viewWithTag(KeyboardButton.numericKeypadOverlayTag)?.removeFromSuperview()
     }
   }
 
@@ -147,8 +146,8 @@ private extension KeyboardInputViewController {
   }
 
   func showScreenshotNumericKeypad() {
-    guard let button = findKeyboardButton(where: { $0.buttonText == "123" }) else { return }
-    button.presentNumericKeypad()
+    keyboardContext.calculatorReturnKeyboardType = keyboardContext.keyboardType
+    setKeyboardType(.calculatorNumeric)
   }
 
   func findKeyboardButton(displaying text: String) -> KeyboardButton? {

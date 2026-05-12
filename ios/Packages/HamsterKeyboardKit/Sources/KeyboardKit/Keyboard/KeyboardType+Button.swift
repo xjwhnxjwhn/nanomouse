@@ -46,6 +46,7 @@ public extension KeyboardType {
     case .alphabetic: return "ABC"
     case .numeric: return "123"
     case .numericNineGrid: return "123"
+    case .calculatorNumeric: return "123"
     case .chineseNumeric: return "123"
     case .symbolic: return "#+="
     case .chineseSymbolic: return "#+="

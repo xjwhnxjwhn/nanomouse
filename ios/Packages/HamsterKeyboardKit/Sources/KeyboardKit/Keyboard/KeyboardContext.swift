@@ -129,6 +129,9 @@ public class KeyboardContext: ObservableObject {
   /// 主键盘类型栈：用来做返回主键盘的栈结构
   private lazy var primaryKeyboardStack = [KeyboardType]()
 
+  /// 计算器键盘关闭后应返回的键盘。长按 123 进入计算器前写入。
+  public var calculatorReturnKeyboardType: KeyboardType?
+
   private lazy var keyboardTypeSubject = PassthroughSubject<KeyboardType, Never>()
   public var keyboardTypePublished: AnyPublisher<KeyboardType, Never> {
     keyboardTypeSubject.eraseToAnyPublisher()

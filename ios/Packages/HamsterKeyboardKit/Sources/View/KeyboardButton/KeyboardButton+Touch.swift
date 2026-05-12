@@ -267,14 +267,16 @@ public extension KeyboardButton {
     // 支持中文/日文模式下的切换键
     if case .keyboardType(.numeric) = item.action {
         shouldApplyReleaseAction = false
-        presentNumericKeypad()
+        keyboardContext.calculatorReturnKeyboardType = keyboardContext.keyboardType
+        keyboardContext.setKeyboardType(.calculatorNumeric)
         return
     }
     
     // 额外检查：有些自定义或非标准键盘可能 Action 不是 .numeric 但显示文本是 "123"
     if buttonText == "123" {
         shouldApplyReleaseAction = false
-        presentNumericKeypad()
+        keyboardContext.calculatorReturnKeyboardType = keyboardContext.keyboardType
+        keyboardContext.setKeyboardType(.calculatorNumeric)
         return
     }
 

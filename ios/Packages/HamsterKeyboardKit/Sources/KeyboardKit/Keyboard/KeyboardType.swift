@@ -127,6 +127,11 @@ public enum KeyboardType: Codable, Identifiable, Hashable {
   case numericNineGrid
 
   /**
+   长按 123 打开的计算器数字键盘
+   */
+  case calculatorNumeric
+
+  /**
    分类符号键
    */
   case classifySymbolic
@@ -150,6 +155,7 @@ public enum KeyboardType: Codable, Identifiable, Hashable {
     case .chineseSymbolic: hasher.combine("chineseSymbolic")
     case .chineseNineGrid: hasher.combine("chineseNineGrid")
     case .numericNineGrid: hasher.combine("numericNineGrid")
+    case .calculatorNumeric: hasher.combine("calculatorNumeric")
     case .classifySymbolic: hasher.combine("classifySymbolic")
     case .classifySymbolicOfLight: hasher.combine("classifySymbolicOfLight")
     }
@@ -174,6 +180,7 @@ public extension KeyboardType {
     case .chinese(let casing): return "chinese_\(casing.id)"
     case .chineseNineGrid: return "chineseNineGrid"
     case .numericNineGrid: return "numericNineGrid"
+    case .calculatorNumeric: return "calculatorNumeric"
     case .classifySymbolic: return "classifySymbolic"
     case .classifySymbolicOfLight: return "classifySymbolicOfLight"
     case .chineseNumeric: return "chineseNumeric"
@@ -229,6 +236,7 @@ public extension KeyboardType {
     switch self {
     case .numeric: return true
     case .numericNineGrid: return true
+    case .calculatorNumeric: return true
     case .chineseNumeric: return true
     default:
       return false

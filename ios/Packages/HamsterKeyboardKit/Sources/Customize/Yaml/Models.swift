@@ -597,6 +597,8 @@ public extension String {
       return .chineseNineGrid
     case "numericNineGrid":
       return .numericNineGrid
+    case "calculatorNumeric":
+      return .calculatorNumeric
     case "custom":
       if !name.isEmpty {
         return .custom(named: name)
@@ -721,6 +723,8 @@ public extension KeyboardType {
       return "chineseNineGrid"
     case .numericNineGrid:
       return "numericNineGrid"
+    case .calculatorNumeric:
+      return "calculatorNumeric"
     case .classifySymbolic:
       return "classifySymbolic"
     case .emojis:
@@ -736,7 +740,7 @@ public extension KeyboardType {
     switch self {
     case .alphabetic:
       return "ABC"
-    case .numeric, .chineseNumeric, .numericNineGrid:
+    case .numeric, .chineseNumeric, .numericNineGrid, .calculatorNumeric:
       return "123"
     case .symbolic, .chineseSymbolic:
       return "#+="

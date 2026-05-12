@@ -124,6 +124,17 @@ class KeyboardRootView: NibLessView {
     return view
   }
 
+  /// 长按 123 打开的计算器键盘
+  private var numericCalculatorKeyboardView: UIView {
+    let view = NumericCalculatorKeyboard(
+      actionHandler: actionHandler,
+      appearance: appearance,
+      keyboardContext: keyboardContext
+    )
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }
+
   /// 符号分类键盘
   /// 注意：计算属性
   private var classifySymbolicKeyboardView: ClassifySymbolicKeyboard {
@@ -451,6 +462,8 @@ class KeyboardRootView: NibLessView {
     switch keyboardType {
     case .numericNineGrid:
       tempKeyboardView = numericNineGridKeyboardView
+    case .calculatorNumeric:
+      tempKeyboardView = numericCalculatorKeyboardView
     case .classifySymbolic:
       tempKeyboardView = classifySymbolicKeyboardView
     case .emojis:

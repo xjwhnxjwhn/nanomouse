@@ -329,65 +329,6 @@ public class KeyboardButton: UIControl {
     actionHandler.handle(.release, on: .character(char))
   }
 
-
-
-  // MARK: - Numeric Keypad Support
-
-  static let numericKeypadOverlayTag = 8119
-
-  func presentNumericKeypad() {
-    var container = superview
-    // 尝试获取键盘控制器的根视图，以确保覆盖整个键盘区域
-    if let handler = actionHandler as? StandardKeyboardActionHandler,
-       let controller = handler.keyboardController as? UIViewController {
-      container = controller.view
-    }
-    
-    guard let container = container else { return }
-    // Remove existing overlay
-    container.viewWithTag(Self.numericKeypadOverlayTag)?.removeFromSuperview()
-
-    // 获取键盘振动设置
-    let enableHaptic = keyboardContext.hamsterConfiguration?.keyboard?.enableHapticFeedback ?? false
-
-    let overlay = NumericKeypadOverlay(
-      style: actionCalloutStyle,
-      enableHapticFeedback: enableHaptic,
-      onInput: { [weak self] char in
-        self?.handleNumericInput(char)
-      },
-      onDelete: { [weak self] in
-        self?.handleNumericDelete()
-      },
-      onNewline: { [weak self] in
-        self?.handleNumericNewline()
-      }
-    )
-    
-    overlay.tag = Self.numericKeypadOverlayTag
-    overlay.frame = container.bounds
-    overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    container.addSubview(overlay)
-  }
-
-  func handleNumericInput(_ text: String) {
-    Logger.statistics.info("Numeric input: \(text)")
-    // 直接使用 textDocumentProxy 插入文本，避免自动补全括号等行为
-    keyboardContext.textDocumentProxy.insertText(text)
-  }
-  
-  func handleNumericDelete() {
-    Logger.statistics.info("Numeric delete")
-    // Backspace works on .press (or .repeatPress), not .release in StandardKeyboardActionHandler
-    actionHandler.handle(.press, on: .backspace)
-    actionHandler.handle(.release, on: .backspace) // Clean up state if necessary
-  }
-  
-  func handleNumericNewline() {
-    Logger.statistics.info("Numeric newline")
-    actionHandler.handle(.release, on: .primary(.return))
-  }
-
   @objc func handleRimeAsciiModeChange() {
     guard isLanguageSwitchKey() else { return }
     DispatchQueue.main.async { [weak self] in
