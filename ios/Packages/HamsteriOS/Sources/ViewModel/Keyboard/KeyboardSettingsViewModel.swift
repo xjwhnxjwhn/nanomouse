@@ -797,10 +797,27 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     if !rimeContext.selectSchemas.contains(targetSchema) {
       rimeContext.appendSelectSchema(targetSchema)
     }
+    rimeContext.setCurrentSchema(targetSchema)
   }
 
   private func preferredChineseSchema(useNineGrid: Bool) -> RimeSchema? {
     let rimeContext = HamsterAppDependencyContainer.shared.rimeContext
+    let remembered = useNineGrid ? UserDefaults.hamster.latestChineseNineGridSchema : UserDefaults.hamster.latestChinesePrimarySchema
+
+    if let remembered,
+       let schema = rimeContext.schemas.first(where: { $0.schemaId == remembered.schemaId }),
+       !schema.isJapaneseSchema,
+       schema.isChineseNineGridSchema == useNineGrid
+    {
+      return schema
+    }
+
+    if let currentSchema = rimeContext.currentSchema,
+       !currentSchema.isJapaneseSchema,
+       currentSchema.isChineseNineGridSchema == useNineGrid
+    {
+      return currentSchema
+    }
 
     if let selected = rimeContext.selectSchemas.first(where: {
       !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid

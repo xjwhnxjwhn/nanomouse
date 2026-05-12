@@ -327,6 +327,38 @@ public extension UserDefaults {
     }
   }
 
+  /// RIME: 最近一次用户主动使用的中文26键方案
+  var latestChinesePrimarySchema: RimeSchema? {
+    get {
+      if let data = data(forKey: Self.latestChinesePrimarySchemaForKey), let schema = try? JSONDecoder().decode(RimeSchema.self, from: data) {
+        return schema
+      }
+      return nil
+    }
+    set {
+      if let data = try? JSONEncoder().encode(newValue) {
+        UserDefaults.hamster.set(data, forKey: Self.latestChinesePrimarySchemaForKey)
+        Logger.statistics.debug("save latestChinesePrimarySchema: \(data)")
+      }
+    }
+  }
+
+  /// RIME: 最近一次用户主动使用的中文9键方案
+  var latestChineseNineGridSchema: RimeSchema? {
+    get {
+      if let data = data(forKey: Self.latestChineseNineGridSchemaForKey), let schema = try? JSONDecoder().decode(RimeSchema.self, from: data) {
+        return schema
+      }
+      return nil
+    }
+    set {
+      if let data = try? JSONEncoder().encode(newValue) {
+        UserDefaults.hamster.set(data, forKey: Self.latestChineseNineGridSchemaForKey)
+        Logger.statistics.debug("save latestChineseNineGridSchema: \(data)")
+      }
+    }
+  }
+
   /// RIME Switch key
   var hotKeys: [String] {
     get {
@@ -553,6 +585,8 @@ extension UserDefaults {
   private static let selectSchemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.selectSchemas"
   private static let currentSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.currentSchema"
   private static let latestSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestSchemaForKey"
+  private static let latestChinesePrimarySchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestChinesePrimarySchema"
+  private static let latestChineseNineGridSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestChineseNineGridSchema"
   private static let hotKeys = "com.XiangqingZHANG.nanomouse.UserDefault.keys.hotKeys"
   private static let azooKeyModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyMode"
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"

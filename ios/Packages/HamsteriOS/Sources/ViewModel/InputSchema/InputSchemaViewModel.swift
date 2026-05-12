@@ -1287,6 +1287,7 @@ extension InputSchemaViewModel {
     }
 
     if group == .chineseEnglish {
+      rimeContext.setCurrentSchema(schema)
       syncKeyboardLayoutWithChineseSchema()
     }
     reloadTableStateSubject.send(true)

@@ -42,6 +42,7 @@ public class RimeContext {
     didSet {
       // 注意：如果没有完全访问权限，UserDefaults.hamster 会保存失败
       UserDefaults.hamster.currentSchema = currentSchema
+      rememberChineseSchemaChoice(currentSchema)
       NotificationCenter.default.post(name: RimeContext.rimeSchemaDidChangeNotification, object: nil)
     }
   }
@@ -325,6 +326,7 @@ public extension RimeContext {
     var schemas = self.selectSchemas
     schemas.append(schema)
     self.selectSchemas = orderedSelectSchemas(schemas)
+    rememberChineseSchemaChoice(schema)
     resetCurrentSchema()
     resetLatestSchema()
   }
@@ -380,6 +382,22 @@ public extension RimeContext {
   }
 
   private func preferredChineseSchema(useNineGrid: Bool) -> RimeSchema? {
+    let remembered = useNineGrid ? UserDefaults.hamster.latestChineseNineGridSchema : UserDefaults.hamster.latestChinesePrimarySchema
+    if let remembered,
+       let schema = schemas.first(where: { $0.schemaId == remembered.schemaId }),
+       !schema.isJapaneseSchema,
+       schema.isChineseNineGridSchema == useNineGrid
+    {
+      return schema
+    }
+
+    if let currentSchema,
+       !currentSchema.isJapaneseSchema,
+       currentSchema.isChineseNineGridSchema == useNineGrid
+    {
+      return currentSchema
+    }
+
     if let selected = selectSchemas.first(where: {
       !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
     }) {
@@ -388,6 +406,15 @@ public extension RimeContext {
     return schemas.first(where: {
       !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
     })
+  }
+
+  private func rememberChineseSchemaChoice(_ schema: RimeSchema?) {
+    guard let schema, !schema.isJapaneseSchema else { return }
+    if schema.isChineseNineGridSchema {
+      UserDefaults.hamster.latestChineseNineGridSchema = schema
+    } else {
+      UserDefaults.hamster.latestChinesePrimarySchema = schema
+    }
   }
 
   /// 统一排序用户已选输入方案：
@@ -512,6 +539,7 @@ public extension RimeContext {
     removeJapaneseSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     let traits = Rime.createTraits(
       sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,
@@ -615,6 +643,7 @@ public extension RimeContext {
     try FileManager.initAppGroupSharedSupportDirectory(override: false)
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     if !isRunning {
       Rime.shared.start(Rime.createTraits(
@@ -660,6 +689,7 @@ public extension RimeContext {
     removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     let configuration = (try? HamsterConfigurationRepositories.shared.loadConfiguration()) ?? HamsterConfiguration()
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     Rime.shared.shutdown()
     let traits = Rime.createTraits(
@@ -830,6 +860,40 @@ public extension RimeContext {
     }
   }
 
+  private func removeGeneratedT9PinyinPatch(in userDataDir: URL) {
+    let schemaIDs = Set((["t9"] + schemas.filter(\.isChineseNineGridSchema).map(\.schemaId) + selectSchemas.filter(\.isChineseNineGridSchema).map(\.schemaId)).filter { !$0.isEmpty })
+    for schemaID in schemaIDs {
+      let patchURL = userDataDir.appendingPathComponent("\(schemaID).custom.yaml")
+      guard FileManager.default.fileExists(atPath: patchURL.path),
+            let raw = try? String(contentsOf: patchURL, encoding: .utf8),
+            raw.contains("derive/ng$/nn/")
+      else {
+        continue
+      }
+
+      let generatedContent = raw.contains("Nanomouse 中文九键拼音优化配置")
+      let keptLines = raw.components(separatedBy: .newlines).filter { line in
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return !trimmed.contains("Nanomouse 中文九键拼音优化配置")
+          && !trimmed.contains("后鼻音简化：ng → nn")
+          && trimmed != "- derive/ng$/nn/"
+      }
+      let meaningfulLines = keptLines
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty && !$0.hasPrefix("#") && $0 != "patch:" && $0 != "\"speller/algebra/+\":" }
+
+      do {
+        if generatedContent, meaningfulLines.isEmpty {
+          try FileManager.default.removeItem(at: patchURL)
+        } else {
+          try keptLines.joined(separator: "\n").write(to: patchURL, atomically: true, encoding: .utf8)
+        }
+      } catch {
+        Logger.statistics.error("remove generated \(schemaID).custom.yaml t9 patch failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
   var isRunning: Bool {
     Rime.shared.isRunning()
   }
@@ -910,19 +974,27 @@ public extension RimeContext {
 
   // 同步中文简繁状态
   func syncTraditionalSimplifiedChineseMode(simplifiedModeKey: String) {
+    guard !simplifiedModeKey.isEmpty else { return }
     // 获取运行时状态
     let simplifiedModeValue = Rime.shared.simplifiedChineseMode(key: simplifiedModeKey)
 
     // 获取文件中保存状态
     let value = Rime.shared.API().getCustomize("patch/\(simplifiedModeKey)") ?? ""
     if value.isEmpty {
-      // 首次加载保存简繁状态
-      let handled = Rime.shared.API().customize(simplifiedModeKey, stringValue: String(simplifiedModeValue))
-      Logger.statistics.info("syncTraditionalSimplifiedChineseMode() first save. key: \(simplifiedModeKey), value: \(simplifiedModeValue), handled: \(handled)")
+      // 首次安装没有历史选择时，默认使用简体；之后只恢复用户保存过的状态。
+      let defaultValue = defaultTraditionalSimplifiedValue(for: simplifiedModeKey)
+      Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: defaultValue)
+      let handled = Rime.shared.API().customize(simplifiedModeKey, stringValue: String(defaultValue))
+      Logger.statistics.info("syncTraditionalSimplifiedChineseMode() first save. key: \(simplifiedModeKey), value: \(defaultValue), previousRuntimeValue: \(simplifiedModeValue), handled: \(handled)")
     } else {
-//      let handled = Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: (value as NSString).boolValue)
-//      Logger.statistics.info("syncTraditionalSimplifiedChineseMode() set runtime state. key: \(simplifiedModeKey), value: \(value), handled: \(handled)")
+      let rememberedValue = (value as NSString).boolValue
+      Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: rememberedValue)
+      Logger.statistics.info("syncTraditionalSimplifiedChineseMode() restore remembered state. key: \(simplifiedModeKey), value: \(rememberedValue)")
     }
+  }
+
+  private func defaultTraditionalSimplifiedValue(for key: String) -> Bool {
+    key.localizedCaseInsensitiveContains("traditional") ? false : true
   }
 
   /// rime 中文简繁状态切换

@@ -3628,8 +3628,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 //      textDocumentProxy.insertText(rimeContext.userInputKey)
 //      rimeContext.reset()
 //    }
+    if type.isChinesePrimaryKeyboard || type.isChineseNineGrid {
+      _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
+    }
     keyboardContext.setKeyboardType(type)
-    _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
+    if !(type.isChinesePrimaryKeyboard || type.isChineseNineGrid) {
+      _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
+    }
     if type.isAlphabetic {
       keyboardContext.isAutoCapitalizationEnabled = false
       keyboardContext.autocapitalizationTypeOverride = .none
