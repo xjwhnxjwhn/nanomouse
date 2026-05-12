@@ -745,6 +745,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     guard text.count == 1, let scalar = text.unicodeScalars.first else { return text }
     guard CharacterSet.punctuationCharacters.contains(scalar) || CharacterSet.symbols.contains(scalar) else { return text }
+    if keyboardContext.keyboardType == .classifySymbolic || keyboardContext.keyboardType == .classifySymbolicOfLight {
+      return text
+    }
+    if shouldKeepHalfwidthChineseSymbolKey(text) {
+      return text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text
+    }
     if isAzooKeyInputActive || isEnglishInputActive { return text }
     if rimeContext.currentSchema?.isJapaneseSchema == true { return text }
 
@@ -811,6 +817,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       return text.applyingTransform(.fullwidthToHalfwidth, reverse: false) ?? text
     }
     return text.applyingTransform(.fullwidthToHalfwidth, reverse: true) ?? text
+  }
+
+  private func shouldKeepHalfwidthChineseSymbolKey(_ text: String) -> Bool {
+    guard keyboardContext.keyboardType == .chineseNumeric || keyboardContext.keyboardType == .chineseSymbolic else { return false }
+    switch text {
+    case "-", "_", "@", ".":
+      return true
+    default:
+      return false
+    }
   }
 
 
