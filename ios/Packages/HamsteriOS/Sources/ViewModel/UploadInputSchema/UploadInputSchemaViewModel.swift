@@ -13,6 +13,8 @@ import OSLog
 import UIKit
 
 class UploadInputSchemaViewModel {
+  private static let serverPort = 8080
+
   /// 局域网上传根目录（AppGroup/InputSchema）
   /// 说明：这样可直接看到并上传到 Rime 目录，避免用户手工新建目录。
   private let uploadRootDirectory = FileManager.shareURL
@@ -22,7 +24,7 @@ class UploadInputSchemaViewModel {
 
   private lazy var fileServer: FileServer = {
     let server = FileServer(
-      port: 80,
+      port: Self.serverPort,
       publicDirectory: uploadRootDirectory
     )
     return server
@@ -30,6 +32,9 @@ class UploadInputSchemaViewModel {
 
   @Published
   public private(set) var fileServerRunning = false
+
+  @Published
+  public private(set) var fileServerError: String?
 
   private var wifiEnable = false
 
@@ -73,7 +78,11 @@ extension UploadInputSchemaViewModel {
     } else {
       Logger.statistics.debug("start file server")
       prepareUploadDirectories()
-      self.fileServer.start()
+      guard self.fileServer.start() else {
+        fileServerRunning = false
+        fileServerError = "启动服务失败，请确认本地网络权限已开启，并稍后重试。"
+        return
+      }
       fileServerRunning = true
     }
   }
@@ -81,5 +90,10 @@ extension UploadInputSchemaViewModel {
   func stopFileServer() {
     fileServerRunning = false
     self.fileServer.shutdown()
+  }
+
+  func localAccessURLString() -> String? {
+    guard let ip = UIDevice.current.getAddress() else { return nil }
+    return "http://\(ip):\(Self.serverPort)"
   }
 }

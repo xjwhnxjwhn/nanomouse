@@ -64,12 +64,20 @@ public extension URL {
 
   // 应用iCloud文件夹
   // 注意：appendingPathComponent("Documents")是非常重要的一点，如果没有它，你的文件夹将不会显示在iCloud Drive里面。
-  static var iCloudDocumentURL: URL? = {
-    if let icloudURL = FileManager.default.url(forUbiquityContainerIdentifier: nil) {
+  static var iCloudDocumentURL: URL? {
+    let fm = FileManager.default
+    if let icloudURL = fm.url(forUbiquityContainerIdentifier: HamsterConstants.iCloudID) ?? fm.url(forUbiquityContainerIdentifier: nil) {
       return icloudURL.appendingPathComponent("Documents")
     }
     return nil
-  }()
+  }
+
+  static func requireICloudDocumentURL() throws -> URL {
+    guard let url = iCloudDocumentURL else {
+      throw StringError("iCloud 不可用：请确认已登录 iCloud、已开启 iCloud Drive，并允许 NanoMouse 使用 iCloud。")
+    }
+    return url
+  }
 
   // iCloud 中 Rime 使用文件路径
   // 兼容目录命名差异：优先 Rime，其次旧版 RIME。

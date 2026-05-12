@@ -10,7 +10,7 @@ import ZIPFoundation
 public class FileServer {
   private let port: Int
   private let publicDirectory: URL
-  private var isRunning: Bool = false
+  private var handlersInstalled = false
   private let server: GCDWebServer
   private var staticBundle: Bundle?
 
@@ -50,7 +50,17 @@ public class FileServer {
     return resolved
   }
 
-  public func start() {
+  @discardableResult
+  public func start() -> Bool {
+    guard !server.isRunning else { return true }
+    installHandlersIfNeeded()
+    return server.start(withPort: UInt(port), bonjourName: nil)
+  }
+
+  private func installHandlersIfNeeded() {
+    guard !handlersInstalled else { return }
+    handlersInstalled = true
+
     // index page
     if let staticBundle = staticBundle, let path = staticBundle.path(forResource: "index", ofType: "html") {
       // 服务端资源
@@ -102,7 +112,6 @@ public class FileServer {
       deleteFileHandler(req)
     })
 
-    server.start(withPort: UInt(port), bonjourName: nil)
   }
 
   public func shutdown() {

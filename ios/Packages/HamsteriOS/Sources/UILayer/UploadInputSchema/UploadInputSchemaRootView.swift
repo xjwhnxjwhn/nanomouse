@@ -49,6 +49,15 @@ class UploadInputSchemaRootView: NibLessView {
       .receive(on: DispatchQueue.main)
       .sink { [unowned self] in
         buttonView.setTitle($0 ? "停止服务" : "启动服务", for: .normal)
+        tableView.reloadSections(IndexSet(integer: 0), with: .none)
+      }
+      .store(in: &subscriptions)
+
+    self.viewModel.$fileServerError
+      .compactMap { $0 }
+      .receive(on: DispatchQueue.main)
+      .sink { message in
+        ProgressHUD.failed(message, interaction: false, delay: 2.0)
       }
       .store(in: &subscriptions)
   }
@@ -63,8 +72,8 @@ class UploadInputSchemaRootView: NibLessView {
 
   func localIPCell() -> UITableViewCell {
     var valueCellConfig = UIListContentConfiguration.cell()
-    if let ip = UIDevice.current.getAddress() {
-      valueCellConfig.text = "http://\(ip)"
+    if let url = viewModel.localAccessURLString() {
+      valueCellConfig.text = url
     } else {
       valueCellConfig.text = "无法获取 IP 地址，请在系统设置 - WiFi 中查看地址。"
     }
@@ -117,8 +126,8 @@ extension UploadInputSchemaRootView: UITableViewDataSource {
 extension UploadInputSchemaRootView: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
     if indexPath.section == 0, indexPath.row == 0 {
-      if let ip = UIDevice.current.getAddress() {
-        UIPasteboard.general.string = "http://\(ip)"
+      if let url = viewModel.localAccessURLString() {
+        UIPasteboard.general.string = url
         ProgressHUD.success("复制成功", delay: 1.5)
       }
     }
