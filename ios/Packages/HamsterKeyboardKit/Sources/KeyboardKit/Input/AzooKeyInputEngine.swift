@@ -162,6 +162,8 @@ final class AzooKeyInputEngine {
     guard let converter = ensureConverter() else { return [] }
     lastInputStyle = inputStyle
     let inputData = composingText.prefixToCursorPosition()
+    let exactText = currentDisplayText
+    let inputCount = composingText.input.count
     let generation = nextConversionGeneration()
     if shouldConvertAsync() {
       let snapshot = inputData
@@ -172,10 +174,11 @@ final class AzooKeyInputEngine {
         defer { self.conversionLock.unlock() }
         let (options, usedZenzai) = self.makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext)
         let result = converter.requestCandidates(snapshot, options: options)
-        let candidates = result.mainResults
-        if candidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
+        let rawCandidates = result.mainResults
+        if rawCandidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
           return
         }
+        let candidates = self.candidatesWithoutAutocompletedKana(rawCandidates, exactText: exactText, inputCount: inputCount)
         self.lastCandidates = candidates
         guard self.isLatestConversion(generation) else { return }
         DispatchQueue.main.async {
@@ -190,10 +193,11 @@ final class AzooKeyInputEngine {
     defer { conversionLock.unlock() }
     let (options, usedZenzai) = makeOptions(inputStyle: inputStyle, leftSideContext: leftSideContext)
     let result = converter.requestCandidates(inputData, options: options)
-    let candidates = result.mainResults
-    if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
+    let rawCandidates = result.mainResults
+    if rawCandidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
       return suggestions(from: lastCandidates)
     }
+    let candidates = candidatesWithoutAutocompletedKana(rawCandidates, exactText: exactText, inputCount: inputCount)
     lastCandidates = candidates
     return suggestions(from: lastCandidates)
   }
@@ -210,6 +214,8 @@ final class AzooKeyInputEngine {
     }
     guard let converter = ensureConverter() else { return [] }
     let inputData = composingText.prefixToCursorPosition()
+    let exactText = currentDisplayText
+    let inputCount = composingText.input.count
     let generation = nextConversionGeneration()
     if shouldConvertAsync() {
       let snapshot = inputData
@@ -220,10 +226,11 @@ final class AzooKeyInputEngine {
         defer { self.conversionLock.unlock() }
         let (options, usedZenzai) = self.makeOptions(inputStyle: self.lastInputStyle, leftSideContext: leftSideContext)
         let result = converter.requestCandidates(snapshot, options: options)
-        let candidates = result.mainResults
-        if candidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
+        let rawCandidates = result.mainResults
+        if rawCandidates.isEmpty, usedZenzai, !self.lastCandidates.isEmpty {
           return
         }
+        let candidates = self.candidatesWithoutAutocompletedKana(rawCandidates, exactText: exactText, inputCount: inputCount)
         self.lastCandidates = candidates
         guard self.isLatestConversion(generation) else { return }
         DispatchQueue.main.async {
@@ -238,10 +245,11 @@ final class AzooKeyInputEngine {
     defer { conversionLock.unlock() }
     let (options, usedZenzai) = makeOptions(inputStyle: lastInputStyle, leftSideContext: leftSideContext)
     let result = converter.requestCandidates(inputData, options: options)
-    let candidates = result.mainResults
-    if candidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
+    let rawCandidates = result.mainResults
+    if rawCandidates.isEmpty, usedZenzai, !lastCandidates.isEmpty {
       return suggestions(from: lastCandidates)
     }
+    let candidates = candidatesWithoutAutocompletedKana(rawCandidates, exactText: exactText, inputCount: inputCount)
     lastCandidates = candidates
     return suggestions(from: lastCandidates)
   }
@@ -310,9 +318,11 @@ final class AzooKeyInputEngine {
     }
 
     let inputData = composingText.prefixToCursorPosition()
+    let exactText = currentDisplayText
+    let inputCount = composingText.input.count
     let (options, _) = makeOptions(inputStyle: lastInputStyle, leftSideContext: updatedLeftContext)
     let result = converter.requestCandidates(inputData, options: options)
-    lastCandidates = result.mainResults
+    lastCandidates = candidatesWithoutAutocompletedKana(result.mainResults, exactText: exactText, inputCount: inputCount)
 
     return (commitText, suggestions(from: lastCandidates), true)
   }
@@ -560,5 +570,63 @@ final class AzooKeyInputEngine {
         isAutocomplete: index == 0
       )
     }
+  }
+
+  private func candidatesWithoutAutocompletedKana(_ candidates: [Candidate], exactText: String, inputCount: Int) -> [Candidate] {
+    guard !exactText.isEmpty else { return candidates }
+    let exactReading = katakanaReading(for: exactText)
+    guard !exactReading.isEmpty else { return candidates }
+
+    let filtered = candidates.filter { candidate in
+      let reading = candidateReading(candidate)
+      guard !reading.isEmpty else { return true }
+      if reading.hasPrefix(exactReading), reading.count > exactReading.count {
+        return false
+      }
+      return true
+    }
+
+    if filtered.contains(where: { candidate in
+      candidateReading(candidate) == exactReading || Candidate.parseTemplate(candidate.text) == exactText
+    }) {
+      return filtered
+    }
+
+    let directCandidate = Candidate(
+      text: exactText,
+      value: -14.5,
+      composingCount: .inputCount(inputCount),
+      lastMid: MIDData.一般.mid,
+      data: [
+        DicdataElement(
+          word: exactText,
+          ruby: exactReading,
+          cid: CIDData.固有名詞.cid,
+          mid: MIDData.一般.mid,
+          value: -14.5
+        )
+      ],
+      isLearningTarget: false
+    )
+    return [directCandidate] + filtered
+  }
+
+  private func candidateReading(_ candidate: Candidate) -> String {
+    candidate.data.reduce(into: "") { result, element in
+      result.append(contentsOf: element.ruby)
+    }
+  }
+
+  private func katakanaReading(for text: String) -> String {
+    var scalars = String.UnicodeScalarView()
+    for scalar in text.unicodeScalars {
+      if (0x3041...0x3096).contains(scalar.value),
+         let katakana = UnicodeScalar(scalar.value + 0x60) {
+        scalars.append(katakana)
+      } else {
+        scalars.append(scalar)
+      }
+    }
+    return String(scalars)
   }
 }

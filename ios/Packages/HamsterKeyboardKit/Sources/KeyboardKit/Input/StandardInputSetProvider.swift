@@ -55,7 +55,7 @@ open class StandardInputSetProvider: InputSetProviderProxy {
   }
 
   private func shouldUseJapaneseProvider(for context: KeyboardContext) -> Bool {
-    guard context.keyboardType.isAlphabetic else { return false }
+    guard !context.keyboardType.isChinese else { return false }
     guard let rimeContext else { return false }
     if rimeContext.asciiModeSnapshot { return false }
     return rimeContext.currentSchema?.isJapaneseSchema == true
