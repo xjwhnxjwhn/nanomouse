@@ -49,12 +49,13 @@ open class StandardInputSetProvider: InputSetProviderProxy {
    用于特定键盘上下文的 provider。
    */
   open func provider(for context: KeyboardContext) -> InputSetProvider {
-    if shouldUseJapaneseProvider { return japaneseProvider }
+    if shouldUseJapaneseProvider(for: context) { return japaneseProvider }
     if context.keyboardType.isChinese { return chineseProvider }
     return englishProvider
   }
 
-  private var shouldUseJapaneseProvider: Bool {
+  private func shouldUseJapaneseProvider(for context: KeyboardContext) -> Bool {
+    guard context.keyboardType.isAlphabetic else { return false }
     guard let rimeContext else { return false }
     if rimeContext.asciiModeSnapshot { return false }
     return rimeContext.currentSchema?.isJapaneseSchema == true
