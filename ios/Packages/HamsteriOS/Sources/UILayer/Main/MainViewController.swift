@@ -338,7 +338,13 @@ open class MainTabBarController: UITabBarController {
   private func setupTabs() {
     embeddedTabIndexMap.removeAll()
     embeddedTabTitleMap.removeAll()
-    tabBar.backgroundColor = .systemBackground
+    if #available(iOS 26.0, *) {
+      tabBar.backgroundColor = nil
+      tabBar.barTintColor = nil
+      tabBar.isTranslucent = true
+    } else {
+      tabBar.backgroundColor = .systemBackground
+    }
     tabBar.tintColor = .label
     tabBar.unselectedItemTintColor = .secondaryLabel
 
