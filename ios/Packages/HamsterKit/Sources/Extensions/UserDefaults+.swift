@@ -359,6 +359,124 @@ public extension UserDefaults {
     }
   }
 
+  var chineseKeyboardLayoutProfiles: [ChineseKeyboardLayoutProfile] {
+    get {
+      if let data = data(forKey: Self.chineseKeyboardLayoutProfilesKey),
+         let profiles = try? JSONDecoder().decode([ChineseKeyboardLayoutProfile].self, from: data)
+      {
+        return profiles
+      }
+      return []
+    }
+    set {
+      if let data = try? JSONEncoder().encode(newValue) {
+        set(data, forKey: Self.chineseKeyboardLayoutProfilesKey)
+      }
+    }
+  }
+
+  var activeChineseKeyboardLayoutProfileID: String? {
+    get {
+      string(forKey: Self.activeChineseKeyboardLayoutProfileIDKey)
+    }
+    set {
+      if let newValue {
+        set(newValue, forKey: Self.activeChineseKeyboardLayoutProfileIDKey)
+      } else {
+        removeObject(forKey: Self.activeChineseKeyboardLayoutProfileIDKey)
+      }
+    }
+  }
+
+  var activeChineseKeyboardLayoutProfile: ChineseKeyboardLayoutProfile? {
+    guard let activeChineseKeyboardLayoutProfileID else { return nil }
+    return chineseKeyboardLayoutProfiles.first { $0.id == activeChineseKeyboardLayoutProfileID }
+  }
+
+  var chineseKeyboardOneHandMode: ChineseKeyboardOneHandMode {
+    get {
+      guard let raw = string(forKey: Self.chineseKeyboardOneHandModeKey),
+            let mode = ChineseKeyboardOneHandMode(rawValue: raw)
+      else {
+        return .off
+      }
+      return mode
+    }
+    set {
+      set(newValue.rawValue, forKey: Self.chineseKeyboardOneHandModeKey)
+    }
+  }
+
+  var chineseKeyboardHorizontalGap: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardHorizontalGapKey) != nil else { return 6 }
+      return double(forKey: Self.chineseKeyboardHorizontalGapKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardHorizontalGapKey)
+    }
+  }
+
+  var chineseKeyboardVerticalGap: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardVerticalGapKey) != nil else { return 6 }
+      return double(forKey: Self.chineseKeyboardVerticalGapKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardVerticalGapKey)
+    }
+  }
+
+  var chineseKeyboardKeyHeightScale: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardKeyHeightScaleKey) != nil else { return 1 }
+      return double(forKey: Self.chineseKeyboardKeyHeightScaleKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardKeyHeightScaleKey)
+    }
+  }
+
+  var chineseKeyboardBorderWidth: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardBorderWidthKey) != nil else { return 0 }
+      return double(forKey: Self.chineseKeyboardBorderWidthKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardBorderWidthKey)
+    }
+  }
+
+  var chineseKeyboardCornerRadius: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardCornerRadiusKey) != nil else { return 5 }
+      return double(forKey: Self.chineseKeyboardCornerRadiusKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardCornerRadiusKey)
+    }
+  }
+
+  var chineseKeyboardBackgroundColorHex: String? {
+    get { string(forKey: Self.chineseKeyboardBackgroundColorHexKey) }
+    set { setOptionalString(newValue, forKey: Self.chineseKeyboardBackgroundColorHexKey) }
+  }
+
+  var chineseKeyboardKeyBackgroundColorHex: String? {
+    get { string(forKey: Self.chineseKeyboardKeyBackgroundColorHexKey) }
+    set { setOptionalString(newValue, forKey: Self.chineseKeyboardKeyBackgroundColorHexKey) }
+  }
+
+  var chineseKeyboardKeyTextColorHex: String? {
+    get { string(forKey: Self.chineseKeyboardKeyTextColorHexKey) }
+    set { setOptionalString(newValue, forKey: Self.chineseKeyboardKeyTextColorHexKey) }
+  }
+
+  var chineseKeyboardKeyBorderColorHex: String? {
+    get { string(forKey: Self.chineseKeyboardKeyBorderColorHexKey) }
+    set { setOptionalString(newValue, forKey: Self.chineseKeyboardKeyBorderColorHexKey) }
+  }
+
   /// RIME Switch key
   var hotKeys: [String] {
     get {
@@ -531,6 +649,14 @@ public extension UserDefaults {
 }
 
 extension UserDefaults {
+  private func setOptionalString(_ value: String?, forKey key: String) {
+    if let value, !value.isEmpty {
+      set(value, forKey: key)
+    } else {
+      removeObject(forKey: key)
+    }
+  }
+
   // MARK: - 1.0 版本
 
   private static let _appFirstLaunchForV1 = "app.launch.isFirst"
@@ -587,6 +713,18 @@ extension UserDefaults {
   private static let latestSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestSchemaForKey"
   private static let latestChinesePrimarySchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestChinesePrimarySchema"
   private static let latestChineseNineGridSchemaForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.latestChineseNineGridSchema"
+  private static let chineseKeyboardLayoutProfilesKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardLayoutProfiles"
+  private static let activeChineseKeyboardLayoutProfileIDKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.activeChineseKeyboardLayoutProfileID"
+  private static let chineseKeyboardOneHandModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardOneHandMode"
+  private static let chineseKeyboardHorizontalGapKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardHorizontalGap"
+  private static let chineseKeyboardVerticalGapKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardVerticalGap"
+  private static let chineseKeyboardKeyHeightScaleKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyHeightScale"
+  private static let chineseKeyboardBorderWidthKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardBorderWidth"
+  private static let chineseKeyboardCornerRadiusKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardCornerRadius"
+  private static let chineseKeyboardBackgroundColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardBackgroundColorHex"
+  private static let chineseKeyboardKeyBackgroundColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyBackgroundColorHex"
+  private static let chineseKeyboardKeyTextColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyTextColorHex"
+  private static let chineseKeyboardKeyBorderColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyBorderColorHex"
   private static let hotKeys = "com.XiangqingZHANG.nanomouse.UserDefault.keys.hotKeys"
   private static let azooKeyModeKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyMode"
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"

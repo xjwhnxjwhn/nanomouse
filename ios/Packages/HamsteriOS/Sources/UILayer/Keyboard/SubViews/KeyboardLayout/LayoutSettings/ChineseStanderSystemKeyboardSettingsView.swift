@@ -15,7 +15,7 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
   private var subscriptions = Set<AnyCancellable>()
 
   lazy var segmentedControl: UISegmentedControl = {
-    let tags = ["设置", "划动设置"]
+    let tags = ["设置", "划动设置", "自定义布局"]
     let segmentedControl = UISegmentedControl(items: tags)
     segmentedControl.translatesAutoresizingMaskIntoConstraints = false
     segmentedControl.selectedSegmentIndex = 0
@@ -55,6 +55,12 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
     return view
   }()
 
+  lazy var customLayoutView: UIView = {
+    let view = ChineseKeyboardCustomLayoutSettingsView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    return view
+  }()
+
   init(keyboardSettingsViewModel: KeyboardSettingsViewModel) {
     self.keyboardSettingsViewModel = keyboardSettingsViewModel
 
@@ -80,9 +86,12 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
 
     contentContainerView.addSubview(tableView)
     contentContainerView.addSubview(swipeSettingView)
+    contentContainerView.addSubview(customLayoutView)
     tableView.fillSuperview()
     swipeSettingView.fillSuperview()
+    customLayoutView.fillSuperview()
     swipeSettingView.isHidden = true
+    customLayoutView.isHidden = true
 
     keyboardSettingsViewModel.segmentActionPublished
       .receive(on: DispatchQueue.main)
@@ -91,11 +100,15 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
         case .chineseLayoutSettings:
           tableView.isHidden = false
           swipeSettingView.isHidden = true
+          customLayoutView.isHidden = true
         case .chineseLayoutSwipeSettings:
           tableView.isHidden = true
           swipeSettingView.isHidden = false
-//        default:
-//          return
+          customLayoutView.isHidden = true
+        case .chineseLayoutCustomSettings:
+          tableView.isHidden = true
+          swipeSettingView.isHidden = true
+          customLayoutView.isHidden = false
         }
       }
       .store(in: &subscriptions)

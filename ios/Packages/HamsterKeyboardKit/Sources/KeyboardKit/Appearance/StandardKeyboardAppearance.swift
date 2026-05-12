@@ -7,6 +7,7 @@
 //
 
 import CoreGraphics
+import HamsterKit
 import UIKit
 
 /**
@@ -66,6 +67,11 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     // 开启键盘配色
     if let hamsterColor = hamsterColor() {
       style.backgroundColor = hamsterColor.backColor
+    }
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = UserDefaults.hamster.chineseKeyboardBackgroundColorHex?.keyboardUIColor
+    {
+      style.backgroundColor = color
     }
 
     return style
@@ -373,16 +379,37 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     self.keyboardContext = keyboardContext
   }
 
+  private func canApplyChineseCustomKeyAppearance(to action: KeyboardAction) -> Bool {
+    switch action {
+    case .none, .characterMargin, .emoji, .emojiCategory:
+      return false
+    default:
+      return true
+    }
+  }
+
   // MARK: - Overridable Button Style Components 可覆盖的按钮样式组件
 
   /// The background color to use for a certain action.
   ///
   /// 根据给定 `isPressed` 状态， 用于特定操作的背景颜色。
   open func buttonBackgroundColor(for action: KeyboardAction, isPressed: Bool) -> UIColor {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       canApplyChineseCustomKeyAppearance(to: action),
+       let color = UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.keyboardUIColor
+    {
+      return color
+    }
     return action.buttonBackgroundColor(for: keyboardContext, isPressed: isPressed)
   }
 
   open func buttonBackgroundColor(for action: KeyboardAction, isPressed: Bool, hamsterColor: HamsterKeyboardColor) -> UIColor {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       canApplyChineseCustomKeyAppearance(to: action),
+       let color = UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.keyboardUIColor
+    {
+      return color
+    }
     return action.buttonBackgroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor)
   }
 
@@ -390,6 +417,13 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 用于特定操作的边框样式。
   open func buttonBorderStyle(for action: KeyboardAction) -> KeyboardButtonBorderStyle {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       canApplyChineseCustomKeyAppearance(to: action)
+    {
+      let width = CGFloat(UserDefaults.hamster.chineseKeyboardBorderWidth)
+      let color = UserDefaults.hamster.chineseKeyboardKeyBorderColorHex?.keyboardUIColor ?? .clear
+      return KeyboardButtonBorderStyle(color: color, size: max(0, width))
+    }
     switch action {
     case .emoji, .emojiCategory, .none: return .noBorder
     default: return .standard
@@ -397,6 +431,13 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   }
 
   open func buttonBorderStyle(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> KeyboardButtonBorderStyle {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       canApplyChineseCustomKeyAppearance(to: action)
+    {
+      let width = CGFloat(UserDefaults.hamster.chineseKeyboardBorderWidth)
+      let color = UserDefaults.hamster.chineseKeyboardKeyBorderColorHex?.keyboardUIColor ?? hamsterColor.borderColor
+      return KeyboardButtonBorderStyle(color: color, size: max(0, width))
+    }
     switch action {
     case .emoji, .emojiCategory, .none: return .noBorder
     default: return KeyboardButtonBorderStyle(color: hamsterColor.borderColor, size: 1)
@@ -407,11 +448,17 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 用于特定操作的圆角半径。
   open func buttonCornerRadius(for action: KeyboardAction) -> CGFloat {
-    keyboardLayoutConfiguration.buttonCornerRadius
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard {
+      return CGFloat(UserDefaults.hamster.chineseKeyboardCornerRadius)
+    }
+    return keyboardLayoutConfiguration.buttonCornerRadius
   }
 
   open func buttonCornerRadius(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> CGFloat {
-    hamsterColor.cornerRadius
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard {
+      return CGFloat(UserDefaults.hamster.chineseKeyboardCornerRadius)
+    }
+    return hamsterColor.cornerRadius
   }
 
   /// The font to use for a certain action.
@@ -578,11 +625,21 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 用于特定操作的按键前景色。
   open func buttonForegroundColor(for action: KeyboardAction, isPressed: Bool) -> UIColor {
-    action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed)
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = UserDefaults.hamster.chineseKeyboardKeyTextColorHex?.keyboardUIColor
+    {
+      return color
+    }
+    return action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed)
   }
 
   open func buttonForegroundColor(for action: KeyboardAction, isPressed: Bool, hamsterColor: HamsterKeyboardColor) -> UIColor {
-    action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor)
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = UserDefaults.hamster.chineseKeyboardKeyTextColorHex?.keyboardUIColor
+    {
+      return color
+    }
+    return action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor)
   }
 
   open func buttonSwipeForegroundColor(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> UIColor {
@@ -609,6 +666,33 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     case .none: return .noShadow
     default: return .standard
     }
+  }
+}
+
+private extension String {
+  var keyboardUIColor: UIColor? {
+    var value = trimmingCharacters(in: .whitespacesAndNewlines)
+    if value.hasPrefix("#") {
+      value.removeFirst()
+    }
+    guard value.count == 6 || value.count == 8, let hex = UInt64(value, radix: 16) else { return nil }
+    let hasAlpha = value.count == 8
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+    let alpha: CGFloat
+    if hasAlpha {
+      alpha = CGFloat((hex & 0xff00_0000) >> 24) / 255
+      red = CGFloat((hex & 0x00ff_0000) >> 16) / 255
+      green = CGFloat((hex & 0x0000_ff00) >> 8) / 255
+      blue = CGFloat(hex & 0x0000_00ff) / 255
+    } else {
+      alpha = 1
+      red = CGFloat((hex & 0xff_0000) >> 16) / 255
+      green = CGFloat((hex & 0x00_ff00) >> 8) / 255
+      blue = CGFloat(hex & 0x00_00ff) / 255
+    }
+    return UIColor(red: red, green: green, blue: blue, alpha: alpha)
   }
 }
 

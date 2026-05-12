@@ -2,6 +2,7 @@
 //  iPhoneChineseKeyboardLayoutProvider.swift
 //  KeyboardKit
 
+import HamsterKit
 import UIKit
 
 /**
@@ -17,6 +18,13 @@ import UIKit
  */
 open class iPhoneChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
   // MARK: - Overrides
+
+  override open func keyboardLayout(for context: KeyboardContext) -> KeyboardLayout {
+    let layout = super.keyboardLayout(for: context)
+    guard context.keyboardType.isChinesePrimaryKeyboard else { return layout }
+    applyCustomChineseLayoutMapping(to: layout, context: context)
+    return layout
+  }
 
   /**
    Get the keyboard actions for the `inputs` and `context`.
@@ -72,6 +80,27 @@ open class iPhoneChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
     case .shift: return lowerSystemButtonWidth(for: context)
     default: return .available
     }
+  }
+
+  override open func itemInsets(for action: KeyboardAction, row: Int, index: Int, context: KeyboardContext) -> UIEdgeInsets {
+    guard context.keyboardType.isChinesePrimaryKeyboard else {
+      return super.itemInsets(for: action, row: row, index: index, context: context)
+    }
+    switch action {
+    case .characterMargin, .none:
+      return .zero
+    default:
+      let horizontal = CGFloat(UserDefaults.hamster.chineseKeyboardHorizontalGap) / 2
+      let vertical = CGFloat(UserDefaults.hamster.chineseKeyboardVerticalGap) / 2
+      return UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
+    }
+  }
+
+  override open func itemSizeHeight(for action: KeyboardAction, row: Int, index: Int, context: KeyboardContext) -> CGFloat {
+    let height = super.itemSizeHeight(for: action, row: row, index: index, context: context)
+    guard context.keyboardType.isChinesePrimaryKeyboard else { return height }
+    let scale = CGFloat(UserDefaults.hamster.chineseKeyboardKeyHeightScale)
+    return height * min(max(scale, 0.82), 1.22)
   }
 
   // MARK: - iPhone Specific iPhone 专用
@@ -247,6 +276,71 @@ open class iPhoneChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
    */
   open func shouldAddUpperMarginActions(for actions: KeyboardActionRows, context: KeyboardContext) -> Bool {
     false
+  }
+}
+
+private extension iPhoneChineseKeyboardLayoutProvider {
+  func applyCustomChineseLayoutMapping(to layout: KeyboardLayout, context: KeyboardContext) {
+    guard let profile = UserDefaults.hamster.activeChineseKeyboardLayoutProfile,
+          !profile.mapping.isEmpty
+    else {
+      return
+    }
+
+    for rowIndex in layout.itemRows.indices {
+      for columnIndex in layout.itemRows[rowIndex].indices {
+        let slotItem = layout.itemRows[rowIndex][columnIndex]
+        guard isCustomizableChineseLayoutSlot(slotItem.action) else { continue }
+        let slotID = slotItem.action.yamlString
+        guard let actionID = profile.mapping[slotID],
+              var assignedAction = actionID.keyboardAction
+        else {
+          continue
+        }
+        assignedAction = adjustedCustomLayoutAction(assignedAction, context: context)
+        layout.itemRows[rowIndex][columnIndex].action = assignedAction
+        layout.itemRows[rowIndex][columnIndex].swipes = itemSwipes(
+          for: assignedAction,
+          row: rowIndex,
+          index: columnIndex,
+          context: context
+        )
+        layout.itemRows[rowIndex][columnIndex].key = Key(action: assignedAction)
+      }
+    }
+  }
+
+  func adjustedCustomLayoutAction(_ action: KeyboardAction, context: KeyboardContext) -> KeyboardAction {
+    switch action {
+    case .character(let char):
+      if case .chinese(let casing) = context.keyboardType {
+        return .character(casing.isUppercased ? char.uppercased() : char.lowercased())
+      }
+      return action
+    case .symbol(let symbol):
+      if case .chinese(let casing) = context.keyboardType {
+        return .symbol(Symbol(char: casing.isUppercased ? symbol.char.uppercased() : symbol.char.lowercased()))
+      }
+      return action
+    case .shift:
+      if case .chinese(let casing) = context.keyboardType {
+        return .shift(currentCasing: casing)
+      }
+      return action
+    case .primary:
+      return keyboardReturnAction(for: context)
+    default:
+      return action
+    }
+  }
+
+  func isCustomizableChineseLayoutSlot(_ action: KeyboardAction) -> Bool {
+    switch action {
+    case .character, .symbol, .shift, .backspace, .primary, .space, .keyboardType, .nextKeyboard, .shortCommand:
+      return true
+    default:
+      return false
+    }
   }
 }
 

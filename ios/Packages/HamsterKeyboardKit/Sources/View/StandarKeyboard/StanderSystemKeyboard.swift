@@ -216,6 +216,10 @@ public class StanderSystemKeyboard: KeyboardTouchView {
         buttonHeightConstraint.priority = .defaultHigh
         buttonHeightConstraint.identifier = "\(button.row)-\(button.column)-button-height"
         dynamicConstraints.append(buttonHeightConstraint)
+        if button.column > 0, let rowFirstButton = row.first {
+          // 同一行必须等高，否则容器高度不完全匹配时，额外高度会被第一行第一个键单独吸收。
+          staticConstraints.append(button.heightAnchor.constraint(equalTo: rowFirstButton.heightAnchor))
+        }
         // Logger.statistics.debug("keyboard layoutSubviews(): row: \(button.row), column: \(button.column), rowHeight: \(heightConstant)")
 
         // 按键宽度约束
@@ -285,7 +289,11 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       subviews.forEach { $0.setNeedsLayout() }
     }
 
-    guard interfaceOrientation != keyboardContext.interfaceOrientation || isKeyboardFloating != keyboardContext.isKeyboardFloating else { return }
+    guard interfaceOrientation != keyboardContext.interfaceOrientation || isKeyboardFloating != keyboardContext.isKeyboardFloating else {
+      applyChineseArcOneHandLayoutIfNeeded()
+      logSuspiciousButtonFramesIfNeeded()
+      return
+    }
     interfaceOrientation = keyboardContext.interfaceOrientation
     isKeyboardFloating = keyboardContext.isKeyboardFloating
 
@@ -336,6 +344,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       dynamicConstraints.removeAll(keepingCapacity: true)
       activateViewConstraints()
     }
+    applyChineseArcOneHandLayoutIfNeeded()
     logSuspiciousButtonFramesIfNeeded()
   }
 
@@ -361,6 +370,67 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       }.joined()
       return "\(rowIndex):\(row.count)[\(labels)]"
     }.joined(separator: " ")
+  }
+
+  private func applyChineseArcOneHandLayoutIfNeeded() {
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else {
+      resetChineseArcOneHandTransforms()
+      return
+    }
+    let mode = UserDefaults.hamster.chineseKeyboardOneHandMode
+    guard mode != .off, bounds.width > 1, bounds.height > 1, keyboardRows.count >= 3 else {
+      resetChineseArcOneHandTransforms()
+      return
+    }
+
+    let pivotY = bounds.maxY + bounds.height * 0.08
+    let minRadius = max(bounds.height * 0.35, 62)
+    let maxRadius = min(bounds.width * 0.92, bounds.height * 1.16)
+    let rowSteps = max(CGFloat(keyboardRows.count - 1), 1)
+    let startAngle = CGFloat(-86) * .pi / 180
+    let endAngle = CGFloat(-8) * .pi / 180
+
+    for (rowIndex, row) in keyboardRows.enumerated() {
+      let buttons = row.filter { isVisibleArcKey($0) }
+      guard !buttons.isEmpty else { continue }
+      let rowFromBottom = CGFloat(keyboardRows.count - 1 - rowIndex)
+      let radius = minRadius + (maxRadius - minRadius) * (rowFromBottom / rowSteps)
+      let denominator = max(CGFloat(buttons.count - 1), 1)
+
+      for (buttonIndex, button) in buttons.enumerated() {
+        let t = buttons.count == 1 ? 0.5 : CGFloat(buttonIndex) / denominator
+        let angle = startAngle + (endAngle - startAngle) * t
+        let leftX = cos(angle) * radius
+        let rawY = pivotY + sin(angle) * radius
+        let rawX = mode == .leftArc ? leftX : bounds.width - leftX
+        let maxX = max(button.bounds.width / 2, bounds.width - button.bounds.width / 2)
+        let maxY = max(button.bounds.height / 2, bounds.height - button.bounds.height / 2)
+        let target = CGPoint(
+          x: min(max(rawX, button.bounds.width / 2), maxX),
+          y: min(max(rawY, button.bounds.height / 2), maxY)
+        )
+        let widthScale = min(1, max(0.42, (bounds.width * 0.15) / max(button.bounds.width, 1)))
+        let scale = button.bounds.width > bounds.width * 0.18 ? widthScale : 1
+        button.transform = CGAffineTransform(
+          translationX: target.x - button.center.x,
+          y: target.y - button.center.y
+        ).scaledBy(x: scale, y: 1)
+      }
+    }
+  }
+
+  private func resetChineseArcOneHandTransforms() {
+    keyboardRows.flatMap { $0 }.forEach { $0.transform = .identity }
+  }
+
+  private func isVisibleArcKey(_ button: KeyboardButton) -> Bool {
+    guard !button.isHidden else { return false }
+    switch button.item.action {
+    case .none, .characterMargin:
+      return false
+    default:
+      return true
+    }
   }
 
   private func logSuspiciousButtonFramesIfNeeded() {

@@ -589,6 +589,10 @@ public extension String {
       return .classifySymbolic
     case "chinese":
       return .chinese(.lowercased)
+    case "chineseNumeric":
+      return .chineseNumeric
+    case "chineseSymbolic":
+      return .chineseSymbolic
     case "chineseNineGrid":
       return .chineseNineGrid
     case "numericNineGrid":
@@ -709,6 +713,10 @@ public extension KeyboardType {
       return "symbolic"
     case .chinese:
       return "chinese"
+    case .chineseNumeric:
+      return "chineseNumeric"
+    case .chineseSymbolic:
+      return "chineseSymbolic"
     case .chineseNineGrid:
       return "chineseNineGrid"
     case .numericNineGrid:

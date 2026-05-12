@@ -34,6 +34,7 @@ public enum NumberNineGridTabView {
 public enum KeyboardLayoutSegmentAction {
   case chineseLayoutSettings
   case chineseLayoutSwipeSettings
+  case chineseLayoutCustomSettings
 }
 
 public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable {
@@ -1673,6 +1674,8 @@ extension KeyboardSettingsViewModel {
       segmentActionSubject.send(.chineseLayoutSettings)
     case 1:
       segmentActionSubject.send(.chineseLayoutSwipeSettings)
+    case 2:
+      segmentActionSubject.send(.chineseLayoutCustomSettings)
     default:
       return
     }
