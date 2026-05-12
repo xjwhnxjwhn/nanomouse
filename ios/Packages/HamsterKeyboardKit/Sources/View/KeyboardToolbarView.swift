@@ -33,7 +33,10 @@ class KeyboardToolbarView: NibLessView {
   private var lastKeyboardType: KeyboardType?
   private var lastAsciiModeSnapshot: Bool = false
   private var traditionalizeHintWorkItem: DispatchWorkItem?
+  private var traditionalizeHintAllowsWeather = false
   private var didTriggerEmbeddedModuleLongPress = false
+  private let rightButtonsReferenceSpacing: CGFloat = 2
+  private let rightButtonsTargetWidthScale: CGFloat = 0.85
 
   private lazy var traditionalizeLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleTraditionalizeLongPress(_:)))
@@ -161,7 +164,7 @@ class KeyboardToolbarView: NibLessView {
     stack.translatesAutoresizingMaskIntoConstraints = false
     stack.axis = .horizontal
     stack.alignment = .center
-    stack.spacing = 2
+    stack.spacing = rightButtonsReferenceSpacing
     return stack
   }()
 
@@ -297,6 +300,7 @@ class KeyboardToolbarView: NibLessView {
     logoImageView.layer.cornerCurve = .continuous
     updateToolbarButtonSymbolConfiguration()
     applyToolbarButtonCornerStyle()
+    updateRightButtonsStackSpacing()
   }
 
   override func constructViewHierarchy() {
@@ -395,10 +399,10 @@ class KeyboardToolbarView: NibLessView {
     }
 
     constraints.append(contentsOf: [
-      traditionalizeHintLabel.centerXAnchor.constraint(equalTo: commonFunctionBar.centerXAnchor),
+      traditionalizeHintLabel.centerXAnchor.constraint(equalTo: traditionalizeHotspotView.centerXAnchor),
       traditionalizeHintLabel.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
-      traditionalizeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: commonFunctionBar.leadingAnchor, constant: 8),
-      traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -2),
+      traditionalizeHintLabel.leadingAnchor.constraint(greaterThanOrEqualTo: traditionalizeHotspotView.leadingAnchor, constant: 2),
+      traditionalizeHintLabel.trailingAnchor.constraint(lessThanOrEqualTo: traditionalizeHotspotView.trailingAnchor, constant: -2),
       weatherIndicatorContainer.centerYAnchor.constraint(equalTo: commonFunctionBar.centerYAnchor),
       weatherIndicatorContainer.trailingAnchor.constraint(lessThanOrEqualTo: rightButtonsStack.leadingAnchor, constant: -6),
       weatherIndicatorIconView.widthAnchor.constraint(equalToConstant: 15),
@@ -409,7 +413,7 @@ class KeyboardToolbarView: NibLessView {
       traditionalizeHotspotView.heightAnchor.constraint(equalTo: commonFunctionBar.heightAnchor, multiplier: 0.7),
     ])
 
-    let traditionalizeHotspotMinWidth = traditionalizeHotspotView.widthAnchor.constraint(greaterThanOrEqualToConstant: 28)
+    let traditionalizeHotspotMinWidth = traditionalizeHotspotView.widthAnchor.constraint(greaterThanOrEqualToConstant: 56)
     traditionalizeHotspotMinWidth.priority = .defaultHigh
     constraints.append(traditionalizeHotspotMinWidth)
 
@@ -457,6 +461,27 @@ class KeyboardToolbarView: NibLessView {
       button.layer.cornerRadius = radius
       button.layer.cornerCurve = .continuous
       button.layer.masksToBounds = false
+    }
+  }
+
+  private func updateRightButtonsStackSpacing() {
+    let visibleButtons = rightButtonsStack.arrangedSubviews.filter { !$0.isHidden }
+    guard visibleButtons.count > 1 else {
+      rightButtonsStack.spacing = rightButtonsReferenceSpacing
+      return
+    }
+
+    let buttonWidths = visibleButtons.map(\.bounds.width)
+    guard buttonWidths.allSatisfy({ $0 > 0 }) else { return }
+
+    let totalButtonWidth = buttonWidths.reduce(0, +)
+    let spacingSlots = CGFloat(visibleButtons.count - 1)
+    let referenceWidth = totalButtonWidth + spacingSlots * rightButtonsReferenceSpacing
+    let targetWidth = referenceWidth * rightButtonsTargetWidthScale
+    let targetSpacing = (targetWidth - totalButtonWidth) / spacingSlots
+
+    if abs(rightButtonsStack.spacing - targetSpacing) > 0.1 {
+      rightButtonsStack.spacing = targetSpacing
     }
   }
 
@@ -528,10 +553,10 @@ class KeyboardToolbarView: NibLessView {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] keyboardType in
         guard let self = self else { return }
-        let wasChinese = self.lastKeyboardType?.isChinesePrimaryKeyboard ?? false
+        let wasChinese = (self.lastKeyboardType?.isChinesePrimaryKeyboard ?? false) || (self.lastKeyboardType?.isChineseNineGrid ?? false)
         self.lastKeyboardType = keyboardType
-        if keyboardType.isChinesePrimaryKeyboard, !wasChinese {
-          self.showTraditionalizeHintIfNeeded()
+        if (keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid), !wasChinese {
+          self.showCurrentTraditionalizeStateIfNeeded()
         }
       }
       .store(in: &subscriptions)
@@ -544,7 +569,7 @@ class KeyboardToolbarView: NibLessView {
         let current = self.rimeContext.asciiModeSnapshot
         self.lastAsciiModeSnapshot = current
         if previous && !current {
-          self.showTraditionalizeHintIfNeeded()
+          self.showCurrentTraditionalizeStateIfNeeded()
         }
       }
       .store(in: &subscriptions)
@@ -553,6 +578,15 @@ class KeyboardToolbarView: NibLessView {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
         self?.updateCenterIndicatorVisibility()
+      }
+      .store(in: &subscriptions)
+
+    rimeContext.$optionState
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] optionState in
+        guard let self = self else { return }
+        guard let optionState, self.isTraditionalizeOptionState(optionState) else { return }
+        self.showTraditionalizeOptionState(self.currentTraditionalizeStateText())
       }
       .store(in: &subscriptions)
   }
@@ -678,20 +712,17 @@ class KeyboardToolbarView: NibLessView {
     guard keyboardContext.keyboardType.isChinesePrimaryKeyboard || keyboardContext.keyboardType.isChineseNineGrid else { return false }
     guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
     guard rimeContext.asciiModeSnapshot == false else { return false }
-    guard rimeContext.userInputKey.isEmpty else { return false }
-    guard rimeContext.textReplacementSuggestions.isEmpty else { return false }
     return true
   }
 
   private func traditionalizeHintText() -> String {
-    let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
-    let isSimplified = simplifiedModeKey.isEmpty ? true : Rime.shared.simplifiedChineseMode(key: simplifiedModeKey)
-    return isSimplified ? "长按此处可切换繁简" : "長按此處可切換繁簡"
+    return isTraditionalizationEnabled() ? "長按此處可切換繁簡" : "长按此处可切换繁简"
   }
 
   private func showTraditionalizeHintIfNeeded() {
     guard canToggleTraditionalizationFromToolbar else { return }
     traditionalizeHintWorkItem?.cancel()
+    traditionalizeHintAllowsWeather = false
     traditionalizeHintLabel.text = traditionalizeHintText()
     traditionalizeHintLabel.isHidden = false
     weatherIndicatorContainer.isHidden = true
@@ -705,6 +736,42 @@ class KeyboardToolbarView: NibLessView {
     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: workItem)
   }
 
+  private func showTraditionalizeOptionState(_ text: String) {
+    traditionalizeHintWorkItem?.cancel()
+    traditionalizeHintAllowsWeather = true
+    traditionalizeHintLabel.text = text
+    traditionalizeHintLabel.isHidden = false
+    updateCenterIndicatorVisibility()
+    UIView.animate(withDuration: 0.12) {
+      self.traditionalizeHintLabel.alpha = 1
+    }
+    let workItem = DispatchWorkItem { [weak self] in
+      guard let self = self else { return }
+      self.hideTraditionalizeHint(animated: true)
+      if let optionState = self.rimeContext.optionState,
+         self.isTraditionalizeOptionState(optionState) {
+        self.rimeContext.optionState = nil
+      }
+    }
+    traditionalizeHintWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: workItem)
+  }
+
+  private func showCurrentTraditionalizeStateIfNeeded() {
+    guard canToggleTraditionalizationFromToolbar else { return }
+    showTraditionalizeOptionState(currentTraditionalizeStateText())
+  }
+
+  private func currentTraditionalizeStateText() -> String {
+    return isTraditionalizationEnabled() ? "繁" : "简"
+  }
+
+  private func isTraditionalizationEnabled() -> Bool {
+    let simplifiedModeKey = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional ?? ""
+    guard !simplifiedModeKey.isEmpty else { return false }
+    return Rime.shared.simplifiedChineseMode(key: simplifiedModeKey)
+  }
+
   private func hideTraditionalizeHint(animated: Bool) {
     traditionalizeHintWorkItem?.cancel()
     traditionalizeHintWorkItem = nil
@@ -714,6 +781,7 @@ class KeyboardToolbarView: NibLessView {
     }
     let completion: (Bool) -> Void = { _ in
       self.traditionalizeHintLabel.isHidden = true
+      self.traditionalizeHintAllowsWeather = false
       self.updateCenterIndicatorVisibility()
     }
     if animated {
@@ -721,8 +789,14 @@ class KeyboardToolbarView: NibLessView {
     } else {
       hide()
       traditionalizeHintLabel.isHidden = true
+      traditionalizeHintAllowsWeather = false
       updateCenterIndicatorVisibility()
     }
+  }
+
+  private func isTraditionalizeOptionState(_ text: String) -> Bool {
+    let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return value == "简" || value == "簡" || value == "繁"
   }
 
   private func weatherIndicatorPresentation() -> WeatherIndicatorPresentation? {
@@ -762,9 +836,11 @@ class KeyboardToolbarView: NibLessView {
   private func updateCenterIndicatorVisibility() {
     guard !commonFunctionBar.isHidden else {
       weatherIndicatorContainer.isHidden = true
+      traditionalizeHotspotView.isHidden = true
       return
     }
-    guard traditionalizeHintLabel.isHidden else {
+    traditionalizeHotspotView.isHidden = false
+    guard traditionalizeHintLabel.isHidden || traditionalizeHintAllowsWeather else {
       weatherIndicatorContainer.isHidden = true
       return
     }
@@ -797,6 +873,7 @@ class KeyboardToolbarView: NibLessView {
     generator.impactOccurred()
 
     rimeContext.switchTraditionalSimplifiedChinese(simplifiedModeKey)
+    showTraditionalizeOptionState(currentTraditionalizeStateText())
   }
 }
 

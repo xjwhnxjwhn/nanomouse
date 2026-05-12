@@ -144,6 +144,7 @@ class SpaceContentView: NibLessView {
       .sink { [weak self] in
         guard let self = self else { return }
         guard let optionState = $0 else { return }
+        guard !optionState.isTraditionalizeOptionState else { return }
         guard !self.firstLoadingSpace else { return }
         self.loadingLabel.alpha = 1
         self.loadingLabel.text = optionState
@@ -175,5 +176,12 @@ class SpaceContentView: NibLessView {
         self.firstLoadingSpace = false
       }
     }
+  }
+}
+
+private extension String {
+  var isTraditionalizeOptionState: Bool {
+    let value = trimmingCharacters(in: .whitespacesAndNewlines)
+    return value == "简" || value == "簡" || value == "繁"
   }
 }
