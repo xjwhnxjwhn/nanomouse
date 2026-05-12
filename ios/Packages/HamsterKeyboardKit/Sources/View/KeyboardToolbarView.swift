@@ -35,6 +35,7 @@ class KeyboardToolbarView: NibLessView {
   private var traditionalizeHintWorkItem: DispatchWorkItem?
   private var traditionalizeHintAllowsWeather = false
   private var didTriggerEmbeddedModuleLongPress = false
+  private var didPerformInitialToolbarRefresh = false
   private let rightButtonsReferenceSpacing: CGFloat = 2
   private let rightButtonsTargetWidthScale: CGFloat = 0.85
 
@@ -76,6 +77,8 @@ class KeyboardToolbarView: NibLessView {
     stack.axis = .horizontal
     stack.alignment = .center
     stack.spacing = 4
+    stack.setContentCompressionResistancePriority(.required, for: .horizontal)
+    stack.setContentHuggingPriority(.required, for: .horizontal)
     stack.isHidden = true
     stack.isUserInteractionEnabled = true
     let tap = UITapGestureRecognizer(target: self, action: #selector(openWeatherIndicatorSettings))
@@ -88,6 +91,8 @@ class KeyboardToolbarView: NibLessView {
     imageView.translatesAutoresizingMaskIntoConstraints = false
     imageView.contentMode = .scaleAspectFit
     imageView.tintColor = style.candidateTextColor
+    imageView.setContentCompressionResistancePriority(.required, for: .horizontal)
+    imageView.setContentHuggingPriority(.required, for: .horizontal)
     return imageView
   }()
 
@@ -97,9 +102,9 @@ class KeyboardToolbarView: NibLessView {
     label.textAlignment = .left
     label.adjustsFontSizeToFitWidth = true
     label.minimumScaleFactor = 0.7
-    label.lineBreakMode = .byTruncatingTail
-    label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    label.lineBreakMode = .byClipping
+    label.setContentCompressionResistancePriority(.required, for: .horizontal)
+    label.setContentHuggingPriority(.required, for: .horizontal)
     return label
   }()
 
@@ -109,6 +114,8 @@ class KeyboardToolbarView: NibLessView {
     view.backgroundColor = .clear
     view.isUserInteractionEnabled = true
     view.accessibilityLabel = "繁简切换"
+    view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    view.setContentHuggingPriority(.defaultLow, for: .horizontal)
     return view
   }()
 
@@ -301,6 +308,12 @@ class KeyboardToolbarView: NibLessView {
     updateToolbarButtonSymbolConfiguration()
     applyToolbarButtonCornerStyle()
     updateRightButtonsStackSpacing()
+    scheduleInitialToolbarRefreshIfNeeded()
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    scheduleInitialToolbarRefreshIfNeeded()
   }
 
   override func constructViewHierarchy() {
@@ -482,7 +495,31 @@ class KeyboardToolbarView: NibLessView {
 
     if abs(rightButtonsStack.spacing - targetSpacing) > 0.1 {
       rightButtonsStack.spacing = targetSpacing
+      rightButtonsStack.setNeedsLayout()
     }
+  }
+
+  private func scheduleInitialToolbarRefreshIfNeeded() {
+    guard !didPerformInitialToolbarRefresh else { return }
+    guard window != nil else { return }
+    guard bounds.width > 0, bounds.height > 0 else { return }
+    didPerformInitialToolbarRefresh = true
+    DispatchQueue.main.async { [weak self] in
+      self?.performInitialToolbarRefresh()
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+      self?.performInitialToolbarRefresh()
+    }
+  }
+
+  private func performInitialToolbarRefresh() {
+    setNeedsLayout()
+    layoutIfNeeded()
+    updateToolbarButtonSymbolConfiguration()
+    applyToolbarButtonCornerStyle()
+    updateRightButtonsStackSpacing()
+    updateCenterIndicatorVisibility()
+    showCurrentTraditionalizeStateIfNeeded()
   }
 
   private func updateToolbarButtonSymbolConfiguration() {
