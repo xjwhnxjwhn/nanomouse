@@ -1253,7 +1253,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.0.1;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = NanoMouse;
@@ -1298,7 +1298,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 3.0;
+				MARKETING_VERSION = 3.0.1;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.XiangqingZHANG.nanomouse;
 				PRODUCT_NAME = NanoMouse;
