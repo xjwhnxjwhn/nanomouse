@@ -168,6 +168,14 @@ public class KeyboardTouchView: NibLessView {
 
     for anyView in subviews {
       let view = anyView
+      guard !view.isHidden, view.alpha >= 0.01 else { continue }
+      if let button = view as? KeyboardButton,
+         let containsShape = button.customContentShapeContains(convert(point, to: button)) {
+        if containsShape {
+          return button
+        }
+        continue
+      }
       let distance = view.frame.distance(point)
 
       if closest != nil {

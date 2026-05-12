@@ -39,6 +39,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   /// 语言切换循环抑制窗口（用于长按气泡选择时，避免 release 触发循环切换）
   var languageCycleSuppressionUntil: Date?
   private var keyboardRootView: KeyboardRootView?
+  private var oneHandKeyboardHeightConstraint: NSLayoutConstraint?
   private var didApplyDefaultLanguage = false
   private var wasJapaneseActive = false
   private let mixedInputAppendDigitCandidateCount = 2
@@ -186,6 +187,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     super.viewDidLayoutSubviews()
     // Logger.statistics.debug("KeyboardInputViewController: viewDidLayoutSubviews()")
     keyboardContext.syncAfterLayout(with: self)
+    updateOneHandKeyboardHeightConstraint()
     KeyboardStartupDiagnostics.markMainHeartbeat("viewDidLayoutSubviews bounds=\(view.bounds)")
   }
 
@@ -246,6 +248,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         ])
       }
       KeyboardStartupDiagnostics.log("viewWillSetupKeyboard reuse root superview=\(keyboardRootView.superview != nil)")
+      updateOneHandKeyboardHeightConstraint()
       return
     }
 
@@ -268,6 +271,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       keyboardRootView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       keyboardRootView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
     ])
+    updateOneHandKeyboardHeightConstraint()
     KeyboardStartupDiagnostics.log("viewWillSetupKeyboard created root")
   }
 
@@ -292,6 +296,46 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   open func viewWillSyncWithContext() {
     keyboardContext.sync(with: self)
     keyboardTextContext.sync(with: self)
+    updateOneHandKeyboardHeightConstraint()
+  }
+
+  private func updateOneHandKeyboardHeightConstraint() {
+    let mode = UserDefaults.hamster.chineseKeyboardOneHandMode
+    let shouldUseOneHandHeight = keyboardContext.keyboardType.isChinesePrimaryKeyboard && mode != .off
+    guard shouldUseOneHandHeight else {
+      oneHandKeyboardHeightConstraint?.isActive = false
+      oneHandKeyboardHeightConstraint = nil
+      return
+    }
+
+    let targetHeight = preferredOneHandKeyboardHeight()
+    guard targetHeight > 1 else { return }
+
+    if let oneHandKeyboardHeightConstraint {
+      if abs(oneHandKeyboardHeightConstraint.constant - targetHeight) > 0.5 {
+        oneHandKeyboardHeightConstraint.constant = targetHeight
+      }
+      return
+    }
+
+    let constraint = view.heightAnchor.constraint(equalToConstant: targetHeight)
+    constraint.priority = UILayoutPriority(999)
+    constraint.identifier = "NanoMouseOneHandKeyboardHeight"
+    constraint.isActive = true
+    oneHandKeyboardHeightConstraint = constraint
+  }
+
+  private func preferredOneHandKeyboardHeight() -> CGFloat {
+    let layout = keyboardLayoutProvider.keyboardLayout(for: keyboardContext)
+    let fallbackRowHeight = KeyboardLayoutConfiguration.standard(for: keyboardContext).rowHeight
+    let rowsHeight = layout.itemRows.reduce(CGFloat(0)) { total, row in
+      total + (row.map(\.size.height).max() ?? fallbackRowHeight)
+    }
+    let toolbarHeight = keyboardContext.heightOfToolbar + (rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0)
+    let baseHeight = toolbarHeight + rowsHeight
+    let screenHeight = view.window?.screen.bounds.height ?? UIScreen.main.bounds.height
+    let maximumHeight = max(320, screenHeight * 0.45)
+    return min(max(baseHeight + 52, 320), maximumHeight)
   }
 
   // MARK: - Combine

@@ -35,6 +35,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   private var staticConstraints: [NSLayoutConstraint] = []
   /// 动态视图约束，在键盘方向发生变化后需要更新约束
   private var dynamicConstraints: [NSLayoutConstraint] = []
+  private var isChineseArcManualLayoutActive = false
 
   // 当前外观
   var userInterfaceStyle: UIUserInterfaceStyle
@@ -273,6 +274,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     }
 
     NSLayoutConstraint.activate(staticConstraints + dynamicConstraints)
+    isChineseArcManualLayoutActive = false
     KeyboardStartupDiagnostics.log("StanderSystemKeyboard.activate constraints done static=\(staticConstraints.count) dynamic=\(dynamicConstraints.count)")
   }
 
@@ -353,6 +355,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     NSLayoutConstraint.deactivate(staticConstraints + dynamicConstraints)
     staticConstraints.removeAll(keepingCapacity: true)
     dynamicConstraints.removeAll(keepingCapacity: true)
+    isChineseArcManualLayoutActive = false
 
     keyboardRows.flatMap { $0 }.forEach { $0.removeFromSuperview() }
     keyboardRows.removeAll(keepingCapacity: true)
@@ -374,53 +377,103 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
   private func applyChineseArcOneHandLayoutIfNeeded() {
     guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else {
-      resetChineseArcOneHandTransforms()
+      restoreStandardButtonLayoutIfNeeded()
       return
     }
     let mode = UserDefaults.hamster.chineseKeyboardOneHandMode
     guard mode != .off, bounds.width > 1, bounds.height > 1, keyboardRows.count >= 3 else {
-      resetChineseArcOneHandTransforms()
+      restoreStandardButtonLayoutIfNeeded()
       return
     }
 
-    let pivotY = bounds.maxY + bounds.height * 0.08
-    let minRadius = max(bounds.height * 0.35, 62)
-    let maxRadius = min(bounds.width * 0.92, bounds.height * 1.16)
-    let rowSteps = max(CGFloat(keyboardRows.count - 1), 1)
-    let startAngle = CGFloat(-86) * .pi / 180
-    let endAngle = CGFloat(-8) * .pi / 180
+    enterChineseArcManualLayoutIfNeeded()
+    let visibleRows = keyboardRows.map { row in
+      row.filter { isVisibleArcKey($0) }
+    }.filter { !$0.isEmpty }
+    guard visibleRows.count >= 3 else {
+      restoreStandardButtonLayoutIfNeeded()
+      return
+    }
 
-    for (rowIndex, row) in keyboardRows.enumerated() {
-      let buttons = row.filter { isVisibleArcKey($0) }
-      guard !buttons.isEmpty else { continue }
-      let rowFromBottom = CGFloat(keyboardRows.count - 1 - rowIndex)
-      let radius = minRadius + (maxRadius - minRadius) * (rowFromBottom / rowSteps)
-      let denominator = max(CGFloat(buttons.count - 1), 1)
+    let geometry = makeChineseArcGeometry(rowCount: visibleRows.count, mode: mode)
+    let rowRanges = makeChineseArcRowRanges(for: visibleRows, geometry: geometry)
+    keyboardRows.flatMap { $0 }.forEach { button in
+      button.transform = .identity
+      if !isVisibleArcKey(button) {
+        button.setCustomContentShapePath(nil)
+        if button.isHidden {
+          button.frame = .zero
+        }
+      }
+    }
 
-      for (buttonIndex, button) in buttons.enumerated() {
-        let t = buttons.count == 1 ? 0.5 : CGFloat(buttonIndex) / denominator
-        let angle = startAngle + (endAngle - startAngle) * t
-        let leftX = cos(angle) * radius
-        let rawY = pivotY + sin(angle) * radius
-        let rawX = mode == .leftArc ? leftX : bounds.width - leftX
-        let maxX = max(button.bounds.width / 2, bounds.width - button.bounds.width / 2)
-        let maxY = max(button.bounds.height / 2, bounds.height - button.bounds.height / 2)
-        let target = CGPoint(
-          x: min(max(rawX, button.bounds.width / 2), maxX),
-          y: min(max(rawY, button.bounds.height / 2), maxY)
+    for (rowIndex, row) in visibleRows.enumerated() {
+      let rowRange = rowRanges[rowIndex]
+      let outerRadius = rowRange.outerRadius
+      let innerRadius = rowRange.innerRadius
+      let count = row.count
+      let segment = geometry.angleSpan / CGFloat(max(count, 1))
+      let gap = min(geometry.angularGap, segment * 0.28)
+
+      for (buttonIndex, button) in row.enumerated() {
+        let segmentIndex = mode == .rightArc ? count - 1 - buttonIndex : buttonIndex
+        let startAngle = geometry.startAngle + CGFloat(segmentIndex) * segment + gap / 2
+        let endAngle = geometry.startAngle + CGFloat(segmentIndex + 1) * segment - gap / 2
+        let keyPath = makeChineseArcKeyPath(
+          pivot: geometry.pivot,
+          innerRadius: innerRadius,
+          outerRadius: outerRadius,
+          startAngle: startAngle,
+          endAngle: endAngle,
+          horizontalScale: geometry.horizontalScale,
+          mode: mode
         )
-        let widthScale = min(1, max(0.42, (bounds.width * 0.15) / max(button.bounds.width, 1)))
-        let scale = button.bounds.width > bounds.width * 0.18 ? widthScale : 1
-        button.transform = CGAffineTransform(
-          translationX: target.x - button.center.x,
-          y: target.y - button.center.y
-        ).scaledBy(x: scale, y: 1)
+        var frame = keyPath.bounds.insetBy(dx: -0.5, dy: -0.5).integral
+        frame = frame.intersection(bounds.insetBy(dx: -0.5, dy: -0.5))
+        guard frame.width > 2, frame.height > 2 else {
+          button.frame = .zero
+          button.setCustomContentShapePath(nil)
+          continue
+        }
+        let localPath = UIBezierPath(cgPath: keyPath.cgPath)
+        localPath.apply(CGAffineTransform(translationX: -frame.minX, y: -frame.minY))
+        if button.frame != frame {
+          button.frame = frame
+        }
+        let shapeSignature = [
+          mode.rawValue,
+          "\(rowIndex)",
+          "\(buttonIndex)",
+          "\(Int(frame.minX))",
+          "\(Int(frame.minY))",
+          "\(Int(frame.width))",
+          "\(Int(frame.height))",
+          "\(Int((innerRadius * 10).rounded()))",
+          "\(Int((outerRadius * 10).rounded()))",
+          "\(Int((geometry.horizontalScale * 100).rounded()))",
+          "\(Int((startAngle * 1000).rounded()))",
+          "\(Int((endAngle * 1000).rounded()))",
+        ].joined(separator: "-")
+        button.setCustomContentShapePath(localPath, signature: shapeSignature)
       }
     }
   }
 
-  private func resetChineseArcOneHandTransforms() {
-    keyboardRows.flatMap { $0 }.forEach { $0.transform = .identity }
+  private func enterChineseArcManualLayoutIfNeeded() {
+    guard !isChineseArcManualLayoutActive else { return }
+    NSLayoutConstraint.deactivate(staticConstraints + dynamicConstraints)
+    isChineseArcManualLayoutActive = true
+  }
+
+  private func restoreStandardButtonLayoutIfNeeded() {
+    keyboardRows.flatMap { $0 }.forEach { button in
+      button.transform = .identity
+      button.setCustomContentShapePath(nil)
+    }
+    guard isChineseArcManualLayoutActive else { return }
+    NSLayoutConstraint.activate(staticConstraints + dynamicConstraints)
+    isChineseArcManualLayoutActive = false
+    setNeedsLayout()
   }
 
   private func isVisibleArcKey(_ button: KeyboardButton) -> Bool {
@@ -431,6 +484,131 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     default:
       return true
     }
+  }
+
+  private struct ChineseArcGeometry {
+    let pivot: CGPoint
+    let innerRadius: CGFloat
+    let outerRadius: CGFloat
+    let horizontalScale: CGFloat
+    let angularGap: CGFloat
+    let startAngle: CGFloat
+    let angleSpan: CGFloat
+  }
+
+  private func makeChineseArcGeometry(rowCount: Int, mode: ChineseKeyboardOneHandMode) -> ChineseArcGeometry {
+    let safeBounds = bounds.insetBy(dx: 1, dy: 1)
+    let startAngle = CGFloat(-90) * .pi / 180
+    let endAngle = CGFloat(0) * .pi / 180
+    let angleSpan = endAngle - startAngle
+    let pivot = CGPoint(
+      x: mode == .leftArc ? safeBounds.minX : safeBounds.maxX,
+      y: safeBounds.maxY
+    )
+    let verticalRadius = max(1, pivot.y - safeBounds.minY)
+    let maximumHorizontalRadius = max(1, safeBounds.width * 0.8)
+    let horizontalRadius: CGFloat
+    if mode == .leftArc {
+      horizontalRadius = min(maximumHorizontalRadius, max(1, safeBounds.maxX - pivot.x))
+    } else {
+      horizontalRadius = min(maximumHorizontalRadius, max(1, pivot.x - safeBounds.minX))
+    }
+    let outerRadius = max(96, verticalRadius)
+    let horizontalScale = horizontalRadius / max(outerRadius, 1)
+    let innerRadius = max(64, outerRadius * 0.25)
+    return ChineseArcGeometry(
+      pivot: pivot,
+      innerRadius: innerRadius,
+      outerRadius: outerRadius,
+      horizontalScale: horizontalScale,
+      angularGap: CGFloat(1.55) * .pi / 180,
+      startAngle: startAngle,
+      angleSpan: angleSpan
+    )
+  }
+
+  private struct ChineseArcRowRange {
+    let outerRadius: CGFloat
+    let innerRadius: CGFloat
+  }
+
+  private func makeChineseArcRowRanges(
+    for rows: [[KeyboardButton]],
+    geometry: ChineseArcGeometry
+  ) -> [ChineseArcRowRange] {
+    let keyCounts = rows.map { CGFloat(max($0.count, 1)) }
+    let totalKeyCount = max(keyCounts.reduce(CGFloat(0), +), 1)
+    let outerRadiusSquared = geometry.outerRadius * geometry.outerRadius
+    let innerRadiusSquared = geometry.innerRadius * geometry.innerRadius
+    let availableRadiusSquared = max(1, outerRadiusSquared - innerRadiusSquared)
+    var currentOuterRadiusSquared = outerRadiusSquared
+
+    return rows.enumerated().map { rowIndex, _ in
+      let rowRadiusSquared = availableRadiusSquared * keyCounts[rowIndex] / totalKeyCount
+      let isLastRow = rowIndex == rows.count - 1
+      let nextOuterRadiusSquared = isLastRow
+        ? innerRadiusSquared
+        : max(innerRadiusSquared, currentOuterRadiusSquared - rowRadiusSquared)
+      let outerRadius = sqrt(currentOuterRadiusSquared)
+      let rawInnerRadius = sqrt(nextOuterRadiusSquared)
+      let rawBand = max(outerRadius - rawInnerRadius, 1)
+      let radialGap = isLastRow ? 0 : min(max(2.5, rawBand * 0.06), 4.5)
+      let innerRadius = min(max(rawInnerRadius + radialGap, geometry.innerRadius), outerRadius - 18)
+      currentOuterRadiusSquared = nextOuterRadiusSquared
+      return ChineseArcRowRange(outerRadius: outerRadius, innerRadius: innerRadius)
+    }
+  }
+
+  private func makeChineseArcKeyPath(
+    pivot: CGPoint,
+    innerRadius: CGFloat,
+    outerRadius: CGFloat,
+    startAngle: CGFloat,
+    endAngle: CGFloat,
+    horizontalScale: CGFloat,
+    mode: ChineseKeyboardOneHandMode
+  ) -> UIBezierPath {
+    let path = UIBezierPath()
+    let sampleCount = 6
+    let outerPoints = (0 ... sampleCount).map { index in
+      let t = CGFloat(index) / CGFloat(sampleCount)
+      return chineseArcPoint(
+        pivot: pivot,
+        radius: outerRadius,
+        angle: startAngle + (endAngle - startAngle) * t,
+        horizontalScale: horizontalScale,
+        mode: mode
+      )
+    }
+    let innerPoints = (0 ... sampleCount).reversed().map { index in
+      let t = CGFloat(index) / CGFloat(sampleCount)
+      return chineseArcPoint(
+        pivot: pivot,
+        radius: innerRadius,
+        angle: startAngle + (endAngle - startAngle) * t,
+        horizontalScale: horizontalScale,
+        mode: mode
+      )
+    }
+    guard let first = outerPoints.first else { return path }
+    path.move(to: first)
+    outerPoints.dropFirst().forEach { path.addLine(to: $0) }
+    innerPoints.forEach { path.addLine(to: $0) }
+    path.close()
+    return path
+  }
+
+  private func chineseArcPoint(
+    pivot: CGPoint,
+    radius: CGFloat,
+    angle: CGFloat,
+    horizontalScale: CGFloat,
+    mode: ChineseKeyboardOneHandMode
+  ) -> CGPoint {
+    let xOffset = cos(angle) * radius * horizontalScale
+    let yOffset = sin(angle) * radius
+    let x = mode == .leftArc ? pivot.x + xOffset : pivot.x - xOffset
+    return CGPoint(x: x, y: pivot.y + yOffset)
   }
 
   private func logSuspiciousButtonFramesIfNeeded() {

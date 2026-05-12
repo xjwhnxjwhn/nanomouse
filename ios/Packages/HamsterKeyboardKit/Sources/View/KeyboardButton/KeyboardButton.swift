@@ -104,6 +104,10 @@ public class KeyboardButton: UIControl {
 
   var userInterfaceStyle: UIUserInterfaceStyle
   private var enableButtonUnderBorder: Bool
+  private var customContentShapePath: UIBezierPath?
+  private var customContentShapeSignature: String?
+  private let customContentMaskLayer = CAShapeLayer()
+  private let customContentBorderLayer = CAShapeLayer()
 
   // MARK: - subview
 
@@ -253,18 +257,28 @@ public class KeyboardButton: UIControl {
       CATransaction.begin()
       CATransaction.setDisableActions(true)
 
-      let insets = item.insets
-      // Logger.statistics.debug("button layoutSubviews(): row: \(self.row), column: \(self.column), rowHeight: \(insets.yamlString)")
-
-      let bounds = oldBounds.inset(by: insets)
-      buttonContentView.frame = bounds
-      // Logger.statistics.debug("button content row: \(self.row), column: \(self.column), frame: \(bounds.width) \(bounds.height)")
-      if let cornerRadius = normalButtonStyle.cornerRadius {
-        buttonContentView.layer.cornerRadius = cornerRadius
+      if let customContentShapePath {
+        buttonContentView.frame = oldBounds
+        buttonContentView.layer.cornerRadius = 0
         if enableButtonUnderBorder {
-          buttonContentView.layer.addSublayer(underShadowShape)
-          underShadowShape.path = calculatorUnderPath(bounds: CGSize(width: bounds.width, height: bounds.height + 1), cornerRadius: cornerRadius).cgPath
-          underShadowShape.fillColor = normalButtonStyle.shadow?.color.cgColor
+          underShadowShape.path = nil
+        }
+        applyCustomContentShape(customContentShapePath, style: normalButtonStyle)
+      } else {
+        removeCustomContentShape()
+        let insets = item.insets
+        // Logger.statistics.debug("button layoutSubviews(): row: \(self.row), column: \(self.column), rowHeight: \(insets.yamlString)")
+
+        let bounds = oldBounds.inset(by: insets)
+        buttonContentView.frame = bounds
+        // Logger.statistics.debug("button content row: \(self.row), column: \(self.column), frame: \(bounds.width) \(bounds.height)")
+        if let cornerRadius = normalButtonStyle.cornerRadius {
+          buttonContentView.layer.cornerRadius = cornerRadius
+          if enableButtonUnderBorder {
+            buttonContentView.layer.addSublayer(underShadowShape)
+            underShadowShape.path = calculatorUnderPath(bounds: CGSize(width: bounds.width, height: bounds.height + 1), cornerRadius: cornerRadius).cgPath
+            underShadowShape.fillColor = normalButtonStyle.shadow?.color.cgColor
+          }
         }
       }
       CATransaction.commit()
@@ -276,6 +290,9 @@ public class KeyboardButton: UIControl {
       normalButtonStyle = getButtonStyle(isPressed: false)
       pressedButtonStyle = getButtonStyle(isPressed: true)
       updateButtonStyle(isPressed: isHighlighted)
+    }
+    if let customContentShapePath {
+      applyCustomContentShape(customContentShapePath, style: isHighlighted ? pressedButtonStyle : normalButtonStyle)
     }
 
     // 语言切换键：始终刷新文字以反映当前语言状态（中/日/英）
@@ -351,6 +368,9 @@ public class KeyboardButton: UIControl {
       buttonContentView.layer.borderColor = color.cgColor
       buttonContentView.layer.borderWidth = style.border?.size ?? 1
     }
+    if let customContentShapePath {
+      applyCustomContentShape(customContentShapePath, style: style)
+    }
 
     if isPressed {
       if enableButtonUnderBorder {
@@ -380,6 +400,51 @@ public class KeyboardButton: UIControl {
   override public var debugDescription: String {
     let description = super.debugDescription
     return "\(row)-\(column) button: \(description)"
+  }
+
+  func setCustomContentShapePath(_ path: UIBezierPath?, signature: String? = nil) {
+    let nextSignature: String?
+    if let path {
+      let bounds = path.bounds.integral
+      nextSignature = signature ?? "\(Int(bounds.minX))-\(Int(bounds.minY))-\(Int(bounds.width))-\(Int(bounds.height))"
+    } else {
+      nextSignature = nil
+    }
+    guard customContentShapeSignature != nextSignature else { return }
+    customContentShapeSignature = nextSignature
+    customContentShapePath = path
+    if path == nil {
+      removeCustomContentShape()
+    }
+    oldBounds = .zero
+    setNeedsLayout()
+  }
+
+  func customContentShapeContains(_ point: CGPoint) -> Bool? {
+    guard let customContentShapePath else { return nil }
+    return customContentShapePath.contains(point)
+  }
+
+  private func applyCustomContentShape(_ path: UIBezierPath, style: KeyboardButtonStyle) {
+    customContentMaskLayer.frame = buttonContentView.bounds
+    customContentMaskLayer.path = path.cgPath
+    buttonContentView.layer.mask = customContentMaskLayer
+
+    customContentBorderLayer.frame = buttonContentView.bounds
+    customContentBorderLayer.path = path.cgPath
+    customContentBorderLayer.fillColor = UIColor.clear.cgColor
+    customContentBorderLayer.strokeColor = style.border?.color.cgColor ?? UIColor.clear.cgColor
+    customContentBorderLayer.lineWidth = style.border?.size ?? 0
+    if customContentBorderLayer.superlayer == nil {
+      buttonContentView.layer.addSublayer(customContentBorderLayer)
+    }
+  }
+
+  private func removeCustomContentShape() {
+    if buttonContentView.layer.mask === customContentMaskLayer {
+      buttonContentView.layer.mask = nil
+    }
+    customContentBorderLayer.removeFromSuperlayer()
   }
 }
 
