@@ -47,6 +47,22 @@ class KeyboardToolbarView: NibLessView {
     return recognizer
   }()
 
+  private lazy var oneHandLeftSwipeGesture: UISwipeGestureRecognizer = {
+    let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(handleTraditionalizeAreaSwipe(_:)))
+    recognizer.direction = .left
+    recognizer.cancelsTouchesInView = false
+    recognizer.delegate = self
+    return recognizer
+  }()
+
+  private lazy var oneHandRightSwipeGesture: UISwipeGestureRecognizer = {
+    let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(handleTraditionalizeAreaSwipe(_:)))
+    recognizer.direction = .right
+    recognizer.cancelsTouchesInView = false
+    recognizer.delegate = self
+    return recognizer
+  }()
+
   private lazy var embeddedModuleLongPressGesture: UILongPressGestureRecognizer = {
     let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleEmbeddedModuleLongPress(_:)))
     recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
@@ -286,7 +302,9 @@ class KeyboardToolbarView: NibLessView {
     constructViewHierarchy()
     activateViewConstraints()
     setupAppearance()
-    traditionalizeHotspotView.addGestureRecognizer(traditionalizeLongPressGesture)
+    commonFunctionBar.addGestureRecognizer(traditionalizeLongPressGesture)
+    commonFunctionBar.addGestureRecognizer(oneHandLeftSwipeGesture)
+    commonFunctionBar.addGestureRecognizer(oneHandRightSwipeGesture)
     if embeddedModuleEntry != nil {
       embeddedModuleButton.addGestureRecognizer(embeddedModuleLongPressGesture)
     }
@@ -752,6 +770,43 @@ class KeyboardToolbarView: NibLessView {
     return true
   }
 
+  private var canSwitchOneHandModeFromToolbar: Bool {
+    guard !commonFunctionBar.isHidden else { return false }
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
+    guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
+    guard rimeContext.asciiModeSnapshot == false else { return false }
+    return UserDefaults.hamster.chineseKeyboardOneHandMode == .off
+  }
+
+  private var traditionalizeInteractionFrameInCommonBar: CGRect {
+    guard commonFunctionBar.bounds.width > 1, commonFunctionBar.bounds.height > 1 else { return .null }
+
+    let left: CGFloat
+    if !weatherIndicatorContainer.isHidden, weatherIndicatorContainer.frame.maxX > 0 {
+      left = weatherIndicatorContainer.frame.maxX + 2
+    } else if keyboardContext.displayAppIconButton, logoContainer.frame.maxX > 0 {
+      left = logoContainer.frame.maxX + 6
+    } else {
+      left = commonFunctionBar.bounds.minX + 8
+    }
+
+    let right = rightButtonsStack.frame.minX > 0
+      ? rightButtonsStack.frame.minX - 2
+      : traditionalizeHotspotView.frame.maxX
+    let width = right - left
+    if width >= 24 {
+      return CGRect(
+        x: left,
+        y: commonFunctionBar.bounds.minY,
+        width: width,
+        height: commonFunctionBar.bounds.height
+      )
+    }
+
+    let fallback = traditionalizeHotspotView.frame.insetBy(dx: -12, dy: -8)
+    return fallback.intersection(commonFunctionBar.bounds)
+  }
+
   private func traditionalizeHintText() -> String {
     return isTraditionalizationEnabled() ? "長按此處可切換繁簡" : "长按此处可切换繁简"
   }
@@ -909,34 +964,57 @@ class KeyboardToolbarView: NibLessView {
     let generator = UIImpactFeedbackGenerator(style: .medium)
     generator.impactOccurred()
 
-    rimeContext.switchTraditionalSimplifiedChinese(simplifiedModeKey)
-    showTraditionalizeOptionState(currentTraditionalizeStateText())
+    actionHandler.handle(.release, on: .shortCommand(.simplifiedTraditionalSwitch))
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.showTraditionalizeOptionState(self.currentTraditionalizeStateText())
+    }
+  }
+
+  @objc private func handleTraditionalizeAreaSwipe(_ sender: UISwipeGestureRecognizer) {
+    guard sender.state == .ended else { return }
+    guard canSwitchOneHandModeFromToolbar else { return }
+    switch sender.direction {
+    case .left:
+      applyChineseOneHandMode(.leftArc, label: "左手")
+    case .right:
+      applyChineseOneHandMode(.rightArc, label: "右手")
+    default:
+      break
+    }
+  }
+
+  private func applyChineseOneHandMode(_ mode: ChineseKeyboardOneHandMode, label: String) {
+    guard UserDefaults.hamster.chineseKeyboardOneHandMode != mode else { return }
+    let generator = UIImpactFeedbackGenerator(style: .light)
+    generator.impactOccurred()
+    UserDefaults.hamster.chineseKeyboardOneHandMode = mode
+    NotificationCenter.default.post(name: .hamsterChineseKeyboardOneHandModeDidChange, object: self)
+    showTraditionalizeOptionState(label)
   }
 }
 
 extension KeyboardToolbarView: UIGestureRecognizerDelegate {
   func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-    guard gestureRecognizer === traditionalizeLongPressGesture else { return true }
+    if gestureRecognizer === traditionalizeLongPressGesture {
+      guard canToggleTraditionalizationFromToolbar else { return false }
+    } else if gestureRecognizer === oneHandLeftSwipeGesture || gestureRecognizer === oneHandRightSwipeGesture {
+      guard canSwitchOneHandModeFromToolbar else { return false }
+    } else {
+      return true
+    }
+
     let point = touch.location(in: commonFunctionBar)
-    if keyboardContext.displayAppIconButton, logoContainer.frame.contains(point) {
-      return false
-    }
-    if voiceModeButton.frame.contains(point) {
-      return false
-    }
-    if canvasButton.frame.contains(point) {
-      return false
-    }
-    if markdownButton.frame.contains(point) {
-      return false
-    }
-    if embeddedModuleEntry != nil, embeddedModuleButton.frame.contains(point) {
-      return false
-    }
-    if keyboardContext.displayKeyboardDismissButton, dismissKeyboardButton.frame.contains(point) {
-      return false
-    }
-    return true
+    return traditionalizeInteractionFrameInCommonBar.contains(point)
+  }
+
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    let toolbarGestures: Set<UIGestureRecognizer> = [
+      traditionalizeLongPressGesture,
+      oneHandLeftSwipeGesture,
+      oneHandRightSwipeGesture,
+    ]
+    return toolbarGestures.contains(gestureRecognizer) && toolbarGestures.contains(otherGestureRecognizer)
   }
 }
 

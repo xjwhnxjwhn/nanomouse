@@ -117,6 +117,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     KeyboardStartupDiagnostics.measure("setupRIMELanguageObservation") { setupRIMELanguageObservation() }
     KeyboardStartupDiagnostics.measure("setupBackgroundCommitObservation") { setupBackgroundCommitObservation() }
     KeyboardStartupDiagnostics.measure("setupEmbeddedModuleObservation") { setupEmbeddedModuleObservation() }
+    KeyboardStartupDiagnostics.measure("setupOneHandModeObservation") { setupOneHandModeObservation() }
     azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
       guard let self else { return }
       guard self.isAzooKeyInputActive else { return }
@@ -4159,6 +4160,19 @@ private extension KeyboardInputViewController {
           return
         }
         self.toggleEmbeddedModule(moduleIdentifier: moduleIdentifier)
+      }
+      .store(in: &cancellables)
+  }
+
+  func setupOneHandModeObservation() {
+    NotificationCenter.default.publisher(for: .hamsterChineseKeyboardOneHandModeDidChange)
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        guard let self else { return }
+        self.updateOneHandKeyboardHeightConstraint()
+        self.keyboardRootView?.setNeedsLayout()
+        self.keyboardRootView?.layoutIfNeeded()
+        self.view.setNeedsLayout()
       }
       .store(in: &cancellables)
   }

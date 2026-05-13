@@ -37,6 +37,25 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   private var dynamicConstraints: [NSLayoutConstraint] = []
   private var isChineseArcManualLayoutActive = false
 
+  private lazy var oneHandReturnToFullButton: UIButton = {
+    makeOneHandModeControlButton(title: "双手", action: #selector(handleOneHandReturnToFullTap))
+  }()
+
+  private lazy var oneHandSwitchSideButton: UIButton = {
+    makeOneHandModeControlButton(title: "右手", action: #selector(handleOneHandSwitchSideTap))
+  }()
+
+  private lazy var oneHandModeControlsStack: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [oneHandReturnToFullButton, oneHandSwitchSideButton])
+    stack.axis = .vertical
+    stack.alignment = .fill
+    stack.distribution = .fillEqually
+    stack.spacing = 8
+    stack.isHidden = true
+    stack.isUserInteractionEnabled = true
+    return stack
+  }()
+
   // 当前外观
   var userInterfaceStyle: UIUserInterfaceStyle
 
@@ -126,6 +145,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   override public func setupAppearance() {
     backgroundColor = .clear
     contentMode = .redraw
+    updateOneHandModeControlAppearance()
   }
 
   // MARK: Layout
@@ -159,6 +179,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
       keyboardRows.append(tempRow)
     }
+    addSubview(oneHandModeControlsStack)
     if keyboardRows.count < 3 {
       KeyboardStartupDiagnostics.log("SUSPICIOUS StanderSystemKeyboard constructed only \(keyboardRows.count) rows; keyboardType=\(keyboardContext.keyboardType.yamlString)")
     }
@@ -397,6 +418,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
     let geometry = makeChineseArcGeometry(rowCount: visibleRows.count, mode: mode)
     let rowRanges = makeChineseArcRowRanges(for: visibleRows, geometry: geometry)
+    layoutOneHandModeControls(mode: mode)
     keyboardRows.flatMap { $0 }.forEach { button in
       button.transform = .identity
       if !isVisibleArcKey(button) {
@@ -466,6 +488,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   }
 
   private func restoreStandardButtonLayoutIfNeeded() {
+    oneHandModeControlsStack.isHidden = true
     keyboardRows.flatMap { $0 }.forEach { button in
       button.transform = .identity
       button.setCustomContentShapePath(nil)
@@ -473,6 +496,78 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     guard isChineseArcManualLayoutActive else { return }
     NSLayoutConstraint.activate(staticConstraints + dynamicConstraints)
     isChineseArcManualLayoutActive = false
+    setNeedsLayout()
+  }
+
+  private func makeOneHandModeControlButton(title: String, action: Selector) -> UIButton {
+    let button = UIButton(type: .system)
+    button.setTitle(title, for: .normal)
+    button.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+    button.addTarget(self, action: action, for: .touchUpInside)
+    button.layer.cornerCurve = .continuous
+    button.layer.masksToBounds = false
+    return button
+  }
+
+  private func updateOneHandModeControlAppearance() {
+    let normalStyle = appearance.buttonStyle(for: .space, isPressed: false)
+    let pressedStyle = appearance.buttonStyle(for: .space, isPressed: true)
+    for button in [oneHandReturnToFullButton, oneHandSwitchSideButton] {
+      button.backgroundColor = normalStyle.backgroundColor ?? UIColor.secondarySystemFill
+      button.tintColor = normalStyle.foregroundColor ?? UIColor.label
+      button.setTitleColor(normalStyle.foregroundColor ?? UIColor.label, for: .normal)
+      button.setTitleColor(pressedStyle.foregroundColor ?? UIColor.label, for: .highlighted)
+      button.layer.borderColor = normalStyle.border?.color.cgColor
+      button.layer.borderWidth = normalStyle.border?.size ?? 0
+      button.layer.shadowColor = normalStyle.shadow?.color.cgColor
+      button.layer.shadowOpacity = normalStyle.shadow == nil ? 0 : 1
+      button.layer.shadowRadius = normalStyle.shadow?.size ?? 0
+      button.layer.shadowOffset = CGSize(width: 0, height: normalStyle.shadow?.size ?? 0)
+    }
+  }
+
+  private func layoutOneHandModeControls(mode: ChineseKeyboardOneHandMode) {
+    guard mode != .off, bounds.width > 1, bounds.height > 1 else {
+      oneHandModeControlsStack.isHidden = true
+      return
+    }
+
+    let horizontalInset: CGFloat = 4
+    let controlWidth = max(58, min(88, bounds.width * 0.18))
+    let controlHeight = max(78, min(98, bounds.height * 0.34))
+    let originX = mode == .leftArc
+      ? bounds.maxX - controlWidth - horizontalInset
+      : bounds.minX + horizontalInset
+    let originY = max(8, min(bounds.height - controlHeight - 8, bounds.height * 0.18))
+
+    oneHandSwitchSideButton.setTitle(mode == .leftArc ? "右手" : "左手", for: .normal)
+    oneHandReturnToFullButton.accessibilityLabel = "返回双手键盘"
+    oneHandSwitchSideButton.accessibilityLabel = mode == .leftArc ? "切换到右手键盘" : "切换到左手键盘"
+    oneHandModeControlsStack.frame = CGRect(x: originX, y: originY, width: controlWidth, height: controlHeight).integral
+    oneHandModeControlsStack.isHidden = false
+    oneHandModeControlsStack.layer.zPosition = 10
+    bringSubviewToFront(oneHandModeControlsStack)
+
+    for button in [oneHandReturnToFullButton, oneHandSwitchSideButton] {
+      button.layer.cornerRadius = max(8, min(18, button.bounds.height * 0.28))
+    }
+  }
+
+  @objc private func handleOneHandReturnToFullTap() {
+    setChineseOneHandMode(.off)
+  }
+
+  @objc private func handleOneHandSwitchSideTap() {
+    let current = UserDefaults.hamster.chineseKeyboardOneHandMode
+    setChineseOneHandMode(current == .leftArc ? .rightArc : .leftArc)
+  }
+
+  private func setChineseOneHandMode(_ mode: ChineseKeyboardOneHandMode) {
+    guard UserDefaults.hamster.chineseKeyboardOneHandMode != mode else { return }
+    let generator = UIImpactFeedbackGenerator(style: .light)
+    generator.impactOccurred()
+    UserDefaults.hamster.chineseKeyboardOneHandMode = mode
+    NotificationCenter.default.post(name: .hamsterChineseKeyboardOneHandModeDidChange, object: self)
     setNeedsLayout()
   }
 

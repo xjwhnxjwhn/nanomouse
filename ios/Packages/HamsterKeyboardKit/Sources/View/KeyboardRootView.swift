@@ -824,4 +824,5 @@ final class VoiceModeView: NibLessView {
 
 extension Notification.Name {
   static let hamsterVoiceModeToggle = Notification.Name("hamsterVoiceModeToggle")
+  static let hamsterChineseKeyboardOneHandModeDidChange = Notification.Name("hamsterChineseKeyboardOneHandModeDidChange")
 }
