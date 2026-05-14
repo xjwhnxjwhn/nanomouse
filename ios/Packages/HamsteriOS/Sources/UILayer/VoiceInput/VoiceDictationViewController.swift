@@ -697,6 +697,9 @@ final class VoiceDictationViewController: NibLessViewController {
     let trimmedNew = newText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedNew.isEmpty else { return latestNonEmptyTranscript }
     if isFinal { return newText }
+    if activeRoute == .whisperOnDevice {
+      return newText
+    }
 
     let previousRaw = latestNonEmptyTranscript
     let previous = previousRaw.trimmingCharacters(in: .whitespacesAndNewlines)
