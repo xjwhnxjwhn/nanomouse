@@ -5,6 +5,7 @@ import PackageDescription
 
 var dependencies: [Package.Dependency] = [
   .package(url: "https://github.com/relatedcode/ProgressHUD.git", exact: "14.1.0"),
+  .package(url: "https://github.com/WenchaoD/FSCalendar.git", from: "2.8.4"),
   .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
   .package(path: "../Runestone"),
   .package(path: "../TreeSitterLanguages"),
@@ -26,6 +27,7 @@ var hamsterDependencies: [Target.Dependency] = [
   .product(name: "TreeSitterYAMLQueries", package: "TreeSitterLanguages"),
   .product(name: "TreeSitterYAMLRunestone", package: "TreeSitterLanguages"),
   "ProgressHUD",
+  "FSCalendar",
   "HamsterUIKit",
   "HamsterKit",
   "HamsterKeyboardKit",

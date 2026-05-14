@@ -548,6 +548,31 @@ public extension UserDefaults {
     }
   }
 
+  var keyboardDiaryModeEnabled: Bool {
+    get {
+      if object(forKey: Self.keyboardDiaryModeEnabledKey) != nil {
+        return bool(forKey: Self.keyboardDiaryModeEnabledKey)
+      }
+      return false
+    }
+    set {
+      setValue(newValue, forKey: Self.keyboardDiaryModeEnabledKey)
+      Logger.statistics.debug("save keyboardDiaryModeEnabled: \(newValue)")
+    }
+  }
+
+  var keyboardDiaryFirstEnableAcknowledged: Bool {
+    get {
+      if object(forKey: Self.keyboardDiaryFirstEnableAcknowledgedKey) != nil {
+        return bool(forKey: Self.keyboardDiaryFirstEnableAcknowledgedKey)
+      }
+      return false
+    }
+    set {
+      setValue(newValue, forKey: Self.keyboardDiaryFirstEnableAcknowledgedKey)
+    }
+  }
+
   /// 远程包最近一次安装版本
   func remotePackageInstalledVersion(packageId: String) -> String? {
     string(forKey: Self.remotePackageInstalledVersionKey(for: packageId))
@@ -730,6 +755,8 @@ extension UserDefaults {
   private static let azooKeyEnglishCandidateKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyEnglishCandidate"
   private static let azooKeyTypographyLetterKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.azooKeyTypographyLetter"
   private static let enableKeyboardExtensionVoiceModeViewKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.enableKeyboardExtensionVoiceModeView"
+  private static let keyboardDiaryModeEnabledKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardDiaryModeEnabled"
+  private static let keyboardDiaryFirstEnableAcknowledgedKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardDiaryFirstEnableAcknowledged"
   private static let keyboardWeatherIndicatorCacheKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardWeatherIndicatorCache"
   private static let keyboardWeatherIndicatorLastRefreshAtKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardWeatherIndicatorLastRefreshAt"
   private static let keyboardExtensionHasFullAccessKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.keyboardExtensionHasFullAccess"

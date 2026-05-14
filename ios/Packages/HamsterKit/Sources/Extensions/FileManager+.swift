@@ -318,6 +318,15 @@ public extension FileManager {
     shareURL.appendingPathComponent("backups", isDirectory: true)
   }
 
+  // AppGroup 共享下：输入法日记目录
+  static var appGroupDiaryDirectoryURL: URL {
+    shareURL.appendingPathComponent("Diary", isDirectory: true)
+  }
+
+  static var appGroupDiarySegmentsFileURL: URL {
+    appGroupDiaryDirectoryURL.appendingPathComponent("segments.jsonl", isDirectory: false)
+  }
+
   // AppGroup共享下：userData目录下: default.custom.yaml文件路径
   static var appGroupUserDataDefaultCustomYaml: URL {
     appGroupUserDataDirectoryURL.appendingPathComponent("default.custom.yaml")

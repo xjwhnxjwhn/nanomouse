@@ -439,6 +439,7 @@ public extension KeyboardInputViewController {
   func tryHandleSpecificCode(_ code: Int32) {
     switch code {
     case XK_Return:
+      captureDiaryInputSegment(trigger: .returnKey)
       self.textDocumentProxy.insertText(.newline)
     case XK_BackSpace:
       let beforeInput = self.textDocumentProxy.documentContextBeforeInput ?? ""

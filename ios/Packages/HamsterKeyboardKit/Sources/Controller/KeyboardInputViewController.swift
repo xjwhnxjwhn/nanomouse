@@ -53,6 +53,9 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputPrefixPinyinLetterCount: Int = 0
   private var mixedInputSuffixMode = false
   private var mixedInputResyncing = false
+  private var lastDiaryCapturedText: String?
+  private var lastDiaryCapturedAt: Date?
+  private var isKeyboardHostInactive = false
   private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
   private let canvasInputBridge: KeyboardCanvasBridge = .shared
   private var embeddedModuleContainerView: UIView?
@@ -116,6 +119,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     KeyboardStartupDiagnostics.measure("setupCombineRIMEInput") { setupCombineRIMEInput() }
     KeyboardStartupDiagnostics.measure("setupRIMELanguageObservation") { setupRIMELanguageObservation() }
     KeyboardStartupDiagnostics.measure("setupBackgroundCommitObservation") { setupBackgroundCommitObservation() }
+    KeyboardStartupDiagnostics.measure("setupForegroundStateObservation") { setupForegroundStateObservation() }
     KeyboardStartupDiagnostics.measure("setupEmbeddedModuleObservation") { setupEmbeddedModuleObservation() }
     KeyboardStartupDiagnostics.measure("setupOneHandModeObservation") { setupOneHandModeObservation() }
     azooKeyEngine.onCandidatesUpdated = { [weak self] suggestions in
@@ -132,6 +136,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    isKeyboardHostInactive = false
     KeyboardStartupDiagnostics.log("viewWillAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = false
     KeyboardStartupDiagnostics.measure("viewWillSetupKeyboard") { viewWillSetupKeyboard() }
@@ -164,6 +169,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated)
+    isKeyboardHostInactive = false
     KeyboardStartupDiagnostics.log("viewDidAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = true
     reportFullAccessStateIfNeeded()
@@ -214,6 +220,60 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       rimeContext.reset()
       resetMixedInputFreezeState()
       rimeContext.textReplacementSuggestions = []
+    }
+  }
+
+  func captureDiaryInputSegment(trigger: KeyboardDiarySegmentTrigger) {
+    guard UserDefaults.hamster.keyboardDiaryModeEnabled else { return }
+    guard !isKeyboardHostInactive else { return }
+    guard hasEstablishedHostConnection, viewIfLoaded?.window != nil else { return }
+    let proxyKeyboardType = textDocumentProxy.keyboardType
+    if proxyKeyboardType == .numberPad || proxyKeyboardType == .phonePad || proxyKeyboardType == .decimalPad {
+      return
+    }
+
+    let before = textDocumentProxy.documentContextBeforeInput ?? ""
+    let after = textDocumentProxy.documentContextAfterInput ?? ""
+    var text = KeyboardDiaryStore.extractCurrentParagraph(before: before, after: after)
+    if text.isEmpty {
+      text = KeyboardDiaryStore.normalize(rimeContext.compositionPrefix + rimeContext.userInputKey)
+    }
+    guard !text.isEmpty else { return }
+
+    let now = Date()
+    if let lastDiaryCapturedText,
+       lastDiaryCapturedText == text,
+       let lastDiaryCapturedAt,
+       now.timeIntervalSince(lastDiaryCapturedAt) < 8
+    {
+      return
+    }
+
+    let confidence: KeyboardDiarySegmentConfidence = text.isEmpty ? .low : (after.isEmpty ? .medium : .high)
+    do {
+      let saved = try KeyboardDiaryStore.shared.append(
+        rawText: text,
+        trigger: trigger,
+        confidence: confidence,
+        metadata: [
+          "keyboardType": keyboardContext.keyboardType.yamlString,
+          "proxyKeyboardType": proxyKeyboardType.map { "\($0.rawValue)" } ?? "nil"
+        ]
+      )
+      if saved != nil {
+        lastDiaryCapturedText = text
+        lastDiaryCapturedAt = now
+      }
+    } catch {
+      Logger.statistics.error("KeyboardDiary capture failed: \(error.localizedDescription)")
+    }
+  }
+
+  func captureDiaryInputSegmentAfterCandidateSelection() {
+    guard UserDefaults.hamster.keyboardDiaryModeEnabled else { return }
+    guard !isKeyboardHostInactive else { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+      self?.captureDiaryInputSegment(trigger: .candidateSelection)
     }
   }
 
@@ -1264,6 +1324,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       Task { @MainActor in
         self.rimeContext.textReplacementSuggestions = []
       }
+      captureDiaryInputSegmentAfterCandidateSelection()
       return
     }
 
@@ -1274,6 +1335,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       Task { @MainActor in
         self.rimeContext.textReplacementSuggestions = []
       }
+      captureDiaryInputSegmentAfterCandidateSelection()
       return
     }
 
@@ -1282,6 +1344,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     textDocumentProxy.insertText(replacement)
     rimeContext.textReplacementSuggestions = []
+    captureDiaryInputSegmentAfterCandidateSelection()
   }
 
   private func preservedPrefixForTextReplacement(shortcut: String) -> String {
@@ -2935,6 +2998,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         } else {
           textDocumentProxy.insertText(result.commitText)
         }
+        captureDiaryInputSegmentAfterCandidateSelection()
       }
       if result.isComposing {
         updateAzooKeySuggestions(result.suggestions)
@@ -2952,6 +3016,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       } else {
         textDocumentProxy.insertText(commit)
       }
+      captureDiaryInputSegmentAfterCandidateSelection()
     }
     clearEnglishState()
   }
@@ -3005,6 +3070,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.textReplacementSuggestions = []
     }
+    captureDiaryInputSegmentAfterCandidateSelection()
   }
 
   private func mixedInputCommittedPinyinCount(from comment: String?) -> Int {
@@ -3792,6 +3858,13 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   open func insertRimeKeyCode(_ keyCode: Int32) {
+    if keyCode == XK_Return, !isKeyboardHostInactive {
+      captureDiaryInputSegment(trigger: .returnKey)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+        guard let self, !self.isKeyboardHostInactive else { return }
+        self.captureDiaryInputSegment(trigger: .returnKey)
+      }
+    }
     if isUnifiedCompositionBufferEnabled, keyCode == XK_Return, hasActiveCompositionForBuffer() {
       commitCurrentCompositionToPrefixAndReset()
       flushCompositionPrefixIfNeeded()
@@ -4139,7 +4212,26 @@ private extension KeyboardInputViewController {
       NotificationCenter.default.publisher(for: name)
         .receive(on: DispatchQueue.main)
         .sink { [weak self] _ in
+          self?.isKeyboardHostInactive = true
           self?.commitPendingCompositionForBackground()
+        }
+        .store(in: &cancellables)
+    }
+  }
+
+  func setupForegroundStateObservation() {
+    let names: [Notification.Name] = [
+      Notification.Name.NSExtensionHostWillEnterForeground,
+      Notification.Name.NSExtensionHostDidBecomeActive,
+      UIApplication.willEnterForegroundNotification,
+      UIApplication.didBecomeActiveNotification
+    ]
+
+    for name in names {
+      NotificationCenter.default.publisher(for: name)
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] _ in
+          self?.isKeyboardHostInactive = false
         }
         .store(in: &cancellables)
     }
@@ -4653,6 +4745,7 @@ private extension KeyboardInputViewController {
             // 写入 userInputKey
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.001) {
               self.insertTextPatch(commitText)
+              self.captureDiaryInputSegmentAfterCandidateSelection()
             }
           }
         }

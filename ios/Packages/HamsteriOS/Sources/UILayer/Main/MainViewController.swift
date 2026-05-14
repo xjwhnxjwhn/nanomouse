@@ -3031,6 +3031,7 @@ final class VoiceAccountViewController: NibLessViewController {
   private lazy var dictionaryController = VoiceDictionaryViewController()
   private lazy var historyController = VoiceHistoryViewController()
   private lazy var canvasStorageController = VoiceCanvasStorageViewController()
+  private lazy var diaryController = VoiceDiaryViewController()
   private lazy var fullAccessGuideController: FullAccessGuideViewController = {
     subViewControllerFactory.makeFullAccessGuideViewController()
   }()
@@ -3230,7 +3231,7 @@ final class VoiceAccountViewController: NibLessViewController {
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
   func numberOfSections(in tableView: UITableView) -> Int {
-    7
+    8
   }
 
  func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -3241,7 +3242,8 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
     case 3: return 1
     case 4: return 5
     case 5: return 1
-    case 6: return embeddedSettingsEntries.count
+    case 6: return 1
+    case 7: return embeddedSettingsEntries.count
     default: return 0
     }
   }
@@ -3307,9 +3309,12 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       cell.textLabel?.text = AppL10n.text("历史记录")
       cell.imageView?.image = UIImage(systemName: "clock")
     case (5, 0):
+      cell.textLabel?.text = AppL10n.text("日记")
+      cell.imageView?.image = UIImage(systemName: "book.pages")
+    case (6, 0):
       cell.textLabel?.text = AppL10n.text("画布保存位置")
       cell.imageView?.image = UIImage(systemName: "folder")
-    case (6, let row) where embeddedSettingsEntries.indices.contains(row):
+    case (7, let row) where embeddedSettingsEntries.indices.contains(row):
       let entry = embeddedSettingsEntries[row]
       cell.textLabel?.text = AppL10n.text(entry.title)
       cell.imageView?.image = UIImage(systemName: entry.iconSystemName)
@@ -3358,10 +3363,14 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       return
     }
     if indexPath.section == 5, indexPath.row == 0 {
+      navigationController?.pushViewController(diaryController, animated: true)
+      return
+    }
+    if indexPath.section == 6, indexPath.row == 0 {
       navigationController?.pushViewController(canvasStorageController, animated: true)
       return
     }
-    if indexPath.section == 6 {
+    if indexPath.section == 7 {
       guard embeddedSettingsEntries.indices.contains(indexPath.row) else { return }
       let entry = embeddedSettingsEntries[indexPath.row]
       let controller = entry.makeRootViewController()

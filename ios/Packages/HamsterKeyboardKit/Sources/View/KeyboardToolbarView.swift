@@ -34,6 +34,8 @@ class KeyboardToolbarView: NibLessView {
   private var lastAsciiModeSnapshot: Bool = false
   private var traditionalizeHintWorkItem: DispatchWorkItem?
   private var traditionalizeHintAllowsWeather = false
+  private var isDiaryIndicatorBlinking = false
+  private var didTriggerDiaryModeLongPress = false
   private var didTriggerEmbeddedModuleLongPress = false
   private var didPerformInitialToolbarRefresh = false
   private let rightButtonsReferenceSpacing: CGFloat = 2
@@ -70,6 +72,13 @@ class KeyboardToolbarView: NibLessView {
     return recognizer
   }()
 
+  private lazy var diaryModeLongPressGesture: UILongPressGestureRecognizer = {
+    let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(handleDiaryModeLongPress(_:)))
+    recognizer.minimumPressDuration = keyboardContext.longPressDelay ?? GestureButtonDefaults.longPressDelay
+    recognizer.cancelsTouchesInView = false
+    return recognizer
+  }()
+
   private lazy var traditionalizeHintLabel: UILabel = {
     let label = UILabel(frame: .zero)
     label.translatesAutoresizingMaskIntoConstraints = false
@@ -99,6 +108,7 @@ class KeyboardToolbarView: NibLessView {
     stack.isUserInteractionEnabled = true
     let tap = UITapGestureRecognizer(target: self, action: #selector(openWeatherIndicatorSettings))
     stack.addGestureRecognizer(tap)
+    stack.addGestureRecognizer(diaryModeLongPressGesture)
     return stack
   }()
 
@@ -483,6 +493,7 @@ class KeyboardToolbarView: NibLessView {
     weatherIndicatorLabel.textColor = style.candidateTextColor
     weatherIndicatorIconView.tintColor = style.candidateTextColor
     updateCenterIndicatorVisibility()
+    updateDiaryRecordingIndicatorAppearance()
   }
 
   private func applyToolbarButtonCornerStyle() {
@@ -929,6 +940,7 @@ class KeyboardToolbarView: NibLessView {
     guard !commonFunctionBar.isHidden else {
       weatherIndicatorContainer.isHidden = true
       traditionalizeHotspotView.isHidden = true
+      stopDiaryIndicatorBlinking()
       return
     }
     traditionalizeHotspotView.isHidden = false
@@ -943,15 +955,67 @@ class KeyboardToolbarView: NibLessView {
     weatherIndicatorLabel.text = presentation.text
     weatherIndicatorIconView.image = UIImage(systemName: presentation.symbolName) ?? UIImage(systemName: "cloud.sun")
     weatherIndicatorContainer.isHidden = false
+    updateDiaryRecordingIndicatorAppearance()
+  }
+
+  private func updateDiaryRecordingIndicatorAppearance() {
+    let isRecording = UserDefaults.hamster.keyboardDiaryModeEnabled
+    let tintColor = isRecording ? UIColor.systemRed : style.candidateTextColor
+    weatherIndicatorLabel.textColor = tintColor
+    weatherIndicatorIconView.tintColor = tintColor
+    if isRecording {
+      startDiaryIndicatorBlinking()
+    } else {
+      stopDiaryIndicatorBlinking()
+    }
+  }
+
+  private func startDiaryIndicatorBlinking() {
+    guard !isDiaryIndicatorBlinking, !weatherIndicatorContainer.isHidden else { return }
+    isDiaryIndicatorBlinking = true
+    weatherIndicatorContainer.layer.removeAnimation(forKey: "NanoMouseDiaryRecordingBlink")
+    let animation = CABasicAnimation(keyPath: "opacity")
+    animation.fromValue = 1.0
+    animation.toValue = 0.35
+    animation.duration = 1.2
+    animation.autoreverses = true
+    animation.repeatCount = .infinity
+    animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    weatherIndicatorContainer.layer.add(animation, forKey: "NanoMouseDiaryRecordingBlink")
+  }
+
+  private func stopDiaryIndicatorBlinking() {
+    isDiaryIndicatorBlinking = false
+    weatherIndicatorContainer.layer.removeAnimation(forKey: "NanoMouseDiaryRecordingBlink")
+    weatherIndicatorContainer.alpha = 1
+    weatherIndicatorContainer.layer.opacity = 1
   }
 
   @objc private func openWeatherIndicatorSettings() {
+    if didTriggerDiaryModeLongPress {
+      didTriggerDiaryModeLongPress = false
+      return
+    }
     actionHandler.handle(
       .release,
       on: .url(
         URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/keyboardSettings?subView=toolbar&focus=weatherIndicator"),
         id: "openWeatherIndicatorSettings")
     )
+  }
+
+  @objc private func handleDiaryModeLongPress(_ sender: UILongPressGestureRecognizer) {
+    guard sender.state == .began else { return }
+    didTriggerDiaryModeLongPress = true
+    let newValue = !UserDefaults.hamster.keyboardDiaryModeEnabled
+    UserDefaults.hamster.keyboardDiaryModeEnabled = newValue
+    if newValue {
+      UserDefaults.hamster.keyboardDiaryFirstEnableAcknowledged = true
+    }
+    let generator = UIImpactFeedbackGenerator(style: .medium)
+    generator.impactOccurred()
+    updateDiaryRecordingIndicatorAppearance()
+    showTraditionalizeOptionState(newValue ? "日记·本地" : "日记已关闭")
   }
 
   @objc private func handleTraditionalizeLongPress(_ sender: UILongPressGestureRecognizer) {
