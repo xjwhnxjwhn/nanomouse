@@ -4325,10 +4325,11 @@ private extension KeyboardInputViewController {
     }
 
     dismissEmbeddedModuleIfNeeded()
+    keyboardRootView?.isHidden = true
 
     let container = UIView(frame: .zero)
     container.translatesAutoresizingMaskIntoConstraints = false
-    container.backgroundColor = keyboardContext.colorScheme == .dark ? .black : .systemBackground
+    container.backgroundColor = .clear
     view.addSubview(container)
     NSLayoutConstraint.activate([
       container.topAnchor.constraint(equalTo: view.topAnchor),
@@ -4339,6 +4340,7 @@ private extension KeyboardInputViewController {
 
     let moduleViewController = makeInlineViewController(self)
     moduleViewController.view.translatesAutoresizingMaskIntoConstraints = false
+    moduleViewController.view.backgroundColor = .clear
     container.addSubview(moduleViewController.view)
     NSLayoutConstraint.activate([
       moduleViewController.view.topAnchor.constraint(equalTo: container.topAnchor),
@@ -4383,6 +4385,7 @@ private extension KeyboardInputViewController {
       }
     }
     embeddedModuleContainerView?.removeFromSuperview()
+    keyboardRootView?.isHidden = false
     embeddedModuleViewController = nil
     embeddedModuleContainerView = nil
     activeEmbeddedModuleIdentifier = nil
