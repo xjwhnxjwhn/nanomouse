@@ -255,6 +255,16 @@ public class KeyboardContext: ObservableObject {
    */
   public var hamsterConfiguration: HamsterConfiguration?
 
+  private static let defaultKeyboardConfiguration = KeyboardConfiguration()
+
+  private var keyboardConfiguration: KeyboardConfiguration {
+    hamsterConfiguration?.keyboard ?? Self.defaultKeyboardConfiguration
+  }
+
+  private func keyboardValue<T>(_ keyPath: KeyPath<KeyboardConfiguration, T?>) -> T? {
+    keyboardConfiguration[keyPath: keyPath] ?? Self.defaultKeyboardConfiguration[keyPath: keyPath]
+  }
+
   /**
    Create a context instance.
 
@@ -290,12 +300,15 @@ public class KeyboardContext: ObservableObject {
       // plist 格式大约 28.48 ms/ 27.59 ms
       let data = try Data(contentsOf: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist"))
       self.hamsterConfiguration = try PropertyListDecoder().decode(HamsterConfiguration.self, from: data)
+      KeyboardStartupDiagnostics.log("KeyboardContext loaded hamster.plist \(startupDiagnosticConfigurationSummary())")
     } catch {
       Logger.statistics.error("load build/hamster.yaml error: \(error.localizedDescription)")
+      KeyboardStartupDiagnostics.log("KeyboardContext failed loading hamster.plist error=\(error.localizedDescription) \(startupDiagnosticConfigurationSummary())")
     }
 
     // 初始键盘类型
     self.keyboardType = selectKeyboard
+    KeyboardStartupDiagnostics.log("KeyboardContext selected initial keyboard \(startupDiagnosticConfigurationSummary())")
 
     self.handleInputModeBuilder = { [unowned controller] from, with in
       controller.handleInputModeList(from: from, with: with)
@@ -314,53 +327,71 @@ public class KeyboardContext: ObservableObject {
   /// 用户设置的键盘类型
   lazy var selectKeyboard: KeyboardType = {
     let defaultKeyboard: KeyboardType = .chinese(.lowercased)
-    return hamsterConfiguration?.keyboard?.useKeyboardType?.keyboardType ?? defaultKeyboard
+    return keyboardValue(\.useKeyboardType)?.keyboardType ?? defaultKeyboard
   }()
 
   /// 是否启用分号键
-  lazy var displaySemicolonButton: Bool = hamsterConfiguration?.keyboard?.displaySemicolonButton ?? false
+  lazy var displaySemicolonButton: Bool = keyboardValue(\.displaySemicolonButton) ?? false
 
   /// 是否启用分类符号按键
   var displayClassifySymbolButton: Bool {
-    hamsterConfiguration?.keyboard?.displayClassifySymbolButton ?? true
+    keyboardValue(\.displayClassifySymbolButton) ?? false
   }
 
   /// 是否启用中英切换键
   var displayChineseEnglishSwitchButton: Bool {
-    hamsterConfiguration?.keyboard?.displayChineseEnglishSwitchButton ?? true
+    keyboardValue(\.displayChineseEnglishSwitchButton) ?? true
   }
 
   /// 空格左侧自定义按键
   var displaySpaceLeftButton: Bool {
-    hamsterConfiguration?.keyboard?.displaySpaceLeftButton ?? false
+    keyboardValue(\.displaySpaceLeftButton) ?? false
   }
 
   var spaceLeftButtonProcessByRIME: Bool {
-    hamsterConfiguration?.keyboard?.spaceLeftButtonProcessByRIME ?? true
+    keyboardValue(\.spaceLeftButtonProcessByRIME) ?? true
   }
 
   /// 空格左侧按键键值
   var keyValueOfSpaceLeftButton: String {
-    hamsterConfiguration?.keyboard?.keyValueOfSpaceLeftButton ?? ""
+    keyboardValue(\.keyValueOfSpaceLeftButton) ?? ","
   }
 
   /// 空格右侧自定义按键
   var displaySpaceRightButton: Bool {
-    hamsterConfiguration?.keyboard?.displaySpaceRightButton ?? false
+    keyboardValue(\.displaySpaceRightButton) ?? false
   }
 
   var spaceRightButtonProcessByRIME: Bool {
-    hamsterConfiguration?.keyboard?.spaceRightButtonProcessByRIME ?? true
+    keyboardValue(\.spaceRightButtonProcessByRIME) ?? true
   }
 
   /// 空格右侧按键键值
   var keyValueOfSpaceRightButton: String {
-    hamsterConfiguration?.keyboard?.keyValueOfSpaceRightButton ?? ""
+    keyboardValue(\.keyValueOfSpaceRightButton) ?? "."
   }
 
   /// 中英切换键是否位于空格左侧
   var chineseEnglishSwitchButtonIsOnLeftOfSpaceButton: Bool {
-    hamsterConfiguration?.keyboard?.chineseEnglishSwitchButtonIsOnLeftOfSpaceButton ?? true
+    keyboardValue(\.chineseEnglishSwitchButtonIsOnLeftOfSpaceButton) ?? false
+  }
+
+  func startupDiagnosticConfigurationSummary() -> String {
+    let keyboard = hamsterConfiguration?.keyboard
+    return [
+      "config=\(hamsterConfiguration == nil ? 0 : 1)",
+      "keyboardConfig=\(keyboard == nil ? 0 : 1)",
+      "type=\(keyboardType.yamlString)",
+      "needsInputSwitch=\(needsInputModeSwitchKey ? 1 : 0)",
+      "classify=\(displayClassifySymbolButton ? 1 : 0)",
+      "zhEn=\(displayChineseEnglishSwitchButton ? 1 : 0)",
+      "zhEnLeft=\(chineseEnglishSwitchButtonIsOnLeftOfSpaceButton ? 1 : 0)",
+      "spaceLeft=\(displaySpaceLeftButton ? 1 : 0):\(keyValueOfSpaceLeftButton)",
+      "spaceRight=\(displaySpaceRightButton ? 1 : 0):\(keyValueOfSpaceRightButton)",
+      "device=\(deviceType)",
+      "screen=\(screenSize)",
+      "orientation=\(interfaceOrientation)"
+    ].joined(separator: " ")
   }
 
   /// 是否开启工具栏
@@ -371,7 +402,7 @@ public class KeyboardContext: ObservableObject {
   /// 是否开启按键气泡
   var displayButtonBubbles: Bool {
     // 移除键盘类型限制，只要配置开启就显示气泡
-    hamsterConfiguration?.keyboard?.displayButtonBubbles ?? false
+    keyboardValue(\.displayButtonBubbles) ?? false
   }
 
   /// 工具栏应用图标按钮
@@ -386,12 +417,12 @@ public class KeyboardContext: ObservableObject {
 
   /// 数字九宫格符号列表
   var symbolsOfNumericNineGridKeyboard: [String] {
-    hamsterConfiguration?.keyboard?.symbolsOfGridOfNumericKeyboard ?? []
+    keyboardValue(\.symbolsOfGridOfNumericKeyboard) ?? []
   }
 
   /// 中文九宫格符号
   var symbolsOfChineseNineGridKeyboard: [String] {
-    hamsterConfiguration?.keyboard?.symbolsOfChineseNineGridKeyboard ?? []
+    keyboardValue(\.symbolsOfChineseNineGridKeyboard) ?? []
   }
 
   /// 工具栏高度
@@ -405,15 +436,15 @@ public class KeyboardContext: ObservableObject {
   }
 
   var numberKeyProcessByRimeOnNineGridOfNumericKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.numberKeyProcessByRimeOnNineGridOfNumericKeyboard ?? false
+    keyboardValue(\.numberKeyProcessByRimeOnNineGridOfNumericKeyboard) ?? false
   }
 
   var leftSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.leftSymbolProcessByRimeOnNineGridOfNumericKeyboard ?? false
+    keyboardValue(\.leftSymbolProcessByRimeOnNineGridOfNumericKeyboard) ?? false
   }
 
   var rightSymbolProcessByRimeOnNineGridOfNumericKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.rightSymbolProcessByRimeOnNineGridOfNumericKeyboard ?? false
+    keyboardValue(\.rightSymbolProcessByRimeOnNineGridOfNumericKeyboard) ?? false
   }
 
   /// 分类符号键盘状态
@@ -433,22 +464,22 @@ public class KeyboardContext: ObservableObject {
 
   /// 关闭划动显示文本
   var disableSwipeLabel: Bool {
-    hamsterConfiguration?.keyboard?.disableSwipeLabel ?? false
+    keyboardValue(\.disableSwipeLabel) ?? false
   }
 
   /// 上划显示在左侧
   var upSwipeOnLeft: Bool {
-    hamsterConfiguration?.keyboard?.upSwipeOnLeft ?? false
+    keyboardValue(\.upSwipeOnLeft) ?? false
   }
 
   /// 划动上下布局
   var swipeLabelUpAndDownLayout: Bool {
-    hamsterConfiguration?.keyboard?.swipeLabelUpAndDownLayout ?? true
+    keyboardValue(\.swipeLabelUpAndDownLayout) ?? true
   }
 
   /// 划动上下不规则布局
   var swipeLabelUpAndDownIrregularLayout: Bool {
-    hamsterConfiguration?.keyboard?.swipeLabelUpAndDownIrregularLayout ?? false
+    keyboardValue(\.swipeLabelUpAndDownIrregularLayout) ?? false
   }
 
   /// 自定义键盘
@@ -458,22 +489,22 @@ public class KeyboardContext: ObservableObject {
 
   /// 是否启用内嵌输入模式
   var enableEmbeddedInputMode: Bool {
-    hamsterConfiguration?.keyboard?.enableEmbeddedInputMode ?? false
+    keyboardValue(\.enableEmbeddedInputMode) ?? false
   }
 
   /// 多语言快速混输
   var enableMultiLanguageQuickMix: Bool {
-    hamsterConfiguration?.keyboard?.enableMultiLanguageQuickMix ?? false
+    keyboardValue(\.enableMultiLanguageQuickMix) ?? false
   }
 
   /// 中文键盘数字候选模式
   var enableNumericCandidateModeOnChineseKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.enableNumericCandidateModeOnChineseKeyboard ?? false
+    keyboardValue(\.enableNumericCandidateModeOnChineseKeyboard) ?? false
   }
 
   /// 日语 AzooKey 键盘数字候选模式
   var enableNumericCandidateModeOnJapaneseAzooKey: Bool {
-    hamsterConfiguration?.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey ?? true
+    keyboardValue(\.enableNumericCandidateModeOnJapaneseAzooKey) ?? true
   }
 
   /// 是否开启划动分页
@@ -483,12 +514,12 @@ public class KeyboardContext: ObservableObject {
 
   /// Shift 状态锁定
   var lockShiftState: Bool {
-    hamsterConfiguration?.keyboard?.lockShiftState ?? false
+    keyboardValue(\.lockShiftState) ?? false
   }
 
   /// 光标回退
   func cursorBackOfSymbols(key: String) -> Bool {
-    if hamsterConfiguration?.keyboard?.symbolsOfCursorBack?.contains(key) ?? false {
+    if keyboardValue(\.symbolsOfCursorBack)?.contains(key) ?? false {
       return true
     }
     return false
@@ -496,7 +527,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 成对上屏符号
   func getPairSymbols(_ key: String) -> String {
-    if let pairValue = hamsterConfiguration?.keyboard?.pairsOfSymbols?.first(where: { $0.hasPrefix(key) }) {
+    if let pairValue = keyboardValue(\.pairsOfSymbols)?.first(where: { $0.hasPrefix(key) }) {
       return pairValue
     }
     return key
@@ -504,7 +535,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 返回主键盘
   func returnToPrimaryKeyboardOfSymbols(key: String) -> Bool {
-    hamsterConfiguration?.keyboard?.symbolsOfReturnToMainKeyboard?.contains(key) ?? false
+    keyboardValue(\.symbolsOfReturnToMainKeyboard)?.contains(key) ?? false
   }
 
   /// 划动阈值
@@ -524,45 +555,45 @@ public class KeyboardContext: ObservableObject {
 
   // 是否启用空格加载文本
   var enableLoadingTextForSpaceButton: Bool {
-    hamsterConfiguration?.keyboard?.enableLoadingTextForSpaceButton ?? false
+    keyboardValue(\.enableLoadingTextForSpaceButton) ?? false
   }
 
   // 空格按钮加载文本
   var loadingTextForSpaceButton: String {
-    hamsterConfiguration?.keyboard?.loadingTextForSpaceButton ?? ""
+    keyboardValue(\.loadingTextForSpaceButton) ?? ""
   }
 
   // 空格按钮长显文本
   var labelTextForSpaceButton: String {
-    hamsterConfiguration?.keyboard?.labelTextForSpaceButton ?? ""
+    keyboardValue(\.labelTextForSpaceButton) ?? ""
   }
 
   // 空格按钮长显为当前输入方案
   // 当开启此选项后，labelForSpaceButton 设置的值无效
   var showCurrentInputSchemaNameForSpaceButton: Bool {
-    hamsterConfiguration?.keyboard?.showCurrentInputSchemaNameForSpaceButton ?? false
+    keyboardValue(\.showCurrentInputSchemaNameForSpaceButton) ?? false
   }
 
   // 空格按钮加载文字显示当前输入方案
   // 当开启此选项后， loadingTextForSpaceButton 设置的值无效
   var showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool {
-    hamsterConfiguration?.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? true
+    keyboardValue(\.showCurrentInputSchemaNameOnLoadingTextForSpaceButton) ?? true
   }
 
   var showUppercasedCharacterOnChineseKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.showUppercasedCharacterOnChineseKeyboard ?? false
+    keyboardValue(\.showUppercasedCharacterOnChineseKeyboard) ?? false
   }
 
   var enableNineGridOfNumericKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.enableNineGridOfNumericKeyboard ?? false
+    keyboardValue(\.enableNineGridOfNumericKeyboard) ?? false
   }
 
   var enableClassifySymbolicKeyboard: Bool {
-    hamsterConfiguration?.keyboard?.enableSymbolKeyboard ?? true
+    keyboardValue(\.enableSymbolKeyboard) ?? true
   }
 
   var enableButtonUnderBorder: Bool {
-    hamsterConfiguration?.keyboard?.enableButtonUnderBorder ?? true
+    keyboardValue(\.enableButtonUnderBorder) ?? true
   }
 }
 

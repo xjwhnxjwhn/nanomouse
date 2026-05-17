@@ -423,6 +423,7 @@ class KeyboardRootView: NibLessView {
     // Logger.statistics.debug("KeyboardRootView: layoutSubviews()")
     let summary = "bounds=\(bounds) primaryFrame=\(primaryKeyboardView.frame) toolbarFrame=\(toolbarView.frame) candidateState=\(keyboardContext.candidatesViewState) effectiveToolbarHeight=\(effectiveToolbarHeight)"
     if KeyboardStartupDiagnostics.shouldLogLayoutSummary(object: self, summary: summary) {
+      KeyboardStartupDiagnostics.setStartupPhase("root.layout.h.\(Int(bounds.height.rounded())).primary.\(Int(primaryKeyboardView.bounds.height.rounded()))")
       KeyboardStartupDiagnostics.log("KeyboardRootView.layout \(summary)")
     }
 
@@ -448,6 +449,36 @@ class KeyboardRootView: NibLessView {
       NSLayoutConstraint.deactivate(toolbarCollapseDynamicConstraints)
       NSLayoutConstraint.activate(toolbarExpandDynamicConstraints)
     }
+  }
+
+  func startupDiagnosticSnapshot() -> String {
+    let primary = primaryKeyboardView
+    let primarySnapshot: String
+    if let standardKeyboard = primary as? StanderSystemKeyboard {
+      primarySnapshot = standardKeyboard.startupDiagnosticSnapshot()
+    } else {
+      primarySnapshot = [
+        "standard=nil",
+        "ptype=\(type(of: primary))",
+        "pframe=\(KeyboardStartupDiagnostics.format(primary.frame))",
+        "pbounds=\(KeyboardStartupDiagnostics.format(primary.bounds))",
+        "phidden=\(primary.isHidden ? 1 : 0)",
+        "psub=\(primary.subviews.count)"
+      ].joined(separator: " ")
+    }
+
+    return [
+      "root",
+      "frame=\(KeyboardStartupDiagnostics.format(frame))",
+      "bounds=\(KeyboardStartupDiagnostics.format(bounds))",
+      "win=\(window == nil ? 0 : 1)",
+      "sub=\(subviews.count)",
+      "toolbar=\(KeyboardStartupDiagnostics.format(toolbarView.frame))",
+      "primary=\(KeyboardStartupDiagnostics.format(primary.frame))",
+      "candidate=\(candidateViewState)",
+      "toolbarH=\(String(format: "%.1f", Double(effectiveToolbarHeight)))",
+      primarySnapshot
+    ].joined(separator: " ")
   }
 
   /// 根据键盘类型选择键盘
@@ -489,6 +520,7 @@ class KeyboardRootView: NibLessView {
   }
 
   private func updatePrimaryKeyboardView(for keyboardType: KeyboardType) {
+    KeyboardStartupDiagnostics.setStartupPhase("root.updatePrimary.begin.\(keyboardType.yamlString)")
     KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView begin keyboardType=\(keyboardType.yamlString)")
     guard let keyboardView = chooseKeyboard(keyboardType: keyboardType) else {
       Logger.statistics.error("\(keyboardType.yamlString) cannot find keyboardView.")
@@ -522,6 +554,7 @@ class KeyboardRootView: NibLessView {
       addSubview(primaryKeyboardView)
       NSLayoutConstraint.activate(createNoToolbarConstraints())
     }
+    KeyboardStartupDiagnostics.setStartupPhase("root.updatePrimary.end.\(keyboardType.yamlString).subviews.\(primaryKeyboardView.subviews.count)")
     KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView end primary=\(type(of: primaryKeyboardView)) subviews=\(primaryKeyboardView.subviews.count)")
   }
 

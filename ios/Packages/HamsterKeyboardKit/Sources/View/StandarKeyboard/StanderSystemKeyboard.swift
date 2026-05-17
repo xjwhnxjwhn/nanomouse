@@ -137,9 +137,13 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   }
 
   func setupKeyboardView() {
+    KeyboardStartupDiagnostics.setStartupPhase("standard.setup.begin")
     KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.constructViewHierarchy") { constructViewHierarchy() }
+    KeyboardStartupDiagnostics.setStartupPhase("standard.construct.end")
     KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.activateViewConstraints") { activateViewConstraints() }
+    KeyboardStartupDiagnostics.setStartupPhase("standard.constraints.end")
     KeyboardStartupDiagnostics.measure("StanderSystemKeyboard.setupAppearance") { setupAppearance() }
+    KeyboardStartupDiagnostics.setStartupPhase("standard.setup.end")
   }
 
   override public func setupAppearance() {
@@ -156,10 +160,15 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
     // 添加按键至 View
     let itemRows = layout.itemRows
+    KeyboardStartupDiagnostics.setStartupPhase("standard.construct.rows.\(itemRows.count)")
     KeyboardStartupDiagnostics.log("StanderSystemKeyboard.construct rows=\(layoutRowsSummary(itemRows))")
     for (rowIndex, row) in itemRows.enumerated() {
+      KeyboardStartupDiagnostics.setStartupPhase("standard.construct.row.\(rowIndex).begin.count.\(row.count)")
       var tempRow = [KeyboardButton]()
       for (itemIndex, item) in row.enumerated() {
+        if itemIndex == 0 {
+          KeyboardStartupDiagnostics.log("StanderSystemKeyboard.construct row=\(rowIndex) firstItem=\(item.action) count=\(row.count)")
+        }
         let buttonItem = KeyboardButton(
           row: rowIndex,
           column: itemIndex,
@@ -178,6 +187,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       }
 
       keyboardRows.append(tempRow)
+      KeyboardStartupDiagnostics.setStartupPhase("standard.construct.row.\(rowIndex).end.totalRows.\(keyboardRows.count)")
     }
     addSubview(oneHandModeControlsStack)
     if keyboardRows.count < 3 {
@@ -217,6 +227,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
   /// 激活视图约束
   override public func activateViewConstraints() {
+    KeyboardStartupDiagnostics.setStartupPhase("standard.constraints.begin.rows.\(keyboardRows.count)")
     KeyboardStartupDiagnostics.log("StanderSystemKeyboard.activate constraints rows=\(keyboardRows.count) rowCounts=\(keyboardRows.map { $0.count }) bounds=\(bounds)")
     // 暂存同一行中 available 宽度类型按键集合
     var availableItems = [KeyboardButton]()
@@ -296,6 +307,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
 
     NSLayoutConstraint.activate(staticConstraints + dynamicConstraints)
     isChineseArcManualLayoutActive = false
+    KeyboardStartupDiagnostics.setStartupPhase("standard.constraints.activated.static.\(staticConstraints.count).dynamic.\(dynamicConstraints.count)")
     KeyboardStartupDiagnostics.log("StanderSystemKeyboard.activate constraints done static=\(staticConstraints.count) dynamic=\(dynamicConstraints.count)")
   }
 
@@ -304,6 +316,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     let currentRows = layout.itemRows
     let summary = "bounds=\(bounds) frame=\(frame) keyboardRows=\(keyboardRows.count) rowCounts=\(keyboardRows.map { $0.count }) layoutRows=\(layoutRowsSummary(currentRows))"
     if KeyboardStartupDiagnostics.shouldLogLayoutSummary(object: self, summary: summary) {
+      KeyboardStartupDiagnostics.setStartupPhase("standard.layout.rows.\(keyboardRows.count).h.\(Int(bounds.height.rounded()))")
       KeyboardStartupDiagnostics.log("StanderSystemKeyboard.layout \(summary)")
     }
 
@@ -394,6 +407,36 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       }.joined()
       return "\(rowIndex):\(row.count)[\(labels)]"
     }.joined(separator: " ")
+  }
+
+  func startupDiagnosticSnapshot() -> String {
+    let flattenedButtons = keyboardRows.flatMap { $0 }
+    let qButton = flattenedButtons.first { $0.buttonText.caseInsensitiveCompare("q") == .orderedSame }
+    let oversizedButtons = flattenedButtons.filter { !$0.isHidden && bounds.height > 1 && $0.frame.height > bounds.height * 0.55 }
+    let qFrame = qButton.map { KeyboardStartupDiagnostics.format($0.frame) } ?? "nil"
+    let qHeight = qButton?.frame.height ?? 0
+    let isBad = keyboardRows.count < 3
+      || (bounds.height > 1 && qHeight > bounds.height * 0.55)
+      || !oversizedButtons.isEmpty
+    let rowCounts = keyboardRows.map { "\($0.count)" }.joined(separator: ",")
+    let rowFrames = keyboardRows.enumerated().map { rowIndex, row in
+      guard let first = row.first else { return "\(rowIndex):nil" }
+      return "\(rowIndex):\(KeyboardStartupDiagnostics.format(first.frame))"
+    }.joined(separator: ",")
+    let oversizedLabels = oversizedButtons.prefix(6).map(\.buttonText).joined(separator: ",")
+
+    return [
+      "standard",
+      "frame=\(KeyboardStartupDiagnostics.format(frame))",
+      "bounds=\(KeyboardStartupDiagnostics.format(bounds))",
+      "rows=\(keyboardRows.count)",
+      "rc=\(rowCounts)",
+      "row0=\(rowFrames)",
+      "q=\(qFrame)",
+      "overs=\(oversizedLabels.isEmpty ? "none" : oversizedLabels)",
+      "manual=\(isChineseArcManualLayoutActive ? 1 : 0)",
+      "bad=\(isBad ? 1 : 0)"
+    ].joined(separator: " ")
   }
 
   private func applyChineseArcOneHandLayoutIfNeeded() {

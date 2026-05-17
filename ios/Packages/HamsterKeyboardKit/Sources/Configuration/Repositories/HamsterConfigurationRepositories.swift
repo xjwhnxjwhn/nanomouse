@@ -48,8 +48,8 @@ public class HamsterConfigurationRepositories {
 
   public func saveToPropertyList(config: HamsterConfiguration, path: URL) throws {
     let data = try PropertyListEncoder().encode(config)
-    try? FileManager.default.removeItem(at: path)
-    FileManager.default.createFile(atPath: path.path, contents: data)
+    try FileManager.createDirectory(override: false, dst: path.deletingLastPathComponent())
+    try data.write(to: path, options: .atomic)
   }
 
   public func saveToJSON(config: HamsterConfiguration, path: URL) throws {

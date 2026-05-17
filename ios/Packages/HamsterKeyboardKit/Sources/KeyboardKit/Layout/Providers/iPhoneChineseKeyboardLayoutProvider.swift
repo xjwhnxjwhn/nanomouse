@@ -247,6 +247,7 @@ open class iPhoneChineseKeyboardLayoutProvider: SystemKeyboardLayoutProvider {
 //      result.append(.symbol(.init(char: ".")))
 //    }
     result.append(keyboardReturnAction(for: context))
+    KeyboardStartupDiagnostics.log("iPhoneChineseKeyboardLayoutProvider.bottomActions \(context.startupDiagnosticConfigurationSummary()) result=\(result.map { $0.yamlString }.joined(separator: ","))")
     return result
   }
 

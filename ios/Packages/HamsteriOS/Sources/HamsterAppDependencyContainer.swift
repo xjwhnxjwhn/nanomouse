@@ -129,9 +129,11 @@ open class HamsterAppDependencyContainer {
         try HamsterConfigurationRepositories.shared.saveToUserDefaultsOnDefault(hamsterConfiguration)
 
         self.configuration = hamsterConfiguration
+        Self.persistBuildConfiguration(hamsterConfiguration, reason: "firstRun.sharedSupport")
 
       } catch {
         self.configuration = HamsterConfiguration()
+        Self.persistBuildConfiguration(configuration, reason: "firstRun.fallback")
         Logger.statistics.error("init SharedSupport error: \(error.localizedDescription)")
       }
       return
@@ -157,10 +159,7 @@ open class HamsterAppDependencyContainer {
 
       // PATCH
       if !FileManager.default.fileExists(atPath: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist").path) {
-        try HamsterConfigurationRepositories.shared.saveToPropertyList(
-          config: configuration,
-          path: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")
-        )
+        Self.persistBuildConfiguration(configuration, reason: "nonFirst.missingBuildPlist")
       }
     } catch {
       Logger.statistics.error("load configuration from UserDefault error: \(error.localizedDescription)")
@@ -172,6 +171,19 @@ open class HamsterAppDependencyContainer {
       } else {
         self.configuration = HamsterConfiguration()
       }
+      Self.persistBuildConfiguration(configuration, reason: "nonFirst.loadDefaultsFallback")
+    }
+  }
+
+  private static func persistBuildConfiguration(_ configuration: HamsterConfiguration, reason: String) {
+    do {
+      try HamsterConfigurationRepositories.shared.saveToPropertyList(
+        config: configuration,
+        path: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")
+      )
+      Logger.statistics.debug("persist build hamster.plist success: \(reason)")
+    } catch {
+      Logger.statistics.error("persist build hamster.plist failed: \(reason), \(error.localizedDescription)")
     }
   }
 

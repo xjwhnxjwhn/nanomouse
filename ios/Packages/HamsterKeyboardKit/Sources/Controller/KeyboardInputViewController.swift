@@ -110,7 +110,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewDidLoad() {
     super.viewDidLoad()
+    KeyboardStartupDiagnostics.startStartupStateSampling(label: "KeyboardInputViewController") { [weak self] in
+      self?.keyboardStartupDiagnosticSnapshot() ?? "controller=nil bad=1"
+    }
     KeyboardStartupDiagnostics.startMainThreadWatchdog()
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewDidLoad.begin")
     KeyboardStartupDiagnostics.log("viewDidLoad begin bounds=\(view.bounds) hasFullAccess=\(hasFullAccess)")
     // setupInitialWidth()
     // setupLocaleObservation()
@@ -131,20 +135,26 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         self.clearAzooKeyState()
       }
     }
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewDidLoad.end")
     KeyboardStartupDiagnostics.log("viewDidLoad end")
   }
 
   override open func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     isKeyboardHostInactive = false
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewWillAppear.begin")
     KeyboardStartupDiagnostics.log("viewWillAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = false
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewWillSetupKeyboard.begin")
     KeyboardStartupDiagnostics.measure("viewWillSetupKeyboard") { viewWillSetupKeyboard() }
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewWillSetupKeyboard.end")
     KeyboardStartupDiagnostics.measure("viewWillSyncWithContext") { viewWillSyncWithContext() }
     KeyboardStartupDiagnostics.measure("syncChineseSchemaWithKeyboardType.willAppear") {
       _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(keyboardContext.keyboardType)
     }
+    KeyboardStartupDiagnostics.setStartupPhase("controller.setupRIME.begin")
     KeyboardStartupDiagnostics.measure("setupRIME") { setupRIME() }
+    KeyboardStartupDiagnostics.setStartupPhase("controller.setupRIME.end")
     KeyboardStartupDiagnostics.measure("syncKeyboardTypeForJapaneseIfNeeded.willAppear") {
       syncKeyboardTypeForJapaneseIfNeeded(reason: "willAppear")
     }
@@ -164,6 +174,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     // 这里不再修改 window 级手势识别器，避免在 Chrome 等宿主中触发系统级副作用。
+    KeyboardStartupDiagnostics.setStartupPhase("controller.viewWillAppear.end")
     KeyboardStartupDiagnostics.log("viewWillAppear end")
   }
 
@@ -183,6 +194,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   override open func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    KeyboardStartupDiagnostics.stopStartupStateSampling(reason: "viewWillDisappear")
     hasEstablishedHostConnection = false
     didApplyDefaultLanguage = false
     stopVoiceResultPolling()
@@ -337,8 +349,28 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   deinit {
+    KeyboardStartupDiagnostics.stopStartupStateSampling(reason: "deinit")
     rimeStartupTaskSnapshot()?.cancel()
     view.subviews.forEach { $0.removeFromSuperview() }
+  }
+
+  private func keyboardStartupDiagnosticSnapshot() -> String {
+    let rootSnapshot = keyboardRootView?.startupDiagnosticSnapshot() ?? "root=nil bad=1"
+    let oneHandMode = UserDefaults.hamster.chineseKeyboardOneHandMode.rawValue
+    return [
+      "controller",
+      "view=\(KeyboardStartupDiagnostics.format(view.frame))",
+      "bounds=\(KeyboardStartupDiagnostics.format(view.bounds))",
+      "win=\(view.window == nil ? 0 : 1)",
+      "sub=\(view.subviews.count)",
+      "safe=\(view.safeAreaInsets)",
+      "chain=\(diagnosticSuperviewChain(from: view))",
+      "kb=\(keyboardContext.keyboardType.yamlString)",
+      "screen=\(KeyboardStartupDiagnostics.format(keyboardContext.screenSize))",
+      "orient=\(keyboardContext.interfaceOrientation)",
+      "oneHand=\(oneHandMode)",
+      rootSnapshot
+    ].joined(separator: " ")
   }
 
   /**
@@ -4156,6 +4188,18 @@ extension KeyboardInputViewController {
 // MARK: - Private Functions
 
 private extension KeyboardInputViewController {
+  func diagnosticSuperviewChain(from view: UIView, limit: Int = 4) -> String {
+    var result = [String]()
+    var current = view.superview
+    var remaining = limit
+    while let superview = current, remaining > 0 {
+      result.append("\(type(of: superview)):\(KeyboardStartupDiagnostics.format(superview.frame))/\(KeyboardStartupDiagnostics.format(superview.bounds))")
+      current = superview.superview
+      remaining -= 1
+    }
+    return result.isEmpty ? "none" : result.joined(separator: ">")
+  }
+
   /// 刷新属性
   func refreshProperties() {
     refreshLayoutProvider()
