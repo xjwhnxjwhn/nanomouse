@@ -9,6 +9,9 @@ dist/
 .tmp/
 package/
 Resources/
+!ios/Resources/
+!ios/Resources/*.lproj/
+!ios/Resources/*.lproj/InfoPlist.strings
 !ios/Packages/HamsteriOS/Sources/Resources/
 !ios/Packages/HamsteriOS/Sources/Resources/Causal/
 !ios/Packages/HamsteriOS/Sources/Resources/Causal/causal_renderer.html

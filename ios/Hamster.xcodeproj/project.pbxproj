@@ -201,6 +201,7 @@
 		C03EC3AA2B06671800DB741E /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3AB2B06671900DB741E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3AC2B06671A00DB741E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		F5BF14550DB746328F7D22DB /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C071BECB2970072100E21FBC /* HamsterKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboard.entitlements; sourceTree = "<group>"; };
 		C071BECC2970072100E21FBC /* HamsterKeyboardDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboardDebug.entitlements; sourceTree = "<group>"; };
 		C08387F52A5589DF00EA8082 /* HamsteriOS */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsteriOS; path = Packages/HamsteriOS; sourceTree = "<group>"; };
@@ -209,6 +210,7 @@
 		C0C7EAF029E5A23A008D4EE1 /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C0C7EAF129E5A23B008D4EE1 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C0C7EAF229E5A23C008D4EE1 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7C64D711041F46ACAF65C51E /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C0C8B57E2A823BBF009972C1 /* HamsterKeyboardKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsterKeyboardKit; path = Packages/HamsterKeyboardKit; sourceTree = "<group>"; };
 		C0C9041C2A56412200AF3F15 /* hamster.yaml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = hamster.yaml; sourceTree = "<group>"; };
 		C0D672B329F1E066002D0439 /* SharedSupport.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = SharedSupport.zip; sourceTree = "<group>"; };
@@ -664,6 +666,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				ja,
 				"zh-Hans",
 				"zh-HK",
 				"zh-Hant",
@@ -829,6 +832,7 @@
 				C03EC3AA2B06671800DB741E /* zh-HK */,
 				C03EC3AB2B06671900DB741E /* zh-Hant */,
 				C03EC3AC2B06671A00DB741E /* en */,
+				F5BF14550DB746328F7D22DB /* ja */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";
@@ -841,6 +845,7 @@
 				C0C7EAF129E5A23B008D4EE1 /* zh-Hant */,
 				C0C7EAF229E5A23C008D4EE1 /* en */,
 				C00E006C2A1B6AFD00180F81 /* zh */,
+				7C64D711041F46ACAF65C51E /* ja */,
 			);
 			name = InfoPlist.strings;
 			sourceTree = "<group>";

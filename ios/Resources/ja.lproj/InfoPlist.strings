@@ -1,0 +1,9 @@
+"CFBundleDisplayName" = "NanoMouse";
+"NSCameraUsageDescription" = "NanoMouse は、バイトペーストのスニペットに写真を追加するためにカメラを使用します。";
+"NSFaceIDUsageDescription" = "NanoMouse は、日記の内容を保護するために Face ID を使用します。";
+"NSLocalNetworkUsageDescription" = "NanoMouse は、同じローカルネットワーク上のデバイスからブラウザで入力方式ファイルをアップロードおよび管理できるようにするため、ローカルネットワークを使用します。";
+"NSLocationWhenInUseUsageDescription" = "NanoMouse は、キーボード上部の天気インジケータを表示するために現在地を使用します。";
+"NSMicrophoneUsageDescription" = "NanoMouse は、音声入力にマイクを使用します。";
+"NSPhotoLibraryAddUsageDescription" = "NanoMouse は、バイトペーストのスニペット内の画像を写真ライブラリに保存するために写真への追加権限を使用します。";
+"NSPhotoLibraryUsageDescription" = "NanoMouse は、写真ライブラリの画像をバイトペーストのスニペットに設定するために写真ライブラリへアクセスします。";
+"NSSpeechRecognitionUsageDescription" = "NanoMouse は、音声をテキストに変換するために音声認識を使用します。";
