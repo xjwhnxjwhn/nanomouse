@@ -35,8 +35,12 @@
 	<false/>
 	<key>NanomouseAppStoreID</key>
 	<string></string>
+	<key>NanomouseAppIdentifierPrefix</key>
+	<string>$(AppIdentifierPrefix)</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Nanomouse 需要使用摄像头拍摄照片并保存到字节粘贴片段。</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Nanomouse 需要使用 Face ID 来保护日记内容。</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Nanomouse 需要访问照片库，以便把相册中的图片设置到字节粘贴片段。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

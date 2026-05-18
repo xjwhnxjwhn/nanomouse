@@ -37,11 +37,6 @@ final class VoiceDiaryViewController: NibLessViewController {
     calendar.scope = .month
     calendar.appearance.headerTitleFont = .systemFont(ofSize: 17, weight: .semibold)
     calendar.appearance.weekdayFont = .systemFont(ofSize: 12, weight: .medium)
-    calendar.appearance.titleTodayColor = .white
-    calendar.appearance.todayColor = .systemBlue
-    calendar.appearance.selectionColor = .systemRed
-    calendar.appearance.eventDefaultColor = .systemRed
-    calendar.appearance.eventSelectionColor = .systemRed
     return calendar
   }()
 
@@ -90,6 +85,7 @@ final class VoiceDiaryViewController: NibLessViewController {
     segmentedControl.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
     calendarView.dataSource = self
     calendarView.delegate = self
+    configureCalendarAppearance()
     tableView.dataSource = self
     tableView.delegate = self
     tableView.register(UITableViewCell.self, forCellReuseIdentifier: "DiarySegmentCell")
@@ -99,6 +95,34 @@ final class VoiceDiaryViewController: NibLessViewController {
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     reloadData()
+  }
+
+  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    guard traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) else { return }
+    configureCalendarAppearance()
+    calendarView.reloadData()
+  }
+
+  private func configureCalendarAppearance() {
+    let isDarkMode = traitCollection.userInterfaceStyle == .dark
+    let primaryText = isDarkMode ? UIColor.white : UIColor.label
+    let secondaryText = isDarkMode ? UIColor(white: 0.78, alpha: 1) : UIColor.secondaryLabel
+    let placeholderText = isDarkMode ? UIColor(white: 0.42, alpha: 1) : UIColor.tertiaryLabel
+    let eventColor = isDarkMode ? UIColor.systemOrange : UIColor.systemRed
+
+    calendarView.backgroundColor = .systemBackground
+    calendarView.appearance.headerTitleColor = primaryText
+    calendarView.appearance.weekdayTextColor = secondaryText
+    calendarView.appearance.titleDefaultColor = primaryText
+    calendarView.appearance.titleWeekendColor = primaryText
+    calendarView.appearance.titlePlaceholderColor = placeholderText
+    calendarView.appearance.titleSelectionColor = .white
+    calendarView.appearance.titleTodayColor = .white
+    calendarView.appearance.todayColor = .systemBlue
+    calendarView.appearance.selectionColor = isDarkMode ? .systemOrange : .systemRed
+    calendarView.appearance.eventDefaultColor = eventColor
+    calendarView.appearance.eventSelectionColor = .white
   }
 
   private func reloadData() {

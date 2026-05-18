@@ -5,8 +5,10 @@
 //  Created by OpenAI on 2026/5/14.
 //
 
+import CryptoKit
 import Foundation
 import OSLog
+import Security
 
 public enum KeyboardDiarySegmentTrigger: String, Codable, CaseIterable {
   case returnKey
@@ -78,9 +80,23 @@ public struct KeyboardDiarySegment: Codable, Identifiable, Hashable {
 public final class KeyboardDiaryStore {
   public static let shared = KeyboardDiaryStore()
 
+  private struct SegmentDecodeResult {
+    var segments: [KeyboardDiarySegment]
+    var containsPlaintext: Bool
+  }
+
+  private struct EncryptedSegmentLine: Codable {
+    var version: Int
+    var kind: String
+    var algorithm: String
+    var sealedBox: String
+  }
+
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
   private let queue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.keyboardDiaryStore")
+  private static let encryptedLineKind = "nanomouse.diary.segment"
+  private static let encryptedLineAlgorithm = "AES.GCM"
 
   private init() {
     encoder = JSONEncoder()
@@ -116,11 +132,9 @@ public final class KeyboardDiaryStore {
 
   public func append(_ segment: KeyboardDiarySegment) throws {
     try queue.sync {
-      try FileManager.createDirectory(override: false, dst: FileManager.appGroupDiaryDirectoryURL)
-      let data = try encoder.encode(segment)
-      var line = Data()
-      line.append(data)
-      line.append(0x0A)
+      try prepareDiaryStorageUnlocked()
+      try migratePlaintextFileIfNeededUnlocked()
+      let line = try encodedEncryptedLineData(for: segment)
       let fileURL = segmentsFileURL
       if FileManager.default.fileExists(atPath: fileURL.path) {
         let handle = try FileHandle(forWritingTo: fileURL)
@@ -128,8 +142,9 @@ public final class KeyboardDiaryStore {
         try handle.write(contentsOf: line)
         try handle.close()
       } else {
-        try line.write(to: fileURL, options: .atomic)
+        try writeProtectedDataUnlocked(line, to: fileURL)
       }
+      try applyFileProtectionUnlocked()
     }
   }
 
@@ -178,39 +193,135 @@ public final class KeyboardDiaryStore {
       if FileManager.default.fileExists(atPath: fileURL.path) {
         try FileManager.default.removeItem(at: fileURL)
       }
+      try? KeyboardDiaryEncryption.deleteKey()
     }
   }
 
   private func rewrite(_ transform: ([KeyboardDiarySegment]) -> [KeyboardDiarySegment]) throws {
     try queue.sync {
-      let current = loadSegmentsUnlocked(includeDeleted: true)
+      let current = try loadSegmentDecodeResultUnlocked().segments
       let updated = transform(current)
-      try FileManager.createDirectory(override: false, dst: FileManager.appGroupDiaryDirectoryURL)
-      let lines = try updated.map { segment in
-        String(data: try encoder.encode(segment), encoding: .utf8) ?? ""
-      }
-      .filter { !$0.isEmpty }
-      .joined(separator: "\n")
-      let payload = lines.isEmpty ? Data() : Data((lines + "\n").utf8)
-      try payload.write(to: segmentsFileURL, options: .atomic)
+      try writeEncryptedSegmentsUnlocked(updated)
     }
   }
 
   private func loadSegmentsUnlocked(includeDeleted: Bool) -> [KeyboardDiarySegment] {
     let fileURL = segmentsFileURL
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
+      return []
+    }
+
+    do {
+      try applyFileProtectionUnlocked()
+      let result = try loadSegmentDecodeResultUnlocked()
+      if result.containsPlaintext {
+        do {
+          try writeEncryptedSegmentsUnlocked(result.segments)
+        } catch {
+          Logger.statistics.error("KeyboardDiary plaintext migration failed: \(error.localizedDescription)")
+        }
+      }
+      return result.segments
+        .filter { includeDeleted || !$0.isDeleted }
+        .sorted { $0.createdAt > $1.createdAt }
+    } catch {
+      Logger.statistics.error("KeyboardDiary load failed: \(error.localizedDescription)")
+      return []
+    }
+  }
+
+  private func prepareDiaryStorageUnlocked() throws {
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupDiaryDirectoryURL)
+    try applyFileProtectionUnlocked()
+  }
+
+  private func applyFileProtectionUnlocked() throws {
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: FileManager.appGroupDiaryDirectoryURL.path) {
+      try fileManager.setAttributes(
+        [.protectionKey: FileProtectionType.complete],
+        ofItemAtPath: FileManager.appGroupDiaryDirectoryURL.path
+      )
+    }
+    if fileManager.fileExists(atPath: segmentsFileURL.path) {
+      try fileManager.setAttributes(
+        [.protectionKey: FileProtectionType.complete],
+        ofItemAtPath: segmentsFileURL.path
+      )
+    }
+  }
+
+  private func writeEncryptedSegmentsUnlocked(_ segments: [KeyboardDiarySegment]) throws {
+    try prepareDiaryStorageUnlocked()
+    let payload = try encryptedPayloadData(for: segments)
+    try writeProtectedDataUnlocked(payload, to: segmentsFileURL)
+  }
+
+  private func writeProtectedDataUnlocked(_ data: Data, to url: URL) throws {
+    try data.write(to: url, options: [.atomic, .completeFileProtection])
+    try applyFileProtectionUnlocked()
+  }
+
+  private func encryptedPayloadData(for segments: [KeyboardDiarySegment]) throws -> Data {
+    var payload = Data()
+    for segment in segments {
+      payload.append(try encodedEncryptedLineData(for: segment))
+    }
+    return payload
+  }
+
+  private func encodedEncryptedLineData(for segment: KeyboardDiarySegment) throws -> Data {
+    let plaintext = try encoder.encode(segment)
+    let sealedBox = try KeyboardDiaryEncryption.seal(plaintext)
+    let line = EncryptedSegmentLine(
+      version: 1,
+      kind: Self.encryptedLineKind,
+      algorithm: Self.encryptedLineAlgorithm,
+      sealedBox: sealedBox.base64EncodedString()
+    )
+    var data = try encoder.encode(line)
+    data.append(0x0A)
+    return data
+  }
+
+  private func migratePlaintextFileIfNeededUnlocked() throws {
+    guard FileManager.default.fileExists(atPath: segmentsFileURL.path) else { return }
+    let result = try loadSegmentDecodeResultUnlocked()
+    guard result.containsPlaintext else { return }
+    try writeEncryptedSegmentsUnlocked(result.segments)
+  }
+
+  private func loadSegmentDecodeResultUnlocked() throws -> SegmentDecodeResult {
+    let fileURL = segmentsFileURL
     guard let data = try? Data(contentsOf: fileURL),
           let text = String(data: data, encoding: .utf8)
     else {
-      return []
+      return SegmentDecodeResult(segments: [], containsPlaintext: false)
     }
-    return text
-      .split(separator: "\n", omittingEmptySubsequences: true)
-      .compactMap { line -> KeyboardDiarySegment? in
-        guard let data = String(line).data(using: .utf8) else { return nil }
-        return try? decoder.decode(KeyboardDiarySegment.self, from: data)
+
+    var segments: [KeyboardDiarySegment] = []
+    var containsPlaintext = false
+    for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+      let data = Data(line.utf8)
+      if let encryptedLine = try? decoder.decode(EncryptedSegmentLine.self, from: data),
+         encryptedLine.version == 1,
+         encryptedLine.kind == Self.encryptedLineKind,
+         encryptedLine.algorithm == Self.encryptedLineAlgorithm {
+        let plaintext = try KeyboardDiaryEncryption.open(encryptedLine.sealedBox)
+        let segment = try decoder.decode(KeyboardDiarySegment.self, from: plaintext)
+        segments.append(segment)
+        continue
       }
-      .filter { includeDeleted || !$0.isDeleted }
-      .sorted { $0.createdAt > $1.createdAt }
+      if let segment = try? decoder.decode(KeyboardDiarySegment.self, from: data) {
+        containsPlaintext = true
+        segments.append(segment)
+      }
+    }
+
+    return SegmentDecodeResult(
+      segments: segments.sorted { $0.createdAt > $1.createdAt },
+      containsPlaintext: containsPlaintext
+    )
   }
 
   public static func extractCurrentParagraph(before: String, after: String) -> String {
@@ -268,4 +379,125 @@ public final class KeyboardDiaryStore {
 
     return (true, original, redacted, level)
   }
+}
+
+private enum KeyboardDiaryEncryptionError: LocalizedError {
+  case invalidSealedBox
+  case invalidKeyData
+  case keychain(OSStatus)
+
+  var errorDescription: String? {
+    switch self {
+    case .invalidSealedBox:
+      return "日记密文格式无效"
+    case .invalidKeyData:
+      return "日记加密密钥无效"
+    case let .keychain(status):
+      return "日记密钥访问失败：\(status)"
+    }
+  }
+}
+
+private enum KeyboardDiaryEncryption {
+  private static let keychainService = "com.XiangqingZHANG.nanomouse.diary"
+  private static let keychainAccount = "segments-jsonl-aes-gcm-v1"
+
+  static func seal(_ plaintext: Data) throws -> Data {
+    let sealedBox = try AES.GCM.seal(plaintext, using: loadOrCreateKey())
+    guard let combined = sealedBox.combined else {
+      throw KeyboardDiaryEncryptionError.invalidSealedBox
+    }
+    return combined
+  }
+
+  static func open(_ sealedBoxBase64: String) throws -> Data {
+    guard let combined = Data(base64Encoded: sealedBoxBase64) else {
+      throw KeyboardDiaryEncryptionError.invalidSealedBox
+    }
+    let sealedBox = try AES.GCM.SealedBox(combined: combined)
+    return try AES.GCM.open(sealedBox, using: loadOrCreateKey())
+  }
+
+  static func deleteKey() throws {
+    let status = SecItemDelete(baseKeychainQuery() as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else {
+      throw KeyboardDiaryEncryptionError.keychain(status)
+    }
+  }
+
+  private static func loadOrCreateKey() throws -> SymmetricKey {
+    if let data = try readKeyData() {
+      guard data.count == 32 else {
+        throw KeyboardDiaryEncryptionError.invalidKeyData
+      }
+      return SymmetricKey(data: data)
+    }
+
+    let key = SymmetricKey(size: .bits256)
+    let keyData = key.withUnsafeBytes { Data($0) }
+    try storeKeyData(keyData)
+    return key
+  }
+
+  private static func readKeyData() throws -> Data? {
+    var query = baseKeychainQuery()
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound {
+      return nil
+    }
+    guard status == errSecSuccess else {
+      throw KeyboardDiaryEncryptionError.keychain(status)
+    }
+    guard let data = result as? Data else {
+      throw KeyboardDiaryEncryptionError.invalidKeyData
+    }
+    return data
+  }
+
+  private static func storeKeyData(_ data: Data) throws {
+    var insert = baseKeychainQuery()
+    insert[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+    insert[kSecValueData as String] = data
+
+    let status = SecItemAdd(insert as CFDictionary, nil)
+    if status == errSecDuplicateItem {
+      let updateStatus = SecItemUpdate(
+        baseKeychainQuery() as CFDictionary,
+        [kSecValueData as String: data] as CFDictionary
+      )
+      guard updateStatus == errSecSuccess else {
+        throw KeyboardDiaryEncryptionError.keychain(updateStatus)
+      }
+      return
+    }
+    guard status == errSecSuccess else {
+      throw KeyboardDiaryEncryptionError.keychain(status)
+    }
+  }
+
+  private static func baseKeychainQuery() -> [String: Any] {
+    var query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: keychainService,
+      kSecAttrAccount as String: keychainAccount
+    ]
+    if let accessGroup = sharedKeychainAccessGroup {
+      query[kSecAttrAccessGroup as String] = accessGroup
+    }
+    return query
+  }
+
+  private static let sharedKeychainAccessGroup: String? = {
+    guard let prefix = Bundle.main.object(forInfoDictionaryKey: "NanomouseAppIdentifierPrefix") as? String,
+          !prefix.isEmpty,
+          !prefix.contains("$")
+    else {
+      return nil
+    }
+    return prefix + HamsterConstants.appGroupName
+  }()
 }

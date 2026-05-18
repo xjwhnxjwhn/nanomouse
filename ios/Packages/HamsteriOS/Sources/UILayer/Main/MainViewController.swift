@@ -8,6 +8,7 @@
 import Combine
 import HamsterKit
 import HamsterUIKit
+import LocalAuthentication
 import NanomouseReviewKit
 import UIKit
 
@@ -3032,6 +3033,7 @@ final class VoiceAccountViewController: NibLessViewController {
   private lazy var historyController = VoiceHistoryViewController()
   private lazy var canvasStorageController = VoiceCanvasStorageViewController()
   private lazy var diaryController = VoiceDiaryViewController()
+  private var isAuthenticatingDiary = false
   private lazy var fullAccessGuideController: FullAccessGuideViewController = {
     subViewControllerFactory.makeFullAccessGuideViewController()
   }()
@@ -3227,6 +3229,71 @@ final class VoiceAccountViewController: NibLessViewController {
 
     navigationController?.pushViewController(makeKeyboardHostController(), animated: animated)
   }
+
+  private func openDiaryAfterAuthentication() {
+    guard !isAuthenticatingDiary else { return }
+
+    let context = LAContext()
+    context.localizedCancelTitle = "取消"
+    context.localizedFallbackTitle = "输入密码"
+
+    var authenticationError: NSError?
+    guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authenticationError) else {
+      showDiaryAuthenticationUnavailable()
+      return
+    }
+
+    isAuthenticatingDiary = true
+    context.evaluatePolicy(
+      .deviceOwnerAuthentication,
+      localizedReason: "验证身份后查看日记内容"
+    ) { [weak self] success, error in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        self.isAuthenticatingDiary = false
+
+        if success {
+          if self.navigationController?.topViewController !== self.diaryController {
+            self.navigationController?.pushViewController(self.diaryController, animated: true)
+          }
+          return
+        }
+
+        guard !self.shouldIgnoreDiaryAuthenticationError(error) else { return }
+        self.showDiaryAuthenticationFailed()
+      }
+    }
+  }
+
+  private func shouldIgnoreDiaryAuthenticationError(_ error: Error?) -> Bool {
+    let nsError = error as NSError?
+    guard nsError?.domain == LAError.errorDomain,
+          let code = nsError.map({ LAError.Code(rawValue: $0.code) })
+    else {
+      return false
+    }
+    return code == .userCancel || code == .systemCancel || code == .appCancel
+  }
+
+  private func showDiaryAuthenticationUnavailable() {
+    let alert = UIAlertController(
+      title: "无法打开日记",
+      message: "请先在系统设置中开启 Face ID 或设备密码，再查看日记内容。",
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "确定", style: .default))
+    present(alert, animated: true)
+  }
+
+  private func showDiaryAuthenticationFailed() {
+    let alert = UIAlertController(
+      title: "认证未通过",
+      message: "日记内容未打开。",
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: "确定", style: .default))
+    present(alert, animated: true)
+  }
 }
 
 extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate {
@@ -3363,7 +3430,7 @@ extension VoiceAccountViewController: UITableViewDataSource, UITableViewDelegate
       return
     }
     if indexPath.section == 5, indexPath.row == 0 {
-      navigationController?.pushViewController(diaryController, animated: true)
+      openDiaryAfterAuthentication()
       return
     }
     if indexPath.section == 6, indexPath.row == 0 {
