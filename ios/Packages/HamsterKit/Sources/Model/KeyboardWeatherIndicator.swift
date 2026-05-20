@@ -48,7 +48,7 @@ public enum KeyboardWeatherIndicatorLocationMode: String, Codable, CaseIterable,
 }
 
 public struct KeyboardWeatherIndicatorCache: Codable, Hashable {
-  public static let validDuration: TimeInterval = 3 * 60 * 60
+  public static let validDuration: TimeInterval = 60 * 60
 
   public var sourceLocationMode: KeyboardWeatherIndicatorLocationMode
   public var sourceLocationQuery: String?

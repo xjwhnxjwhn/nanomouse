@@ -60,7 +60,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
   private let geocoder = CLGeocoder()
   private var authorizationContinuation: CheckedContinuation<Void, Error>?
   private var locationContinuation: CheckedContinuation<CLLocation, Error>?
-  private static let refreshCooldown: TimeInterval = 10 * 60
+  private static let refreshCooldown: TimeInterval = 60
 
   private override init() {
     super.init()
@@ -107,7 +107,6 @@ public final class KeyboardWeatherIndicatorService: NSObject {
         fixedLongitude: config.fixedLongitude,
         allowAuthorizationPrompt: forceAuthorizationPrompt
       )
-      UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt = Date()
       let currentWeather = try await WeatherService.shared.weather(for: resolvedLocation.location, including: .current)
       let attribution = try? await WeatherService.shared.attribution
       let attributionText: String?
@@ -133,6 +132,7 @@ public final class KeyboardWeatherIndicatorService: NSObject {
         attributionLegalText: attributionText
       )
       UserDefaults.hamster.keyboardWeatherIndicatorCache = cache
+      UserDefaults.hamster.keyboardWeatherIndicatorLastRefreshAt = cache.updatedAt
       return cache
     } catch {
       UserDefaults.hamster.keyboardWeatherIndicatorCache = nil
