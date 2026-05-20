@@ -157,4 +157,19 @@ extension SchemaField {
     var minInt: Int { Int(min ?? 0) }
     var maxInt: Int { Int(max ?? 100) }
     var defaultInt: Int { 0 }
+    var localizedLabel: String { L10n.text(label) }
+    var localizedDescription: String? { description.map(L10n.text) }
+    var localizedPairLabels: [String]? { pairLabels?.map(L10n.text) }
+}
+
+extension SchemaSection {
+    var localizedTitle: String { L10n.text(title) }
+}
+
+extension SchemaTableColumn {
+    var localizedLabel: String { L10n.text(label) }
+}
+
+extension SchemaItemField {
+    var localizedLabel: String { L10n.text(label) }
 }

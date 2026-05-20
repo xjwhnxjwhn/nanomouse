@@ -6,5 +6,11 @@
   
 */
 "CFBundleDisplayName" = "NanoMouse";
+"NSCameraUsageDescription" = "Nanomouse uses the camera to take photos and save them to Byte Paste snippets.";
+"NSFaceIDUsageDescription" = "Nanomouse uses Face ID to protect diary content.";
+"NSLocalNetworkUsageDescription" = "Nanomouse uses the local network so devices on the same network can upload and manage input schema files in a browser.";
+"NSLocationWhenInUseUsageDescription" = "Nanomouse uses your location in the main app to fetch the keyboard weather indicator.";
 "NSMicrophoneUsageDescription" = "Nanomouse uses the microphone for voice dictation. If you enable online ASR, audio may be sent to your configured provider.";
+"NSPhotoLibraryAddUsageDescription" = "Nanomouse saves images from Byte Paste snippets to your photo library.";
+"NSPhotoLibraryUsageDescription" = "Nanomouse accesses your photo library so images from your albums can be set on Byte Paste snippets.";
 "NSSpeechRecognitionUsageDescription" = "Nanomouse uses Speech Recognition to convert your voice into text.";

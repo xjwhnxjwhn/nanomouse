@@ -3234,8 +3234,8 @@ final class VoiceAccountViewController: NibLessViewController {
     guard !isAuthenticatingDiary else { return }
 
     let context = LAContext()
-    context.localizedCancelTitle = "取消"
-    context.localizedFallbackTitle = "输入密码"
+    context.localizedCancelTitle = AppL10n.text("取消")
+    context.localizedFallbackTitle = AppL10n.text("输入密码")
 
     var authenticationError: NSError?
     guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authenticationError) else {
@@ -3246,7 +3246,7 @@ final class VoiceAccountViewController: NibLessViewController {
     isAuthenticatingDiary = true
     context.evaluatePolicy(
       .deviceOwnerAuthentication,
-      localizedReason: "验证身份后查看日记内容"
+      localizedReason: AppL10n.text("验证身份后查看日记内容")
     ) { [weak self] success, error in
       DispatchQueue.main.async {
         guard let self else { return }
@@ -3277,21 +3277,21 @@ final class VoiceAccountViewController: NibLessViewController {
 
   private func showDiaryAuthenticationUnavailable() {
     let alert = UIAlertController(
-      title: "无法打开日记",
-      message: "请先在系统设置中开启 Face ID 或设备密码，再查看日记内容。",
+      title: AppL10n.text("无法打开日记"),
+      message: AppL10n.text("请先在系统设置中开启 Face ID 或设备密码，再查看日记内容。"),
       preferredStyle: .alert
     )
-    alert.addAction(UIAlertAction(title: "确定", style: .default))
+    alert.addAction(UIAlertAction(title: AppL10n.text("确定"), style: .default))
     present(alert, animated: true)
   }
 
   private func showDiaryAuthenticationFailed() {
     let alert = UIAlertController(
-      title: "认证未通过",
-      message: "日记内容未打开。",
+      title: AppL10n.text("认证未通过"),
+      message: AppL10n.text("日记内容未打开。"),
       preferredStyle: .alert
     )
-    alert.addAction(UIAlertAction(title: "确定", style: .default))
+    alert.addAction(UIAlertAction(title: AppL10n.text("确定"), style: .default))
     present(alert, animated: true)
   }
 }

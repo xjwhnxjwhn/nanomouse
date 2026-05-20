@@ -6,5 +6,11 @@
   
 */
 "CFBundleDisplayName" = "鼠輸入法";
+"NSCameraUsageDescription" = "Nanomouse 需要使用相機拍攝照片並儲存到位元組貼上片段。";
+"NSFaceIDUsageDescription" = "Nanomouse 需要使用 Face ID 來保護日記內容。";
+"NSLocalNetworkUsageDescription" = "Nanomouse 需要使用本地網路，讓同一區域網路內的裝置透過瀏覽器上傳和管理輸入方案檔案。";
+"NSLocationWhenInUseUsageDescription" = "Nanomouse 需要在主 App 中讀取你的位置，以取得鍵盤頂部天氣指標。";
 "NSMicrophoneUsageDescription" = "Nanomouse 需要使用麥克風進行語音聽寫。若你啟用線上 ASR，音訊會傳送到你設定的服務商。";
+"NSPhotoLibraryAddUsageDescription" = "Nanomouse 需要將位元組貼上片段中的圖片匯出到照片圖庫。";
+"NSPhotoLibraryUsageDescription" = "Nanomouse 需要取用照片圖庫，以便把相簿中的圖片設定到位元組貼上片段。";
 "NSSpeechRecognitionUsageDescription" = "Nanomouse 需要語音辨識權限將口述轉換為文字。";

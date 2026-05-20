@@ -64,6 +64,11 @@ struct HelpView: View {
     }
 
     private func loadHelpContent() {
+        if let localizedHelp = L10n.localizedHelpMarkdown {
+            helpContent = localizedHelp
+            return
+        }
+
         guard let url = Bundle.main.url(forResource: "Help", withExtension: "md"),
               let content = try? String(contentsOf: url, encoding: .utf8) else {
             // Fallback if file not in bundle (e.g. during development if not added to target)
@@ -99,9 +104,9 @@ struct HelpView: View {
                     .frame(width: 48, height: 48)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("字节粘贴关于")
+                    Text(L10n.bytePasteAbout)
                         .font(.headline)
-                    Text("此区域直接映射“字节粘贴偏好设置 -> 关于”的内容。")
+                    Text(L10n.bytePasteAboutDescription)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -131,7 +136,7 @@ struct HelpView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("项目")
+                    Text(L10n.project)
                     Spacer()
                     Text("Squirrel Configuration Tool (SCT)")
                         .foregroundStyle(.secondary)
@@ -140,7 +145,7 @@ struct HelpView: View {
                 Divider()
 
                 HStack {
-                    Text("版本")
+                    Text(L10n.text("版本"))
                     Spacer()
                     Text(currentBundleVersionText)
                         .foregroundStyle(.secondary)
@@ -154,7 +159,7 @@ struct HelpView: View {
                     }
                 } label: {
                     HStack {
-                        Label("上游仓库", systemImage: "link")
+                        Label(L10n.upstreamRepository, systemImage: "link")
                         Spacer()
                         Text("github.com/neolee/sct")
                             .foregroundStyle(.secondary)
@@ -171,7 +176,7 @@ struct HelpView: View {
                     }
                 } label: {
                     HStack {
-                        Label("鼠须管项目", systemImage: "link")
+                        Label(L10n.squirrelProject, systemImage: "link")
                         Spacer()
                         Text("github.com/rime/squirrel")
                             .foregroundStyle(.secondary)
@@ -196,7 +201,7 @@ struct HelpView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } label: {
-            Label("SCT 原项目信息", systemImage: "square.stack.3d.up")
+            Label(L10n.sctOriginalProjectInfo, systemImage: "square.stack.3d.up")
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }

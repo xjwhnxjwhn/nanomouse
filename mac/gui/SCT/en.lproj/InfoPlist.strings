@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "NanoMouse";
+"NSCameraUsageDescription" = "Nanomouse uses the camera so you can take a photo directly for a Byte Paste snippet.";
+"NSLocationUsageDescription" = "Nanomouse uses your current location to generate current weather text in the Byte Paste window.";
+"NSPhotoLibraryAddUsageDescription" = "Nanomouse saves images from Byte Paste snippets to your photo library.";
+"NSPhotoLibraryUsageDescription" = "Nanomouse accesses your photo library so images from your albums can be set on Byte Paste snippets.";

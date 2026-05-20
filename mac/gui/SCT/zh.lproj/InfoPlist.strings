@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "NanoMouse";
+"NSCameraUsageDescription" = "Nanomouse 需要访问摄像头，以便为字节粘贴片段直接拍照。";
+"NSLocationUsageDescription" = "Nanomouse 需要访问当前位置，以便在字节粘贴窗口中生成当前天气文本。";
+"NSPhotoLibraryAddUsageDescription" = "Nanomouse 需要将字节粘贴片段中的图片导出到照片图库。";
+"NSPhotoLibraryUsageDescription" = "Nanomouse 需要访问照片库，以便把相册中的图片设置到字节粘贴片段。";

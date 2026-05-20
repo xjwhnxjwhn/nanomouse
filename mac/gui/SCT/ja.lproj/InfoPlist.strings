@@ -1,0 +1,5 @@
+"CFBundleDisplayName" = "NanoMouse";
+"NSCameraUsageDescription" = "Nanomouse は、バイトペーストのスニペットに直接写真を追加できるようにカメラを使用します。";
+"NSLocationUsageDescription" = "Nanomouse は、バイトペーストウィンドウで現在の天気テキストを生成するために現在地を使用します。";
+"NSPhotoLibraryAddUsageDescription" = "Nanomouse は、バイトペーストのスニペット内の画像を写真ライブラリに保存します。";
+"NSPhotoLibraryUsageDescription" = "Nanomouse は、写真ライブラリの画像をバイトペーストのスニペットに設定するために写真ライブラリへアクセスします。";

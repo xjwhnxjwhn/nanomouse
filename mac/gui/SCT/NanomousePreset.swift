@@ -40,7 +40,7 @@ enum NanomousePreset: String, CaseIterable, Identifiable {
     }
 
     var description: String {
-        return "启用 NanoMouse 拼音优化规则（ng→nn，uan→vn，uang→vnn）"
+        return L10n.nanomousePresetDescription
     }
 
     var fileName: String {

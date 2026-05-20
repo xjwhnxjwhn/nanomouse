@@ -60,7 +60,7 @@ private struct SchemaSectionCard: View {
             HStack(spacing: 8) {
                 Image(systemName: section.icon ?? "square.on.square")
                     .foregroundStyle(Color.accentColor)
-                Text(section.title)
+                Text(section.localizedTitle)
                     .font(.headline)
                 Spacer()
                 Text(section.targetFile)
@@ -91,9 +91,9 @@ struct SchemaFieldRow: View {
         VStack(alignment: .leading, spacing: 8) {
             if field.type == .appOptions || field.type == .keyBinder || field.type == .hotkeyList || field.type == .hotkeyPairList {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(field.label)
+                    Text(field.localizedLabel)
                         .fontWeight(.semibold)
-                    if let desc = field.description {
+                    if let desc = field.localizedDescription {
                         Text(desc)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -103,9 +103,9 @@ struct SchemaFieldRow: View {
             } else {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(field.label)
+                        Text(field.localizedLabel)
                             .fontWeight(.semibold)
-                        if let desc = field.description {
+                        if let desc = field.localizedDescription {
                             Text(desc)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -140,7 +140,7 @@ struct SchemaFieldRow: View {
             .frame(maxWidth: 200, alignment: .trailing)
 
         case .text:
-            TextField(field.label, text: binding(for: field.keyPath, domain: domain, defaultValue: ""))
+            TextField(field.localizedLabel, text: binding(for: field.keyPath, domain: domain, defaultValue: ""))
             .textFieldStyle(.roundedBorder)
             .frame(maxWidth: 200, alignment: .trailing)
 
@@ -739,7 +739,7 @@ struct HotkeyPairListControl: View {
 
     var body: some View {
         let pairs = (manager.value(for: field.keyPath, in: domain) as? [[String]]) ?? []
-        let labels = field.pairLabels ?? ["Key 1", "Key 2"]
+        let labels = field.localizedPairLabels ?? ["Key 1", "Key 2"]
 
         VStack(alignment: .leading, spacing: 8) {
             ForEach(0..<pairs.count, id: \.self) { index in

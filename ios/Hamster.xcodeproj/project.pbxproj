@@ -45,6 +45,7 @@
 		953C7FAB4F9E5F4305BA83AD /* Help.md in Resources */ = {isa = PBXBuildFile; fileRef = 33B32CEB35D0335627EDE72D /* Help.md */; };
 		98BC9BBF3E85E5DDE9E869EB /* NanomouseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18CC0BE25F6AC0B272E39BD /* NanomouseSettingsView.swift */; };
 		9920617D13E2FE5C1EFB6A1D /* Color+BGR.swift in Sources */ = {isa = PBXBuildFile; fileRef = A158829CDBB269B0462A19E6 /* Color+BGR.swift */; };
+		A1B2C3D4E5F6012345678901 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6012345678902 /* InfoPlist.strings */; };
 		ACA046B79F6CFD2C14D4155B /* RimeConfigManager+Nanomouse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3736FB22F2A3E3D4343D7F61 /* RimeConfigManager+Nanomouse.swift */; };
 		BF2D8D9467CD35CFFACF092D /* SchemaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 446EDB72FBFB6ADD6FD4CD17 /* SchemaStore.swift */; };
 		C00C26B72B0698E300E92F89 /* HamsterKeyboardKit in Frameworks */ = {isa = PBXBuildFile; productRef = C00C26B62B0698E300E92F89 /* HamsterKeyboardKit */; };
@@ -166,6 +167,12 @@
 		7B2604260000000000001004 /* SCTUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SCTUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678903 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678904 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678905 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678906 /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678907 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		A1B2C3D4E5F6012345678908 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
 		A220479952655DE4C296084E /* SCTApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SCTApp.swift; sourceTree = "<group>"; };
 		B8525A8107843174DE7A518A /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -323,6 +330,7 @@
 				200105F3FF0CBB3C70788F08 /* Assets.xcassets */,
 				034D1299E7F66EFEFF108E4C /* ConfigSchema.json */,
 				33B32CEB35D0335627EDE72D /* Help.md */,
+				A1B2C3D4E5F6012345678902 /* InfoPlist.strings */,
 				8A0D10CD705986269D449012 /* Info.plist */,
 				E5B34C379075AD857F124ABB /* SCT.entitlements */,
 			);
@@ -701,6 +709,7 @@
 				CAB4CF2795F7E8CF88CD1580 /* Assets.xcassets in Resources */,
 				0EA611C70791CEA8A10EB67F /* ConfigSchema.json in Resources */,
 				953C7FAB4F9E5F4305BA83AD /* Help.md in Resources */,
+				A1B2C3D4E5F6012345678901 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -824,6 +833,19 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
+		A1B2C3D4E5F6012345678902 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				A1B2C3D4E5F6012345678903 /* en */,
+				A1B2C3D4E5F6012345678904 /* ja */,
+				A1B2C3D4E5F6012345678905 /* zh-Hans */,
+				A1B2C3D4E5F6012345678906 /* zh-HK */,
+				A1B2C3D4E5F6012345678907 /* zh-Hant */,
+				A1B2C3D4E5F6012345678908 /* zh */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 		C03EC3A82B06670F00DB741E /* InfoPlist.strings */ = {
 			isa = PBXVariantGroup;
 			children = (

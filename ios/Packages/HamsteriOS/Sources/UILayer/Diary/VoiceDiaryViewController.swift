@@ -25,7 +25,7 @@ final class VoiceDiaryViewController: NibLessViewController {
   private var tableTopConstraint: NSLayoutConstraint?
 
   private let segmentedControl: UISegmentedControl = {
-    let control = UISegmentedControl(items: ["日历", "文件"])
+    let control = UISegmentedControl(items: [AppL10n.text("日历"), AppL10n.text("文件")])
     control.translatesAutoresizingMaskIntoConstraints = false
     control.selectedSegmentIndex = 0
     return control
@@ -76,12 +76,17 @@ final class VoiceDiaryViewController: NibLessViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    title = "日记"
-    navigationItem.title = "日记"
+    applyLocalizedText()
     navigationItem.rightBarButtonItems = [
       UIBarButtonItem(barButtonSystemItem: .action, target: self, action: #selector(shareToday)),
       UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(confirmClearAll))
     ]
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleAppLanguageDidChange),
+      name: AppLocalization.didChangeNotification,
+      object: nil
+    )
     segmentedControl.addTarget(self, action: #selector(handleModeChanged), for: .valueChanged)
     calendarView.dataSource = self
     calendarView.delegate = self
@@ -94,7 +99,27 @@ final class VoiceDiaryViewController: NibLessViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    applyLocalizedText()
     reloadData()
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  @objc private func handleAppLanguageDidChange() {
+    applyLocalizedText()
+  }
+
+  private func applyLocalizedText() {
+    title = AppL10n.text("日记")
+    navigationItem.title = AppL10n.text("日记")
+    segmentedControl.setTitle(AppL10n.text("日历"), forSegmentAt: 0)
+    segmentedControl.setTitle(AppL10n.text("文件"), forSegmentAt: 1)
+    Self.updateFormatterLocales()
+    calendarView.reloadData()
+    tableView.reloadData()
+    updateEmptyBackground()
   }
 
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -147,7 +172,7 @@ final class VoiceDiaryViewController: NibLessViewController {
       return
     }
     let label = UILabel()
-    label.text = mode == .calendar ? "这一天还没有日记素材" : "还没有记录的日记素材"
+    label.text = mode == .calendar ? AppL10n.text("这一天还没有日记素材") : AppL10n.text("还没有记录的日记素材")
     label.textColor = .secondaryLabel
     label.textAlignment = .center
     label.font = .systemFont(ofSize: 15)
@@ -184,7 +209,7 @@ final class VoiceDiaryViewController: NibLessViewController {
 
   private func editDay(_ bucket: (day: Date, segments: [KeyboardDiarySegment])) {
     let editor = DiaryDayEditorViewController(
-      title: Self.dayFormatter.string(from: bucket.day),
+      title: Self.dayString(from: bucket.day),
       text: makeDailyFileText(segments: bucket.segments)
     ) { [weak self] text in
       self?.replaceDay(bucket, with: text)
@@ -223,7 +248,7 @@ final class VoiceDiaryViewController: NibLessViewController {
       confidence: .high,
       sensitiveLevel: .none,
       source: "mainApp",
-      metadata: ["diaryFileDay": Self.dayFormatter.string(from: bucket.day)]
+      metadata: ["diaryFileDay": Self.dayString(from: bucket.day)]
     )
     try? store.append(segment)
     reloadData()
@@ -257,9 +282,13 @@ final class VoiceDiaryViewController: NibLessViewController {
   }
 
   @objc private func confirmClearAll() {
-    let alert = UIAlertController(title: "清空所有日记素材？", message: "该操作会删除本机 App Group 中保存的日记素材。", preferredStyle: .alert)
-    alert.addAction(UIAlertAction(title: "取消", style: .cancel))
-    alert.addAction(UIAlertAction(title: "清空", style: .destructive) { [weak self] _ in
+    let alert = UIAlertController(
+      title: AppL10n.text("清空所有日记素材？"),
+      message: AppL10n.text("该操作会删除本机 App Group 中保存的日记素材。"),
+      preferredStyle: .alert
+    )
+    alert.addAction(UIAlertAction(title: AppL10n.text("取消"), style: .cancel))
+    alert.addAction(UIAlertAction(title: AppL10n.text("清空"), style: .destructive) { [weak self] _ in
       try? self?.store.clearAll()
       self?.reloadData()
     })
@@ -267,9 +296,9 @@ final class VoiceDiaryViewController: NibLessViewController {
   }
 
   private func makeMarkdown(day: Date, segments: [KeyboardDiarySegment]) -> String {
-    let title = Self.dayFormatter.string(from: day)
+    let title = Self.dayString(from: day)
     let lines = segments.sorted { $0.createdAt < $1.createdAt }.map { segment in
-      "- \(Self.timeFormatter.string(from: segment.createdAt)) \(segment.displayText)"
+      "- \(Self.timeString(from: segment.createdAt)) \(segment.displayText)"
     }
     return "# \(title)\n\n" + lines.joined(separator: "\n")
   }
@@ -278,7 +307,7 @@ final class VoiceDiaryViewController: NibLessViewController {
     segments
       .sorted { $0.createdAt < $1.createdAt }
       .map { segment in
-        "\(Self.timeFormatter.string(from: segment.createdAt))  \(segment.displayText)"
+        "\(Self.timeString(from: segment.createdAt))  \(segment.displayText)"
       }
       .joined(separator: "\n\n")
   }
@@ -296,6 +325,22 @@ final class VoiceDiaryViewController: NibLessViewController {
     formatter.timeStyle = .none
     return formatter
   }()
+
+  private static func updateFormatterLocales() {
+    let locale = Locale(identifier: AppLocalization.shared.effectiveLanguage.localeIdentifier)
+    timeFormatter.locale = locale
+    dayFormatter.locale = locale
+  }
+
+  private static func timeString(from date: Date) -> String {
+    updateFormatterLocales()
+    return timeFormatter.string(from: date)
+  }
+
+  private static func dayString(from date: Date) -> String {
+    updateFormatterLocales()
+    return dayFormatter.string(from: date)
+  }
 }
 
 private final class DiaryDayEditorViewController: UIViewController {
@@ -388,9 +433,9 @@ extension VoiceDiaryViewController: UITableViewDataSource, UITableViewDelegate {
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
     switch mode {
     case .calendar:
-      return Self.dayFormatter.string(from: selectedDate)
+      return Self.dayString(from: selectedDate)
     case .files:
-      return "日记文件"
+      return AppL10n.text("日记文件")
     }
   }
 
@@ -407,7 +452,7 @@ extension VoiceDiaryViewController: UITableViewDataSource, UITableViewDelegate {
       cell.accessoryType = .none
     case .files:
       let bucket = buckets[indexPath.row]
-      configuration.text = "\(Self.dayFormatter.string(from: bucket.day)) · \(bucket.segments.count) 条"
+      configuration.text = "\(Self.dayString(from: bucket.day)) · \(AppL10n.format("%d 条", bucket.segments.count))"
       configuration.secondaryText = makeDailyFileText(segments: bucket.segments)
       configuration.image = UIImage(systemName: "doc.text")
       configuration.textProperties.numberOfLines = 1
@@ -430,10 +475,10 @@ extension VoiceDiaryViewController: UITableViewDataSource, UITableViewDelegate {
       let text = makeDailyFileText(segments: selectedSegments)
       return UIContextMenuConfiguration(identifier: "selected-day" as NSString, previewProvider: nil) { [weak self] _ in
         guard let self else { return UIMenu() }
-        let copy = UIAction(title: "复制整天", image: UIImage(systemName: "doc.on.doc")) { _ in
+        let copy = UIAction(title: AppL10n.text("复制整天"), image: UIImage(systemName: "doc.on.doc")) { _ in
           UIPasteboard.general.string = text
         }
-        let share = UIAction(title: "分享整天", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+        let share = UIAction(title: AppL10n.text("分享整天"), image: UIImage(systemName: "square.and.arrow.up")) { _ in
           self.share(text, sourceView: tableView.cellForRow(at: indexPath))
         }
         return UIMenu(children: [copy, share])
@@ -441,18 +486,18 @@ extension VoiceDiaryViewController: UITableViewDataSource, UITableViewDelegate {
     }
     let bucket = buckets[indexPath.row]
     let text = makeDailyFileText(segments: bucket.segments)
-    return UIContextMenuConfiguration(identifier: Self.dayFormatter.string(from: bucket.day) as NSString, previewProvider: nil) { [weak self] _ in
+    return UIContextMenuConfiguration(identifier: Self.dayString(from: bucket.day) as NSString, previewProvider: nil) { [weak self] _ in
       guard let self else { return UIMenu() }
-      let copy = UIAction(title: "复制整天", image: UIImage(systemName: "doc.on.doc")) { _ in
+      let copy = UIAction(title: AppL10n.text("复制整天"), image: UIImage(systemName: "doc.on.doc")) { _ in
         UIPasteboard.general.string = text
       }
-      let edit = UIAction(title: "编辑文件", image: UIImage(systemName: "pencil")) { _ in
+      let edit = UIAction(title: AppL10n.text("编辑文件"), image: UIImage(systemName: "pencil")) { _ in
         self.editDay(bucket)
       }
-      let share = UIAction(title: "分享整天", image: UIImage(systemName: "square.and.arrow.up")) { _ in
+      let share = UIAction(title: AppL10n.text("分享整天"), image: UIImage(systemName: "square.and.arrow.up")) { _ in
         self.share(text, sourceView: tableView.cellForRow(at: indexPath))
       }
-      let delete = UIAction(title: "删除文件", image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
+      let delete = UIAction(title: AppL10n.text("删除文件"), image: UIImage(systemName: "trash"), attributes: .destructive) { _ in
         self.deleteDay(bucket)
       }
       return UIMenu(children: [copy, edit, share, delete])
