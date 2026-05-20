@@ -63,6 +63,18 @@ config — it's **a complete iOS keyboard app**.
 - 📓 **Diary Mode**: Long-press the weather area to record typed text locally by date
 - 🧰 **Workspace Tools**: Canvas, Markdown, causal diagrams, and a shared files area can be stored in the app's iCloud Drive container
 
+**Hidden Gestures & Power Tips:**
+
+- **Long-press `123`**: Open the full numeric keyboard with calculator, not just the symbol page.
+- **Long-press `#+=`**: Open categorized symbols for punctuation, brackets, and special characters.
+- **Long-press the top Chinese toolbar area near weather**: Toggle Simplified/Traditional Chinese output.
+- **Swipe left / right on the top Chinese toolbar area**: Enter left-hand or right-hand arc-style one-hand keyboard.
+- **Use the blank-area buttons in one-hand mode**: Return to the full keyboard or switch to the other hand.
+- **Long-press the weather area**: Start or stop local diary recording; the weather indicator blinks slowly while recording.
+- **Long-press a Byte Paste cell**: Open extra actions in the keyboard, such as copy, paste, download, or file handling.
+- **Long-press letter keys**: Show extended character callouts, then slide to select.
+- **Long-press or double-tap Shift**: Enable Caps Lock.
+
 **Main App Workspace:**
 
 - **Byte Paste**: Grid cells can store plain text, rich text, images, PDFs, videos, links, and generic files with previews, export, insertion, and cross-device sync.
