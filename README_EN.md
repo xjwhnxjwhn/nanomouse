@@ -3,9 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iOS-blue.svg)](#platform-support)
 
-🐭 **Cross-platform Pinyin input optimization — type faster, type easier**
+🐭 **A cross-platform input workspace that combines keyboard input, snippets, canvas, Markdown, and local input diary**
 
-[中文说明](./README.md) | [隐私政策](./PRIVACY.md) |
+[中文说明](./README.md) | [Website](https://nanomouse.2nori.com/) | [App Store](https://apps.apple.com/app/id6757662900) | [隐私政策](./PRIVACY.md) |
 [Privacy Policy](./PRIVACY_EN.md)
 
 ---
@@ -23,6 +23,11 @@ biggest pain points with minimal changes:
 **That's it.** No learning curve, just smoother typing for high-frequency
 patterns.
 
+NanoMouse is now more than a Rime configuration. The iOS app, keyboard
+extension, and macOS tool work together around the things you type: snippets,
+rich text, files, Markdown, drawings, causal diagrams, and local diary entries
+can be saved, previewed, synced, and reused.
+
 ---
 
 ## 🖥️ Platform Support
@@ -34,17 +39,19 @@ config — it's **a complete iOS keyboard app**.
 
 **Key Features:**
 
-| Feature                          | Description                                                          |
-| -------------------------------- | -------------------------------------------------------------------- |
-| 📱 **Native Keyboard Feel**      | Key bubbles, haptic feedback, smooth like system keyboard            |
-| 🔤 **Long-Press Accent Menu**    | Hold any key for extended characters, slide to select (full Latin)   |
-| 🔢 **Long-Press Numeric Keypad** | Hold `123` key for T9 keypad, **includes Calculator**                |
-| 🌐 **CN/JP/EN Quick Switch**     | Long-press CN/EN Key, pop-up menu for instant switching              |
-| 🔁 **Trad/Simp Quick Switch**    | Long-press candidate bar to toggle Traditional/Simplified output     |
-| ⇧ **Caps Lock**                  | Long-press or double-tap Shift to lock uppercase                     |
-| 🔣 **Complex Symbol Keyboard**   | Long-press symbol key (`#+=`) for categorized symbol view            |
-| 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement |
-| 🎌 **Multiple Schemas**          | Rime Ice, Double Pinyin, Japanese Romaji, Stroke input...            |
+| Feature                          | Description                                                                |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| 📱 **Native Keyboard Feel**      | Key bubbles, haptic feedback, smooth like the system keyboard              |
+| 🔤 **Long-Press Accent Menu**    | Hold any key for extended characters, slide to select (full Latin)         |
+| 🔢 **Long-Press Numeric Keypad** | Hold `123` for a full numeric keyboard with a built-in calculator          |
+| 🌐 **CN/JP/EN Quick Switch**     | Long-press CN/EN key for instant language switching                        |
+| 🔁 **Trad/Simp Quick Switch**    | Long-press the Chinese toolbar area to toggle Traditional/Simplified output |
+| 🖐️ **One-Hand Arc Keyboard**    | Chinese 26-key layout supports left/right arc-style one-hand mode          |
+| 🔣 **Complex Symbol Keyboard**   | Long-press symbol key (`#+=`) for categorized symbol view                  |
+| 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement       |
+| 🎌 **Multiple Schemas**          | Rime Ice, Flypy, Ziranma, Japanese Romaji, Stroke input, and more          |
+| 🧩 **Byte Paste**                | Reuse text, rich text, images, PDFs, files, and link previews in keyboard  |
+| ☁️ **iCloud Sync**               | Sync Byte Paste content between iOS, keyboard extension, and macOS         |
 
 **Typing Enhancements:**
 
@@ -53,16 +60,25 @@ config — it's **a complete iOS keyboard app**.
 - 🇬🇧 **English Candidate Bar**: Suggestions + spell correction for English input
 - 🔢 **Number Mixing**: Seamlessly mix numbers while typing Pinyin/Japanese
 - 🧠 **AzooKey + Zenzai AI (Optional)**: AI‑enhanced Japanese input (model download required; can be disabled on low-end devices)
+- 📓 **Diary Mode**: Long-press the weather area to record typed text locally by date
+- 🧰 **Workspace Tools**: Canvas, Markdown, causal diagrams, and a shared files area can be stored in the app's iCloud Drive container
 
-**Screenshots:**
+**Main App Workspace:**
+
+- **Byte Paste**: Grid cells can store plain text, rich text, images, PDFs, videos, links, and generic files with previews, export, insertion, and cross-device sync.
+- **Canvas / Markdown / Causal Diagram**: Create, edit, save, and insert workspace files into Byte Paste cells.
+- **File System**: Uses the app's iCloud Drive container, so files are accessible from iOS, iPadOS, macOS, and Apple's Files app.
+- **Account & Keyboard Settings**: Manage full access, notifications, schemas, keyboard layouts, diary, weather, cache, and cloud files.
+
+**App Store Screenshots:**
 
 <p align="center">
-  <img src="assetsForGithub/1.jpg" width="30%" />
-  <img src="assetsForGithub/2.1.jpg" width="30%" />
-  <img src="assetsForGithub/2.2.jpg" width="30%" />
-  <img src="assetsForGithub/2.3.jpg" width="30%" />
-  <img src="assetsForGithub/2.5.jpg" width="30%" />
-  <img src="assetsForGithub/2.6.jpg" width="30%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/0_APP_DESKTOP_0.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/1_APP_DESKTOP_1.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/2_APP_DESKTOP_2.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/3_APP_DESKTOP_3.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/4_APP_DESKTOP_4.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/en-US/5_APP_DESKTOP_5.png" width="45%" />
 </p>
 
 **Core Input Schemas:**
@@ -91,7 +107,7 @@ Source code: `ios/` directory | [Build instructions](./ios/README.md)
 [Nanomouse-Installer.dmg](https://github.com/xjwhnxjwhn/nanomouse/releases/latest)
 and run.
 
-**SCT Configuration Tool** — Say goodbye to manual YAML editing:
+**NanoMouse macOS Tool** — Manage Squirrel configuration and work with iOS Byte Paste:
 
 - 🎨 Native SwiftUI interface, feels right at home on macOS
 - 🔒 Non-invasive config: all changes go to `.custom.yaml`, safe across Squirrel
@@ -99,6 +115,9 @@ and run.
 - ↩️ Multi-level Undo/Redo + auto-backup, experiment freely
 - ⚡ Advanced mode: search and modify any Rime config option directly
 - 🔄 Built-in Sparkle auto-updates
+- 🧩 Byte Paste window: manage text, rich text, image, PDF, file, and link cells
+- ✍️ Canvas / Markdown / Causal Diagram: share the same iCloud Drive workspace with iOS
+- 👀 Quick Look: file cells can be previewed with Space; Markdown and `.pkdrawing` use app rendering
 
 > 💡 Squirrel not installed? The installer guides you through one-click Homebrew
 > installation
@@ -171,7 +190,6 @@ nanomouse/
 ├── ios/              # iOS Keyboard App (full Xcode project)
 ├── mac/
 │   ├── gui/          # SCT Config Tool (SwiftUI App)
-│   └── install.sh    # CLI install script
 ├── windows/          # Windows related
 ├── installers/       # macOS installer
 └── build/            # Build artifacts

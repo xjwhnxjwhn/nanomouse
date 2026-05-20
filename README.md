@@ -3,9 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iOS-blue.svg)](#平台支持)
 
-🐭 **让拼音输入更快、更顺手的跨平台输入法方案**
+🐭 **输入法、剪贴板、手写画布和输入日记整合在一起的跨平台输入工具**
 
-[English](./README_EN.md) | [隐私政策](./PRIVACY.md) |
+[English](./README_EN.md) | [官方网站](https://nanomouse.2nori.com/) | [App Store](https://apps.apple.com/app/id6757662900) | [隐私政策](./PRIVACY.md) |
 [Privacy Policy](./PRIVACY_EN.md)
 
 ---
@@ -21,6 +21,8 @@
 
 **就这么简单。** 不改变你的输入习惯，只是让高频操作更顺手。
 
+同时，鼠输入法已经不只是输入法配置。iOS 主 App、键盘扩展和 macOS 工具围绕“输入内容”做了完整整合：常用片段、富文本、文件、Markdown、手写画布、因果图和输入日记都可以被保存、预览、同步和再次使用。
+
 ---
 
 ## 🖥️ 平台支持
@@ -32,17 +34,19 @@
 
 **核心功能：**
 
-| 功能                     | 说明                                              |
-| ------------------------ | ------------------------------------------------- |
-| 📱 **原生键盘体验**      | 按键气泡、触感反馈，和系统键盘一样顺滑            |
-| 🔤 **长按扩展菜单**      | 长按任意键弹出扩展字符，滑动选择 (含拉丁字符全集) |
-| 🔢 **长按数字键盘**      | 长按 `123` 弹出九宫格数字，**内置计算器**         |
-| 🌐 **中/日/英 快速切换** | 长按中/英切换键，弹出菜单一键切换语言             |
-| 🔁 **繁简快速切换**      | 长按候选栏，快速切换繁体/简体输出                 |
-| ⇧ **大写锁定**           | 长按或双击 Shift 键可锁定大写                     |
-| 🔣 **复杂符号键盘**      | 长按符号键 (`#+=`) 进入分类符号界面               |
-| 📝 **系统文本替换**      | 自动读取 iOS「设置 > 通用 > 键盘 > 文本替换」     |
-| 🎌 **多方案支持**        | 雾凇拼音、小鹤双拼、日语罗马字、笔画输入…         |
+| 功能                     | 说明                                                        |
+| ------------------------ | ----------------------------------------------------------- |
+| 📱 **原生键盘体验**      | 按键气泡、触感反馈，和系统键盘一样顺滑                      |
+| 🔤 **长按扩展菜单**      | 长按任意键弹出扩展字符，滑动选择 (含拉丁字符全集)           |
+| 🔢 **长按数字键盘**      | 长按 `123` 打开完整数字键盘，内置计算器                      |
+| 🌐 **中/日/英 快速切换** | 长按中/英切换键，弹出菜单一键切换语言                       |
+| 🔁 **繁简快速切换**      | 在中文键盘顶部区域长按切换繁体/简体输出                     |
+| 🖐️ **单手扇形键盘**     | 中文 26 键支持左手/右手扇形单手模式                         |
+| 🔣 **复杂符号键盘**      | 长按符号键 (`#+=`) 进入分类符号界面                         |
+| 📝 **系统文本替换**      | 自动读取 iOS「设置 > 通用 > 键盘 > 文本替换」               |
+| 🎌 **多方案支持**        | 雾凇拼音、小鹤双拼、自然码双拼、日语罗马字、笔画输入等      |
+| 🧩 **字节粘贴**          | 在键盘中调用常用文本、富文本、图片、PDF、文件和网页链接预览 |
+| ☁️ **iCloud 同步**       | 主 App、键盘扩展和 macOS 之间同步字节粘贴内容               |
 
 **输入体验增强：**
 
@@ -51,16 +55,25 @@
 - 🇬🇧 **英语候选栏**：英文输入也有候选与拼写纠错
 - 🔢 **数字混输**：拼音/日语输入中数字自然融合
 - 🧠 **AzooKey + Zenzai AI（可选）**：日语输入可开启 AI 增强（需下载模型，低性能设备可关闭）
+- 📓 **日记模式**：长按天气区域开启本地记录模式，将输入内容按日期整理为日记
+- 🧰 **文件与创作工具**：画布、Markdown、因果图和通用文件区域可保存到 App 的 iCloud Drive 目录
 
-**界面预览：**
+**主 App 工作区：**
+
+- **字节粘贴**：每个格子可保存纯文本、富文本、图片、PDF、视频、网页链接和通用文件，支持预览、导出、格纳和跨端同步。
+- **画布 / Markdown / 因果图**：可以在同一工作区创建、编辑、保存文件，并将结果放入字节粘贴格子继续复用。
+- **文件系统**：使用 App 的 iCloud Drive 容器，文件可在 iOS、iPadOS、macOS 和系统“文件”App 中访问。
+- **账户与键盘设置**：管理完全访问、通知、输入方案、键盘布局、日记、天气、缓存和云端文件。
+
+**App Store 截图预览：**
 
 <p align="center">
-  <img src="assetsForGithub/1.jpg" width="30%" />
-  <img src="assetsForGithub/2.1.jpg" width="30%" />
-  <img src="assetsForGithub/2.2.jpg" width="30%" />
-  <img src="assetsForGithub/2.3.jpg" width="30%" />
-  <img src="assetsForGithub/2.5.jpg" width="30%" />
-  <img src="assetsForGithub/2.6.jpg" width="30%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/0_APP_DESKTOP_0.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/1_APP_DESKTOP_1.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/2_APP_DESKTOP_2.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/3_APP_DESKTOP_3.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/4_APP_DESKTOP_4.png" width="45%" />
+  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/5_APP_DESKTOP_5.png" width="45%" />
 </p>
 
 **核心输入方案：**
@@ -87,13 +100,16 @@
 **一键安装：** 下载
 [Nanomouse-Installer.dmg](https://github.com/xjwhnxjwhn/nanomouse/releases/latest)，双击运行即可。
 
-**SCT 配置工具** — 告别手动编辑 YAML 的痛苦：
+**NanoMouse macOS 工具** — 告别手动编辑 YAML，也能和 iOS 字节粘贴协作：
 
 - 🎨 原生 SwiftUI 界面，完美融入 macOS
 - 🔒 非侵入式配置，所有改动写入 `.custom.yaml`，升级鼠须管无忧
 - ↩️ 多级撤销/重做 + 自动备份，放心折腾
 - ⚡ 高级模式：直接搜索和修改任意 Rime 配置项
 - 🔄 集成 Sparkle 自动更新
+- 🧩 字节粘贴窗口：管理文本、富文本、图片、PDF、文件和网页链接格子
+- ✍️ 画布 / Markdown / 因果图：和 iOS 使用同一套 iCloud Drive 文件区域
+- 👀 Quick Look：文件格子支持空格预览，Markdown 和 `.pkdrawing` 使用应用内渲染
 
 > 💡 未安装鼠须管？安装器会引导你一键 Homebrew 安装
 >
@@ -173,7 +189,6 @@ nanomouse/
 ├── ios/              # iOS 输入法 App（完整 Xcode 项目）
 ├── mac/
 │   ├── gui/          # SCT 配置工具（SwiftUI App）
-
 ├── windows/          # Windows 相关
 ├── installers/       # macOS 安装器
 └── build/            # 构建产物
