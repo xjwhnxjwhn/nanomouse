@@ -139,7 +139,9 @@ class KeyboardToolbarView: NibLessView {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.backgroundColor = .clear
     view.isUserInteractionEnabled = true
+    view.isAccessibilityElement = true
     view.accessibilityLabel = "繁简切换"
+    view.accessibilityIdentifier = "nanomouse_keyboard_traditionalize_hotspot"
     view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     view.setContentHuggingPriority(.defaultLow, for: .horizontal)
     return view
@@ -264,6 +266,7 @@ class KeyboardToolbarView: NibLessView {
     button.contentEdgeInsets = .init(top: 6, left: 6, bottom: 6, right: 6)
     button.tintColor = style.toolbarButtonFrontColor
     button.accessibilityLabel = embeddedModuleEntry?.accessibilityLabel ?? "扩展模块"
+    button.accessibilityIdentifier = "nanomouse_keyboard_embedded_module"
     button.addTarget(self, action: #selector(embeddedModuleTouchDownAction), for: .touchDown)
     button.addTarget(self, action: #selector(embeddedModuleTouchUpAction), for: .touchUpInside)
     button.addTarget(self, action: #selector(touchCancel), for: .touchCancel)

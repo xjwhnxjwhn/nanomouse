@@ -34,8 +34,10 @@
 		7A2604260000000000000005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000002 /* ScreenshotTests.swift */; };
 		7A2604260000000000000006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000003 /* SnapshotHelper.swift */; };
 		7A2604260000000000000011 /* ScreenshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2604260000000000000010 /* ScreenshotSupport.swift */; };
+		7A2605200000000000000001 /* WebsiteGuideScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */; };
 		7B2604260000000000001005 /* ScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000001002 /* ScreenshotTests.swift */; };
 		7B2604260000000000001006 /* SnapshotHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2604260000000000001003 /* SnapshotHelper.swift */; };
+		7B2605200000000000000001 /* WebsiteGuideScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */; };
 		7D71B6C4B55F2CEBF9C7B6C6 /* SchemaDrivenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AA44318BFB9E757D7FD91C6 /* SchemaDrivenView.swift */; };
 		7F8A4A613CFB41CF894B7DF9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 113985FB3C0048FD8C73DAE8 /* PrivacyInfo.xcprivacy */; };
 		80B7B9768052F3128A75BDE1 /* EmbeddedModuleHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F585BEDF9A7159AFBA1E2C /* EmbeddedModuleHost.swift */; };
@@ -162,9 +164,11 @@
 		7A2604260000000000000003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		7A2604260000000000000004 /* HamsterUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HamsterUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A2604260000000000000010 /* ScreenshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSupport.swift; sourceTree = "<group>"; };
+		7A2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteGuideScreenshotTests.swift; sourceTree = "<group>"; };
 		7B2604260000000000001002 /* ScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotTests.swift; sourceTree = "<group>"; };
 		7B2604260000000000001003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		7B2604260000000000001004 /* SCTUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SCTUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteGuideScreenshotTests.swift; sourceTree = "<group>"; };
 		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678903 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -359,6 +363,7 @@
 			isa = PBXGroup;
 			children = (
 				7A2604260000000000000002 /* ScreenshotTests.swift */,
+				7A2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */,
 				7A2604260000000000000003 /* SnapshotHelper.swift */,
 			);
 			path = HamsterUITests;
@@ -368,6 +373,7 @@
 			isa = PBXGroup;
 			children = (
 				7B2604260000000000001002 /* ScreenshotTests.swift */,
+				7B2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */,
 				7B2604260000000000001003 /* SnapshotHelper.swift */,
 			);
 			path = SCTUITests;
@@ -758,6 +764,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7A2604260000000000000005 /* ScreenshotTests.swift in Sources */,
+				7A2605200000000000000001 /* WebsiteGuideScreenshotTests.swift in Sources */,
 				7A2604260000000000000006 /* SnapshotHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -767,6 +774,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				7B2604260000000000001005 /* ScreenshotTests.swift in Sources */,
+				7B2605200000000000000001 /* WebsiteGuideScreenshotTests.swift in Sources */,
 				7B2604260000000000001006 /* SnapshotHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
