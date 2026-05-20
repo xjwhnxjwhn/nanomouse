@@ -99,6 +99,7 @@ open class NumericNineGridKeyboardLayoutProvider: KeyboardLayoutProvider {
   }
 
   open func itemSwipes(for action: KeyboardAction, row: Int, index: Int, context: KeyboardContext) -> [KeySwipe] {
+    guard context.enableKeySwipe else { return [] }
     if let swipe = context.keyboardSwipe[context.keyboardType]?[action] {
       return swipe
     }

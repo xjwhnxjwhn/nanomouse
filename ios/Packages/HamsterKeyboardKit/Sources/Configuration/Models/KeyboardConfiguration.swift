@@ -18,6 +18,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
   /// 关闭划动显示文本
   public var disableSwipeLabel: Bool?
 
+  /// 启用按键滑动输入
+  public var enableKeySwipe: Bool?
+
   /// 上划显示在左侧
   public var upSwipeOnLeft: Bool?
 
@@ -169,6 +172,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     useKeyboardType: String? = "chinese",
     defaultLanguageMode: KeyboardDefaultLanguage? = .followLast,
     disableSwipeLabel: Bool? = true,
+    enableKeySwipe: Bool? = true,
     upSwipeOnLeft: Bool? = false,
     swipeLabelUpAndDownLayout: Bool? = true,
     swipeLabelUpAndDownIrregularLayout: Bool? = false,
@@ -261,6 +265,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode
     self.disableSwipeLabel = disableSwipeLabel
+    self.enableKeySwipe = enableKeySwipe
     self.upSwipeOnLeft = upSwipeOnLeft
     self.swipeLabelUpAndDownLayout = swipeLabelUpAndDownLayout
     self.swipeLabelUpAndDownIrregularLayout = swipeLabelUpAndDownIrregularLayout
@@ -314,6 +319,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.useKeyboardType = try container.decodeIfPresent(String.self, forKey: .useKeyboardType)
     self.defaultLanguageMode = try container.decodeIfPresent(KeyboardDefaultLanguage.self, forKey: .defaultLanguageMode)
     self.disableSwipeLabel = try container.decodeIfPresent(Bool.self, forKey: .disableSwipeLabel)
+    self.enableKeySwipe = try container.decodeIfPresent(Bool.self, forKey: .enableKeySwipe)
     self.upSwipeOnLeft = try container.decodeIfPresent(Bool.self, forKey: .upSwipeOnLeft)
     self.swipeLabelUpAndDownLayout = try container.decodeIfPresent(Bool.self, forKey: .swipeLabelUpAndDownLayout)
     self.swipeLabelUpAndDownIrregularLayout = try container.decodeIfPresent(Bool.self, forKey: .swipeLabelUpAndDownIrregularLayout)
@@ -370,6 +376,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     case useKeyboardType
     case defaultLanguageMode
     case disableSwipeLabel
+    case enableKeySwipe
     case upSwipeOnLeft
     case swipeLabelUpAndDownLayout
     case swipeLabelUpAndDownIrregularLayout
@@ -423,6 +430,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.useKeyboardType, forKey: .useKeyboardType)
     try container.encodeIfPresent(self.defaultLanguageMode, forKey: .defaultLanguageMode)
     try container.encodeIfPresent(self.disableSwipeLabel, forKey: .disableSwipeLabel)
+    try container.encodeIfPresent(self.enableKeySwipe, forKey: .enableKeySwipe)
     try container.encodeIfPresent(self.upSwipeOnLeft, forKey: .upSwipeOnLeft)
     try container.encodeIfPresent(self.swipeLabelUpAndDownLayout, forKey: .swipeLabelUpAndDownLayout)
     try container.encodeIfPresent(self.swipeLabelUpAndDownIrregularLayout, forKey: .swipeLabelUpAndDownIrregularLayout)

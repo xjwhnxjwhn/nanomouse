@@ -68,15 +68,15 @@ class KeyboardSettingsRootView: NibLessView {
 
 extension KeyboardSettingsRootView: UITableViewDataSource {
   func numberOfSections(in tableView: UITableView) -> Int {
-    return keyboardSettingsViewModel.keyboardSettingsItems.count
+    return keyboardSettingsViewModel.visibleKeyboardSettingsItems.count
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return keyboardSettingsViewModel.keyboardSettingsItems[section].items.count
+    return keyboardSettingsViewModel.visibleKeyboardSettingsItems[section].items.count
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-    let setting = keyboardSettingsViewModel.keyboardSettingsItems[indexPath.section].items[indexPath.row]
+    let setting = keyboardSettingsViewModel.visibleKeyboardSettingsItems[indexPath.section].items[indexPath.row]
 
     switch setting.type {
     case .navigation:
@@ -118,17 +118,17 @@ extension KeyboardSettingsRootView: UITableViewDataSource {
   }
 
   func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-    return keyboardSettingsViewModel.keyboardSettingsItems[section].title
+    return keyboardSettingsViewModel.visibleKeyboardSettingsItems[section].title
   }
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-    return keyboardSettingsViewModel.keyboardSettingsItems[section].footer
+    return keyboardSettingsViewModel.visibleKeyboardSettingsItems[section].footer
   }
 }
 
 extension KeyboardSettingsRootView: UITableViewDelegate {
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-    let setting = keyboardSettingsViewModel.keyboardSettingsItems[indexPath.section].items[indexPath.row]
+    let setting = keyboardSettingsViewModel.visibleKeyboardSettingsItems[indexPath.section].items[indexPath.row]
     setting.navigationAction?()
     tableView.deselectRow(at: indexPath, animated: false)
   }

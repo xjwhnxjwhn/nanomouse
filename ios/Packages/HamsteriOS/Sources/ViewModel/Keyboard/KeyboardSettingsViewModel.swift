@@ -72,6 +72,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var enableKeySwipe: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableKeySwipe ?? true
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enableKeySwipe = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableKeySwipe = newValue
+    }
+  }
+
   public var swipeLabelUpAndDownIrregularLayout: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.swipeLabelUpAndDownIrregularLayout ?? false
@@ -984,6 +994,33 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     )
   }
 
+  public var visibleKeyboardSettingsItems: [SettingSectionModel] {
+    let keySwipeDetailTexts: Set<String> = [
+      "上划显示位置-左上侧",
+      "划动文本上下显示",
+      "不规则显示划动文本",
+      "划动文本显示关闭"
+    ]
+    let keySwipeDetailItems = keyboardSettingsItems
+      .flatMap(\.items)
+      .filter { keySwipeDetailTexts.contains($0.text) }
+
+    return keyboardSettingsItems.compactMap { section in
+      let texts = Set(section.items.map(\.text))
+      guard !texts.contains(where: keySwipeDetailTexts.contains) else {
+        return nil
+      }
+
+      guard texts.contains("按键滑动输入"), enableKeySwipe else {
+        return section
+      }
+
+      var groupedSection = section
+      groupedSection.items += keySwipeDetailItems
+      return groupedSection
+    }
+  }
+
   // MARK: - init data
 
   /// 键盘设置选项
@@ -1099,6 +1136,19 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           type: .navigation,
           navigationAction: { [unowned self] in
             self.subViewSubject.send(.space)
+          })
+      ]),
+
+    .init(
+      footer: "关闭后，按键上下左右滑动不会触发输入，按键上的划动提示也会隐藏。",
+      items: [
+        .init(
+          text: "按键滑动输入",
+          type: .toggle,
+          toggleValue: { [unowned self] in enableKeySwipe },
+          toggleHandled: { [unowned self] in
+            enableKeySwipe = $0
+            resetSignSubject.send(true)
           })
       ]),
 

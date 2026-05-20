@@ -459,7 +459,13 @@ public class KeyboardContext: ObservableObject {
 
   /// 内置键盘划动配置
   var keyboardSwipe: [KeyboardType: [KeyboardAction: [KeySwipe]]] {
-    hamsterConfiguration?.swipe?.keyboardSwipeMapping ?? [:]
+    guard enableKeySwipe else { return [:] }
+    return hamsterConfiguration?.swipe?.keyboardSwipeMapping ?? [:]
+  }
+
+  /// 启用按键滑动输入
+  var enableKeySwipe: Bool {
+    keyboardValue(\.enableKeySwipe) ?? true
   }
 
   /// 关闭划动显示文本

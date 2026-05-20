@@ -315,6 +315,8 @@ public extension KeyboardButton {
   }
 
   func swipeAction(direction: SwipeDirection) {
+    guard keyboardContext.enableKeySwipe else { return }
+
     Logger.statistics.debug("DBG_SWIPE swipeAction(), direction: \(direction.debugDescription), action: \(String(describing: self.item.action)), swipes count: \(self.item.swipes.count)")
     for swipe: KeySwipe in self.item.swipes {
       Logger.statistics.debug("DBG_SWIPE available swipe: direction=\(String(describing: swipe.direction)), action=\(String(describing: swipe.action))")

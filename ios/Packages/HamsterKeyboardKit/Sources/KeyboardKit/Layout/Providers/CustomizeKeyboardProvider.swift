@@ -79,7 +79,7 @@ open class CustomizeKeyboardLayoutProvider: KeyboardLayoutProvider {
     let size = itemSize(for: action, row: row, index: index, keyboard: keyboard, context: context)
     let insets = itemInsets(for: action, row: row, index: index, keyboard: keyboard, context: context)
     let key = keyboard.rows[row].keys[index]
-    let swipes = key.swipe
+    let swipes = context.enableKeySwipe ? key.swipe : []
     return KeyboardLayoutItem(action: action, size: size, insets: insets, swipes: swipes, key: key)
   }
 

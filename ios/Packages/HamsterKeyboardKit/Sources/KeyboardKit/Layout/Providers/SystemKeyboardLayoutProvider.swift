@@ -183,6 +183,8 @@ open class SystemKeyboardLayoutProvider: KeyboardLayoutProvider {
    根据提供的布局参数获取布局 item 的划动配置。
    */
   open func itemSwipes(for action: KeyboardAction, row: Int, index: Int, context: KeyboardContext) -> [KeySwipe] {
+    guard context.enableKeySwipe else { return [] }
+
     let keyboardTypeKey: KeyboardType = {
       if context.keyboardType.isChinesePrimaryKeyboard {
         return .chinese(.lowercased)
