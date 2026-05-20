@@ -34,7 +34,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NanomouseAppStoreID</key>
-	<string></string>
+	<string>6757662900</string>
 	<key>NanomouseAppIdentifierPrefix</key>
 	<string>$(AppIdentifierPrefix)</string>
 	<key>NSCameraUsageDescription</key>

@@ -45,9 +45,9 @@ public struct AppReviewPolicy {
     public var automaticCooldownDays: Int
 
     public init(
-        minimumInstallAgeDays: Int = 7,
-        minimumSuccessfulUses: Int = 8,
-        automaticCooldownDays: Int = 90
+        minimumInstallAgeDays: Int = 3,
+        minimumSuccessfulUses: Int = 0,
+        automaticCooldownDays: Int = 0
     ) {
         self.minimumInstallAgeDays = minimumInstallAgeDays
         self.minimumSuccessfulUses = minimumSuccessfulUses

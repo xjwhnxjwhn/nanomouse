@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NanomouseAppStoreID</key>
-	<string></string>
+	<string>6757662900</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Nanomouse 需要访问摄像头，以便为字节粘贴片段直接拍照。</string>
 	<key>NSLocationUsageDescription</key>

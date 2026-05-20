@@ -61,7 +61,9 @@ public final class AppReviewManager {
                 return
             }
 
-            requestSystemReview()
+            guard presentAutomaticReviewPrompt() else {
+                return
+            }
 
             var updatedState = state
             updatedState.lastAutomaticRequestDate = now()
@@ -133,6 +135,43 @@ public final class AppReviewManager {
         #endif
     }
 
+    @discardableResult
+    private func presentAutomaticReviewPrompt() -> Bool {
+        let strings = AppReviewPromptStrings.current
+        #if canImport(UIKit)
+        guard let windowScene = activeWindowScene(),
+              let rootViewController = (windowScene.windows.first(where: \.isKeyWindow) ?? windowScene.windows.first)?.rootViewController else {
+            return false
+        }
+        let presenter = topViewController(from: rootViewController)
+        guard presenter.presentedViewController == nil else {
+            return false
+        }
+
+        let alert = UIAlertController(title: strings.title, message: strings.message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: strings.laterButtonTitle, style: .cancel))
+        alert.addAction(UIAlertAction(title: strings.rateButtonTitle, style: .default) { [weak self] _ in
+            self?.requestManualReview()
+        })
+        presenter.present(alert, animated: true)
+        return true
+        #else
+        guard NSApp != nil else {
+            return false
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = strings.title
+        alert.informativeText = strings.message
+        alert.addButton(withTitle: strings.rateButtonTitle)
+        alert.addButton(withTitle: strings.laterButtonTitle)
+        if alert.runModal() == .alertFirstButtonReturn {
+            requestManualReview()
+        }
+        return true
+        #endif
+    }
+
     private func canPresentAutomaticReview() -> Bool {
         #if canImport(UIKit)
         guard let windowScene = activeWindowScene() else {
@@ -170,5 +209,77 @@ public final class AppReviewManager {
             ?? scenes.first(where: { $0.activationState == .foregroundInactive })
             ?? scenes.first
     }
+
+    private func topViewController(from rootViewController: UIViewController) -> UIViewController {
+        if let navigationController = rootViewController as? UINavigationController,
+           let visibleViewController = navigationController.visibleViewController {
+            return topViewController(from: visibleViewController)
+        }
+        if let tabBarController = rootViewController as? UITabBarController,
+           let selectedViewController = tabBarController.selectedViewController {
+            return topViewController(from: selectedViewController)
+        }
+        if let presentedViewController = rootViewController.presentedViewController {
+            return topViewController(from: presentedViewController)
+        }
+        return rootViewController
+    }
     #endif
+}
+
+private struct AppReviewPromptStrings {
+    let title: String
+    let message: String
+    let rateButtonTitle: String
+    let laterButtonTitle: String
+
+    static var current: AppReviewPromptStrings {
+        for identifier in Locale.preferredLanguages + [Locale.autoupdatingCurrent.identifier, Locale.current.identifier] {
+            let normalized = identifier.lowercased()
+            if normalized.hasPrefix("ja") {
+                return AppReviewPromptStrings(
+                    title: "NanoMouse は役に立っていますか？",
+                    message: "よろしければ、数秒だけ時間を取って App Store で評価してください。",
+                    rateButtonTitle: "評価する",
+                    laterButtonTitle: "あとで"
+                )
+            }
+            if normalized.hasPrefix("zh-hant") ||
+                normalized.hasPrefix("zh_hant") ||
+                normalized.hasPrefix("zh-tw") ||
+                normalized.hasPrefix("zh_tw") ||
+                normalized.hasPrefix("zh-hk") ||
+                normalized.hasPrefix("zh_hk") ||
+                normalized.contains("hant") {
+                return AppReviewPromptStrings(
+                    title: "喜歡 NanoMouse 嗎？",
+                    message: "如果 NanoMouse 對你有幫助，請花幾秒鐘到 App Store 給我們評分。",
+                    rateButtonTitle: "去評分",
+                    laterButtonTitle: "稍後"
+                )
+            }
+            if normalized.hasPrefix("zh") {
+                return AppReviewPromptStrings(
+                    title: "喜欢 NanoMouse 吗？",
+                    message: "如果 NanoMouse 对你有帮助，请花几秒钟到 App Store 给我们评分。",
+                    rateButtonTitle: "去评分",
+                    laterButtonTitle: "稍后"
+                )
+            }
+            if normalized.hasPrefix("en") {
+                return AppReviewPromptStrings(
+                    title: "Enjoying NanoMouse?",
+                    message: "If NanoMouse has been helpful, please take a few seconds to rate it on the App Store.",
+                    rateButtonTitle: "Rate NanoMouse",
+                    laterButtonTitle: "Later"
+                )
+            }
+        }
+        return AppReviewPromptStrings(
+            title: "Enjoying NanoMouse?",
+            message: "If NanoMouse has been helpful, please take a few seconds to rate it on the App Store.",
+            rateButtonTitle: "Rate NanoMouse",
+            laterButtonTitle: "Later"
+        )
+    }
 }
