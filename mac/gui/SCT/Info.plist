@@ -8,6 +8,25 @@
 	<string>Nanomouse 需要访问摄像头，以便为字节粘贴片段直接拍照。</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Nanomouse 需要访问当前位置，以便在字节粘贴窗口中生成当前天气文本。</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>保存到 NanoMouse 格子...</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>quickCopyImportFiles</string>
+			<key>NSPortName</key>
+			<string>NanoMouse</string>
+			<key>NSSendTypes</key>
+			<array>
+				<string>public.file-url</string>
+				<string>NSFilenamesPboardType</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Nanomouse 需要访问照片库，以便把相册中的图片设置到字节粘贴片段。</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
