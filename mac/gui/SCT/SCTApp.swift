@@ -214,7 +214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.identifier = Self.welcomeWindowIdentifier
-        window.title = "欢迎使用鼠输入法"
+        window.title = L10n.welcomeTitle
         window.center()
         window.contentViewController = controller
         window.isReleasedWhenClosed = false
@@ -367,30 +367,30 @@ private struct NanoMouseMacWelcomeView: View {
 
             VStack(spacing: 18) {
                 HStack(spacing: 14) {
-                    WelcomePill(icon: "menubar.rectangle", title: "常驻菜单栏", detail: "启动后不会一直占用 Dock 窗口，请看屏幕右上角的鼠图标。")
-                    WelcomePill(icon: "keyboard", title: "快捷键呼出", detail: "默认按 ⌥ Space 打开或隐藏字节粘贴，可在设置中修改。")
+                    WelcomePill(icon: "menubar.rectangle", title: L10n.welcomeMenuBarTitle, detail: L10n.welcomeMenuBarDetail)
+                    WelcomePill(icon: "keyboard", title: L10n.welcomeHotkeyTitle, detail: L10n.welcomeHotkeyDetail)
                 }
 
                 VStack(spacing: 12) {
                     WelcomeFeatureRow(
                         icon: "square.grid.3x3.fill",
-                        title: "字节粘贴格子",
-                        detail: "保存常用文本、富文本、图片、PDF、文件和链接，点击或回车快速粘贴。"
+                        title: L10n.welcomeGridTitle,
+                        detail: L10n.welcomeGridDetail
                     )
                     WelcomeFeatureRow(
                         icon: "paintbrush.pointed.fill",
-                        title: "画布、Markdown、因果图",
-                        detail: "在同一个菜单栏窗口中手绘、写 Markdown、整理因果图，并可保存到文件系统。"
+                        title: L10n.welcomeWorkspaceTitle,
+                        detail: L10n.welcomeWorkspaceDetail
                     )
                     WelcomeFeatureRow(
                         icon: "icloud.fill",
-                        title: "跨设备同步",
-                        detail: "iPhone、iPad、Mac 与键盘扩展可以通过 iCloud 同步格子与文件。"
+                        title: L10n.welcomeSyncTitle,
+                        detail: L10n.welcomeSyncDetail
                     )
                     WelcomeFeatureRow(
                         icon: "command",
-                        title: "两种入口",
-                        detail: "点击菜单栏鼠图标打开；右键菜单可进入设置、帮助和其他管理功能。"
+                        title: L10n.welcomeEntryTitle,
+                        detail: L10n.welcomeEntryDetail
                     )
                 }
             }
@@ -399,14 +399,14 @@ private struct NanoMouseMacWelcomeView: View {
             .padding(.bottom, 22)
 
             HStack(spacing: 12) {
-                Button("打开设置") {
+                Button(L10n.welcomeOpenSettings) {
                     onOpenSettings()
                 }
                 .buttonStyle(.bordered)
 
                 Spacer()
 
-                Button("我知道了，开始使用") {
+                Button(L10n.welcomeStart) {
                     onStart()
                 }
                 .buttonStyle(.borderedProminent)
@@ -448,11 +448,11 @@ private struct NanoMouseMacWelcomeView: View {
                     .shadow(color: .black.opacity(0.24), radius: 18, x: 0, y: 10)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("欢迎使用鼠输入法")
+                    Text(L10n.welcomeTitle)
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("这是一个菜单栏常驻工具。首次打开后，主窗口会自动收起，不是闪退。")
+                    Text(L10n.welcomeSubtitle)
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(.white.opacity(0.86))
                 }
@@ -462,7 +462,7 @@ private struct NanoMouseMacWelcomeView: View {
                 VStack(spacing: 6) {
                     Image(systemName: "cursorarrow.click.2")
                         .font(.system(size: 28, weight: .semibold))
-                    Text("看右上角菜单栏")
+                    Text(L10n.welcomeMenuBarHint)
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(.white)

@@ -229,6 +229,25 @@ struct L10n {
     static var nanomouseNoChange: String { text("NanoMouse 规则无变化：%@") }
     static var nanomousePresetDescription: String { text("启用 NanoMouse 拼音优化规则（ng→nn，uan→vn，uang→vnn）") }
 
+    // Mac Welcome
+    static var welcomeTitle: String { text("欢迎使用鼠输入法") }
+    static var welcomeSubtitle: String { text("这是一个菜单栏常驻工具。首次打开后，主窗口会自动收起，不是闪退。") }
+    static var welcomeMenuBarHint: String { text("看右上角菜单栏") }
+    static var welcomeMenuBarTitle: String { text("常驻菜单栏") }
+    static var welcomeMenuBarDetail: String { text("启动后不会一直占用 Dock 窗口，请看屏幕右上角的鼠图标。") }
+    static var welcomeHotkeyTitle: String { text("快捷键呼出") }
+    static var welcomeHotkeyDetail: String { text("默认按 ⌥ Space 打开或隐藏字节粘贴，可在设置中修改。") }
+    static var welcomeGridTitle: String { text("字节粘贴格子") }
+    static var welcomeGridDetail: String { text("保存常用文本、富文本、图片、PDF、文件和链接，点击或回车快速粘贴。") }
+    static var welcomeWorkspaceTitle: String { text("画布、Markdown、因果图") }
+    static var welcomeWorkspaceDetail: String { text("在同一个菜单栏窗口中手绘、写 Markdown、整理因果图，并可保存到文件系统。") }
+    static var welcomeSyncTitle: String { text("跨设备同步") }
+    static var welcomeSyncDetail: String { text("iPhone、iPad、Mac 与键盘扩展可以通过 iCloud 同步格子与文件。") }
+    static var welcomeEntryTitle: String { text("两种入口") }
+    static var welcomeEntryDetail: String { text("点击菜单栏鼠图标打开；右键菜单可进入设置、帮助和其他管理功能。") }
+    static var welcomeOpenSettings: String { text("打开设置") }
+    static var welcomeStart: String { text("我知道了，开始使用") }
+
     private static let translations: [Language: [String: String]] = [
         .zhHant: zhHant,
         .en: en,
@@ -356,6 +375,23 @@ struct L10n {
         "已关闭 NanoMouse 规则：%@": "已關閉 NanoMouse 規則：%@",
         "NanoMouse 规则无变化：%@": "NanoMouse 規則無變化：%@",
         "启用 NanoMouse 拼音优化规则（ng→nn，uan→vn，uang→vnn）": "啟用 NanoMouse 拼音最佳化規則（ng→nn，uan→vn，uang→vnn）",
+        "欢迎使用鼠输入法": "歡迎使用鼠輸入法",
+        "这是一个菜单栏常驻工具。首次打开后，主窗口会自动收起，不是闪退。": "這是一個常駐選單列的工具。首次開啟後，主視窗會自動收起，並不是閃退。",
+        "看右上角菜单栏": "請看右上角選單列",
+        "常驻菜单栏": "常駐選單列",
+        "启动后不会一直占用 Dock 窗口，请看屏幕右上角的鼠图标。": "啟動後不會一直佔用 Dock 視窗，請看螢幕右上角的鼠圖示。",
+        "快捷键呼出": "用快捷鍵呼出",
+        "默认按 ⌥ Space 打开或隐藏字节粘贴，可在设置中修改。": "預設按 ⌥ Space 開啟或隱藏字節貼上，可在設定中修改。",
+        "字节粘贴格子": "字節貼上格子",
+        "保存常用文本、富文本、图片、PDF、文件和链接，点击或回车快速粘贴。": "儲存常用文字、富文字、圖片、PDF、檔案和連結，點擊或按 Return 快速貼上。",
+        "画布、Markdown、因果图": "畫布、Markdown、因果圖",
+        "在同一个菜单栏窗口中手绘、写 Markdown、整理因果图，并可保存到文件系统。": "在同一個選單列視窗中手繪、撰寫 Markdown、整理因果圖，並可儲存到檔案系統。",
+        "跨设备同步": "跨裝置同步",
+        "iPhone、iPad、Mac 与键盘扩展可以通过 iCloud 同步格子与文件。": "iPhone、iPad、Mac 與鍵盤延伸功能可以透過 iCloud 同步格子與檔案。",
+        "两种入口": "兩種入口",
+        "点击菜单栏鼠图标打开；右键菜单可进入设置、帮助和其他管理功能。": "點擊選單列鼠圖示即可開啟；右鍵選單可進入設定、說明和其他管理功能。",
+        "打开设置": "開啟設定",
+        "我知道了，开始使用": "我知道了，開始使用",
         "方案列表": "方案列表",
         "面板菜单": "面板選單",
         "候选词个数": "候選詞個數",
@@ -581,6 +617,23 @@ struct L10n {
         "已关闭 NanoMouse 规则：%@": "NanoMouse rules disabled: %@",
         "NanoMouse 规则无变化：%@": "NanoMouse rules unchanged: %@",
         "启用 NanoMouse 拼音优化规则（ng→nn，uan→vn，uang→vnn）": "Enable NanoMouse Pinyin optimization rules (ng->nn, uan->vn, uang->vnn)",
+        "欢迎使用鼠输入法": "Welcome to NanoMouse",
+        "这是一个菜单栏常驻工具。首次打开后，主窗口会自动收起，不是闪退。": "NanoMouse lives in the menu bar. On first launch, the main window hides itself; it has not crashed.",
+        "看右上角菜单栏": "Look at the menu bar",
+        "常驻菜单栏": "Menu Bar App",
+        "启动后不会一直占用 Dock 窗口，请看屏幕右上角的鼠图标。": "After launch, NanoMouse does not keep a Dock window open. Look for the mouse icon in the top-right menu bar.",
+        "快捷键呼出": "Open by Hotkey",
+        "默认按 ⌥ Space 打开或隐藏字节粘贴，可在设置中修改。": "Press ⌥ Space by default to show or hide Byte Paste. You can change this in Settings.",
+        "字节粘贴格子": "Byte Paste Grid",
+        "保存常用文本、富文本、图片、PDF、文件和链接，点击或回车快速粘贴。": "Store text, rich text, images, PDFs, files, and links. Click or press Return to paste quickly.",
+        "画布、Markdown、因果图": "Canvas, Markdown, Causal Graph",
+        "在同一个菜单栏窗口中手绘、写 Markdown、整理因果图，并可保存到文件系统。": "Draw, write Markdown, and organize causal graphs in the same menu bar window, with file-system saving.",
+        "跨设备同步": "Cross-Device Sync",
+        "iPhone、iPad、Mac 与键盘扩展可以通过 iCloud 同步格子与文件。": "Sync snippets and files across iPhone, iPad, Mac, and the keyboard extension via iCloud.",
+        "两种入口": "Two Ways to Open",
+        "点击菜单栏鼠图标打开；右键菜单可进入设置、帮助和其他管理功能。": "Click the mouse icon in the menu bar to open. Right-click it for Settings, Help, and management actions.",
+        "打开设置": "Open Settings",
+        "我知道了，开始使用": "Got it, start using",
         "方案列表": "Schema List",
         "面板菜单": "Panel Menu",
         "候选词个数": "Candidates per Page",
@@ -809,6 +862,23 @@ struct L10n {
         "已关闭 NanoMouse 规则：%@": "NanoMouse ルールを無効にしました：%@",
         "NanoMouse 规则无变化：%@": "NanoMouse ルールに変更はありません：%@",
         "启用 NanoMouse 拼音优化规则（ng→nn，uan→vn，uang→vnn）": "NanoMouse ピンイン最適化ルール（ng->nn、uan->vn、uang->vnn）を有効化",
+        "欢迎使用鼠输入法": "NanoMouse へようこそ",
+        "这是一个菜单栏常驻工具。首次打开后，主窗口会自动收起，不是闪退。": "NanoMouse はメニューバー常駐アプリです。初回起動後にメインウィンドウが自動で隠れても、クラッシュではありません。",
+        "看右上角菜单栏": "右上のメニューバーを確認",
+        "常驻菜单栏": "メニューバー常駐",
+        "启动后不会一直占用 Dock 窗口，请看屏幕右上角的鼠图标。": "起動後、Dock のウィンドウを開きっぱなしにはしません。画面右上のマウスアイコンを確認してください。",
+        "快捷键呼出": "ショートカットで呼び出し",
+        "默认按 ⌥ Space 打开或隐藏字节粘贴，可在设置中修改。": "デフォルトでは ⌥ Space で Byte Paste を表示・非表示にできます。設定で変更できます。",
+        "字节粘贴格子": "Byte Paste グリッド",
+        "保存常用文本、富文本、图片、PDF、文件和链接，点击或回车快速粘贴。": "よく使うテキスト、リッチテキスト、画像、PDF、ファイル、リンクを保存し、クリックまたは Return ですばやく貼り付けます。",
+        "画布、Markdown、因果图": "キャンバス、Markdown、因果図",
+        "在同一个菜单栏窗口中手绘、写 Markdown、整理因果图，并可保存到文件系统。": "同じメニューバーウィンドウで手描き、Markdown、因果図の整理ができ、ファイルシステムに保存できます。",
+        "跨设备同步": "デバイス間同期",
+        "iPhone、iPad、Mac 与键盘扩展可以通过 iCloud 同步格子与文件。": "iCloud により、iPhone、iPad、Mac、キーボード拡張のグリッドとファイルを同期できます。",
+        "两种入口": "2つの開き方",
+        "点击菜单栏鼠图标打开；右键菜单可进入设置、帮助和其他管理功能。": "メニューバーのマウスアイコンをクリックして開きます。右クリックメニューから設定、ヘルプ、管理機能に入れます。",
+        "打开设置": "設定を開く",
+        "我知道了，开始使用": "了解して使い始める",
         "方案列表": "入力方式リスト",
         "面板菜单": "パネルメニュー",
         "候选词个数": "候補数",
