@@ -20,6 +20,12 @@
 			<string>quickCopyImportFiles</string>
 			<key>NSPortName</key>
 			<string>NanoMouse</string>
+			<key>NSRequiredContext</key>
+			<dict/>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.item</string>
+			</array>
 			<key>NSSendTypes</key>
 			<array>
 				<string>public.file-url</string>
