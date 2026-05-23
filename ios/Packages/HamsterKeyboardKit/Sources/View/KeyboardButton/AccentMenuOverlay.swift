@@ -14,6 +14,9 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private var highlightedChar: String?
 
   private let menuContainer = UIView()
+  private let glassEffectView = UIVisualEffectView(effect: nil)
+  private let glassTintView = UIView(frame: .zero)
+  private let glassStrokeView = UIView(frame: .zero)
   private var charButtons: [UIButton] = []
 
   private let buttonSize = CGSize(width: 36, height: 44) // 宽度从 44 减小到 36，更紧凑
@@ -112,7 +115,9 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     for button in charButtons {
       let char = chars[button.tag]
       let isHighlighted = char == highlightedChar
-      button.backgroundColor = isHighlighted ? style.callout.textColor.withAlphaComponent(0.1) : .clear
+      button.backgroundColor = isHighlighted
+        ? KeyboardLiquidGlass.selectionColor(textColor: style.callout.textColor, userInterfaceStyle: traitCollection.userInterfaceStyle)
+        : .clear
       button.isHighlighted = isHighlighted
       
       // 放大高亮的按钮
@@ -145,6 +150,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     menuContainer.layer.shadowOffset = CGSize(width: 0, height: 4)
 
     addSubview(menuContainer)
+    setupGlassBackground()
 
     for (index, char) in chars.enumerated() {
       let button = UIButton(type: .custom)
@@ -172,10 +178,49 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
       menuContainer.addSubview(button)
       charButtons.append(button)
     }
+
+    menuContainer.addSubview(glassStrokeView)
+  }
+
+  private func setupGlassBackground() {
+    menuContainer.backgroundColor = .clear
+    menuContainer.layer.cornerRadius = 14
+    menuContainer.layer.cornerCurve = .continuous
+
+    menuContainer.layer.shadowColor = UIColor.black.cgColor
+    menuContainer.layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    menuContainer.layer.shadowRadius = 12
+    menuContainer.layer.shadowOffset = CGSize(width: 0, height: 5)
+
+    glassEffectView.effect = KeyboardLiquidGlass.effect(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    glassEffectView.isUserInteractionEnabled = false
+    glassEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassEffectView.layer.cornerRadius = 14
+    glassEffectView.layer.cornerCurve = .continuous
+    glassEffectView.layer.masksToBounds = true
+
+    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    glassTintView.isUserInteractionEnabled = false
+    glassTintView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassEffectView.contentView.addSubview(glassTintView)
+
+    glassStrokeView.backgroundColor = .clear
+    glassStrokeView.isUserInteractionEnabled = false
+    glassStrokeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassStrokeView.layer.cornerRadius = 14
+    glassStrokeView.layer.cornerCurve = .continuous
+    glassStrokeView.layer.borderWidth = 1 / UIScreen.main.scale
+    glassStrokeView.layer.borderColor = KeyboardLiquidGlass.strokeColor(userInterfaceStyle: traitCollection.userInterfaceStyle).cgColor
+
+    menuContainer.addSubview(glassEffectView)
   }
 
   private func layoutButtons(columns: Int) {
     guard columns > 0 else { return }
+
+    glassEffectView.frame = menuContainer.bounds
+    glassTintView.frame = glassEffectView.contentView.bounds
+    glassStrokeView.frame = menuContainer.bounds
 
     for (index, button) in charButtons.enumerated() {
       let row = index / columns

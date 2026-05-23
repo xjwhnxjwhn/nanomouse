@@ -14,6 +14,8 @@ public class InputCalloutView: ShapeView {
   private var popBounds: CGRect = .zero
   private var originButtonBounds: CGRect = .zero
   private var oldFrame: CGRect = .zero
+  private let glassEffectView = UIVisualEffectView(effect: nil)
+  private let glassTintView = UIView(frame: .zero)
 
   private let label: UILabel = {
     let label = UILabel()
@@ -34,9 +36,9 @@ public class InputCalloutView: ShapeView {
   public lazy var boardLayer: CAShapeLayer = {
     let boardLayer = CAShapeLayer()
     boardLayer.fillColor = UIColor.clear.cgColor
-    boardLayer.strokeColor = style.callout.borderColor.cgColor
-    boardLayer.borderWidth = 1
-    boardLayer.opacity = 0.5
+    boardLayer.lineWidth = 1 / UIScreen.main.scale
+    boardLayer.opacity = 1
+    boardLayer.zPosition = 2
     return boardLayer
   }()
 
@@ -111,7 +113,19 @@ public class InputCalloutView: ShapeView {
   }
 
   func setupView() {
+    backgroundColor = .clear
+    isOpaque = false
+    glassEffectView.isUserInteractionEnabled = false
+    glassEffectView.backgroundColor = .clear
+    glassEffectView.layer.zPosition = 0
+
+    glassTintView.isUserInteractionEnabled = false
+    glassTintView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassEffectView.contentView.addSubview(glassTintView)
+
+    addSubview(glassEffectView)
     addSubview(label)
+    label.layer.zPosition = 3
     shapeLayer.mask = maskShapeLayer
     shapeLayer.insertSublayer(boardLayer, at: 0)
   }
@@ -141,16 +155,25 @@ public class InputCalloutView: ShapeView {
     let calloutPath = calloutPath
     maskShapeLayer.path = calloutPath.cgPath
     boardLayer.path = calloutPath.cgPath
+    glassEffectView.frame = bounds
+    glassTintView.frame = glassEffectView.contentView.bounds
 
     setupAppearance()
   }
 
   func setupAppearance() {
     self.shapeLayer.zPosition = 1000
-    let calloutStyle = style.callout
-    backgroundColor = calloutStyle.backgroundColor
+    shapeLayer.fillColor = UIColor.clear.cgColor
+    backgroundColor = .clear
+    glassEffectView.effect = KeyboardLiquidGlass.effect(userInterfaceStyle: keyboardContext.colorScheme)
+    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(userInterfaceStyle: keyboardContext.colorScheme)
+    boardLayer.strokeColor = KeyboardLiquidGlass.strokeColor(userInterfaceStyle: keyboardContext.colorScheme).cgColor
+    layer.shadowColor = UIColor.black.cgColor
+    layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(userInterfaceStyle: keyboardContext.colorScheme)
+    layer.shadowRadius = 10
+    layer.shadowOffset = CGSize(width: 0, height: 5)
 
-    label.textColor = calloutStyle.textColor
+    label.textColor = style.callout.textColor
     label.font = style.font.font
   }
 }
