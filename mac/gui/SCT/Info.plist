@@ -27,11 +27,6 @@
 				<string>public.data</string>
 				<string>com.apple.package</string>
 			</array>
-			<key>NSSendTypes</key>
-			<array>
-				<string>public.file-url</string>
-				<string>NSFilenamesPboardType</string>
-			</array>
 		</dict>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
