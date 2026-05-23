@@ -24,7 +24,8 @@
 			<dict/>
 			<key>NSSendFileTypes</key>
 			<array>
-				<string>public.item</string>
+				<string>public.data</string>
+				<string>com.apple.package</string>
 			</array>
 			<key>NSSendTypes</key>
 			<array>
