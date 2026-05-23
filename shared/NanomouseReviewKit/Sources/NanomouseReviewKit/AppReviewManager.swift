@@ -137,39 +137,11 @@ public final class AppReviewManager {
 
     @discardableResult
     private func presentAutomaticReviewPrompt() -> Bool {
-        let strings = AppReviewPromptStrings.current
-        #if canImport(UIKit)
-        guard let windowScene = activeWindowScene(),
-              let rootViewController = (windowScene.windows.first(where: \.isKeyWindow) ?? windowScene.windows.first)?.rootViewController else {
-            return false
-        }
-        let presenter = topViewController(from: rootViewController)
-        guard presenter.presentedViewController == nil else {
-            return false
-        }
-
-        let alert = UIAlertController(title: strings.title, message: strings.message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: strings.laterButtonTitle, style: .cancel))
-        alert.addAction(UIAlertAction(title: strings.rateButtonTitle, style: .default) { [weak self] _ in
-            self?.requestManualReview()
-        })
-        presenter.present(alert, animated: true)
-        return true
-        #else
-        guard NSApp != nil else {
-            return false
-        }
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = strings.title
-        alert.informativeText = strings.message
-        alert.addButton(withTitle: strings.rateButtonTitle)
-        alert.addButton(withTitle: strings.laterButtonTitle)
-        if alert.runModal() == .alertFirstButtonReturn {
-            requestManualReview()
-        }
-        return true
+        #if canImport(AppKit)
+        guard NSApp != nil else { return false }
         #endif
+        requestSystemReview()
+        return true
     }
 
     private func canPresentAutomaticReview() -> Bool {
