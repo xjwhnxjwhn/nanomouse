@@ -38,6 +38,7 @@ class KeyboardToolbarView: NibLessView {
   private var didTriggerDiaryModeLongPress = false
   private var didTriggerEmbeddedModuleLongPress = false
   private var didPerformInitialToolbarRefresh = false
+  private var weatherIndicatorRefreshTask: Task<Void, Never>?
   private let rightButtonsReferenceSpacing: CGFloat = 2
   private let rightButtonsTargetWidthScale: CGFloat = 0.85
 
@@ -311,6 +312,10 @@ class KeyboardToolbarView: NibLessView {
     observeKeyboardState()
   }
 
+  deinit {
+    weatherIndicatorRefreshTask?.cancel()
+  }
+
   func setupSubview() {
     constructViewHierarchy()
     activateViewConstraints()
@@ -551,7 +556,26 @@ class KeyboardToolbarView: NibLessView {
     applyToolbarButtonCornerStyle()
     updateRightButtonsStackSpacing()
     updateCenterIndicatorVisibility()
+    refreshWeatherIndicatorIfNeeded()
     showCurrentTraditionalizeStateIfNeeded()
+  }
+
+  private func refreshWeatherIndicatorIfNeeded() {
+    guard window != nil else { return }
+    guard keyboardContext.hamsterConfiguration?.toolbar?.enableWeatherIndicator ?? true else { return }
+    guard weatherIndicatorRefreshTask == nil else { return }
+    weatherIndicatorRefreshTask = Task { @MainActor [weak self] in
+      guard let self = self else { return }
+      defer { self.weatherIndicatorRefreshTask = nil }
+      let didRefresh = await KeyboardWeatherIndicatorExtensionRefreshService.shared.refreshIfNeeded(
+        toolbar: self.keyboardContext.hamsterConfiguration?.toolbar,
+        hasFullAccess: self.keyboardContext.hasFullAccess
+      )
+      guard !Task.isCancelled else { return }
+      if didRefresh {
+        self.updateCenterIndicatorVisibility()
+      }
+    }
   }
 
   private func updateToolbarButtonSymbolConfiguration() {
@@ -647,6 +671,13 @@ class KeyboardToolbarView: NibLessView {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
         self?.updateCenterIndicatorVisibility()
+      }
+      .store(in: &subscriptions)
+
+    keyboardContext.$hasFullAccess
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _ in
+        self?.refreshWeatherIndicatorIfNeeded()
       }
       .store(in: &subscriptions)
 

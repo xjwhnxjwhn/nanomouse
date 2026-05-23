@@ -1541,7 +1541,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     let weatherSection = SettingSectionModel(
       title: "顶部天气指标",
-      footer: "主 App 负责拉取 WeatherKit 并写入共享缓存；键盘扩展只读缓存。没有有效天气数据时，键盘顶部会显示天气入口，点击后可直接来到这里刷新。",
+      footer: "键盘扩展会在允许完全访问后尝试直接刷新固定城市天气并写入共享缓存。当前位置会随用户移动变化，为避免显示不准，定位授权和当前位置刷新仍由主 App 完成。",
       items: weatherIndicatorItems)
 
     return [basicSection, appearanceSection, weatherSection]
