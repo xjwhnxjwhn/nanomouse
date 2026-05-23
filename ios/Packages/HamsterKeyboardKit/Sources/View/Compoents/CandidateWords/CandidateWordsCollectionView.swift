@@ -98,18 +98,17 @@ public class CandidateWordsCollectionView: UICollectionView {
   }
 
   func combine() {
-    // 合并 suggestions 和 textReplacementSuggestions
     Publishers.CombineLatest(
       self.rimeContext.$suggestions,
       self.rimeContext.$textReplacementSuggestions
     )
     .receive(on: DispatchQueue.main)
-    .sink { [weak self] suggestions, textReplacements in
+    .sink { [weak self] suggestions, _ in
       guard let self = self else { return }
       self.reloadData()
       if self.currentUserInputKey != self.rimeContext.userInputKey {
         self.currentUserInputKey = self.rimeContext.userInputKey
-        let hasSuggestions = !suggestions.isEmpty || !textReplacements.isEmpty
+        let hasSuggestions = !suggestions.isEmpty
         if hasSuggestions {
           let itemCount = self.numberOfItems(inSection: 0)
           if itemCount > 0 {
@@ -123,7 +122,7 @@ public class CandidateWordsCollectionView: UICollectionView {
         }
       }
 
-      if suggestions.isEmpty && textReplacements.isEmpty && self.candidatesViewState != .collapse {
+      if suggestions.isEmpty && self.candidatesViewState != .collapse {
         self.candidatesViewState = .collapse
         self.keyboardContext.candidatesViewState = .collapse
         changeLayout(.collapse)
@@ -155,7 +154,6 @@ public class CandidateWordsCollectionView: UICollectionView {
       return result
     }
 
-    result.append(contentsOf: rimeContext.textReplacementSuggestions)
     result.append(contentsOf: rimeContext.suggestions)
     return result
   }
@@ -225,74 +223,49 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
     guard indexPath.item < suggestions.count else { return }
     let selectedItem = suggestions[indexPath.item]
     
-    // 检查是否是文本替换候选（位于前置列表）
-    let textReplacementCount = rimeContext.textReplacementSuggestions.count
-    if indexPath.item < textReplacementCount {
-      if let handler = actionHandler as? StandardKeyboardActionHandler,
-         let controller = handler.keyboardController as? KeyboardInputViewController
-      {
-        controller.applyTextReplacementCandidate(selectedItem)
-      } else {
-        if let shortcut = selectedItem.subtitle {
-          // 删除原始短语（shortcut 的长度）
-          for _ in 0..<shortcut.count {
-            keyboardContext.textDocumentProxy.deleteBackward()
-          }
-        }
-        // 插入替换文本
-        keyboardContext.textDocumentProxy.insertText(selectedItem.text)
-        // 清除文本替换建议
-        rimeContext.textReplacementSuggestions = []
+    if let handler = actionHandler as? StandardKeyboardActionHandler,
+       let controller = handler.keyboardController as? KeyboardInputViewController
+    {
+      if controller.handleMixedInputDigitCandidateIfNeeded(
+        selectedItem.text,
+        candidateIndex: selectedItem.index
+      ) {
+        return
       }
-    } else {
-      // 正常的 RIME 候选选择
-      let adjustedIndex = indexPath.item - textReplacementCount
-      if adjustedIndex >= 0 {
-        if let handler = actionHandler as? StandardKeyboardActionHandler,
-           let controller = handler.keyboardController as? KeyboardInputViewController
-        {
-          if controller.handleMixedInputDigitCandidateIfNeeded(
-            selectedItem.text,
-            candidateIndex: selectedItem.index
-          ) {
-            return
-          }
-          if rimeContext.mixedInputManager.hasLiteral {
-            if selectedItem.index < 0 {
-              controller.commitMixedInputCandidateWithLiteralOption(
-                rimeIndex: selectedItem.index,
-                displayIndex: adjustedIndex,
-                candidateText: selectedItem.text,
-                candidateSubtitle: selectedItem.subtitle
-              )
-              return
-            }
-            if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
-              controller.commitMixedInputCandidateDirectly(selectedItem.text)
-              return
-            }
-            controller.commitMixedInputCandidateWithLiteralOption(
-              rimeIndex: selectedItem.index,
-              displayIndex: adjustedIndex,
-              candidateText: selectedItem.text,
-              candidateSubtitle: selectedItem.subtitle
-            )
-            return
-          }
-          // 英语输入模式
-          if controller.isEnglishInputActive && controller.englishEngine.isComposing {
-            controller.selectEnglishCandidate(index: adjustedIndex)
-            return
-          }
-          // AzooKey 日语输入模式
-          if rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
-            controller.selectAzooKeyCandidate(index: adjustedIndex)
-            return
-          }
+      if rimeContext.mixedInputManager.hasLiteral {
+        if selectedItem.index < 0 {
+          controller.commitMixedInputCandidateWithLiteralOption(
+            rimeIndex: selectedItem.index,
+            displayIndex: indexPath.item,
+            candidateText: selectedItem.text,
+            candidateSubtitle: selectedItem.subtitle
+          )
+          return
         }
-        self.rimeContext.selectCandidate(index: adjustedIndex)
+        if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+          controller.commitMixedInputCandidateDirectly(selectedItem.text)
+          return
+        }
+        controller.commitMixedInputCandidateWithLiteralOption(
+          rimeIndex: selectedItem.index,
+          displayIndex: indexPath.item,
+          candidateText: selectedItem.text,
+          candidateSubtitle: selectedItem.subtitle
+        )
+        return
+      }
+      // 英语输入模式
+      if controller.isEnglishInputActive && controller.englishEngine.isComposing {
+        controller.selectEnglishCandidate(index: indexPath.item)
+        return
+      }
+      // AzooKey 日语输入模式
+      if rimeContext.currentSchema?.schemaId == HamsterConstants.azooKeySchemaId {
+        controller.selectAzooKeyCandidate(index: indexPath.item)
+        return
       }
     }
+    self.rimeContext.selectCandidate(index: indexPath.item)
   }
 
   public func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {

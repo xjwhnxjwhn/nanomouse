@@ -109,19 +109,15 @@ class CandidatesPagingCollectionView: UICollectionView {
   }
 
   func combine() {
-    // 合并 RIME 上下文和文本替换建议
     Publishers.CombineLatest(
       rimeContext.$rimeContext,
       rimeContext.$textReplacementSuggestions
     )
     .receive(on: DispatchQueue.main)
-    .sink { [weak self] context, textReplacementSuggestions in
+    .sink { [weak self] context, _ in
       guard let self = self else { return }
       
       var candidates = [CandidateSuggestion]()
-      
-      // 添加所有文本替换建议作为首选项
-      candidates.append(contentsOf: textReplacementSuggestions)
       
       // 添加 RIME 候选项
       if let context = context,
@@ -129,16 +125,14 @@ class CandidatesPagingCollectionView: UICollectionView {
          let pageCandidates = context.menu?.candidates {
         let labels = context.labels ?? [String]()
         let selectKeys = (context.menu?.selectKeys ?? "").map { String($0) }
-        let textReplacementCount = textReplacementSuggestions.count
         
         for (index, candidate) in pageCandidates.enumerated() {
-          let adjustedIndex = textReplacementCount == 0 ? index : index + textReplacementCount
           let suggestion = CandidateSuggestion(
-            index: adjustedIndex,
+            index: index,
             label: indexLabel(index, labels: labels, selectKeys: selectKeys),
             text: candidate.text,
             title: candidate.text,
-            isAutocomplete: index == highlightedIndex && textReplacementSuggestions.isEmpty,
+            isAutocomplete: index == highlightedIndex,
             subtitle: candidate.comment
           )
           candidates.append(suggestion)
@@ -192,65 +186,39 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
     guard indexPath.item < items.count else { return }
     let selectedItem = items[indexPath.item]
     
-    // 检查是否是文本替换候选（位于前置列表）
-    let textReplacementCount = rimeContext.textReplacementSuggestions.count
-    if indexPath.item < textReplacementCount {
-      if let handler = actionHandler as? StandardKeyboardActionHandler,
-         let controller = handler.keyboardController as? KeyboardInputViewController
-      {
-        controller.applyTextReplacementCandidate(selectedItem)
-      } else {
-        // 执行文本替换
-        if let shortcut = selectedItem.subtitle {
-          // 删除原始短语（shortcut 的长度）
-          for _ in 0..<shortcut.count {
-            keyboardContext.textDocumentProxy.deleteBackward()
-          }
-        }
-        // 插入替换文本
-        keyboardContext.textDocumentProxy.insertText(selectedItem.text)
-        // 清除文本替换建议
-        rimeContext.textReplacementSuggestions = []
+    if let handler = actionHandler as? StandardKeyboardActionHandler,
+       let controller = handler.keyboardController as? KeyboardInputViewController
+    {
+      if controller.handleMixedInputDigitCandidateIfNeeded(
+        selectedItem.text,
+        candidateIndex: selectedItem.index
+      ) {
+        return
       }
-    } else {
-      // 正常的 RIME 候选选择
-      let adjustedIndex = indexPath.item - textReplacementCount
-      if adjustedIndex >= 0 {
-        if let handler = actionHandler as? StandardKeyboardActionHandler,
-           let controller = handler.keyboardController as? KeyboardInputViewController
-        {
-          if controller.handleMixedInputDigitCandidateIfNeeded(
-            selectedItem.text,
-            candidateIndex: selectedItem.index
-          ) {
-            return
-          }
-          if rimeContext.mixedInputManager.hasLiteral {
-            if selectedItem.index < 0 {
-              controller.commitMixedInputCandidateWithLiteralOption(
-                rimeIndex: selectedItem.index,
-                displayIndex: adjustedIndex,
-                candidateText: selectedItem.text,
-                candidateSubtitle: selectedItem.subtitle
-              )
-              return
-            }
-            if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
-              controller.commitMixedInputCandidateDirectly(selectedItem.text)
-              return
-            }
-            controller.commitMixedInputCandidateWithLiteralOption(
-              rimeIndex: selectedItem.index,
-              displayIndex: adjustedIndex,
-              candidateText: selectedItem.text,
-              candidateSubtitle: selectedItem.subtitle
-            )
-            return
-          }
+      if rimeContext.mixedInputManager.hasLiteral {
+        if selectedItem.index < 0 {
+          controller.commitMixedInputCandidateWithLiteralOption(
+            rimeIndex: selectedItem.index,
+            displayIndex: indexPath.item,
+            candidateText: selectedItem.text,
+            candidateSubtitle: selectedItem.subtitle
+          )
+          return
         }
-        self.rimeContext.selectCandidate(index: adjustedIndex)
+        if rimeContext.mixedInputManager.pinyinOnly.isEmpty {
+          controller.commitMixedInputCandidateDirectly(selectedItem.text)
+          return
+        }
+        controller.commitMixedInputCandidateWithLiteralOption(
+          rimeIndex: selectedItem.index,
+          displayIndex: indexPath.item,
+          candidateText: selectedItem.text,
+          candidateSubtitle: selectedItem.subtitle
+        )
+        return
       }
     }
+    self.rimeContext.selectCandidate(index: indexPath.item)
   }
 
   public func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
