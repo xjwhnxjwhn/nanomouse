@@ -169,15 +169,16 @@
 		7B2604260000000000001003 /* SnapshotHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotHelper.swift; sourceTree = "<group>"; };
 		7B2604260000000000001004 /* SCTUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SCTUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B2605200000000000000002 /* WebsiteGuideScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebsiteGuideScreenshotTests.swift; sourceTree = "<group>"; };
+		7C64D711041F46ACAF65C51E /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		803AE9BD4CBE5A038F1ACE74 /* RimeConfigManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RimeConfigManager.swift; sourceTree = "<group>"; };
 		8A0D10CD705986269D449012 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678903 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678904 /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678905 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678906 /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678907 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6012345678908 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		A158829CDBB269B0462A19E6 /* Color+BGR.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "Color+BGR.swift"; sourceTree = "<group>"; };
 		A220479952655DE4C296084E /* SCTApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SCTApp.swift; sourceTree = "<group>"; };
 		B8525A8107843174DE7A518A /* NanoMouse.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NanoMouse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBDF3CFBE2F14C0CB71387B5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -212,7 +213,6 @@
 		C03EC3AA2B06671800DB741E /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3AB2B06671900DB741E /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C03EC3AC2B06671A00DB741E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		F5BF14550DB746328F7D22DB /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C071BECB2970072100E21FBC /* HamsterKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboard.entitlements; sourceTree = "<group>"; };
 		C071BECC2970072100E21FBC /* HamsterKeyboardDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterKeyboardDebug.entitlements; sourceTree = "<group>"; };
 		C08387F52A5589DF00EA8082 /* HamsteriOS */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsteriOS; path = Packages/HamsteriOS; sourceTree = "<group>"; };
@@ -221,7 +221,6 @@
 		C0C7EAF029E5A23A008D4EE1 /* zh-HK */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-HK"; path = "zh-HK.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C0C7EAF129E5A23B008D4EE1 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C0C7EAF229E5A23C008D4EE1 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		7C64D711041F46ACAF65C51E /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C0C8B57E2A823BBF009972C1 /* HamsterKeyboardKit */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = HamsterKeyboardKit; path = Packages/HamsterKeyboardKit; sourceTree = "<group>"; };
 		C0C9041C2A56412200AF3F15 /* hamster.yaml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = hamster.yaml; sourceTree = "<group>"; };
 		C0D672B329F1E066002D0439 /* SharedSupport.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = SharedSupport.zip; sourceTree = "<group>"; };
@@ -232,6 +231,7 @@
 		E18CC0BE25F6AC0B272E39BD /* NanomouseSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NanomouseSettingsView.swift; sourceTree = "<group>"; };
 		E5B34C379075AD857F124ABB /* SCT.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = SCT.entitlements; sourceTree = "<group>"; };
 		E9D226D38D63ADA8902EF4AF /* L10n.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
+		F5BF14550DB746328F7D22DB /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1208,7 +1208,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.1;
+				MARKETING_VERSION = 3.1;
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-all_load",
@@ -1245,7 +1245,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 3.0.1;
+				MARKETING_VERSION = 3.1;
 				OTHER_LDFLAGS = (
 					"-ObjC",
 					"-all_load",
