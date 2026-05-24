@@ -394,7 +394,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   private func updateOneHandKeyboardHeightConstraint() {
     let mode = UserDefaults.hamster.chineseKeyboardOneHandMode
-    let shouldUseOneHandHeight = keyboardContext.keyboardType.isChinesePrimaryKeyboard && mode != .off
+    let shouldUseOneHandHeight = keyboardContext.keyboardType.supportsChineseOneHandKeyboardHeight && mode != .off
     guard shouldUseOneHandHeight else {
       oneHandKeyboardHeightConstraint?.isActive = false
       oneHandKeyboardHeightConstraint = nil
@@ -419,11 +419,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func preferredOneHandKeyboardHeight() -> CGFloat {
-    let layout = keyboardLayoutProvider.keyboardLayout(for: keyboardContext)
     let fallbackRowHeight = KeyboardLayoutConfiguration.standard(for: keyboardContext).rowHeight
-    let rowsHeight = layout.itemRows.reduce(CGFloat(0)) { total, row in
-      total + (row.map(\.size.height).max() ?? fallbackRowHeight)
-    }
+    let rowsHeight: CGFloat = {
+      if keyboardContext.keyboardType == .calculatorNumeric {
+        return fallbackRowHeight * 6
+      }
+      let layout = keyboardLayoutProvider.keyboardLayout(for: keyboardContext)
+      return layout.itemRows.reduce(CGFloat(0)) { total, row in
+        total + (row.map(\.size.height).max() ?? fallbackRowHeight)
+      }
+    }()
     let toolbarHeight = keyboardContext.heightOfToolbar + (rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0)
     let baseHeight = toolbarHeight + rowsHeight
     let screenHeight = view.window?.screen.bounds.height ?? UIScreen.main.bounds.height

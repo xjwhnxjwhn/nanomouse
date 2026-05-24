@@ -817,10 +817,7 @@ class KeyboardToolbarView: NibLessView {
 
   private var canSwitchOneHandModeFromToolbar: Bool {
     guard !commonFunctionBar.isHidden else { return false }
-    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
-    guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
-    guard rimeContext.asciiModeSnapshot == false else { return false }
-    return UserDefaults.hamster.chineseKeyboardOneHandMode == .off
+    return keyboardContext.keyboardType.supportsChineseOneHandToolbarSwitch
   }
 
   private var traditionalizeInteractionFrameInCommonBar: CGRect {
@@ -1072,14 +1069,17 @@ class KeyboardToolbarView: NibLessView {
   @objc private func handleTraditionalizeAreaSwipe(_ sender: UISwipeGestureRecognizer) {
     guard sender.state == .ended else { return }
     guard canSwitchOneHandModeFromToolbar else { return }
+    let current = UserDefaults.hamster.chineseKeyboardOneHandMode
+    let target: ChineseKeyboardOneHandMode
     switch sender.direction {
     case .left:
-      applyChineseOneHandMode(.leftArc, label: "左手")
+      target = current == .rightArc ? .off : .leftArc
     case .right:
-      applyChineseOneHandMode(.rightArc, label: "右手")
+      target = current == .leftArc ? .off : .rightArc
     default:
-      break
+      return
     }
+    applyChineseOneHandMode(target, label: chineseOneHandModeLabel(target))
   }
 
   private func applyChineseOneHandMode(_ mode: ChineseKeyboardOneHandMode, label: String) {
@@ -1089,6 +1089,17 @@ class KeyboardToolbarView: NibLessView {
     UserDefaults.hamster.chineseKeyboardOneHandMode = mode
     NotificationCenter.default.post(name: .hamsterChineseKeyboardOneHandModeDidChange, object: self)
     showTraditionalizeOptionState(label)
+  }
+
+  private func chineseOneHandModeLabel(_ mode: ChineseKeyboardOneHandMode) -> String {
+    switch mode {
+    case .leftArc:
+      return "左手"
+    case .off:
+      return "双手"
+    case .rightArc:
+      return "右手"
+    }
   }
 }
 

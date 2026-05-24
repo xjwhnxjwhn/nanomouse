@@ -440,7 +440,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
   }
 
   private func applyChineseArcOneHandLayoutIfNeeded() {
-    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else {
+    guard keyboardContext.keyboardType.supportsStandardChineseArcOneHandKeyboard else {
       restoreStandardButtonLayoutIfNeeded()
       return
     }
@@ -451,24 +451,31 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     }
 
     enterChineseArcManualLayoutIfNeeded()
-    let visibleRows = keyboardRows.map { row in
-      row.filter { isVisibleArcKey($0) }
-    }.filter { !$0.isEmpty }
+    let visibleLayout = makeChineseArcVisibleLayout()
+    let visibleRows = visibleLayout.rows
+    let baseRangeRows = makeChineseArcBaseRangeRows()
     guard visibleRows.count >= 3 else {
       restoreStandardButtonLayoutIfNeeded()
       return
     }
 
-    let geometry = makeChineseArcGeometry(rowCount: visibleRows.count, mode: mode)
-    let rowRanges = makeChineseArcRowRanges(for: visibleRows, geometry: geometry)
+    let geometry = makeChineseArcGeometry(rowCount: baseRangeRows.count, mode: mode)
+    var rowRanges = makeChineseArcRowRanges(for: baseRangeRows, geometry: geometry)
+    if visibleLayout.hasCreatedInnermostRow {
+      let innerOuterRadius = rowRanges.last?.innerRadius ?? geometry.innerRadius
+      rowRanges.append(ChineseArcRowRange(outerRadius: innerOuterRadius, innerRadius: 0))
+    }
+    guard rowRanges.count == visibleRows.count else {
+      restoreStandardButtonLayoutIfNeeded()
+      return
+    }
+    let visibleButtonIDs = Set(visibleRows.flatMap { $0 }.map { ObjectIdentifier($0) })
     layoutOneHandModeControls(mode: mode)
     keyboardRows.flatMap { $0 }.forEach { button in
       button.transform = .identity
-      if !isVisibleArcKey(button) {
+      if !visibleButtonIDs.contains(ObjectIdentifier(button)) {
+        button.frame = .zero
         button.setCustomContentShapePath(nil)
-        if button.isHidden {
-          button.frame = .zero
-        }
       }
     }
 
@@ -522,6 +529,114 @@ public class StanderSystemKeyboard: KeyboardTouchView {
         button.setCustomContentShapePath(localPath, signature: shapeSignature)
       }
     }
+  }
+
+  private struct ChineseArcVisibleLayout {
+    let rows: [[KeyboardButton]]
+    let hasCreatedInnermostRow: Bool
+  }
+
+  private func makeChineseArcVisibleLayout() -> ChineseArcVisibleLayout {
+    switch keyboardContext.keyboardType {
+    case .chinese:
+      return makeChinesePrimaryArcVisibleLayout()
+    case .chineseNumeric:
+      return makeChineseNumericArcVisibleLayout()
+    case .chineseSymbolic:
+      return makeChineseSymbolicArcVisibleLayout()
+    default:
+      return ChineseArcVisibleLayout(rows: makeChineseArcBaseRangeRows(), hasCreatedInnermostRow: false)
+    }
+  }
+
+  private func makeChinesePrimaryArcVisibleLayout() -> ChineseArcVisibleLayout {
+    let inputRows = keyboardRows.prefix(3).map { row in
+      row.filter { button in
+        isVisibleArcKey(button) && isChineseArcInputKey(button)
+      }
+    }.filter { !$0.isEmpty }
+
+    let secondInnerRow = uniqueChineseArcButtons([
+      firstChineseArcButton(where: isChineseArcCapsKey),
+      firstChineseArcButton(where: isChineseArcNumberSwitchKey),
+      firstChineseArcButton(where: isChineseArcLanguageSwitchKey),
+      firstChineseArcButton(where: isChineseArcBackspaceKey),
+    ])
+    let innerRow = uniqueChineseArcButtons([
+      firstChineseArcButton(where: isChineseArcSpaceKey),
+      firstChineseArcButton(where: isChineseArcReturnKey),
+    ])
+
+    var rows = inputRows
+    if !secondInnerRow.isEmpty {
+      rows.append(secondInnerRow)
+    }
+    if !innerRow.isEmpty {
+      rows.append(innerRow)
+    }
+    return ChineseArcVisibleLayout(rows: rows, hasCreatedInnermostRow: !innerRow.isEmpty)
+  }
+
+  private func makeChineseNumericArcVisibleLayout() -> ChineseArcVisibleLayout {
+    makeChineseNumericOrSymbolicArcVisibleLayout(secondInnerButtons: [
+      firstChineseArcButton(where: isChineseArcSymbolSwitchKey),
+      firstChineseArcButton(where: isChineseArcLanguageSwitchKey),
+      firstChineseArcButton(where: isChineseArcBackspaceKey),
+    ])
+  }
+
+  private func makeChineseSymbolicArcVisibleLayout() -> ChineseArcVisibleLayout {
+    makeChineseNumericOrSymbolicArcVisibleLayout(secondInnerButtons: [
+      firstChineseArcButton(where: isChineseArcNumberSwitchKey),
+      firstChineseArcButton(where: isChineseArcLanguageSwitchKey),
+      firstChineseArcButton(where: isChineseArcBackspaceKey),
+    ])
+  }
+
+  private func makeChineseNumericOrSymbolicArcVisibleLayout(secondInnerButtons: [KeyboardButton?]) -> ChineseArcVisibleLayout {
+    let inputRows = keyboardRows.prefix(3).map { row in
+      row.filter { button in
+        isVisibleArcKey(button) && isChineseArcInputKey(button)
+      }
+    }.filter { !$0.isEmpty }
+
+    let secondInnerRow = uniqueChineseArcButtons(secondInnerButtons)
+    let innerRow = uniqueChineseArcButtons([
+      firstChineseArcButton(where: isChineseArcSpaceKey),
+      firstChineseArcButton(where: isChineseArcReturnKey),
+    ])
+
+    var rows = inputRows
+    if !secondInnerRow.isEmpty {
+      rows.append(secondInnerRow)
+    }
+    if !innerRow.isEmpty {
+      rows.append(innerRow)
+    }
+    return ChineseArcVisibleLayout(rows: rows, hasCreatedInnermostRow: !innerRow.isEmpty)
+  }
+
+  private func makeChineseArcBaseRangeRows() -> [[KeyboardButton]] {
+    keyboardRows.map { row in
+      row.filter { isVisibleArcKey($0) }
+    }.filter { !$0.isEmpty }
+  }
+
+  private func uniqueChineseArcButtons(_ buttons: [KeyboardButton?]) -> [KeyboardButton] {
+    var seen = Set<ObjectIdentifier>()
+    return buttons.compactMap { button in
+      guard let button else { return nil }
+      let id = ObjectIdentifier(button)
+      guard seen.insert(id).inserted else { return nil }
+      return button
+    }
+  }
+
+  private func firstChineseArcButton(where predicate: (KeyboardButton) -> Bool) -> KeyboardButton? {
+    for button in keyboardRows.flatMap({ $0 }) where isVisibleArcKey(button) && predicate(button) {
+      return button
+    }
+    return nil
   }
 
   private func enterChineseArcManualLayoutIfNeeded() {
@@ -622,6 +737,49 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     default:
       return true
     }
+  }
+
+  private func isChineseArcInputKey(_ button: KeyboardButton) -> Bool {
+    switch button.item.action {
+    case .character, .characterOfDark, .symbol, .symbolOfDark, .chineseNineGrid:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private func isChineseArcCapsKey(_ button: KeyboardButton) -> Bool {
+    if case .shift = button.item.action { return true }
+    return false
+  }
+
+  private func isChineseArcNumberSwitchKey(_ button: KeyboardButton) -> Bool {
+    guard case .keyboardType(let type) = button.item.action else { return false }
+    return type.isNumber || button.buttonText == "123"
+  }
+
+  private func isChineseArcSymbolSwitchKey(_ button: KeyboardButton) -> Bool {
+    guard case .keyboardType(let type) = button.item.action else { return false }
+    return type.isSymbol || button.buttonText == "#+="
+  }
+
+  private func isChineseArcLanguageSwitchKey(_ button: KeyboardButton) -> Bool {
+    guard case .keyboardType(let type) = button.item.action else { return false }
+    guard type.isAlphabetic || type.isChinese else { return false }
+    return button.buttonText == "中" || button.buttonText == "日" || button.buttonText == "英"
+  }
+
+  private func isChineseArcBackspaceKey(_ button: KeyboardButton) -> Bool {
+    button.item.action == .backspace
+  }
+
+  private func isChineseArcSpaceKey(_ button: KeyboardButton) -> Bool {
+    button.item.action == .space
+  }
+
+  private func isChineseArcReturnKey(_ button: KeyboardButton) -> Bool {
+    if case .primary = button.item.action { return true }
+    return false
   }
 
   private struct ChineseArcGeometry {
@@ -766,5 +924,16 @@ public class StanderSystemKeyboard: KeyboardTouchView {
       return "row\(rowIndex){\(items)}"
     }.joined(separator: " ")
     KeyboardStartupDiagnostics.log("SUSPICIOUS button frames q=\(qFrame) oversized=\(oversizedButtons.map { $0.buttonText }) bounds=\(bounds) \(frameSummary)")
+  }
+}
+
+private extension KeyboardType {
+  var supportsStandardChineseArcOneHandKeyboard: Bool {
+    switch self {
+    case .chinese, .chineseNumeric, .chineseSymbolic:
+      return true
+    default:
+      return false
+    }
   }
 }
