@@ -329,7 +329,12 @@ public class KeyboardButton: UIControl {
     // 移除已存在的菜单
     container.viewWithTag(Self.accentMenuOverlayTag)?.removeFromSuperview()
 
-    let overlay = AccentMenuOverlay(style: actionCalloutStyle, chars: accents) { [weak self] char in
+    let overlay = AccentMenuOverlay(
+      style: actionCalloutStyle,
+      visualEffectConfiguration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      userInterfaceStyle: keyboardContext.colorScheme,
+      chars: accents
+    ) { [weak self] char in
       self?.handleAccentSelection(char)
     }
     overlay.tag = Self.accentMenuOverlayTag

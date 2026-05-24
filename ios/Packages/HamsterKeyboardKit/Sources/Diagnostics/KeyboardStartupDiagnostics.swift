@@ -9,8 +9,8 @@ import Foundation
 import CoreGraphics
 
 enum KeyboardStartupDiagnostics {
-  private static let marker = "NMKeyboardFreezeTrace"
-  private static let startupSamplerMarker = "NMKeyboardStartup1msTrace"
+  private static let marker = "[NMKBD_DIAG]"
+  private static let startupSamplerMarker = "[NMKBD_DIAG]"
   private static let startDate = Date()
   private static let lock = NSLock()
   private static var watchdogStarted = false
@@ -32,9 +32,9 @@ enum KeyboardStartupDiagnostics {
 
   static func log(_ message: @autoclosure () -> String, file: StaticString = #fileID, line: UInt = #line) {
     guard isEnabled else { return }
-    let elapsed = Date().timeIntervalSince(startDate)
+    let elapsedMilliseconds = Date().timeIntervalSince(startDate) * 1000
     let thread = Thread.isMainThread ? "main" : "bg"
-    NSLog("⌨️ [%@ KeyboardDiag +%.3fs %@ %@:%u] %@", marker, elapsed, thread, "\(file)", line, message())
+    NSLog("%@ KeyboardDiag +%.1fms %@ %@:%u %@", marker, elapsedMilliseconds, thread, "\(file)", line, message())
   }
 
   @discardableResult
@@ -44,10 +44,10 @@ enum KeyboardStartupDiagnostics {
     log("BEGIN \(label)")
     do {
       let value = try work()
-      log(String(format: "END %@ %.3fs", label, Date().timeIntervalSince(started)))
+      log(String(format: "END %@ %.1fms", label, Date().timeIntervalSince(started) * 1000))
       return value
     } catch {
-      log(String(format: "FAIL %@ %.3fs error=%@", label, Date().timeIntervalSince(started), error.localizedDescription))
+      log(String(format: "FAIL %@ %.1fms error=%@", label, Date().timeIntervalSince(started) * 1000, error.localizedDescription))
       throw error
     }
   }
@@ -241,7 +241,7 @@ enum KeyboardStartupDiagnostics {
     guard !samples.isEmpty else { return }
     let joinedSamples = samples.joined(separator: " || ")
     DispatchQueue.global(qos: .utility).async {
-      NSLog("⌨️ [%@ id=%d reason=%@ count=%d] %@", startupSamplerMarker, samplingID, reason, samples.count, joinedSamples)
+      NSLog("%@ sampler id=%d reason=%@ count=%d %@", startupSamplerMarker, samplingID, reason, samples.count, joinedSamples)
     }
   }
 

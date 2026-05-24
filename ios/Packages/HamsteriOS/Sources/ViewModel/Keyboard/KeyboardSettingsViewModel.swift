@@ -52,6 +52,49 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var keyboardVisualEffectDefaultStyle: KeyboardVisualEffectStyle {
+    get {
+      keyboardVisualEffectConfiguration.defaultStyle ?? .system
+    }
+    set {
+      updateKeyboardVisualEffectConfiguration { config in
+        config.defaultStyle = newValue
+      }
+    }
+  }
+
+  public func keyboardVisualEffectStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle {
+    keyboardVisualEffectConfiguration.style(for: target)
+  }
+
+  public func keyboardVisualEffectOverrideStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle? {
+    let config = keyboardVisualEffectConfiguration
+    switch target {
+    case .keyInputCallout:
+      return config.keyInputCalloutStyle
+    case .keyLongPressMenu:
+      return config.keyLongPressMenuStyle
+    case .textReplacementBubble:
+      return config.textReplacementBubbleStyle
+    }
+  }
+
+  public func setKeyboardVisualEffectStyle(
+    _ style: KeyboardVisualEffectStyle?,
+    for target: KeyboardVisualEffectTarget
+  ) {
+    updateKeyboardVisualEffectConfiguration { config in
+      switch target {
+      case .keyInputCallout:
+        config.keyInputCalloutStyle = style
+      case .keyLongPressMenu:
+        config.keyLongPressMenuStyle = style
+      case .textReplacementBubble:
+        config.textReplacementBubbleStyle = style
+      }
+    }
+  }
+
   public var upSwipeOnLeft: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.upSwipeOnLeft ?? false
@@ -765,6 +808,27 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  private var keyboardVisualEffectConfiguration: KeyboardVisualEffectConfiguration {
+    HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect ?? KeyboardVisualEffectConfiguration()
+  }
+
+  private func updateKeyboardVisualEffectConfiguration(
+    _ update: (inout KeyboardVisualEffectConfiguration) -> Void
+  ) {
+    if HamsterAppDependencyContainer.shared.configuration.keyboard == nil {
+      HamsterAppDependencyContainer.shared.configuration.keyboard = KeyboardConfiguration()
+    }
+    if HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard == nil {
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard = KeyboardConfiguration()
+    }
+
+    var config = keyboardVisualEffectConfiguration
+    update(&config)
+    HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect = config
+    HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.visualEffect = config
+    resetSignSubject.send(true)
+  }
+
   /// 键盘布局用户选择设置键盘类型
   public var settingsKeyboardType: KeyboardType? = nil
 
@@ -1102,6 +1166,41 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           toggleHandled: { [unowned self] in
             lockShiftState = $0
           })
+      ]),
+
+    .init(
+      title: "键盘视觉效果",
+      footer: "系统默认：iOS 26 使用系统液态玻璃，iOS 18 及以前使用系统毛玻璃。选择 iOS 26 风格时，旧系统会使用近似毛玻璃模拟。",
+      items: [
+        .init(
+          text: "默认气泡效果",
+          type: .pullDown,
+          textValue: { [unowned self] in labelText(for: keyboardVisualEffectDefaultStyle) },
+          pullDownMenuActionsBuilder: { [unowned self] in
+            KeyboardVisualEffectStyle.allCases.map { style in
+              UIAction(
+                title: labelText(for: style),
+                state: style == keyboardVisualEffectDefaultStyle ? .on : .off
+              ) { [unowned self] _ in
+                keyboardVisualEffectDefaultStyle = style
+              }
+            }
+          }),
+        .init(
+          text: "点按按键气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyInputCallout) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyInputCallout) }),
+        .init(
+          text: "长按按键气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyLongPressMenu) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyLongPressMenu) }),
+        .init(
+          text: "快捷短语气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .textReplacementBubble) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .textReplacementBubble) })
       ]),
 
     .init(
@@ -2189,6 +2288,37 @@ extension KeyboardSettingsViewModel {
 private extension KeyboardSettingsViewModel {
   var defaultLanguageModeLabel: String {
     labelText(for: defaultLanguageMode)
+  }
+
+  func labelText(for style: KeyboardVisualEffectStyle) -> String {
+    switch style {
+    case .system: return "跟随系统"
+    case .ios18Blur: return "iOS 18 毛玻璃"
+    case .ios26LiquidGlass: return "iOS 26 液态玻璃"
+    }
+  }
+
+  func visualEffectTargetLabel(for target: KeyboardVisualEffectTarget) -> String {
+    if let style = keyboardVisualEffectOverrideStyle(for: target) {
+      return labelText(for: style)
+    }
+    return "跟随默认（\(labelText(for: keyboardVisualEffectDefaultStyle))）"
+  }
+
+  func visualEffectTargetActions(for target: KeyboardVisualEffectTarget) -> [UIAction] {
+    let overrideStyle = keyboardVisualEffectOverrideStyle(for: target)
+    var actions: [UIAction] = [
+      UIAction(title: "跟随默认", state: overrideStyle == nil ? .on : .off) { [unowned self] _ in
+        setKeyboardVisualEffectStyle(nil, for: target)
+      }
+    ]
+
+    actions += KeyboardVisualEffectStyle.allCases.map { style in
+      UIAction(title: labelText(for: style), state: overrideStyle == style ? .on : .off) { [unowned self] _ in
+        setKeyboardVisualEffectStyle(style, for: target)
+      }
+    }
+    return actions
   }
 
   func weatherIndicatorStatusText() -> String {

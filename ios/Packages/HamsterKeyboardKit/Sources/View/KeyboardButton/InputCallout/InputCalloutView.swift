@@ -165,11 +165,28 @@ public class InputCalloutView: ShapeView {
     self.shapeLayer.zPosition = 1000
     shapeLayer.fillColor = UIColor.clear.cgColor
     backgroundColor = .clear
-    glassEffectView.effect = KeyboardLiquidGlass.effect(userInterfaceStyle: keyboardContext.colorScheme)
-    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(userInterfaceStyle: keyboardContext.colorScheme)
-    boardLayer.strokeColor = KeyboardLiquidGlass.strokeColor(userInterfaceStyle: keyboardContext.colorScheme).cgColor
+    let visualEffect = keyboardContext.hamsterConfiguration?.keyboard?.visualEffect
+    glassEffectView.effect = KeyboardLiquidGlass.effect(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: visualEffect,
+      target: .keyInputCallout
+    )
+    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: visualEffect,
+      target: .keyInputCallout
+    )
+    boardLayer.strokeColor = KeyboardLiquidGlass.strokeColor(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: visualEffect,
+      target: .keyInputCallout
+    ).cgColor
     layer.shadowColor = UIColor.black.cgColor
-    layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(userInterfaceStyle: keyboardContext.colorScheme)
+    layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: visualEffect,
+      target: .keyInputCallout
+    )
     layer.shadowRadius = 10
     layer.shadowOffset = CGSize(width: 0, height: 5)
 

@@ -458,12 +458,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     super.textDocumentProxy
   }
 
-  /// 仅在与宿主输入框建立连接后，才允许读取 needsInputModeSwitchKey。
-  /// 否则 UIKit 会在日志中报错，并可能在调试断点下中断执行。
-  var canSafelyQueryInputModeSwitchKey: Bool {
-    hasEstablishedHostConnection && viewIfLoaded?.window != nil
-  }
-
   /**
    The text document proxy to use, which can either be the
    original text input proxy or the ``textInputProxy``, if
@@ -4260,9 +4254,11 @@ private extension KeyboardInputViewController {
     for name in names {
       NotificationCenter.default.publisher(for: name)
         .receive(on: DispatchQueue.main)
-        .sink { [weak self] _ in
-          self?.isKeyboardHostInactive = true
-          self?.commitPendingCompositionForBackground()
+        .sink { [weak self] notification in
+          guard let self else { return }
+          KeyboardStartupDiagnostics.log("host background notification reason=\(notification.name.rawValue) rimeRunning=\(self.rimeContext.isRunning)")
+          self.isKeyboardHostInactive = true
+          self.commitPendingCompositionForBackground()
         }
         .store(in: &cancellables)
     }
@@ -4279,8 +4275,10 @@ private extension KeyboardInputViewController {
     for name in names {
       NotificationCenter.default.publisher(for: name)
         .receive(on: DispatchQueue.main)
-        .sink { [weak self] _ in
-          self?.isKeyboardHostInactive = false
+        .sink { [weak self] notification in
+          guard let self else { return }
+          self.isKeyboardHostInactive = false
+          KeyboardStartupDiagnostics.log("host foreground notification reason=\(notification.name.rawValue) rimeRunning=\(self.rimeContext.isRunning)")
         }
         .store(in: &cancellables)
     }

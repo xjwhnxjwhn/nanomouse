@@ -12,6 +12,7 @@ import os
 
 /// 对 librime 的二次封装
 public class Rime {
+  private static let diagnosticsStartDate = Date()
   private let logger = Logger(
     subsystem: "com.XiangqingZHANG.nanomouse.RimeKit",
     category: "Rime"
@@ -44,6 +45,14 @@ public class Rime {
 
   public func API() -> IRimeAPI {
     return rimeAPI
+  }
+
+  private func diagnosticLog(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    let elapsedMilliseconds = Date().timeIntervalSince(Self.diagnosticsStartDate) * 1000
+    let thread = Thread.isMainThread ? "main" : "bg"
+    NSLog("[NMKBD_DIAG] Rime +%.1fms %@ %@", elapsedMilliseconds, thread, message())
+    #endif
   }
 
   public static func createTraits(sharedSupportDir: String, userDataDir: String, models: [String] = []) -> IRimeTraits {
@@ -92,6 +101,7 @@ public class Rime {
   }
 
   public func start(_ traits: IRimeTraits? = nil, maintenance: Bool = false, fullCheck: Bool = false) {
+    diagnosticLog("start begin session=\(session) maintenance=\(maintenance) fullCheck=\(fullCheck)")
     if let traits = traits {
       setupRime(traits)
     }
@@ -105,6 +115,7 @@ public class Rime {
     }
 
     // session = rimeAPI.createSession()
+    diagnosticLog("start end session=\(session)")
   }
 
   public func deploy(_ traits: IRimeTraits? = nil) -> Bool {
@@ -117,9 +128,11 @@ public class Rime {
   }
 
   public func shutdown() {
+    diagnosticLog("shutdown begin session=\(session)")
     rimeAPI.destroySession(session)
     session = 0
     rimeAPI.finalize()
+    diagnosticLog("shutdown end session=\(session)")
   }
 
   public func getSession() -> RimeSessionId {
@@ -128,7 +141,9 @@ public class Rime {
 
   public func createSession() {
     if !isRunning() {
+      diagnosticLog("createSession begin previous=\(session)")
       session = rimeAPI.createSession()
+      diagnosticLog("createSession end session=\(session)")
     }
   }
 
@@ -242,9 +257,16 @@ public class Rime {
   }
 
   public func setSchema(_ schemaId: String) -> Bool {
+    diagnosticLog("setSchema begin schema=\(schemaId) session=\(session)")
     createSession()
+    guard session != 0 else {
+      diagnosticLog("setSchema skip empty session schema=\(schemaId)")
+      return false
+    }
     currentInputSchema = schemaId
-    return rimeAPI.selectSchema(session, andSchemaId: schemaId)
+    let handled = rimeAPI.selectSchema(session, andSchemaId: schemaId)
+    diagnosticLog("setSchema end schema=\(schemaId) session=\(session) handled=\(handled)")
+    return handled
   }
 
   // 注意：用户目录必须存在 "default.coustom.yaml" 文件，调用才有效

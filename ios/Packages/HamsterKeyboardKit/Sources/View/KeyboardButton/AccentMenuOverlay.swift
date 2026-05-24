@@ -9,6 +9,8 @@ import UIKit
 
 final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private let style: KeyboardActionCalloutStyle
+  private let visualEffectConfiguration: KeyboardVisualEffectConfiguration?
+  private let userInterfaceStyle: UIUserInterfaceStyle
   private let chars: [String]
   private let onSelect: (String) -> Void
   private var highlightedChar: String?
@@ -27,10 +29,14 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
 
   init(
     style: KeyboardActionCalloutStyle,
+    visualEffectConfiguration: KeyboardVisualEffectConfiguration?,
+    userInterfaceStyle: UIUserInterfaceStyle,
     chars: [String],
     onSelect: @escaping (String) -> Void
   ) {
     self.style = style
+    self.visualEffectConfiguration = visualEffectConfiguration
+    self.userInterfaceStyle = userInterfaceStyle
     self.chars = chars
     self.onSelect = onSelect
     super.init(frame: .zero)
@@ -116,7 +122,12 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
       let char = chars[button.tag]
       let isHighlighted = char == highlightedChar
       button.backgroundColor = isHighlighted
-        ? KeyboardLiquidGlass.selectionColor(textColor: style.callout.textColor, userInterfaceStyle: traitCollection.userInterfaceStyle)
+        ? KeyboardLiquidGlass.selectionColor(
+          textColor: style.callout.textColor,
+          userInterfaceStyle: userInterfaceStyle,
+          configuration: visualEffectConfiguration,
+          target: .keyLongPressMenu
+        )
         : .clear
       button.isHighlighted = isHighlighted
       
@@ -188,18 +199,30 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     menuContainer.layer.cornerCurve = .continuous
 
     menuContainer.layer.shadowColor = UIColor.black.cgColor
-    menuContainer.layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    menuContainer.layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
     menuContainer.layer.shadowRadius = 12
     menuContainer.layer.shadowOffset = CGSize(width: 0, height: 5)
 
-    glassEffectView.effect = KeyboardLiquidGlass.effect(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    glassEffectView.effect = KeyboardLiquidGlass.effect(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
     glassEffectView.isUserInteractionEnabled = false
     glassEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     glassEffectView.layer.cornerRadius = 14
     glassEffectView.layer.cornerCurve = .continuous
     glassEffectView.layer.masksToBounds = true
 
-    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(userInterfaceStyle: traitCollection.userInterfaceStyle)
+    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
     glassTintView.isUserInteractionEnabled = false
     glassTintView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     glassEffectView.contentView.addSubview(glassTintView)
@@ -210,7 +233,11 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     glassStrokeView.layer.cornerRadius = 14
     glassStrokeView.layer.cornerCurve = .continuous
     glassStrokeView.layer.borderWidth = 1 / UIScreen.main.scale
-    glassStrokeView.layer.borderColor = KeyboardLiquidGlass.strokeColor(userInterfaceStyle: traitCollection.userInterfaceStyle).cgColor
+    glassStrokeView.layer.borderColor = KeyboardLiquidGlass.strokeColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    ).cgColor
 
     menuContainer.addSubview(glassEffectView)
   }

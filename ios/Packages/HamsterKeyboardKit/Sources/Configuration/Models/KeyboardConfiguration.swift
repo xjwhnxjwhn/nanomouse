@@ -34,6 +34,9 @@ public struct KeyboardConfiguration: Codable, Hashable {
   /// true: 显示 false: 不显示
   public var displayButtonBubbles: Bool?
 
+  /// 键盘浮层视觉效果
+  public var visualEffect: KeyboardVisualEffectConfiguration?
+
   /// 启用按键声音
   /// true: 启用 false 停用
   public var enableKeySounds: Bool?
@@ -177,6 +180,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     swipeLabelUpAndDownLayout: Bool? = true,
     swipeLabelUpAndDownIrregularLayout: Bool? = false,
     displayButtonBubbles: Bool? = true,
+    visualEffect: KeyboardVisualEffectConfiguration? = KeyboardVisualEffectConfiguration(),
     enableKeySounds: Bool? = false,
     enableHapticFeedback: Bool? = false,
     hapticFeedbackIntensity: Int? = 3,
@@ -270,6 +274,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.swipeLabelUpAndDownLayout = swipeLabelUpAndDownLayout
     self.swipeLabelUpAndDownIrregularLayout = swipeLabelUpAndDownIrregularLayout
     self.displayButtonBubbles = displayButtonBubbles
+    self.visualEffect = visualEffect
     self.enableKeySounds = enableKeySounds
     self.enableHapticFeedback = enableHapticFeedback
     self.hapticFeedbackIntensity = hapticFeedbackIntensity
@@ -324,6 +329,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     self.swipeLabelUpAndDownLayout = try container.decodeIfPresent(Bool.self, forKey: .swipeLabelUpAndDownLayout)
     self.swipeLabelUpAndDownIrregularLayout = try container.decodeIfPresent(Bool.self, forKey: .swipeLabelUpAndDownIrregularLayout)
     self.displayButtonBubbles = try container.decodeIfPresent(Bool.self, forKey: .displayButtonBubbles)
+    self.visualEffect = try container.decodeIfPresent(KeyboardVisualEffectConfiguration.self, forKey: .visualEffect)
     self.enableKeySounds = try container.decodeIfPresent(Bool.self, forKey: .enableKeySounds)
     self.enableHapticFeedback = try container.decodeIfPresent(Bool.self, forKey: .enableHapticFeedback)
     self.hapticFeedbackIntensity = try container.decodeIfPresent(Int.self, forKey: .hapticFeedbackIntensity)
@@ -381,6 +387,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     case swipeLabelUpAndDownLayout
     case swipeLabelUpAndDownIrregularLayout
     case displayButtonBubbles
+    case visualEffect
     case enableKeySounds
     case enableHapticFeedback
     case hapticFeedbackIntensity
@@ -435,6 +442,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     try container.encodeIfPresent(self.swipeLabelUpAndDownLayout, forKey: .swipeLabelUpAndDownLayout)
     try container.encodeIfPresent(self.swipeLabelUpAndDownIrregularLayout, forKey: .swipeLabelUpAndDownIrregularLayout)
     try container.encodeIfPresent(self.displayButtonBubbles, forKey: .displayButtonBubbles)
+    try container.encodeIfPresent(self.visualEffect, forKey: .visualEffect)
     try container.encodeIfPresent(self.enableKeySounds, forKey: .enableKeySounds)
     try container.encodeIfPresent(self.enableHapticFeedback, forKey: .enableHapticFeedback)
     try container.encodeIfPresent(self.hapticFeedbackIntensity, forKey: .hapticFeedbackIntensity)

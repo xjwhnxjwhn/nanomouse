@@ -458,32 +458,27 @@ public class CandidateBarView: NibLessView {
   }
 
   private func textReplacementBubbleEffect() -> UIVisualEffect {
-    if #available(iOS 26.0, *) {
-      let effect = UIGlassEffect(style: .regular)
-      effect.tintColor = userInterfaceStyle == .dark
-        ? UIColor.white.withAlphaComponent(0.16)
-        : UIColor.white.withAlphaComponent(0.34)
-      effect.isInteractive = true
-      return effect
-    }
-    return UIBlurEffect(style: userInterfaceStyle == .dark ? .systemThickMaterialDark : .systemThickMaterialLight)
+    KeyboardLiquidGlass.effect(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      target: .textReplacementBubble
+    )
   }
 
   private func textReplacementBubbleTintColor() -> UIColor {
-    if #available(iOS 26.0, *) {
-      return userInterfaceStyle == .dark
-        ? UIColor.black.withAlphaComponent(0.22)
-        : UIColor.white.withAlphaComponent(0.18)
-    }
-    return userInterfaceStyle == .dark
-      ? UIColor.black.withAlphaComponent(0.36)
-      : UIColor.white.withAlphaComponent(0.42)
+    KeyboardLiquidGlass.tintColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      target: .textReplacementBubble
+    )
   }
 
   private func textReplacementBubbleStrokeColor() -> UIColor {
-    userInterfaceStyle == .dark
-      ? UIColor.white.withAlphaComponent(0.22)
-      : UIColor.white.withAlphaComponent(0.62)
+    KeyboardLiquidGlass.strokeColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      target: .textReplacementBubble
+    )
   }
 
   private func textReplacementBubbleSeparatorColor() -> UIColor {

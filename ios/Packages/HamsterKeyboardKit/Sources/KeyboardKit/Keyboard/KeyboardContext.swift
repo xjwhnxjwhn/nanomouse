@@ -797,12 +797,6 @@ extension KeyboardContext {
     if hasFullAccess != currentFullAccess {
       hasFullAccess = currentFullAccess
     }
-    if controller.canSafelyQueryInputModeSwitchKey {
-      let needsInputSwitchKey = controller.needsInputModeSwitchKey
-      if needsInputModeSwitchKey != needsInputSwitchKey {
-        needsInputModeSwitchKey = needsInputSwitchKey
-      }
-    }
     if primaryLanguage != controller.primaryLanguage {
       primaryLanguage = controller.primaryLanguage
     }

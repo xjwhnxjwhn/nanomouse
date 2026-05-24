@@ -344,10 +344,12 @@ public extension RimeContext {
     guard keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid else { return false }
 
     let shouldUseNineGrid = keyboardType.isChineseNineGrid
+    KeyboardStartupDiagnostics.log("syncChineseSchema begin keyboardType=\(keyboardType.yamlString) nineGrid=\(shouldUseNineGrid) rimeRunning=\(Rime.shared.isRunning()) current=\(currentSchema?.schemaId ?? "nil")")
     guard let targetSchema = preferredChineseSchema(useNineGrid: shouldUseNineGrid) else {
       Logger.statistics.error(
         "sync Chinese schema failed: target not found, nineGrid=\(shouldUseNineGrid)"
       )
+      KeyboardStartupDiagnostics.log("syncChineseSchema target missing nineGrid=\(shouldUseNineGrid)")
       return false
     }
 
@@ -366,7 +368,9 @@ public extension RimeContext {
     resetLatestSchema()
 
     if Rime.shared.isRunning() {
+      KeyboardStartupDiagnostics.log("syncChineseSchema setSchema begin target=\(targetSchema.schemaId)")
       let handle = Rime.shared.setSchema(targetSchema.schemaId)
+      KeyboardStartupDiagnostics.log("syncChineseSchema setSchema end target=\(targetSchema.schemaId) handle=\(handle)")
       Logger.statistics.info(
         "sync Chinese schema with keyboard: \(targetSchema.schemaId, privacy: .public), handle=\(handle)"
       )
@@ -378,6 +382,7 @@ public extension RimeContext {
       return handle || needsSelectionUpdate || needsCurrentUpdate
     }
 
+    KeyboardStartupDiagnostics.log("syncChineseSchema skip setSchema rimeNotRunning target=\(targetSchema.schemaId) selectionUpdate=\(needsSelectionUpdate) currentUpdate=\(needsCurrentUpdate)")
     return needsSelectionUpdate || needsCurrentUpdate
   }
 
@@ -919,9 +924,12 @@ public extension RimeContext {
     }
     if schema.schemaId == HamsterConstants.azooKeySchemaId {
       Logger.statistics.info("AzooKey active, skip rime setSchema")
+      KeyboardStartupDiagnostics.log("setupRimeInputSchema skip AzooKey")
       return
     }
+    KeyboardStartupDiagnostics.log("setupRimeInputSchema setSchema begin schema=\(schema.schemaId) running=\(Rime.shared.isRunning())")
     let handle = Rime.shared.setSchema(schema.schemaId)
+    KeyboardStartupDiagnostics.log("setupRimeInputSchema setSchema end schema=\(schema.schemaId) handle=\(handle) running=\(Rime.shared.isRunning())")
     Logger.statistics.info("self.rimeEngine set schema: \(schema.schemaName), handle = \(handle)")
   }
 
@@ -940,7 +948,9 @@ public extension RimeContext {
       }
       latestSchema = selectSchemas[0]
     }
+    KeyboardStartupDiagnostics.log("switchLatestInputSchema setSchema begin schema=\(latestSchema.schemaId) running=\(Rime.shared.isRunning())")
     let handle = Rime.shared.setSchema(latestSchema.schemaId)
+    KeyboardStartupDiagnostics.log("switchLatestInputSchema setSchema end schema=\(latestSchema.schemaId) handle=\(handle) running=\(Rime.shared.isRunning())")
     Logger.statistics.info("self.rimeEngine set latest schema: \(latestSchema.schemaName), handle = \(handle)")
     if handle {
       self.latestSchema = self.currentSchema
@@ -1074,9 +1084,12 @@ public extension RimeContext {
     guard let schema else {
       Logger.statistics.error("rime schema not found: \(schemaId)")
       Logger.statistics.error("DBG_LANGSWITCH switchSchema not found: \(schemaId, privacy: .public)")
+      KeyboardStartupDiagnostics.log("switchSchema missing schema=\(schemaId) running=\(Rime.shared.isRunning())")
       return false
     }
+    KeyboardStartupDiagnostics.log("switchSchema setSchema begin schema=\(schema.schemaId) running=\(Rime.shared.isRunning())")
     let handle = Rime.shared.setSchema(schema.schemaId)
+    KeyboardStartupDiagnostics.log("switchSchema setSchema end schema=\(schema.schemaId) handle=\(handle) running=\(Rime.shared.isRunning())")
     Logger.statistics.info("rime set schema: \(schema.schemaName), handle = \(handle)")
     Logger.statistics.info("DBG_LANGSWITCH setSchema: \(schema.schemaId, privacy: .public), handle: \(handle)")
     if handle {
