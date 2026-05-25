@@ -356,8 +356,6 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     title.font = .preferredFont(forTextStyle: .footnote)
     title.textColor = .secondaryLabel
     contentStack.addArrangedSubview(title)
-    contentStack.addArrangedSubview(profileControl)
-    contentStack.addArrangedSubview(makeButtonRow())
     contentStack.addArrangedSubview(oneHandControl)
     contentStack.addArrangedSubview(makeInfoLabel("单手键盘可在真实键盘的繁简/语言区域左右滑切换左手、双手、右手；这里的预览用于确认单手布局形状和按键位置。"))
     contentStack.addArrangedSubview(makeSliderRow(title: "左右间隔", slider: horizontalGapSlider))
@@ -643,6 +641,59 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
   }
 
   func reloadPreview() {
+    rebuildKeyboard()
+  }
+
+  func visualEffectSchemeSnapshot(named name: String) -> KeyboardVisualEffectChinese26Snapshot {
+    var profile = currentProfile() ?? ChineseKeyboardLayoutProfile(name: name, mapping: defaultMapping())
+    profile.name = name
+    return KeyboardVisualEffectChinese26Snapshot(
+      layoutProfile: profile,
+      oneHandMode: UserDefaults.hamster.chineseKeyboardOneHandMode,
+      horizontalGap: UserDefaults.hamster.chineseKeyboardHorizontalGap,
+      verticalGap: UserDefaults.hamster.chineseKeyboardVerticalGap,
+      keyHeightScale: UserDefaults.hamster.chineseKeyboardKeyHeightScale,
+      borderWidth: UserDefaults.hamster.chineseKeyboardBorderWidth,
+      cornerRadius: UserDefaults.hamster.chineseKeyboardCornerRadius,
+      backgroundColorHex: UserDefaults.hamster.chineseKeyboardBackgroundColorHex,
+      keyBackgroundColorHex: UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex,
+      keyTextColorHex: UserDefaults.hamster.chineseKeyboardKeyTextColorHex,
+      keyBorderColorHex: UserDefaults.hamster.chineseKeyboardKeyBorderColorHex,
+      keyAppearanceOverrides: UserDefaults.hamster.chineseKeyboardKeyAppearanceOverrides
+    )
+  }
+
+  func applyVisualEffectSchemeSnapshot(_ snapshot: KeyboardVisualEffectChinese26Snapshot) {
+    profiles = [snapshot.layoutProfile]
+    activeProfileID = snapshot.layoutProfile.id
+    persistProfiles()
+
+    UserDefaults.hamster.chineseKeyboardOneHandMode = snapshot.oneHandMode
+    UserDefaults.hamster.chineseKeyboardHorizontalGap = snapshot.horizontalGap
+    UserDefaults.hamster.chineseKeyboardVerticalGap = snapshot.verticalGap
+    UserDefaults.hamster.chineseKeyboardKeyHeightScale = snapshot.keyHeightScale
+    UserDefaults.hamster.chineseKeyboardBorderWidth = snapshot.borderWidth
+    UserDefaults.hamster.chineseKeyboardCornerRadius = snapshot.cornerRadius
+    UserDefaults.hamster.chineseKeyboardBackgroundColorHex = snapshot.backgroundColorHex
+    UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex = snapshot.keyBackgroundColorHex
+    UserDefaults.hamster.chineseKeyboardKeyTextColorHex = snapshot.keyTextColorHex
+    UserDefaults.hamster.chineseKeyboardKeyBorderColorHex = snapshot.keyBorderColorHex
+    UserDefaults.hamster.chineseKeyboardKeyAppearanceOverrides = snapshot.keyAppearanceOverrides
+
+    let modes = ChineseKeyboardOneHandMode.allCases
+    oneHandControl.selectedSegmentIndex = modes.firstIndex(of: snapshot.oneHandMode) ?? 0
+    horizontalGapSlider.value = Float(snapshot.horizontalGap)
+    verticalGapSlider.value = Float(snapshot.verticalGap)
+    keyHeightSlider.value = Float(snapshot.keyHeightScale)
+    borderWidthSlider.value = Float(snapshot.borderWidth)
+    cornerRadiusSlider.value = Float(snapshot.cornerRadius)
+    backgroundColorWell.selectedColor = snapshot.backgroundColorHex?.keyboardUIColor
+    keyBackgroundColorWell.selectedColor = snapshot.keyBackgroundColorHex?.keyboardUIColor
+    keyTextColorWell.selectedColor = snapshot.keyTextColorHex?.keyboardUIColor
+    keyBorderColorWell.selectedColor = snapshot.keyBorderColorHex?.keyboardUIColor
+    selectedAppearanceActionID = nil
+    reloadSelectedKeyAppearanceControls()
+    rebuildProfileControl()
     rebuildKeyboard()
   }
 

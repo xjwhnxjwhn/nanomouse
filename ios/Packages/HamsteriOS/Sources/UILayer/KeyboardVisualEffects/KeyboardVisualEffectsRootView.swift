@@ -12,10 +12,14 @@ import UIKit
 
 final class KeyboardVisualEffectsRootView: NibLessView {
   private let keyboardSettingsViewModel: KeyboardSettingsViewModel
+  private let schemeStore = KeyboardVisualEffectSchemeStore.shared
   private var subscriptions = Set<AnyCancellable>()
   private var selectedKeyboardType: KeyboardType = .chinese(.lowercased)
   private var selectedVisualEffectUserInterfaceStyle: UIUserInterfaceStyle = .light
   private var layoutButtons: [UIButton] = []
+  private var schemeButtons: [UIButton] = []
+  private var schemes: [KeyboardVisualEffectScheme] = []
+  private var selectedSchemeID: String?
   private var tableHeightConstraint: NSLayoutConstraint?
   private var layoutContentHeightConstraint: NSLayoutConstraint?
   private var previewDockHeightConstraint: NSLayoutConstraint?
@@ -69,6 +73,40 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     stack.axis = .horizontal
     stack.spacing = 8
     stack.alignment = .fill
+    return stack
+  }()
+
+  private lazy var schemeTitleLabel: UILabel = {
+    let label = UILabel()
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.font = .preferredFont(forTextStyle: .headline)
+    label.textColor = .label
+    label.text = "当前方案：方案1"
+    return label
+  }()
+
+  private lazy var schemeTabScrollView: UIScrollView = {
+    let scrollView = UIScrollView(frame: .zero)
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.showsHorizontalScrollIndicator = false
+    return scrollView
+  }()
+
+  private lazy var schemeTabStack: UIStackView = {
+    let stack = UIStackView()
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.spacing = 8
+    stack.alignment = .fill
+    return stack
+  }()
+
+  private lazy var schemeActionStack: UIStackView = {
+    let stack = UIStackView()
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.spacing = 8
+    stack.distribution = .fillEqually
     return stack
   }()
 
@@ -138,12 +176,17 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     scrollView.addSubview(contentView)
     previewDockView.addSubview(previewDockContentView)
     contentView.addSubview(appearanceModeControl)
-    contentView.addSubview(tableView)
     contentView.addSubview(layoutTabScrollView)
+    contentView.addSubview(schemeTitleLabel)
+    contentView.addSubview(schemeTabScrollView)
+    contentView.addSubview(schemeActionStack)
+    contentView.addSubview(tableView)
     contentView.addSubview(layoutContentContainer)
     layoutContentContainer.addSubview(customLayoutView)
     layoutContentContainer.addSubview(unsupportedLabel)
     layoutTabScrollView.addSubview(layoutTabStack)
+    schemeTabScrollView.addSubview(schemeTabStack)
+    setupSchemeActions()
 
     let tableHeightConstraint = tableView.heightAnchor.constraint(equalToConstant: 420)
     self.tableHeightConstraint = tableHeightConstraint
@@ -179,12 +222,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
       appearanceModeControl.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
       appearanceModeControl.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
 
-      tableView.topAnchor.constraint(equalTo: appearanceModeControl.bottomAnchor, constant: 8),
-      tableView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-      tableView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-      tableHeightConstraint,
-
-      layoutTabScrollView.topAnchor.constraint(equalTo: tableView.bottomAnchor),
+      layoutTabScrollView.topAnchor.constraint(equalTo: appearanceModeControl.bottomAnchor, constant: 8),
       layoutTabScrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       layoutTabScrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       layoutTabScrollView.heightAnchor.constraint(equalToConstant: 52),
@@ -195,7 +233,32 @@ final class KeyboardVisualEffectsRootView: NibLessView {
       layoutTabStack.bottomAnchor.constraint(equalTo: layoutTabScrollView.contentLayoutGuide.bottomAnchor, constant: -8),
       layoutTabStack.heightAnchor.constraint(equalTo: layoutTabScrollView.frameLayoutGuide.heightAnchor, constant: -16),
 
-      layoutContentContainer.topAnchor.constraint(equalTo: layoutTabScrollView.bottomAnchor),
+      schemeTitleLabel.topAnchor.constraint(equalTo: layoutTabScrollView.bottomAnchor, constant: 2),
+      schemeTitleLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+      schemeTitleLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+      schemeTabScrollView.topAnchor.constraint(equalTo: schemeTitleLabel.bottomAnchor, constant: 2),
+      schemeTabScrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      schemeTabScrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      schemeTabScrollView.heightAnchor.constraint(equalToConstant: 48),
+
+      schemeTabStack.topAnchor.constraint(equalTo: schemeTabScrollView.contentLayoutGuide.topAnchor, constant: 6),
+      schemeTabStack.leadingAnchor.constraint(equalTo: schemeTabScrollView.contentLayoutGuide.leadingAnchor, constant: 16),
+      schemeTabStack.trailingAnchor.constraint(equalTo: schemeTabScrollView.contentLayoutGuide.trailingAnchor, constant: -16),
+      schemeTabStack.bottomAnchor.constraint(equalTo: schemeTabScrollView.contentLayoutGuide.bottomAnchor, constant: -6),
+      schemeTabStack.heightAnchor.constraint(equalTo: schemeTabScrollView.frameLayoutGuide.heightAnchor, constant: -12),
+
+      schemeActionStack.topAnchor.constraint(equalTo: schemeTabScrollView.bottomAnchor, constant: 4),
+      schemeActionStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+      schemeActionStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+      schemeActionStack.heightAnchor.constraint(equalToConstant: 38),
+
+      tableView.topAnchor.constraint(equalTo: schemeActionStack.bottomAnchor, constant: 8),
+      tableView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+      tableView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+      tableHeightConstraint,
+
+      layoutContentContainer.topAnchor.constraint(equalTo: tableView.bottomAnchor),
       layoutContentContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
       layoutContentContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
       layoutContentContainer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
@@ -212,6 +275,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     ])
 
     rebuildLayoutTabs()
+    reloadSchemes(applyActive: true)
 
     keyboardSettingsViewModel.resetSignPublished
       .receive(on: DispatchQueue.main)
@@ -252,9 +316,250 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     tableHeightConstraint?.constant = max(240, tableView.contentSize.height)
   }
 
+  private func setupSchemeActions() {
+    schemeActionStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    [
+      ("新建方案", #selector(createScheme)),
+      ("保存方案", #selector(saveScheme)),
+      ("导出JSON", #selector(exportScheme))
+    ].forEach { item in
+      let (title, action) = item
+      var config = UIButton.Configuration.tinted()
+      config.title = title
+      config.cornerStyle = .medium
+      let button = UIButton(configuration: config)
+      button.titleLabel?.adjustsFontSizeToFitWidth = true
+      button.titleLabel?.minimumScaleFactor = 0.82
+      button.addTarget(self, action: action, for: .touchUpInside)
+      schemeActionStack.addArrangedSubview(button)
+    }
+  }
+
+  private var currentSchemeAppearance: KeyboardVisualEffectSchemeAppearance {
+    KeyboardVisualEffectSchemeAppearance(selectedVisualEffectUserInterfaceStyle)
+  }
+
+  private var selectedScheme: KeyboardVisualEffectScheme? {
+    schemes.first { $0.id == selectedSchemeID }
+  }
+
+  private func reloadSchemes(applyActive: Bool) {
+    let appearance = currentSchemeAppearance
+    schemes = schemeStore.schemes(appearance: appearance, keyboardType: selectedKeyboardType)
+    if schemes.isEmpty, let scheme = createDefaultScheme() {
+      schemes = [scheme]
+    }
+
+    let activeID = schemeStore.activeSchemeID(
+      appearance: appearance,
+      keyboardType: selectedKeyboardType
+    )
+    if let activeID, schemes.contains(where: { $0.id == activeID }) {
+      selectedSchemeID = activeID
+    } else {
+      selectedSchemeID = schemes.first?.id
+      schemeStore.setActiveSchemeID(
+        selectedSchemeID,
+        appearance: appearance,
+        keyboardType: selectedKeyboardType
+      )
+    }
+
+    rebuildSchemeTabs()
+    if applyActive, let scheme = selectedScheme {
+      applyScheme(scheme)
+    } else {
+      updateSchemeTitle()
+    }
+  }
+
+  private func createDefaultScheme() -> KeyboardVisualEffectScheme? {
+    let scheme = makeScheme(name: "方案1", forceNewLayoutProfileID: false)
+    do {
+      try schemeStore.save(scheme)
+      schemeStore.setActiveSchemeID(
+        scheme.id,
+        appearance: scheme.appearance,
+        keyboardType: selectedKeyboardType
+      )
+      selectedSchemeID = scheme.id
+      return scheme
+    } catch {
+      showSchemeAlert("方案保存失败", message: error.localizedDescription)
+      return nil
+    }
+  }
+
+  private func makeScheme(
+    name: String,
+    id: String = UUID().uuidString,
+    createdAt: Date = Date(),
+    forceNewLayoutProfileID: Bool
+  ) -> KeyboardVisualEffectScheme {
+    var chinese26Snapshot: KeyboardVisualEffectChinese26Snapshot?
+    if selectedKeyboardType == .chinese(.lowercased) {
+      var snapshot = customLayoutView.visualEffectSchemeSnapshot(named: name)
+      if forceNewLayoutProfileID {
+        snapshot.layoutProfile.id = UUID().uuidString
+      }
+      snapshot.layoutProfile.name = name
+      chinese26Snapshot = snapshot
+    }
+
+    return KeyboardVisualEffectScheme(
+      id: id,
+      name: name,
+      appearance: currentSchemeAppearance,
+      keyboardType: selectedKeyboardType,
+      visualEffect: keyboardSettingsViewModel.keyboardVisualEffectStyleSnapshot(
+        for: selectedVisualEffectUserInterfaceStyle
+      ),
+      chinese26: chinese26Snapshot,
+      createdAt: createdAt,
+      updatedAt: Date()
+    )
+  }
+
+  private func rebuildSchemeTabs() {
+    schemeTabStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+    schemeButtons.removeAll()
+
+    for scheme in schemes {
+      let button = UIButton(type: .system)
+      button.configuration = tabConfiguration(title: scheme.name, selected: scheme.id == selectedSchemeID)
+      button.addAction(UIAction { [weak self] _ in
+        self?.selectScheme(scheme)
+      }, for: .touchUpInside)
+      schemeTabStack.addArrangedSubview(button)
+      schemeButtons.append(button)
+    }
+    updateSchemeTitle()
+  }
+
+  private func updateSchemeTitle() {
+    let appearanceTitle = selectedVisualEffectUserInterfaceStyle == .dark ? "暗色" : "亮色"
+    let schemeName = selectedScheme?.name ?? "未保存"
+    schemeTitleLabel.text = "当前方案：\(appearanceTitle) - \(selectedKeyboardType.label) - \(schemeName)"
+  }
+
+  private func selectScheme(_ scheme: KeyboardVisualEffectScheme) {
+    selectedSchemeID = scheme.id
+    schemeStore.setActiveSchemeID(
+      scheme.id,
+      appearance: currentSchemeAppearance,
+      keyboardType: selectedKeyboardType
+    )
+    applyScheme(scheme)
+    rebuildSchemeTabs()
+  }
+
+  private func applyScheme(_ scheme: KeyboardVisualEffectScheme) {
+    keyboardSettingsViewModel.applyKeyboardVisualEffectStyleSnapshot(
+      scheme.visualEffect,
+      for: selectedVisualEffectUserInterfaceStyle,
+      notifyChange: false
+    )
+    if selectedKeyboardType == .chinese(.lowercased), let snapshot = scheme.chinese26 {
+      customLayoutView.applyVisualEffectSchemeSnapshot(snapshot)
+    } else {
+      customLayoutView.reloadPreview()
+    }
+    reloadSettingsTable()
+    updateLayoutContentHeight()
+    updateSchemeTitle()
+  }
+
+  @objc private func createScheme() {
+    let name = nextSchemeName()
+    let scheme = makeScheme(name: name, forceNewLayoutProfileID: true)
+    do {
+      try schemeStore.save(scheme)
+      selectedSchemeID = scheme.id
+      schemeStore.setActiveSchemeID(
+        scheme.id,
+        appearance: scheme.appearance,
+        keyboardType: selectedKeyboardType
+      )
+      schemes.append(scheme)
+      schemes.sort {
+        if $0.createdAt == $1.createdAt {
+          return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        return $0.createdAt < $1.createdAt
+      }
+      applyScheme(scheme)
+      rebuildSchemeTabs()
+    } catch {
+      showSchemeAlert("方案保存失败", message: error.localizedDescription)
+    }
+  }
+
+  @objc private func saveScheme() {
+    _ = persistSelectedScheme()
+  }
+
+  @objc private func exportScheme() {
+    guard let scheme = persistSelectedScheme() else { return }
+    do {
+      let url = try schemeStore.exportURL(for: scheme)
+      let picker = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+      nearestViewController()?.present(picker, animated: true)
+    } catch {
+      showSchemeAlert("方案导出失败", message: error.localizedDescription)
+    }
+  }
+
+  private func persistSelectedScheme() -> KeyboardVisualEffectScheme? {
+    let existing = selectedScheme
+    let scheme = makeScheme(
+      name: existing?.name ?? nextSchemeName(),
+      id: existing?.id ?? UUID().uuidString,
+      createdAt: existing?.createdAt ?? Date(),
+      forceNewLayoutProfileID: false
+    )
+    do {
+      try schemeStore.save(scheme)
+      selectedSchemeID = scheme.id
+      schemeStore.setActiveSchemeID(
+        scheme.id,
+        appearance: scheme.appearance,
+        keyboardType: selectedKeyboardType
+      )
+      schemes.removeAll { $0.id == scheme.id }
+      schemes.append(scheme)
+      schemes.sort {
+        if $0.createdAt == $1.createdAt {
+          return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        return $0.createdAt < $1.createdAt
+      }
+      rebuildSchemeTabs()
+      return scheme
+    } catch {
+      showSchemeAlert("方案保存失败", message: error.localizedDescription)
+      return nil
+    }
+  }
+
+  private func nextSchemeName() -> String {
+    var index = schemes.count + 1
+    let names = Set(schemes.map(\.name))
+    while names.contains("方案\(index)") {
+      index += 1
+    }
+    return "方案\(index)"
+  }
+
+  private func showSchemeAlert(_ title: String, message: String) {
+    let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+    alert.addAction(UIAlertAction(title: "好", style: .default))
+    nearestViewController()?.present(alert, animated: true)
+  }
+
   @objc private func appearanceModeChanged(_ sender: UISegmentedControl) {
     selectedVisualEffectUserInterfaceStyle = sender.selectedSegmentIndex == 1 ? .dark : .light
     customLayoutView.visualEffectPreviewUserInterfaceStyle = selectedVisualEffectUserInterfaceStyle
+    reloadSchemes(applyActive: true)
     reloadSettingsTable()
     updateLayoutContentHeight()
   }
@@ -295,6 +600,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     let showChinese26 = keyboardType == .chinese(.lowercased)
     customLayoutView.isHidden = !showChinese26
     unsupportedLabel.isHidden = showChinese26
+    reloadSchemes(applyActive: true)
     updateLayoutContentHeight()
   }
 
@@ -367,5 +673,18 @@ extension KeyboardVisualEffectsRootView: UITableViewDataSource, UITableViewDeleg
 
   func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
     currentVisualEffectSections[section].footer
+  }
+}
+
+private extension UIView {
+  func nearestViewController() -> UIViewController? {
+    var responder: UIResponder? = self
+    while let current = responder {
+      if let viewController = current as? UIViewController {
+        return viewController
+      }
+      responder = current.next
+    }
+    return nil
   }
 }

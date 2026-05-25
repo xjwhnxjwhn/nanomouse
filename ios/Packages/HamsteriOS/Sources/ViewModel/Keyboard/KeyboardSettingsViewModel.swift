@@ -228,6 +228,60 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  func keyboardVisualEffectStyleSnapshot(
+    for userInterfaceStyle: UIUserInterfaceStyle
+  ) -> KeyboardVisualEffectStyleSnapshot {
+    let config = keyboardVisualEffectConfiguration
+    if userInterfaceStyle == .dark {
+      return KeyboardVisualEffectStyleSnapshot(
+        glassIntensity: config.darkGlassIntensity,
+        keySurfaceWhiteOverlayIntensity: config.darkKeySurfaceWhiteOverlayIntensity,
+        keySurfaceStyle: config.darkKeySurfaceStyle,
+        keyInputCalloutStyle: config.darkKeyInputCalloutStyle,
+        keyLongPressMenuStyle: config.darkKeyLongPressMenuStyle,
+        textReplacementBubbleStyle: config.darkTextReplacementBubbleStyle
+      )
+    }
+
+    return KeyboardVisualEffectStyleSnapshot(
+      glassIntensity: config.glassIntensity,
+      keySurfaceWhiteOverlayIntensity: config.keySurfaceWhiteOverlayIntensity,
+      keySurfaceStyle: config.keySurfaceStyle,
+      keyInputCalloutStyle: config.keyInputCalloutStyle,
+      keyLongPressMenuStyle: config.keyLongPressMenuStyle,
+      textReplacementBubbleStyle: config.textReplacementBubbleStyle
+    )
+  }
+
+  func applyKeyboardVisualEffectStyleSnapshot(
+    _ snapshot: KeyboardVisualEffectStyleSnapshot,
+    for userInterfaceStyle: UIUserInterfaceStyle,
+    notifyChange: Bool = true
+  ) {
+    updateKeyboardVisualEffectConfiguration(notifyChange: notifyChange) { config in
+      config.defaultStyle = nil
+      config.darkDefaultStyle = nil
+      config.keyboardBackgroundStyle = nil
+
+      if userInterfaceStyle == .dark {
+        config.darkGlassIntensity = snapshot.glassIntensity
+        config.darkKeySurfaceWhiteOverlayIntensity = snapshot.keySurfaceWhiteOverlayIntensity
+        config.darkKeySurfaceStyle = snapshot.keySurfaceStyle
+        config.darkKeyInputCalloutStyle = snapshot.keyInputCalloutStyle
+        config.darkKeyLongPressMenuStyle = snapshot.keyLongPressMenuStyle
+        config.darkTextReplacementBubbleStyle = snapshot.textReplacementBubbleStyle
+        return
+      }
+
+      config.glassIntensity = snapshot.glassIntensity
+      config.keySurfaceWhiteOverlayIntensity = snapshot.keySurfaceWhiteOverlayIntensity
+      config.keySurfaceStyle = snapshot.keySurfaceStyle
+      config.keyInputCalloutStyle = snapshot.keyInputCalloutStyle
+      config.keyLongPressMenuStyle = snapshot.keyLongPressMenuStyle
+      config.textReplacementBubbleStyle = snapshot.textReplacementBubbleStyle
+    }
+  }
+
   public var upSwipeOnLeft: Bool {
     get {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.upSwipeOnLeft ?? false
