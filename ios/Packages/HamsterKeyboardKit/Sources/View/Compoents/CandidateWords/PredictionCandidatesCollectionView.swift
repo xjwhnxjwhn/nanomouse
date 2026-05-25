@@ -57,7 +57,11 @@ final class PredictionCandidatesCollectionView: UICollectionView {
     rimeContext.$predictiveSuggestions
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
-        self?.reloadData()
+        guard let self else { return }
+        collectionViewLayout.invalidateLayout()
+        setContentOffset(.zero, animated: false)
+        reloadData()
+        setNeedsLayout()
       }
       .store(in: &subscriptions)
   }

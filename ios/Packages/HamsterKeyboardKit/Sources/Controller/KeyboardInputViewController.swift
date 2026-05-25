@@ -68,6 +68,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var hideVoiceUndoWorkItem: DispatchWorkItem?
   private var voiceResultPollingTimer: Timer?
   private var voiceResultPollingDeadline: Date?
+  private var predictiveSuggestionsRefreshID: UInt64 = 0
   private let rimeStartupStateQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.rime.startup.state")
   private var rimeStartupTask: Task<Void, Never>?
   private var rimeStartupInProgress = false
@@ -784,7 +785,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return key.localizedCaseInsensitiveContains("traditional") ? value : !value
   }
 
+  private func isChineseFallbackPrediction(_ suggestions: [CandidateSuggestion]) -> Bool {
+    suggestions.first?.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID
+  }
+
   func clearPredictiveSuggestions() {
+    predictiveSuggestionsRefreshID &+= 1
     Task { @MainActor in
       if !self.rimeContext.predictiveSuggestions.isEmpty {
         self.rimeContext.predictiveSuggestions = []
@@ -792,13 +798,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
   }
 
-  private func schedulePredictiveSuggestionsRefresh() {
+  private func schedulePredictiveSuggestionsRefresh(delay: TimeInterval = 0.08) {
     guard keyboardContext.enablePredictiveSuggestions else {
       clearPredictiveSuggestions()
       return
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
-      self?.refreshPredictiveSuggestions()
+    predictiveSuggestionsRefreshID &+= 1
+    let refreshID = predictiveSuggestionsRefreshID
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      guard let self, self.predictiveSuggestionsRefreshID == refreshID else { return }
+      self.refreshPredictiveSuggestions()
     }
   }
 
@@ -820,7 +829,23 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       suggestions = azooKeyEngine.postCompositionPredictionSuggestions()
     } else if isEnglishInputActive {
       suggestions = englishEngine.predictiveSuggestions(for: textDocumentProxy.documentContextBeforeInput)
-    } else if isRimeChineseInputActive, rimeContext.predictiveSuggestions.isEmpty, !isTraditionalChineseModeActive {
+    } else if isRimeChineseInputActive {
+      if rimeContext.predictiveSuggestions.isEmpty || isChineseFallbackPrediction(rimeContext.predictiveSuggestions) {
+        rimeContext.syncContext()
+      }
+      if !rimeContext.predictiveSuggestions.isEmpty,
+         !isChineseFallbackPrediction(rimeContext.predictiveSuggestions)
+      {
+        return
+      }
+      guard !isTraditionalChineseModeActive else {
+        Task { @MainActor in
+          if self.isChineseFallbackPrediction(self.rimeContext.predictiveSuggestions) {
+            self.rimeContext.predictiveSuggestions = []
+          }
+        }
+        return
+      }
       suggestions = ChinesePredictiveFallbackProvider.shared.suggestions(
         for: textDocumentProxy.documentContextBeforeInput,
         maxCandidates: keyboardContext.hamsterConfiguration?.keyboard?.predictiveSuggestionsMaxCandidates ?? 8
@@ -840,12 +865,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard index >= 0, index < suggestions.count else { return }
     let selected = suggestions[index]
     if selected.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID {
+      rimeContext.predictiveSuggestions = []
       textDocumentProxy.insertText(selected.text)
       captureDiaryInputSegmentAfterCandidateSelection()
       schedulePredictiveSuggestionsRefresh()
       return
     }
     if !isAzooKeyInputActive && !isEnglishInputActive {
+      rimeContext.predictiveSuggestions = []
       rimeContext.selectCandidate(index: selected.index)
       captureDiaryInputSegmentAfterCandidateSelection()
       schedulePredictiveSuggestionsRefresh()
@@ -858,7 +885,16 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       clearPredictiveSuggestions()
       return
     }
+    rimeContext.predictiveSuggestions = []
     textDocumentProxy.insertText(text)
+    captureDiaryInputSegmentAfterCandidateSelection()
+    schedulePredictiveSuggestionsRefresh()
+  }
+
+  func selectRimeCandidate(index: Int) {
+    guard !isAzooKeyInputActive && !isEnglishInputActive else { return }
+    rimeContext.predictiveSuggestions = []
+    rimeContext.selectCandidate(index: index)
     captureDiaryInputSegmentAfterCandidateSelection()
     schedulePredictiveSuggestionsRefresh()
   }

@@ -217,6 +217,8 @@ extension CandidatesPagingCollectionView: UICollectionViewDelegate {
         )
         return
       }
+      controller.selectRimeCandidate(index: indexPath.item)
+      return
     }
     self.rimeContext.selectCandidate(index: indexPath.item)
   }

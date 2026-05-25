@@ -348,17 +348,17 @@ public extension KeyboardInputViewController {
 
   /// 首选候选字上屏
   func selectPrimaryCandidate() {
-    rimeContext.selectCandidate(index: 0)
+    selectRimeCandidate(index: 0)
   }
 
   /// 第二位候选字上屏
   func selectSecondaryCandidate() {
-    rimeContext.selectCandidate(index: 1)
+    selectRimeCandidate(index: 1)
   }
 
   /// 第三位候选字上屏
   func selectTertiaryCandidate() {
-    rimeContext.selectCandidate(index: 2)
+    selectRimeCandidate(index: 2)
   }
 
   /// 光标移动句首

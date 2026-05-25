@@ -264,6 +264,8 @@ extension CandidateWordsCollectionView: UICollectionViewDelegate {
         controller.selectAzooKeyCandidate(index: indexPath.item)
         return
       }
+      controller.selectRimeCandidate(index: indexPath.item)
+      return
     }
     self.rimeContext.selectCandidate(index: indexPath.item)
   }
