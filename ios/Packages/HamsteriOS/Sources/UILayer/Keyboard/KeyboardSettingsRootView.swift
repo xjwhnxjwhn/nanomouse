@@ -23,6 +23,7 @@ class KeyboardSettingsRootView: NibLessView {
     tableView.register(ButtonTableViewCell.self, forCellReuseIdentifier: ButtonTableViewCell.identifier)
     tableView.register(PullDownMenuCell.self, forCellReuseIdentifier: PullDownMenuCell.identifier)
     tableView.register(StepperTableViewCell.self, forCellReuseIdentifier: StepperTableViewCell.identifier)
+    tableView.register(KeyboardVisualEffectPreviewTableViewCell.self, forCellReuseIdentifier: KeyboardVisualEffectPreviewTableViewCell.identifier)
     return tableView
   }()
 
@@ -111,7 +112,12 @@ extension KeyboardSettingsRootView: UITableViewDataSource {
       return cell
     case .step:
       let cell = tableView.dequeueReusableCell(withIdentifier: StepperTableViewCell.identifier, for: indexPath)
-      guard let cell = cell as? SettingTableViewCell else { return cell }
+      guard let cell = cell as? StepperTableViewCell else { return cell }
+      cell.updateWithSettingItem(setting)
+      return cell
+    case .keyboardVisualEffectPreview:
+      let cell = tableView.dequeueReusableCell(withIdentifier: KeyboardVisualEffectPreviewTableViewCell.identifier, for: indexPath)
+      guard let cell = cell as? KeyboardVisualEffectPreviewTableViewCell else { return cell }
       cell.updateWithSettingItem(setting)
       return cell
     }

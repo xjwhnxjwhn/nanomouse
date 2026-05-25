@@ -54,22 +54,128 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var keyboardVisualEffectDefaultStyle: KeyboardVisualEffectStyle {
     get {
-      keyboardVisualEffectConfiguration.defaultStyle ?? .system
+      keyboardVisualEffectDefaultStyle(for: .light)
     }
     set {
-      updateKeyboardVisualEffectConfiguration { config in
-        config.defaultStyle = newValue
+      setKeyboardVisualEffectDefaultStyle(newValue, for: .light)
+    }
+  }
+
+  public var keyboardVisualEffectGlassIntensityPercent: Int {
+    get {
+      keyboardVisualEffectGlassIntensityPercent(for: .light)
+    }
+    set {
+      setKeyboardVisualEffectGlassIntensityPercent(newValue)
+    }
+  }
+
+  public func setKeyboardVisualEffectGlassIntensityPercent(_ percent: Int, notifyChange: Bool = true) {
+    setKeyboardVisualEffectGlassIntensityPercent(percent, for: .light, notifyChange: notifyChange)
+  }
+
+  public func keyboardVisualEffectDefaultStyle(for userInterfaceStyle: UIUserInterfaceStyle) -> KeyboardVisualEffectStyle {
+    let config = keyboardVisualEffectConfiguration
+    if userInterfaceStyle == .dark {
+      return config.darkDefaultStyle ?? config.defaultStyle ?? .system
+    }
+    return config.defaultStyle ?? .system
+  }
+
+  public func setKeyboardVisualEffectDefaultStyle(
+    _ style: KeyboardVisualEffectStyle,
+    for userInterfaceStyle: UIUserInterfaceStyle
+  ) {
+    updateKeyboardVisualEffectConfiguration { config in
+      if userInterfaceStyle == .dark {
+        config.darkDefaultStyle = style
+      } else {
+        config.defaultStyle = style
+      }
+    }
+  }
+
+  public func keyboardVisualEffectGlassIntensityPercent(for userInterfaceStyle: UIUserInterfaceStyle) -> Int {
+    let value = keyboardVisualEffectConfiguration.glassIntensity(for: userInterfaceStyle)
+    return Int((max(0, min(1, value)) * 100).rounded())
+  }
+
+  public func setKeyboardVisualEffectGlassIntensityPercent(
+    _ percent: Int,
+    for userInterfaceStyle: UIUserInterfaceStyle,
+    notifyChange: Bool = true
+  ) {
+    updateKeyboardVisualEffectConfiguration(notifyChange: notifyChange) { config in
+      let value = max(0, min(100, Double(percent))) / 100
+      if userInterfaceStyle == .dark {
+        config.darkGlassIntensity = value
+      } else {
+        config.glassIntensity = value
+      }
+    }
+  }
+
+  public func keyboardVisualEffectKeySurfaceWhiteOverlayIntensityPercent(
+    for userInterfaceStyle: UIUserInterfaceStyle
+  ) -> Int {
+    let value = keyboardVisualEffectConfiguration.keySurfaceWhiteOverlayIntensity(for: userInterfaceStyle)
+    return Int((max(0, min(1, value)) * 100).rounded())
+  }
+
+  public func setKeyboardVisualEffectKeySurfaceWhiteOverlayIntensityPercent(
+    _ percent: Int,
+    for userInterfaceStyle: UIUserInterfaceStyle,
+    notifyChange: Bool = true
+  ) {
+    updateKeyboardVisualEffectConfiguration(notifyChange: notifyChange) { config in
+      let value = max(0, min(100, Double(percent))) / 100
+      if userInterfaceStyle == .dark {
+        config.darkKeySurfaceWhiteOverlayIntensity = value
+      } else {
+        config.keySurfaceWhiteOverlayIntensity = value
       }
     }
   }
 
   public func keyboardVisualEffectStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle {
-    keyboardVisualEffectConfiguration.style(for: target)
+    keyboardVisualEffectStyle(for: target, userInterfaceStyle: .light)
+  }
+
+  public func keyboardVisualEffectStyle(
+    for target: KeyboardVisualEffectTarget,
+    userInterfaceStyle: UIUserInterfaceStyle
+  ) -> KeyboardVisualEffectStyle {
+    keyboardVisualEffectConfiguration.style(for: target, userInterfaceStyle: userInterfaceStyle)
   }
 
   public func keyboardVisualEffectOverrideStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle? {
+    keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: .light)
+  }
+
+  public func keyboardVisualEffectOverrideStyle(
+    for target: KeyboardVisualEffectTarget,
+    userInterfaceStyle: UIUserInterfaceStyle
+  ) -> KeyboardVisualEffectStyle? {
     let config = keyboardVisualEffectConfiguration
+    if userInterfaceStyle == .dark {
+      switch target {
+      case .keyboardBackground:
+        return config.keyboardBackgroundStyle
+      case .keySurface:
+        return config.darkKeySurfaceStyle
+      case .keyInputCallout:
+        return config.darkKeyInputCalloutStyle
+      case .keyLongPressMenu:
+        return config.darkKeyLongPressMenuStyle
+      case .textReplacementBubble:
+        return config.darkTextReplacementBubbleStyle
+      }
+    }
     switch target {
+    case .keyboardBackground:
+      return config.keyboardBackgroundStyle
+    case .keySurface:
+      return config.keySurfaceStyle
     case .keyInputCallout:
       return config.keyInputCalloutStyle
     case .keyLongPressMenu:
@@ -83,8 +189,35 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     _ style: KeyboardVisualEffectStyle?,
     for target: KeyboardVisualEffectTarget
   ) {
+    setKeyboardVisualEffectStyle(style, for: target, userInterfaceStyle: .light)
+  }
+
+  public func setKeyboardVisualEffectStyle(
+    _ style: KeyboardVisualEffectStyle?,
+    for target: KeyboardVisualEffectTarget,
+    userInterfaceStyle: UIUserInterfaceStyle
+  ) {
     updateKeyboardVisualEffectConfiguration { config in
+      if userInterfaceStyle == .dark {
+        switch target {
+        case .keyboardBackground:
+          config.keyboardBackgroundStyle = style
+        case .keySurface:
+          config.darkKeySurfaceStyle = style
+        case .keyInputCallout:
+          config.darkKeyInputCalloutStyle = style
+        case .keyLongPressMenu:
+          config.darkKeyLongPressMenuStyle = style
+        case .textReplacementBubble:
+          config.darkTextReplacementBubbleStyle = style
+        }
+        return
+      }
       switch target {
+      case .keyboardBackground:
+        config.keyboardBackgroundStyle = style
+      case .keySurface:
+        config.keySurfaceStyle = style
       case .keyInputCallout:
         config.keyInputCalloutStyle = style
       case .keyLongPressMenu:
@@ -809,10 +942,13 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   private var keyboardVisualEffectConfiguration: KeyboardVisualEffectConfiguration {
-    HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect ?? KeyboardVisualEffectConfiguration()
+    var config = HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect ?? KeyboardVisualEffectConfiguration()
+    config.keyboardBackgroundStyle = nil
+    return config
   }
 
   private func updateKeyboardVisualEffectConfiguration(
+    notifyChange: Bool = true,
     _ update: (inout KeyboardVisualEffectConfiguration) -> Void
   ) {
     if HamsterAppDependencyContainer.shared.configuration.keyboard == nil {
@@ -824,9 +960,14 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     var config = keyboardVisualEffectConfiguration
     update(&config)
+    config.keyboardBackgroundStyle = nil
     HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect = config
     HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.visualEffect = config
-    resetSignSubject.send(true)
+    if notifyChange {
+      resetSignSubject.send(true)
+    } else {
+      keyboardVisualEffectPreviewChangeSubject.send(())
+    }
   }
 
   /// 键盘布局用户选择设置键盘类型
@@ -924,6 +1065,12 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   public var resetSignSubject = PassthroughSubject<Bool, Never>()
   public var resetSignPublished: AnyPublisher<Bool, Never> {
     resetSignSubject.eraseToAnyPublisher()
+  }
+
+  /// 键盘视觉效果的轻量刷新信号，用于输入 Tint 数值时实时刷新预览，不重载正在编辑的表格。
+  public var keyboardVisualEffectPreviewChangeSubject = PassthroughSubject<Void, Never>()
+  public var keyboardVisualEffectPreviewChangePublished: AnyPublisher<Void, Never> {
+    keyboardVisualEffectPreviewChangeSubject.eraseToAnyPublisher()
   }
 
   /// navigation 转 subview
@@ -1070,6 +1217,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       .filter { keySwipeDetailTexts.contains($0.text) }
 
     return keyboardSettingsItems.compactMap { section in
+      guard !section.title.hasPrefix("键盘视觉效果") else { return nil }
       let texts = Set(section.items.map(\.text))
       guard !texts.contains(where: keySwipeDetailTexts.contains) else {
         return nil
@@ -1083,6 +1231,79 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       groupedSection.items += keySwipeDetailItems
       return groupedSection
     }
+  }
+
+  public var keyboardVisualEffectSettingsItems: [SettingSectionModel] {
+    keyboardSettingsItems.filter { $0.title.hasPrefix("键盘视觉效果") }
+  }
+
+  public func keyboardVisualEffectSettingsItems(
+    for userInterfaceStyle: UIUserInterfaceStyle
+  ) -> [SettingSectionModel] {
+    [makeKeyboardVisualEffectSection(for: userInterfaceStyle)]
+  }
+
+  private func makeKeyboardVisualEffectSection(for userInterfaceStyle: UIUserInterfaceStyle) -> SettingSectionModel {
+    let modeTitle = userInterfaceStyle == .dark ? "暗色模式" : "亮色模式"
+    return .init(
+      title: "键盘视觉效果（\(modeTitle)）",
+      footer: "真实键盘背景板由系统宿主提供，这里不再额外覆盖。跟随系统：iOS 26 使用系统液态玻璃，iOS 18 及以前使用系统毛玻璃。按键白色毛玻璃为 0 时不额外叠白，调高后会给按键本体增加白色毛玻璃，以降低对比度。",
+      items: [
+        .init(
+          text: "默认气泡效果",
+          type: .pullDown,
+          textValue: { [unowned self] in labelText(for: keyboardVisualEffectDefaultStyle(for: userInterfaceStyle)) },
+          pullDownMenuActionsBuilder: { [unowned self] in
+            KeyboardVisualEffectStyle.allCases.map { style in
+              UIAction(
+                title: labelText(for: style),
+                state: style == keyboardVisualEffectDefaultStyle(for: userInterfaceStyle) ? .on : .off
+              ) { [unowned self] _ in
+                setKeyboardVisualEffectDefaultStyle(style, for: userInterfaceStyle)
+              }
+            }
+          }),
+        .init(
+          text: "玻璃 Tint 强度",
+          type: .keyboardVisualEffectPreview,
+          textValue: { [unowned self] in "\(keyboardVisualEffectGlassIntensityPercent(for: userInterfaceStyle))" },
+          minValue: 0,
+          maxValue: 100,
+          valueChangeHandled: { [unowned self] in
+            setKeyboardVisualEffectGlassIntensityPercent(Int($0), for: userInterfaceStyle, notifyChange: false)
+          },
+          visualEffectPreviewUserInterfaceStyle: userInterfaceStyle),
+        .init(
+          text: "按键白色毛玻璃",
+          type: .keyboardVisualEffectPreview,
+          textValue: { [unowned self] in "\(keyboardVisualEffectKeySurfaceWhiteOverlayIntensityPercent(for: userInterfaceStyle))" },
+          minValue: 0,
+          maxValue: 100,
+          valueChangeHandled: { [unowned self] in
+            setKeyboardVisualEffectKeySurfaceWhiteOverlayIntensityPercent(Int($0), for: userInterfaceStyle, notifyChange: false)
+          },
+          visualEffectPreviewUserInterfaceStyle: userInterfaceStyle),
+        .init(
+          text: "按键本体",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .keySurface, userInterfaceStyle: userInterfaceStyle) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keySurface, userInterfaceStyle: userInterfaceStyle) }),
+        .init(
+          text: "点按按键气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyInputCallout, userInterfaceStyle: userInterfaceStyle) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyInputCallout, userInterfaceStyle: userInterfaceStyle) }),
+        .init(
+          text: "长按按键气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyLongPressMenu, userInterfaceStyle: userInterfaceStyle) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyLongPressMenu, userInterfaceStyle: userInterfaceStyle) }),
+        .init(
+          text: "快捷短语气泡",
+          type: .pullDown,
+          textValue: { [unowned self] in visualEffectTargetLabel(for: .textReplacementBubble, userInterfaceStyle: userInterfaceStyle) },
+          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .textReplacementBubble, userInterfaceStyle: userInterfaceStyle) })
+      ])
   }
 
   // MARK: - init data
@@ -1143,7 +1364,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       }()
     ),
     .init(
-      footer: Self.enableKeyboardAutomaticallyLowercaseRemark,
+      footer: "\(Self.enableKeyboardAutomaticallyLowercaseRemark)\n长按普通按键可展开扩展字符；长按 123 可呼出数字暂存面板。",
       items: [
         .init(
           text: "显示按键气泡",
@@ -1168,40 +1389,8 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           })
       ]),
 
-    .init(
-      title: "键盘视觉效果",
-      footer: "系统默认：iOS 26 使用系统液态玻璃，iOS 18 及以前使用系统毛玻璃。选择 iOS 26 风格时，旧系统会使用近似毛玻璃模拟。",
-      items: [
-        .init(
-          text: "默认气泡效果",
-          type: .pullDown,
-          textValue: { [unowned self] in labelText(for: keyboardVisualEffectDefaultStyle) },
-          pullDownMenuActionsBuilder: { [unowned self] in
-            KeyboardVisualEffectStyle.allCases.map { style in
-              UIAction(
-                title: labelText(for: style),
-                state: style == keyboardVisualEffectDefaultStyle ? .on : .off
-              ) { [unowned self] _ in
-                keyboardVisualEffectDefaultStyle = style
-              }
-            }
-          }),
-        .init(
-          text: "点按按键气泡",
-          type: .pullDown,
-          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyInputCallout) },
-          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyInputCallout) }),
-        .init(
-          text: "长按按键气泡",
-          type: .pullDown,
-          textValue: { [unowned self] in visualEffectTargetLabel(for: .keyLongPressMenu) },
-          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .keyLongPressMenu) }),
-        .init(
-          text: "快捷短语气泡",
-          type: .pullDown,
-          textValue: { [unowned self] in visualEffectTargetLabel(for: .textReplacementBubble) },
-          pullDownMenuActionsBuilder: { [unowned self] in visualEffectTargetActions(for: .textReplacementBubble) })
-      ]),
+    makeKeyboardVisualEffectSection(for: .light),
+    makeKeyboardVisualEffectSection(for: .dark),
 
     .init(
       footer: "开启后建议调整工具栏高度为：40。\n（位置：键盘设置 -> 候选栏设置 -> 工具栏高度）",
@@ -1239,7 +1428,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]),
 
     .init(
-      footer: "关闭后，按键上下左右滑动不会触发输入，按键上的划动提示也会隐藏。",
+      footer: "开启后，在按键上向上、下、左、右滑动可触发对应动作；关闭后不会触发滑动输入，按键上的划动提示也会隐藏。",
       items: [
         .init(
           text: "按键滑动输入",
@@ -2294,28 +2483,50 @@ private extension KeyboardSettingsViewModel {
     switch style {
     case .system: return "跟随系统"
     case .ios18Blur: return "iOS 18 毛玻璃"
-    case .ios26LiquidGlass: return "iOS 26 液态玻璃"
+    case .ios26LiquidGlass: return "iOS 26 Regular 液态玻璃"
+    case .ios26ClearLiquidGlass: return "iOS 26 Clear 液态玻璃"
+    case .transparent: return "纯透明"
     }
   }
 
   func visualEffectTargetLabel(for target: KeyboardVisualEffectTarget) -> String {
-    if let style = keyboardVisualEffectOverrideStyle(for: target) {
+    visualEffectTargetLabel(for: target, userInterfaceStyle: .light)
+  }
+
+  func visualEffectTargetLabel(
+    for target: KeyboardVisualEffectTarget,
+    userInterfaceStyle: UIUserInterfaceStyle
+  ) -> String {
+    if let style = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: userInterfaceStyle) {
       return labelText(for: style)
     }
-    return "跟随默认（\(labelText(for: keyboardVisualEffectDefaultStyle))）"
+    if userInterfaceStyle == .dark,
+       keyboardVisualEffectConfiguration.darkDefaultStyle == nil,
+       let inheritedStyle = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: .light)
+    {
+      return "继承亮色设置（\(labelText(for: inheritedStyle))）"
+    }
+    return "跟随默认气泡效果（\(labelText(for: keyboardVisualEffectDefaultStyle(for: userInterfaceStyle)))）"
   }
 
   func visualEffectTargetActions(for target: KeyboardVisualEffectTarget) -> [UIAction] {
-    let overrideStyle = keyboardVisualEffectOverrideStyle(for: target)
+    visualEffectTargetActions(for: target, userInterfaceStyle: .light)
+  }
+
+  func visualEffectTargetActions(
+    for target: KeyboardVisualEffectTarget,
+    userInterfaceStyle: UIUserInterfaceStyle
+  ) -> [UIAction] {
+    let overrideStyle = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: userInterfaceStyle)
     var actions: [UIAction] = [
       UIAction(title: "跟随默认", state: overrideStyle == nil ? .on : .off) { [unowned self] _ in
-        setKeyboardVisualEffectStyle(nil, for: target)
+        setKeyboardVisualEffectStyle(nil, for: target, userInterfaceStyle: userInterfaceStyle)
       }
     ]
 
     actions += KeyboardVisualEffectStyle.allCases.map { style in
       UIAction(title: labelText(for: style), state: overrideStyle == style ? .on : .off) { [unowned self] _ in
-        setKeyboardVisualEffectStyle(style, for: target)
+        setKeyboardVisualEffectStyle(style, for: target, userInterfaceStyle: userInterfaceStyle)
       }
     }
     return actions

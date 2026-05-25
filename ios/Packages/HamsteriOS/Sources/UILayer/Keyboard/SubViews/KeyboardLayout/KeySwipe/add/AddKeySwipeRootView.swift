@@ -155,6 +155,11 @@ extension AddKeySwipeRootView: UITableViewDataSource {
       return cell
     case .step:
       let cell = tableView.dequeueReusableCell(withIdentifier: StepperTableViewCell.identifier, for: indexPath)
+      guard let cell = cell as? StepperTableViewCell else { return cell }
+      cell.updateWithSettingItem(setting)
+      return cell
+    case .keyboardVisualEffectPreview:
+      let cell = tableView.dequeueReusableCell(withIdentifier: SettingTableViewCell.identifier, for: indexPath)
       guard let cell = cell as? SettingTableViewCell else { return cell }
       cell.updateWithSettingItem(setting)
       return cell

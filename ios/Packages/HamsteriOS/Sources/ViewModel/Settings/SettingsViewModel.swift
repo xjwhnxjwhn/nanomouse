@@ -166,6 +166,14 @@ public class SettingsViewModel: ObservableObject {
           }
         ),
         .init(
+          icon: UIImage(systemName: "sparkles")!,
+          text: AppL10n.text("键盘视觉效果"),
+          accessoryType: .disclosureIndicator,
+          navigationAction: { [unowned self] in
+            self.mainViewModel.subViewSubject.send(.keyboardVisualEffects)
+          }
+        ),
+        .init(
           icon: UIImage(systemName: "paintpalette")!,
           text: AppL10n.text("键盘配色"),
           accessoryType: .disclosureIndicator,

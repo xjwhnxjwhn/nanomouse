@@ -256,6 +256,10 @@ extension HamsterAppDependencyContainer: KeyboardSettingsSubViewControllerFactor
     KeyboardLayoutViewController(keyboardSettingsViewModel: keyboardSettingsViewModel)
   }
 
+  func makeKeyboardVisualEffectsViewController() -> KeyboardVisualEffectsViewController {
+    KeyboardVisualEffectsViewController(keyboardSettingsViewModel: keyboardSettingsViewModel)
+  }
+
   func makeSpaceSettingsViewController() -> SpaceSettingsViewController {
     SpaceSettingsViewController(keyboardSettingsViewModel: keyboardSettingsViewModel)
   }

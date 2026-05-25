@@ -101,7 +101,9 @@ extension KeyboardLayoutRootView {
       configuration.text = """
       注意：
       1. 内置键盘向左滑动进入设置页面。
-      2. 自定义布局通过配置文件调整，调整后需重新部署。
+      2. 中文 26 键的键帽外观和位置自定义已移动到「键盘视觉效果」。
+      3. 单手键盘可在真实键盘的繁简/语言区域左右滑动切换左手、双手、右手。
+      4. 配置文件型自定义布局调整后需重新部署。
       """
       configuration.textProperties.font = UIFont.preferredFont(forTextStyle: .caption2)
       configuration.textProperties.color = UIColor.secondaryLabel

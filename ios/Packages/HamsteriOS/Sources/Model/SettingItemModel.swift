@@ -37,6 +37,7 @@ public struct SettingItemModel: Hashable, Identifiable {
   public var maxValue: Double
   public var stepValue: Double
   public var valueChangeHandled: ((Double) -> Void)?
+  public var visualEffectPreviewUserInterfaceStyle: UIUserInterfaceStyle?
 
   init(
     icon: UIImage? = nil,
@@ -62,7 +63,8 @@ public struct SettingItemModel: Hashable, Identifiable {
     minValue: Double = 0,
     maxValue: Double = 0,
     stepValue: Double = 1,
-    valueChangeHandled: ((Double) -> Void)? = nil
+    valueChangeHandled: ((Double) -> Void)? = nil,
+    visualEffectPreviewUserInterfaceStyle: UIUserInterfaceStyle? = nil
   ) {
     self.icon = icon
     self.iconBackgroundColor = iconBackgroundColor
@@ -89,6 +91,7 @@ public struct SettingItemModel: Hashable, Identifiable {
     self.maxValue = maxValue
     self.stepValue = stepValue
     self.valueChangeHandled = valueChangeHandled
+    self.visualEffectPreviewUserInterfaceStyle = visualEffectPreviewUserInterfaceStyle
   }
 }
 

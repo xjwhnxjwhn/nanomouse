@@ -23,6 +23,9 @@ public enum SettingsSubView: String {
 
   /// 键盘布局页面
   case keyboardLayout
+
+  /// 键盘视觉效果页面
+  case keyboardVisualEffects
   
   /// 键盘配色页面
   case colorSchema

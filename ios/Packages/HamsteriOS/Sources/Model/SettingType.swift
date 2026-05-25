@@ -21,4 +21,6 @@ public enum SettingType: Hashable, Equatable {
   case settings
 
   case step
+
+  case keyboardVisualEffectPreview
 }

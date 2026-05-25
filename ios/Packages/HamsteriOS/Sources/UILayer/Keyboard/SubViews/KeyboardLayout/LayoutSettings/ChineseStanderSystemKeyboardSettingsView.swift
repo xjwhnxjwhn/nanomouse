@@ -15,7 +15,7 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
   private var subscriptions = Set<AnyCancellable>()
 
   lazy var segmentedControl: UISegmentedControl = {
-    let tags = ["设置", "划动设置", "自定义布局"]
+    let tags = ["设置", "划动设置"]
     let segmentedControl = UISegmentedControl(items: tags)
     segmentedControl.translatesAutoresizingMaskIntoConstraints = false
     segmentedControl.selectedSegmentIndex = 0
@@ -55,12 +55,6 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
     return view
   }()
 
-  lazy var customLayoutView: UIView = {
-    let view = ChineseKeyboardCustomLayoutSettingsView()
-    view.translatesAutoresizingMaskIntoConstraints = false
-    return view
-  }()
-
   init(keyboardSettingsViewModel: KeyboardSettingsViewModel) {
     self.keyboardSettingsViewModel = keyboardSettingsViewModel
 
@@ -86,12 +80,9 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
 
     contentContainerView.addSubview(tableView)
     contentContainerView.addSubview(swipeSettingView)
-    contentContainerView.addSubview(customLayoutView)
     tableView.fillSuperview()
     swipeSettingView.fillSuperview()
-    customLayoutView.fillSuperview()
     swipeSettingView.isHidden = true
-    customLayoutView.isHidden = true
 
     keyboardSettingsViewModel.segmentActionPublished
       .receive(on: DispatchQueue.main)
@@ -100,15 +91,12 @@ class ChineseStanderSystemKeyboardSettingsView: NibLessView {
         case .chineseLayoutSettings:
           tableView.isHidden = false
           swipeSettingView.isHidden = true
-          customLayoutView.isHidden = true
         case .chineseLayoutSwipeSettings:
           tableView.isHidden = true
           swipeSettingView.isHidden = false
-          customLayoutView.isHidden = true
         case .chineseLayoutCustomSettings:
-          tableView.isHidden = true
+          tableView.isHidden = false
           swipeSettingView.isHidden = true
-          customLayoutView.isHidden = false
         }
       }
       .store(in: &subscriptions)
@@ -168,6 +156,11 @@ extension ChineseStanderSystemKeyboardSettingsView: UITableViewDataSource {
       return cell
     case .step:
       let cell = tableView.dequeueReusableCell(withIdentifier: StepperTableViewCell.identifier, for: indexPath)
+      guard let cell = cell as? StepperTableViewCell else { return cell }
+      cell.updateWithSettingItem(setting)
+      return cell
+    case .keyboardVisualEffectPreview:
+      let cell = tableView.dequeueReusableCell(withIdentifier: SettingTableViewCell.identifier, for: indexPath)
       guard let cell = cell as? SettingTableViewCell else { return cell }
       cell.updateWithSettingItem(setting)
       return cell
