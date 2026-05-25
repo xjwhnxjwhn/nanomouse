@@ -69,6 +69,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var voiceResultPollingTimer: Timer?
   private var voiceResultPollingDeadline: Date?
   private var predictiveSuggestionsRefreshID: UInt64 = 0
+  private var systemTextReplacementLoadInFlight = false
+  private var didRetrySystemTextReplacementAfterHostConnection = false
   private let rimeStartupStateQueue = DispatchQueue(label: "com.XiangqingZHANG.nanomouse.rime.startup.state")
   private var rimeStartupTask: Task<Void, Never>?
   private var rimeStartupInProgress = false
@@ -167,14 +169,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       }
     }
 
-    // 加载系统文本替换
-    let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
-    Logger.statistics.info("SystemTextReplacement: enableSystemTextReplacement = \(enableTextReplacement)")
-    if enableTextReplacement {
-      KeyboardStartupDiagnostics.measure("systemTextReplacementManager.loadLexicon") {
-        systemTextReplacementManager.loadLexicon(from: self)
-      }
-    }
+    loadSystemTextReplacementLexiconIfNeeded(reason: "viewWillAppear")
 
     // 这里不再修改 window 级手势识别器，避免在 Chrome 等宿主中触发系统级副作用。
     KeyboardStartupDiagnostics.setStartupPhase("controller.viewWillAppear.end")
@@ -186,6 +181,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     isKeyboardHostInactive = false
     KeyboardStartupDiagnostics.log("viewDidAppear begin bounds=\(view.bounds) keyboardType=\(keyboardContext.keyboardType.yamlString)")
     hasEstablishedHostConnection = true
+    if !didRetrySystemTextReplacementAfterHostConnection {
+      didRetrySystemTextReplacementAfterHostConnection = true
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+        self?.loadSystemTextReplacementLexiconIfNeeded(reason: "viewDidAppear", force: true)
+      }
+    }
     reportFullAccessStateIfNeeded()
     KeyboardStartupDiagnostics.measure("startVoiceResultPollingIfNeeded") { startVoiceResultPollingIfNeeded() }
     KeyboardStartupDiagnostics.measure("handlePendingBridgeResults") {
@@ -785,16 +786,51 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return key.localizedCaseInsensitiveContains("traditional") ? value : !value
   }
 
+  private func loadSystemTextReplacementLexiconIfNeeded(reason: String, force: Bool = false) {
+    let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
+    Logger.statistics.info("SystemTextReplacement: \(reason, privacy: .public) enableSystemTextReplacement = \(enableTextReplacement)")
+    guard enableTextReplacement else {
+      rimeContext.textReplacementSuggestions = []
+      return
+    }
+    guard force || !systemTextReplacementManager.isLoaded || systemTextReplacementManager.count == 0 else { return }
+    guard !systemTextReplacementLoadInFlight else {
+      if force {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+          self?.loadSystemTextReplacementLexiconIfNeeded(reason: "\(reason).retry", force: true)
+        }
+      }
+      return
+    }
+
+    systemTextReplacementLoadInFlight = true
+    KeyboardStartupDiagnostics.measure("systemTextReplacementManager.loadLexicon.\(reason)") {
+      systemTextReplacementManager.loadLexicon(from: self) { [weak self] in
+        DispatchQueue.main.async {
+          guard let self else { return }
+          self.systemTextReplacementLoadInFlight = false
+          self.updateTextReplacementSuggestion()
+        }
+      }
+    }
+  }
+
   private func isChineseFallbackPrediction(_ suggestions: [CandidateSuggestion]) -> Bool {
     suggestions.first?.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID
   }
 
   func clearPredictiveSuggestions() {
     predictiveSuggestionsRefreshID &+= 1
-    Task { @MainActor in
+    let clear = { [weak self] in
+      guard let self else { return }
       if !self.rimeContext.predictiveSuggestions.isEmpty {
         self.rimeContext.predictiveSuggestions = []
       }
+    }
+    if Thread.isMainThread {
+      clear()
+    } else {
+      DispatchQueue.main.async(execute: clear)
     }
   }
 

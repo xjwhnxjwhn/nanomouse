@@ -276,13 +276,17 @@ extension SettingsViewModel {
 
       HamsterAppDependencyContainer.shared.configuration = configuration
       HamsterAppDependencyContainer.shared.applicationConfiguration = appConfig
+      await HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.installRimePredictDatabaseIfNeeded()
 
       ProgressHUD.success(AppL10n.text("迁移完成"), interaction: false, delay: 1.5)
       return
     }
 
     // 判断应用是否首次运行
-    guard UserDefaults.standard.isFirstRunning else { return }
+    guard UserDefaults.standard.isFirstRunning else {
+      await HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.installRimePredictDatabaseIfNeeded()
+      return
+    }
 
     // 判断是否首次运行
     ProgressHUD.animate(AppL10n.text("初次启动，需要编译输入方案，请耐心等待……"), interaction: false)
