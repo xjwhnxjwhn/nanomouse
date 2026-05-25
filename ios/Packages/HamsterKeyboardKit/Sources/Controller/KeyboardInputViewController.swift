@@ -10,6 +10,7 @@ import Combine
 import HamsterKit
 import KanaKanjiConverterModule
 import OSLog
+import RimeKit
 import UIKit
 import UniformTypeIdentifiers
 
@@ -768,6 +769,21 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return isUnifiedCompositionBufferEnabled && keyboardContext.keyboardType.isChinesePrimaryKeyboard
   }
 
+  var isRimeChineseInputActive: Bool {
+    !isAzooKeyInputActive && !isEnglishInputActive && (
+      keyboardContext.keyboardType.isChinesePrimaryKeyboard ||
+      keyboardContext.keyboardType.isChineseNineGrid
+    )
+  }
+
+  var isTraditionalChineseModeActive: Bool {
+    guard let key = keyboardContext.hamsterConfiguration?.rime?.keyValueOfSwitchSimplifiedAndTraditional,
+          !key.isEmpty
+    else { return false }
+    let value = Rime.shared.simplifiedChineseMode(key: key)
+    return key.localizedCaseInsensitiveContains("traditional") ? value : !value
+  }
+
   func clearPredictiveSuggestions() {
     Task { @MainActor in
       if !self.rimeContext.predictiveSuggestions.isEmpty {
@@ -804,6 +820,11 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       suggestions = azooKeyEngine.postCompositionPredictionSuggestions()
     } else if isEnglishInputActive {
       suggestions = englishEngine.predictiveSuggestions(for: textDocumentProxy.documentContextBeforeInput)
+    } else if isRimeChineseInputActive, rimeContext.predictiveSuggestions.isEmpty, !isTraditionalChineseModeActive {
+      suggestions = ChinesePredictiveFallbackProvider.shared.suggestions(
+        for: textDocumentProxy.documentContextBeforeInput,
+        maxCandidates: keyboardContext.hamsterConfiguration?.keyboard?.predictiveSuggestionsMaxCandidates ?? 8
+      )
     } else {
       return
     }
@@ -818,6 +839,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     let suggestions = rimeContext.predictiveSuggestions
     guard index >= 0, index < suggestions.count else { return }
     let selected = suggestions[index]
+    if selected.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID {
+      textDocumentProxy.insertText(selected.text)
+      captureDiaryInputSegmentAfterCandidateSelection()
+      schedulePredictiveSuggestionsRefresh()
+      return
+    }
     if !isAzooKeyInputActive && !isEnglishInputActive {
       rimeContext.selectCandidate(index: selected.index)
       captureDiaryInputSegmentAfterCandidateSelection()
@@ -4118,6 +4145,15 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           return
         }
       }
+    }
+
+    if keyCode == XK_Return,
+       rimeContext.userInputKey.isEmpty,
+       rimeContext.suggestions.isEmpty,
+       rimeContext.textReplacementSuggestions.isEmpty
+    {
+      tryHandleSpecificCode(keyCode)
+      return
     }
     
     guard rimeContext.tryHandleInputCode(keyCode) else {
