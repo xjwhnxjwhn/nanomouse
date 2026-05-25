@@ -31,6 +31,7 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
   private var lastReportedContentHeight: CGFloat = 0
   private let previewKeyboardBoardPadding: CGFloat = 10
   private var externalPreviewConstraints: [NSLayoutConstraint] = []
+  private var pendingPreviewRebuildWorkItem: DispatchWorkItem?
   var contentHeightDidChange: ((CGFloat) -> Void)?
   var previewHeightDidChange: ((CGFloat) -> Void)?
   var visualEffectPreviewUserInterfaceStyle: UIUserInterfaceStyle? {
@@ -579,6 +580,8 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
   }
 
   private func rebuildKeyboard() {
+    pendingPreviewRebuildWorkItem?.cancel()
+    pendingPreviewRebuildWorkItem = nil
     let style = previewUserInterfaceStyle()
     previewKeyboardContext.hamsterConfiguration = HamsterAppDependencyContainer.shared.configuration
     previewKeyboardContext.screenSize = UIScreen.main.bounds.size
@@ -641,6 +644,16 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
 
   func reloadPreview() {
     rebuildKeyboard()
+  }
+
+  private func schedulePreviewRebuild() {
+    pendingPreviewRebuildWorkItem?.cancel()
+    let workItem = DispatchWorkItem { [weak self] in
+      self?.pendingPreviewRebuildWorkItem = nil
+      self?.rebuildKeyboard()
+    }
+    pendingPreviewRebuildWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(220), execute: workItem)
   }
 
   private func updatePreviewKeyboardBackground() {
@@ -753,27 +766,27 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
 
   @objc private func horizontalGapChanged(_ sender: UISlider) {
     UserDefaults.hamster.chineseKeyboardHorizontalGap = Double(sender.value)
-    rebuildKeyboard()
+    schedulePreviewRebuild()
   }
 
   @objc private func verticalGapChanged(_ sender: UISlider) {
     UserDefaults.hamster.chineseKeyboardVerticalGap = Double(sender.value)
-    rebuildKeyboard()
+    schedulePreviewRebuild()
   }
 
   @objc private func keyHeightChanged(_ sender: UISlider) {
     UserDefaults.hamster.chineseKeyboardKeyHeightScale = Double(sender.value)
-    rebuildKeyboard()
+    schedulePreviewRebuild()
   }
 
   @objc private func borderWidthChanged(_ sender: UISlider) {
     UserDefaults.hamster.chineseKeyboardBorderWidth = Double(sender.value)
-    rebuildKeyboard()
+    schedulePreviewRebuild()
   }
 
   @objc private func cornerRadiusChanged(_ sender: UISlider) {
     UserDefaults.hamster.chineseKeyboardCornerRadius = Double(sender.value)
-    rebuildKeyboard()
+    schedulePreviewRebuild()
   }
 
   @objc private func backgroundColorChanged(_ sender: UIColorWell) {

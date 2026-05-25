@@ -943,8 +943,34 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   private var keyboardVisualEffectConfiguration: KeyboardVisualEffectConfiguration {
     var config = HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect ?? KeyboardVisualEffectConfiguration()
+    migrateLegacyDefaultVisualEffectStyle(&config)
     config.keyboardBackgroundStyle = nil
     return config
+  }
+
+  private func migrateLegacyDefaultVisualEffectStyle(_ config: inout KeyboardVisualEffectConfiguration) {
+    if config.keySurfaceStyle == .system { config.keySurfaceStyle = nil }
+    if config.keyInputCalloutStyle == .system { config.keyInputCalloutStyle = nil }
+    if config.keyLongPressMenuStyle == .system { config.keyLongPressMenuStyle = nil }
+    if config.textReplacementBubbleStyle == .system { config.textReplacementBubbleStyle = nil }
+    if config.darkKeySurfaceStyle == .system { config.darkKeySurfaceStyle = nil }
+    if config.darkKeyInputCalloutStyle == .system { config.darkKeyInputCalloutStyle = nil }
+    if config.darkKeyLongPressMenuStyle == .system { config.darkKeyLongPressMenuStyle = nil }
+    if config.darkTextReplacementBubbleStyle == .system { config.darkTextReplacementBubbleStyle = nil }
+    if let legacyStyle = config.defaultStyle, legacyStyle != .system {
+      config.keySurfaceStyle = config.keySurfaceStyle ?? legacyStyle
+      config.keyInputCalloutStyle = config.keyInputCalloutStyle ?? legacyStyle
+      config.keyLongPressMenuStyle = config.keyLongPressMenuStyle ?? legacyStyle
+      config.textReplacementBubbleStyle = config.textReplacementBubbleStyle ?? legacyStyle
+    }
+    if let legacyStyle = config.darkDefaultStyle, legacyStyle != .system {
+      config.darkKeySurfaceStyle = config.darkKeySurfaceStyle ?? legacyStyle
+      config.darkKeyInputCalloutStyle = config.darkKeyInputCalloutStyle ?? legacyStyle
+      config.darkKeyLongPressMenuStyle = config.darkKeyLongPressMenuStyle ?? legacyStyle
+      config.darkTextReplacementBubbleStyle = config.darkTextReplacementBubbleStyle ?? legacyStyle
+    }
+    config.defaultStyle = .system
+    config.darkDefaultStyle = nil
   }
 
   private func updateKeyboardVisualEffectConfiguration(
@@ -960,6 +986,8 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     var config = keyboardVisualEffectConfiguration
     update(&config)
+    config.defaultStyle = .system
+    config.darkDefaultStyle = nil
     config.keyboardBackgroundStyle = nil
     HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect = config
     HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.visualEffect = config
@@ -1247,22 +1275,8 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     let modeTitle = userInterfaceStyle == .dark ? "暗色模式" : "亮色模式"
     return .init(
       title: "键盘视觉效果（\(modeTitle)）",
-      footer: "真实键盘背景板由系统宿主提供，这里不再额外覆盖。跟随系统：iOS 26 使用系统液态玻璃，iOS 18 及以前使用系统毛玻璃。按键白色毛玻璃为 0 时不额外叠白，调高后会给按键本体增加白色毛玻璃，以降低对比度。",
+      footer: "真实键盘背景板由系统宿主提供，这里不再额外覆盖。默认会按当前系统自动选择：iOS 26 按键本体和点按气泡使用 Clear 液态玻璃，长按气泡和快捷短语气泡使用 Regular 液态玻璃；iOS 18 及以前使用系统毛玻璃。按键白色毛玻璃为 0 时不额外叠白，调高后会给按键本体增加白色毛玻璃，以降低对比度。",
       items: [
-        .init(
-          text: "默认气泡效果",
-          type: .pullDown,
-          textValue: { [unowned self] in labelText(for: keyboardVisualEffectDefaultStyle(for: userInterfaceStyle)) },
-          pullDownMenuActionsBuilder: { [unowned self] in
-            KeyboardVisualEffectStyle.allCases.map { style in
-              UIAction(
-                title: labelText(for: style),
-                state: style == keyboardVisualEffectDefaultStyle(for: userInterfaceStyle) ? .on : .off
-              ) { [unowned self] _ in
-                setKeyboardVisualEffectDefaultStyle(style, for: userInterfaceStyle)
-              }
-            }
-          }),
         .init(
           text: "玻璃 Tint 强度",
           type: .keyboardVisualEffectPreview,
@@ -2481,7 +2495,7 @@ private extension KeyboardSettingsViewModel {
 
   func labelText(for style: KeyboardVisualEffectStyle) -> String {
     switch style {
-    case .system: return "跟随系统"
+    case .system: return labelText(for: automaticVisualEffectStyle())
     case .ios18Blur: return "iOS 18 毛玻璃"
     case .ios26LiquidGlass: return "iOS 26 Regular 液态玻璃"
     case .ios26ClearLiquidGlass: return "iOS 26 Clear 液态玻璃"
@@ -2498,15 +2512,9 @@ private extension KeyboardSettingsViewModel {
     userInterfaceStyle: UIUserInterfaceStyle
   ) -> String {
     if let style = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: userInterfaceStyle) {
-      return labelText(for: style)
+      return labelText(for: displayStyle(for: style))
     }
-    if userInterfaceStyle == .dark,
-       keyboardVisualEffectConfiguration.darkDefaultStyle == nil,
-       let inheritedStyle = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: .light)
-    {
-      return "继承亮色设置（\(labelText(for: inheritedStyle))）"
-    }
-    return "跟随默认气泡效果（\(labelText(for: keyboardVisualEffectDefaultStyle(for: userInterfaceStyle)))）"
+    return labelText(for: displayStyle(for: keyboardVisualEffectStyle(for: target, userInterfaceStyle: userInterfaceStyle)))
   }
 
   func visualEffectTargetActions(for target: KeyboardVisualEffectTarget) -> [UIAction] {
@@ -2518,18 +2526,38 @@ private extension KeyboardSettingsViewModel {
     userInterfaceStyle: UIUserInterfaceStyle
   ) -> [UIAction] {
     let overrideStyle = keyboardVisualEffectOverrideStyle(for: target, userInterfaceStyle: userInterfaceStyle)
-    var actions: [UIAction] = [
-      UIAction(title: "跟随默认", state: overrideStyle == nil ? .on : .off) { [unowned self] _ in
-        setKeyboardVisualEffectStyle(nil, for: target, userInterfaceStyle: userInterfaceStyle)
-      }
-    ]
-
-    actions += KeyboardVisualEffectStyle.allCases.map { style in
-      UIAction(title: labelText(for: style), state: overrideStyle == style ? .on : .off) { [unowned self] _ in
-        setKeyboardVisualEffectStyle(style, for: target, userInterfaceStyle: userInterfaceStyle)
+    let currentStyle = displayStyle(
+      for: overrideStyle ?? keyboardVisualEffectStyle(for: target, userInterfaceStyle: userInterfaceStyle)
+    )
+    let defaultStyle = displayStyle(for: automaticVisualEffectStyle(for: target))
+    return selectableVisualEffectStyles.map { style in
+      UIAction(title: labelText(for: style), state: currentStyle == style ? .on : .off) { [unowned self] _ in
+        setKeyboardVisualEffectStyle(
+          style == defaultStyle ? nil : style,
+          for: target,
+          userInterfaceStyle: userInterfaceStyle
+        )
       }
     }
-    return actions
+  }
+
+  var selectableVisualEffectStyles: [KeyboardVisualEffectStyle] {
+    KeyboardVisualEffectStyle.allCases.filter { $0 != .system }
+  }
+
+  func displayStyle(for style: KeyboardVisualEffectStyle) -> KeyboardVisualEffectStyle {
+    style == .system ? automaticVisualEffectStyle() : style
+  }
+
+  func automaticVisualEffectStyle() -> KeyboardVisualEffectStyle {
+    if #available(iOS 26.0, *) {
+      return .ios26LiquidGlass
+    }
+    return .ios18Blur
+  }
+
+  func automaticVisualEffectStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle {
+    KeyboardVisualEffectConfiguration.automaticStyle(for: target)
   }
 
   func weatherIndicatorStatusText() -> String {

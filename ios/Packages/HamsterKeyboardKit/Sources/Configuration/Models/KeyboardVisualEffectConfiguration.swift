@@ -84,45 +84,82 @@ public struct KeyboardVisualEffectConfiguration: Codable, Hashable {
     userInterfaceStyle: UIUserInterfaceStyle
   ) -> KeyboardVisualEffectStyle {
     if userInterfaceStyle == .dark {
+      let legacyDarkDefaultStyle = darkDefaultStyle == .system ? nil : darkDefaultStyle
       switch target {
       case .keyboardBackground:
         return .system
       case .keySurface:
-        return darkKeySurfaceStyle ?? darkDefaultStyle ?? keySurfaceStyle ?? defaultStyle ?? .system
+        return Self.specifiedStyle(darkKeySurfaceStyle)
+          ?? legacyDarkDefaultStyle
+          ?? Self.automaticStyle(for: target)
       case .keyInputCallout:
-        return darkKeyInputCalloutStyle ?? darkDefaultStyle ?? keyInputCalloutStyle ?? defaultStyle ?? .system
+        return Self.specifiedStyle(darkKeyInputCalloutStyle)
+          ?? legacyDarkDefaultStyle
+          ?? Self.automaticStyle(for: target)
       case .keyLongPressMenu:
-        return darkKeyLongPressMenuStyle ?? darkDefaultStyle ?? keyLongPressMenuStyle ?? defaultStyle ?? .system
+        return Self.specifiedStyle(darkKeyLongPressMenuStyle)
+          ?? legacyDarkDefaultStyle
+          ?? Self.automaticStyle(for: target)
       case .textReplacementBubble:
-        return darkTextReplacementBubbleStyle ?? darkDefaultStyle ?? textReplacementBubbleStyle ?? defaultStyle ?? .system
+        return Self.specifiedStyle(darkTextReplacementBubbleStyle)
+          ?? legacyDarkDefaultStyle
+          ?? Self.automaticStyle(for: target)
       }
     }
 
+    let legacyDefaultStyle = defaultStyle == .system ? nil : defaultStyle
     switch target {
     case .keyboardBackground:
       return .system
     case .keySurface:
-      return keySurfaceStyle ?? defaultStyle ?? .system
+      return Self.specifiedStyle(keySurfaceStyle) ?? legacyDefaultStyle ?? Self.automaticStyle(for: target)
     case .keyInputCallout:
-      return keyInputCalloutStyle ?? defaultStyle ?? .system
+      return Self.specifiedStyle(keyInputCalloutStyle) ?? legacyDefaultStyle ?? Self.automaticStyle(for: target)
     case .keyLongPressMenu:
-      return keyLongPressMenuStyle ?? defaultStyle ?? .system
+      return Self.specifiedStyle(keyLongPressMenuStyle) ?? legacyDefaultStyle ?? Self.automaticStyle(for: target)
     case .textReplacementBubble:
-      return textReplacementBubbleStyle ?? defaultStyle ?? .system
+      return Self.specifiedStyle(textReplacementBubbleStyle) ?? legacyDefaultStyle ?? Self.automaticStyle(for: target)
     }
   }
 
   public func glassIntensity(for userInterfaceStyle: UIUserInterfaceStyle) -> Double {
-    let value = userInterfaceStyle == .dark ? (darkGlassIntensity ?? glassIntensity ?? 1) : (glassIntensity ?? 1)
+    let value = userInterfaceStyle == .dark ? (darkGlassIntensity ?? 0) : (glassIntensity ?? 0)
     guard value.isFinite else { return 1 }
     return max(0, min(1, value))
   }
 
   public func keySurfaceWhiteOverlayIntensity(for userInterfaceStyle: UIUserInterfaceStyle) -> Double {
     let value = userInterfaceStyle == .dark
-      ? (darkKeySurfaceWhiteOverlayIntensity ?? 0)
+      ? (darkKeySurfaceWhiteOverlayIntensity ?? 0.25)
       : (keySurfaceWhiteOverlayIntensity ?? 0)
     guard value.isFinite else { return 0 }
     return max(0, min(1, value))
+  }
+
+  public static func automaticStyle(for target: KeyboardVisualEffectTarget) -> KeyboardVisualEffectStyle {
+    switch target {
+    case .keyboardBackground:
+      return .system
+    case .keySurface:
+      if #available(iOS 26.0, *) {
+        return .ios26ClearLiquidGlass
+      }
+      return .ios18Blur
+    case .keyInputCallout:
+      if #available(iOS 26.0, *) {
+        return .ios26ClearLiquidGlass
+      }
+      return .ios18Blur
+    case .keyLongPressMenu, .textReplacementBubble:
+      if #available(iOS 26.0, *) {
+        return .ios26LiquidGlass
+      }
+      return .ios18Blur
+    }
+  }
+
+  private static func specifiedStyle(_ style: KeyboardVisualEffectStyle?) -> KeyboardVisualEffectStyle? {
+    guard style != .system else { return nil }
+    return style
   }
 }

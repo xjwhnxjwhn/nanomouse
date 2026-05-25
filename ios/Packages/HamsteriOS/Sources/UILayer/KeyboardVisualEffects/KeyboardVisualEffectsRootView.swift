@@ -249,7 +249,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
   private func reloadSettingsTable() {
     tableView.reloadData()
     tableView.layoutIfNeeded()
-    tableHeightConstraint?.constant = max(320, tableView.contentSize.height)
+    tableHeightConstraint?.constant = max(240, tableView.contentSize.height)
   }
 
   @objc private func appearanceModeChanged(_ sender: UISegmentedControl) {
