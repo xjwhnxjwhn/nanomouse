@@ -38,6 +38,7 @@ class KeyboardToolbarView: NibLessView {
   private var didTriggerDiaryModeLongPress = false
   private var didTriggerEmbeddedModuleLongPress = false
   private var didPerformInitialToolbarRefresh = false
+  private var predictionCandidatesVisible = false
   private var weatherIndicatorRefreshTask: Task<Void, Never>?
   private let rightButtonsReferenceSpacing: CGFloat = 2
   private let rightButtonsTargetWidthScale: CGFloat = 0.85
@@ -652,8 +653,14 @@ class KeyboardToolbarView: NibLessView {
       
       self.commonFunctionBar.isHidden = !isEmpty
       self.candidateBarView.isHidden = isEmpty
-      self.predictionCandidatesView.isHidden = !showsPredictions
-      self.predictionCandidatesHeightConstraint?.constant = showsPredictions ? keyboardContext.heightOfPredictionCandidateRow : 0
+      let predictionHeight = showsPredictions ? keyboardContext.heightOfPredictionCandidateRow : 0
+      if self.predictionCandidatesVisible != showsPredictions ||
+        abs((self.predictionCandidatesHeightConstraint?.constant ?? 0) - predictionHeight) > 0.5
+      {
+        self.predictionCandidatesVisible = showsPredictions
+        self.predictionCandidatesView.isHidden = !showsPredictions
+        self.predictionCandidatesHeightConstraint?.constant = predictionHeight
+      }
       if hasContent {
         self.hideTraditionalizeHint(animated: false)
       }

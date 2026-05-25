@@ -10,13 +10,16 @@ final class ChinesePredictiveFallbackProvider {
   static let sourceID = "chinese_suffix_fallback"
 
   private var table: [String: [String]]?
-  private var didAttemptLoad = false
 
   private init() {}
 
-  func suggestions(for documentContext: String?, maxCandidates: Int) -> [CandidateSuggestion] {
+  func suggestions(
+    for documentContext: String?,
+    maxCandidates: Int,
+    outputTraditional: Bool = false
+  ) -> [CandidateSuggestion] {
     guard let table = loadTableIfNeeded() else { return [] }
-    let keys = lookupKeys(from: documentContext)
+    let keys = lookupKeys(from: documentContext, outputTraditional: outputTraditional)
     guard !keys.isEmpty else { return [] }
 
     var result: [CandidateSuggestion] = []
@@ -24,12 +27,13 @@ final class ChinesePredictiveFallbackProvider {
     let limit = max(1, min(maxCandidates, 50))
     for key in keys {
       for value in table[key] ?? [] {
-        guard !value.isEmpty, seen.insert(value).inserted else { continue }
+        let output = outputTraditional ? value.convertedBetweenChineseScripts("Hans-Hant") : value
+        guard !output.isEmpty, seen.insert(output).inserted else { continue }
         result.append(CandidateSuggestion(
           index: result.count,
           label: "\(result.count + 1)",
-          text: value,
-          title: value,
+          text: output,
+          title: output,
           additionalInfo: ["predictionSource": Self.sourceID]
         ))
         if result.count >= limit {
@@ -44,10 +48,6 @@ final class ChinesePredictiveFallbackProvider {
     if let table {
       return table
     }
-    guard !didAttemptLoad else {
-      return nil
-    }
-    didAttemptLoad = true
     let url = FileManager.appGroupRimePredictFallbackURL
     guard FileManager.default.fileExists(atPath: url.path),
           let data = try? Data(contentsOf: url),
@@ -59,10 +59,13 @@ final class ChinesePredictiveFallbackProvider {
     return decoded
   }
 
-  private func lookupKeys(from documentContext: String?) -> [String] {
+  private func lookupKeys(from documentContext: String?, outputTraditional: Bool) -> [String] {
     guard let documentContext, !documentContext.isEmpty else { return [] }
+    let normalizedContext = outputTraditional
+      ? documentContext.convertedBetweenChineseScripts("Hant-Hans")
+      : documentContext
     var tailCharacters: [Character] = []
-    for character in documentContext.reversed() {
+    for character in normalizedContext.reversed() {
       guard character.isSingleHanCharacter else { break }
       tailCharacters.append(character)
       if tailCharacters.count >= 2 { break }
@@ -73,6 +76,12 @@ final class ChinesePredictiveFallbackProvider {
       return [tail, String(tail.suffix(1))]
     }
     return [tail]
+  }
+}
+
+private extension String {
+  func convertedBetweenChineseScripts(_ transformName: String) -> String {
+    applyingTransform(StringTransform(transformName), reverse: false) ?? self
   }
 }
 

@@ -55,8 +55,10 @@ class CandidateWordCell: UICollectionViewCell {
     if let showComment = showComment {
       self.showComment = showComment
     }
-    guard candidateSuggestion != suggestion else { return }
     candidateSuggestion = suggestion
+    if let style {
+      candidateLabel.attributedText = suggestion.attributeString(showIndex: self.showIndex, showComment: self.showComment, style: style)
+    }
 
     // 调用此方法后，下面重载的属性 configurationState 就会包含新的 candidateSuggestion
     setNeedsUpdateConfiguration()
@@ -86,6 +88,10 @@ class CandidateWordCell: UICollectionViewCell {
   override func prepareForReuse() {
     super.prepareForReuse()
 
+    candidateSuggestion = nil
+    style = nil
+    showIndex = false
+    showComment = false
     candidateLabel.attributedText = nil
     contentConfiguration = nil
     backgroundConfiguration = nil

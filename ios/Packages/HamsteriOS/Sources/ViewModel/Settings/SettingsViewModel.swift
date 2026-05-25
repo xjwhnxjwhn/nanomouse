@@ -276,6 +276,7 @@ extension SettingsViewModel {
 
       HamsterAppDependencyContainer.shared.configuration = configuration
       HamsterAppDependencyContainer.shared.applicationConfiguration = appConfig
+      migrateSystemTextReplacementDefaultIfNeeded()
       await HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.installRimePredictDatabaseIfNeeded()
 
       ProgressHUD.success(AppL10n.text("迁移完成"), interaction: false, delay: 1.5)
@@ -284,6 +285,7 @@ extension SettingsViewModel {
 
     // 判断应用是否首次运行
     guard UserDefaults.standard.isFirstRunning else {
+      migrateSystemTextReplacementDefaultIfNeeded()
       await HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.installRimePredictDatabaseIfNeeded()
       return
     }
@@ -324,8 +326,23 @@ extension SettingsViewModel {
     UserDefaults.standard.isFirstRunning = false
 
     HamsterAppDependencyContainer.shared.configuration = configuration
+    migrateSystemTextReplacementDefaultIfNeeded()
 
     ProgressHUD.success(AppL10n.text("部署完成"), interaction: false, delay: 1.5)
+  }
+
+  private func migrateSystemTextReplacementDefaultIfNeeded() {
+    guard !UserDefaults.standard.didMigrateSystemTextReplacementDefaultOn else { return }
+
+    if HamsterAppDependencyContainer.shared.configuration.keyboard == nil {
+      HamsterAppDependencyContainer.shared.configuration.keyboard = KeyboardConfiguration()
+    }
+    if HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard == nil {
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard = KeyboardConfiguration()
+    }
+    HamsterAppDependencyContainer.shared.configuration.keyboard?.enableSystemTextReplacement = true
+    HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableSystemTextReplacement = true
+    UserDefaults.standard.didMigrateSystemTextReplacementDefaultOn = true
   }
 
   /// 仓1.0迁移配置参数

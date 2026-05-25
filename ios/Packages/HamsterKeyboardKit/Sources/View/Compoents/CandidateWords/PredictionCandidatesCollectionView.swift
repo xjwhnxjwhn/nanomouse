@@ -14,6 +14,7 @@ final class PredictionCandidatesCollectionView: UICollectionView {
   private let actionHandler: KeyboardActionHandler
   private let rimeContext: RimeContext
   private var subscriptions = Set<AnyCancellable>()
+  private var renderedSuggestionSignature: [String] = []
 
   init(
     style: CandidateBarStyle,
@@ -56,14 +57,38 @@ final class PredictionCandidatesCollectionView: UICollectionView {
   private func combine() {
     rimeContext.$predictiveSuggestions
       .receive(on: DispatchQueue.main)
-      .sink { [weak self] _ in
+      .sink { [weak self] suggestions in
         guard let self else { return }
-        collectionViewLayout.invalidateLayout()
-        setContentOffset(.zero, animated: false)
-        reloadData()
-        setNeedsLayout()
+        let signature = suggestionSignature(suggestions)
+        guard signature != renderedSuggestionSignature else { return }
+
+        let shouldResetOffset = signature.count != renderedSuggestionSignature.count
+        renderedSuggestionSignature = signature
+        UIView.performWithoutAnimation {
+          self.collectionViewLayout.invalidateLayout()
+          if shouldResetOffset {
+            self.setContentOffset(.zero, animated: false)
+          }
+          self.reloadData()
+          self.layoutIfNeeded()
+        }
       }
       .store(in: &subscriptions)
+  }
+
+  private func displayCandidate(_ candidate: CandidateSuggestion) -> CandidateSuggestion {
+    candidate.normalizedForPredictionDisplay()
+  }
+
+  private func suggestionSignature(_ suggestions: [CandidateSuggestion]) -> [String] {
+    suggestions.map {
+      [
+        $0.firstRenderableText,
+        $0.text,
+        $0.subtitle ?? "",
+        $0.additionalInfo["predictionSource"] as? String ?? ""
+      ].joined(separator: "\u{1F}")
+    }
   }
 }
 
@@ -75,7 +100,7 @@ extension PredictionCandidatesCollectionView: UICollectionViewDataSource {
   func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
     let cell = collectionView.dequeueReusableCell(withReuseIdentifier: CandidateWordCell.identifier, for: indexPath)
     if let cell = cell as? CandidateWordCell, indexPath.item < rimeContext.predictiveSuggestions.count {
-      let candidate = rimeContext.predictiveSuggestions[indexPath.item]
+      let candidate = displayCandidate(rimeContext.predictiveSuggestions[indexPath.item])
       cell.updateWithCandidateSuggestion(candidate, style: style, showIndex: false, showComment: false)
     }
     return cell
@@ -109,7 +134,7 @@ extension PredictionCandidatesCollectionView: UICollectionViewDelegateFlowLayout
 
   func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
     guard indexPath.item < rimeContext.predictiveSuggestions.count else { return .zero }
-    let candidate = rimeContext.predictiveSuggestions[indexPath.item]
+    let candidate = displayCandidate(rimeContext.predictiveSuggestions[indexPath.item])
     let attributeString = candidate.attributeString(showIndex: false, showComment: false, style: style)
     let maxWidth = max(collectionView.bounds.width - 24, 120)
     let titleSize = UILabel.estimatedAttributeSize(attributeString, targetSize: CGSize(width: maxWidth, height: 0))

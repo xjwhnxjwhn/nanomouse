@@ -226,6 +226,17 @@ public extension UserDefaults {
     }
   }
 
+  /// 是否已迁移系统文本替换的默认开启状态
+  var didMigrateSystemTextReplacementDefaultOn: Bool {
+    get {
+      return bool(forKey: Self.didMigrateSystemTextReplacementDefaultOnKey)
+    }
+    set {
+      setValue(newValue, forKey: Self.didMigrateSystemTextReplacementDefaultOnKey)
+      Logger.statistics.debug("save didMigrateSystemTextReplacementDefaultOn: \(newValue)")
+    }
+  }
+
   /// 是否覆盖 RIME 的用户数据目录
   var overrideRimeDirectory: Bool {
     get {
@@ -760,6 +771,7 @@ extension UserDefaults {
   public static let isFirstRunningOfKey = "com.XiangqingZHANG.nanomouse.UserDefaults.isFirstRunning"
   private static let lastLaunchedAppVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastLaunchedAppVersion"
   private static let lastSharedSupportVersionKey = "com.XiangqingZHANG.nanomouse.UserDefaults.lastSharedSupportVersion"
+  private static let didMigrateSystemTextReplacementDefaultOnKey = "com.XiangqingZHANG.nanomouse.UserDefaults.didMigrateSystemTextReplacementDefaultOn"
   private static let overrideRimeDirectoryOfKey = "com.XiangqingZHANG.nanomouse.UserDefaults.overrideRimeDirectory"
   private static let enableRimeDictRepairLogKey = "com.XiangqingZHANG.nanomouse.UserDefaults.enableRimeDictRepairLog"
   private static let schemasForKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.schemas"

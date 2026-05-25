@@ -457,7 +457,7 @@ public extension KeyboardInputViewController {
     case XK_space:
       Logger.statistics.info("SystemTextReplacement: XK_space triggered in tryHandleSpecificCode")
       // 尝试执行系统文本替换
-      if self.keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
+      if self.keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true {
         Logger.statistics.info("SystemTextReplacement: feature enabled, calling tryReplace")
         if self.systemTextReplacementManager.tryReplace(in: self.textDocumentProxy) {
           // 替换成功，插入空格后返回

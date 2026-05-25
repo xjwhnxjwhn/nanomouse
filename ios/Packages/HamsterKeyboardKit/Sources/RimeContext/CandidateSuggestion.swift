@@ -67,3 +67,48 @@ public extension CandidateSuggestion {
     hasher.combine(id)
   }
 }
+
+public extension CandidateSuggestion {
+  var firstRenderableText: String {
+    for value in [title, text, subtitle ?? ""] {
+      let renderable = value.hamsterRenderableCandidateText
+      if !renderable.isEmpty {
+        return renderable
+      }
+    }
+    return ""
+  }
+
+  func normalizedForPredictionDisplay() -> CandidateSuggestion {
+    var candidate = self
+    candidate.isAutocomplete = false
+    if candidate.title.hamsterRenderableCandidateText.isEmpty {
+      let renderable = candidate.firstRenderableText
+      if !renderable.isEmpty {
+        candidate.title = renderable
+      }
+    }
+    if candidate.text.hamsterRenderableCandidateText.isEmpty,
+       !candidate.title.hamsterRenderableCandidateText.isEmpty
+    {
+      candidate.text = candidate.title
+    }
+    return candidate
+  }
+}
+
+public extension String {
+  var hamsterRenderableCandidateText: String {
+    String(unicodeScalars.filter { scalar in
+      let value = scalar.value
+      if CharacterSet.whitespacesAndNewlines.contains(scalar) { return false }
+      if CharacterSet.controlCharacters.contains(scalar) { return false }
+      if (0x200B...0x200F).contains(value) { return false }
+      if (0x202A...0x202E).contains(value) { return false }
+      if (0x2060...0x206F).contains(value) { return false }
+      if value == 0xFEFF || value == 0xFFFC { return false }
+      if scalar.properties.generalCategory == .format { return false }
+      return true
+    })
+  }
+}

@@ -787,7 +787,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private func loadSystemTextReplacementLexiconIfNeeded(reason: String, force: Bool = false) {
-    let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? false
+    let enableTextReplacement = keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true
     Logger.statistics.info("SystemTextReplacement: \(reason, privacy: .public) enableSystemTextReplacement = \(enableTextReplacement)")
     guard enableTextReplacement else {
       rimeContext.textReplacementSuggestions = []
@@ -817,6 +817,64 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 
   private func isChineseFallbackPrediction(_ suggestions: [CandidateSuggestion]) -> Bool {
     suggestions.first?.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID
+  }
+
+  private func isChineseFallbackPrediction(_ suggestion: CandidateSuggestion) -> Bool {
+    suggestion.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID
+  }
+
+  private func chineseFallbackPredictiveSuggestions(maxCandidates: Int) -> [CandidateSuggestion] {
+    ChinesePredictiveFallbackProvider.shared.suggestions(
+      for: textDocumentProxy.documentContextBeforeInput,
+      maxCandidates: maxCandidates,
+      outputTraditional: isTraditionalChineseModeActive
+    )
+  }
+
+  private func mergedChinesePredictiveSuggestions(
+    nativeSuggestions: [CandidateSuggestion],
+    maxCandidates: Int
+  ) -> [CandidateSuggestion] {
+    let limit = max(1, min(maxCandidates, 50))
+    var result: [CandidateSuggestion] = []
+    var seen = Set<String>()
+
+    func append(_ suggestion: CandidateSuggestion) {
+      guard result.count < limit else { return }
+      let normalized = suggestion.normalizedForPredictionDisplay()
+      let text = normalized.firstRenderableText
+      guard !text.isEmpty, seen.insert(text).inserted else { return }
+      result.append(normalized)
+    }
+
+    for suggestion in nativeSuggestions where !isChineseFallbackPrediction(suggestion) {
+      append(suggestion)
+    }
+
+    guard result.count < limit else { return result }
+    for suggestion in chineseFallbackPredictiveSuggestions(maxCandidates: limit) {
+      append(suggestion)
+    }
+
+    return result
+  }
+
+  private func predictiveSuggestionsSignature(_ suggestions: [CandidateSuggestion]) -> [String] {
+    suggestions.map {
+      [
+        $0.firstRenderableText,
+        $0.text,
+        $0.subtitle ?? "",
+        $0.additionalInfo["predictionSource"] as? String ?? ""
+      ].joined(separator: "\u{1F}")
+    }
+  }
+
+  private func setPredictiveSuggestionsIfChanged(_ suggestions: [CandidateSuggestion]) {
+    guard predictiveSuggestionsSignature(rimeContext.predictiveSuggestions) != predictiveSuggestionsSignature(suggestions) else {
+      return
+    }
+    rimeContext.predictiveSuggestions = suggestions
   }
 
   func clearPredictiveSuggestions() {
@@ -866,32 +924,32 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     } else if isEnglishInputActive {
       suggestions = englishEngine.predictiveSuggestions(for: textDocumentProxy.documentContextBeforeInput)
     } else if isRimeChineseInputActive {
+      let maxCandidates = keyboardContext.hamsterConfiguration?.keyboard?.predictiveSuggestionsMaxCandidates ?? 8
       if rimeContext.predictiveSuggestions.isEmpty || isChineseFallbackPrediction(rimeContext.predictiveSuggestions) {
         rimeContext.syncContext()
       }
       if !rimeContext.predictiveSuggestions.isEmpty,
          !isChineseFallbackPrediction(rimeContext.predictiveSuggestions)
       {
-        return
+        suggestions = mergedChinesePredictiveSuggestions(
+          nativeSuggestions: rimeContext.predictiveSuggestions,
+          maxCandidates: maxCandidates
+        )
+      } else {
+        suggestions = chineseFallbackPredictiveSuggestions(maxCandidates: maxCandidates)
       }
-      guard !isTraditionalChineseModeActive else {
-        Task { @MainActor in
-          if self.isChineseFallbackPrediction(self.rimeContext.predictiveSuggestions) {
-            self.rimeContext.predictiveSuggestions = []
-          }
+      if suggestions.isEmpty {
+        if !rimeContext.predictiveSuggestions.isEmpty {
+          rimeContext.predictiveSuggestions = []
         }
         return
       }
-      suggestions = ChinesePredictiveFallbackProvider.shared.suggestions(
-        for: textDocumentProxy.documentContextBeforeInput,
-        maxCandidates: keyboardContext.hamsterConfiguration?.keyboard?.predictiveSuggestionsMaxCandidates ?? 8
-      )
     } else {
       return
     }
 
     Task { @MainActor in
-      self.rimeContext.predictiveSuggestions = suggestions
+      self.setPredictiveSuggestionsIfChanged(suggestions)
     }
   }
 
@@ -899,17 +957,14 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard keyboardContext.enablePredictiveSuggestions else { return }
     let suggestions = rimeContext.predictiveSuggestions
     guard index >= 0, index < suggestions.count else { return }
-    let selected = suggestions[index]
-    if selected.additionalInfo["predictionSource"] as? String == ChinesePredictiveFallbackProvider.sourceID {
-      rimeContext.predictiveSuggestions = []
-      textDocumentProxy.insertText(selected.text)
-      captureDiaryInputSegmentAfterCandidateSelection()
-      schedulePredictiveSuggestionsRefresh()
-      return
-    }
+    let selected = suggestions[index].normalizedForPredictionDisplay()
     if !isAzooKeyInputActive && !isEnglishInputActive {
-      rimeContext.predictiveSuggestions = []
-      rimeContext.selectCandidate(index: selected.index)
+      let text = selected.text.hamsterRenderableCandidateText.isEmpty ? selected.firstRenderableText : selected.text
+      guard !text.isEmpty else {
+        clearPredictiveSuggestions()
+        return
+      }
+      textDocumentProxy.insertText(text)
       captureDiaryInputSegmentAfterCandidateSelection()
       schedulePredictiveSuggestionsRefresh()
       return
@@ -921,7 +976,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       clearPredictiveSuggestions()
       return
     }
-    rimeContext.predictiveSuggestions = []
     textDocumentProxy.insertText(text)
     captureDiaryInputSegmentAfterCandidateSelection()
     schedulePredictiveSuggestionsRefresh()
@@ -1472,7 +1526,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   ///   - pendingText: 刚刚输入但尚未反映在 documentContextBeforeInput 中的文本
   ///   - rimePreview: RIME 引擎中待上屏的预览文本（用于中文/日文输入时预判）
   func updateTextReplacementSuggestion(pendingText: String = "", rimePreview: String = "") {
-    guard keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true else {
+    guard keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true else {
       rimeContext.textReplacementSuggestions = []
       return
     }
@@ -4194,7 +4248,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           clearAzooKeyState()
           return
         }
-        if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
+        if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true {
           Logger.statistics.info("SystemTextReplacement: space key pressed (AzooKey), trying replacement")
           if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
             textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
@@ -4208,9 +4262,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         return
       }
     }
+    if keyCode == XK_space,
+       keyboardContext.enablePredictiveSuggestions,
+       rimeContext.userInputKey.isEmpty,
+       rimeContext.suggestions.isEmpty,
+       rimeContext.textReplacementSuggestions.isEmpty,
+       !rimeContext.predictiveSuggestions.isEmpty
+    {
+      selectPredictiveSuggestion(index: 0)
+      return
+    }
     // 空格键特殊处理：当没有 RIME 用户输入时，尝试执行文本替换
     if keyCode == XK_space && rimeContext.userInputKey.isEmpty {
-      if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement == true {
+      if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true {
         Logger.statistics.info("SystemTextReplacement: space key pressed with no RIME input, trying replacement")
         if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
           textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
