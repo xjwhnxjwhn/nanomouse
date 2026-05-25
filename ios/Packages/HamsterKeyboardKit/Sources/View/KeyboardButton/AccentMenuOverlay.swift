@@ -11,7 +11,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private let style: KeyboardActionCalloutStyle
   private let visualEffectConfiguration: KeyboardVisualEffectConfiguration?
   private let userInterfaceStyle: UIUserInterfaceStyle
-  private let chars: [String]
+  private let options: [AccentCharacterOption]
   private let onSelect: (String) -> Void
   private var highlightedChar: String?
 
@@ -31,13 +31,13 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     style: KeyboardActionCalloutStyle,
     visualEffectConfiguration: KeyboardVisualEffectConfiguration?,
     userInterfaceStyle: UIUserInterfaceStyle,
-    chars: [String],
+    options: [AccentCharacterOption],
     onSelect: @escaping (String) -> Void
   ) {
     self.style = style
     self.visualEffectConfiguration = visualEffectConfiguration
     self.userInterfaceStyle = userInterfaceStyle
-    self.chars = chars
+    self.options = options
     self.onSelect = onSelect
     super.init(frame: .zero)
     setupView()
@@ -49,7 +49,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   }
 
   func positionMenu(above buttonFrame: CGRect, in bounds: CGRect) {
-    let count = max(chars.count, 1)
+    let count = max(options.count, 1)
     let maxContentWidth = max(bounds.width - edgeInset * 2 - padding * 2, buttonSize.width)
     let maxColumns = max(Int((maxContentWidth + spacing) / (buttonSize.width + spacing)), 1)
     let columns = min(count, maxColumns)
@@ -91,7 +91,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     var foundChar: String?
     for button in charButtons {
       if button.convert(button.bounds, to: self).contains(localPoint) {
-        foundChar = chars[button.tag]
+        foundChar = options[button.tag].character
         break
       }
     }
@@ -119,7 +119,7 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
 
   private func updateHighlightState() {
     for button in charButtons {
-      let char = chars[button.tag]
+      let char = options[button.tag].character
       let isHighlighted = char == highlightedChar
       button.backgroundColor = isHighlighted
         ? KeyboardLiquidGlass.selectionColor(
@@ -163,24 +163,47 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
     addSubview(menuContainer)
     setupGlassBackground()
 
-    for (index, char) in chars.enumerated() {
+    for (index, option) in options.enumerated() {
       let button = UIButton(type: .custom)
       if #available(iOS 15.0, *) {
         button.configuration = nil
       }
-      
-      let fontSize: CGFloat = 22
-      let font = UIFont.systemFont(ofSize: fontSize, weight: .regular)
-      
-      let attributes: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: style.callout.textColor,
-        .underlineStyle: 0 // Explicitly remove underline
-      ]
-      
-      let attributedTitle = NSAttributedString(string: char, attributes: attributes)
-      button.setAttributedTitle(attributedTitle, for: .normal)
-      
+
+      let mainLabel = UILabel()
+      mainLabel.translatesAutoresizingMaskIntoConstraints = false
+      mainLabel.text = option.character
+      mainLabel.font = .systemFont(ofSize: 22, weight: .regular)
+      mainLabel.textColor = style.callout.textColor
+      mainLabel.textAlignment = .center
+      mainLabel.adjustsFontSizeToFitWidth = true
+      mainLabel.minimumScaleFactor = 0.72
+      mainLabel.isUserInteractionEnabled = false
+      button.addSubview(mainLabel)
+
+      NSLayoutConstraint.activate([
+        mainLabel.leadingAnchor.constraint(equalTo: button.leadingAnchor, constant: 2),
+        mainLabel.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -2),
+        mainLabel.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+      ])
+
+      if let widthLabel = option.widthLabel {
+        let badgeLabel = UILabel()
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        badgeLabel.text = widthLabel
+        badgeLabel.font = .systemFont(ofSize: 8, weight: .semibold)
+        badgeLabel.textColor = style.callout.textColor.withAlphaComponent(0.66)
+        badgeLabel.textAlignment = .right
+        badgeLabel.isUserInteractionEnabled = false
+        button.addSubview(badgeLabel)
+        NSLayoutConstraint.activate([
+          badgeLabel.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -3),
+          badgeLabel.bottomAnchor.constraint(equalTo: button.bottomAnchor, constant: -2)
+        ])
+        button.accessibilityLabel = "\(option.character) \(widthLabel)角"
+      } else {
+        button.accessibilityLabel = option.character
+      }
+
       button.layer.cornerRadius = 6
       button.tag = index
       button.addTarget(self, action: #selector(handleOptionTap(_:)), for: .touchUpInside)
@@ -259,8 +282,8 @@ final class AccentMenuOverlay: UIView, UIGestureRecognizerDelegate {
   }
 
   @objc private func handleOptionTap(_ sender: UIButton) {
-    if sender.tag < chars.count {
-        let char = chars[sender.tag]
+    if sender.tag < options.count {
+        let char = options[sender.tag].character
         onSelect(char)
     }
     removeFromSuperview()

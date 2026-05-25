@@ -133,7 +133,7 @@ private extension KeyboardInputViewController {
     guard let button = findKeyboardButton(displaying: text) else {
       return false
     }
-    guard let accents = AccentCharacterProvider.accents(for: text) else {
+    guard let accents = AccentCharacterProvider.accentOptions(for: text) else {
       return false
     }
     button.isPressed = true

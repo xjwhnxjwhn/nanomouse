@@ -328,7 +328,7 @@ public class KeyboardButton: UIControl {
 
   static let accentMenuOverlayTag = 8118
 
-  func presentAccentMenu(for accents: [String]) {
+  func presentAccentMenu(for accents: [AccentCharacterOption]) {
     guard let container = superview else { return }
     // 移除已存在的菜单
     container.viewWithTag(Self.accentMenuOverlayTag)?.removeFromSuperview()
@@ -337,7 +337,7 @@ public class KeyboardButton: UIControl {
       style: actionCalloutStyle,
       visualEffectConfiguration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
       userInterfaceStyle: keyboardContext.colorScheme,
-      chars: accents
+      options: accents
     ) { [weak self] char in
       self?.handleAccentSelection(char)
     }
@@ -352,7 +352,13 @@ public class KeyboardButton: UIControl {
 
   func handleAccentSelection(_ char: String) {
     Logger.statistics.info("Accent selected: \(char)")
-    actionHandler.handle(.release, on: .character(char))
+    if let standardHandler = actionHandler as? StandardKeyboardActionHandler,
+       let controller = standardHandler.keyboardController as? KeyboardInputViewController
+    {
+      controller.insertExactAccentText(char)
+    } else {
+      keyboardContext.textDocumentProxy.insertText(char)
+    }
   }
 
   @objc func handleRimeAsciiModeChange() {

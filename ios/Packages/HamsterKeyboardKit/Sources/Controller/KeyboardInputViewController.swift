@@ -4261,6 +4261,30 @@ extension KeyboardInputViewController {
   func openEmbeddedModuleMainApp() {
     openUrl(URL(string: "nanomouse://com.XiangqingZHANG.nanomouse/main"))
   }
+
+  func insertExactAccentText(_ text: String) {
+    if !rimeContext.userInputKey.isEmpty {
+      if keyboardContext.enableEmbeddedInputMode {
+        textDocumentProxy.setMarkedText("", selectedRange: NSMakeRange(0, 0))
+      }
+      if keyboardContext.swipePaging {
+        if let firstCandidate = rimeContext.suggestions.first {
+          textDocumentProxy.insertText(firstCandidate.text)
+        }
+      } else if let commit = rimeContext.rimeContext?.commitTextPreview {
+        textDocumentProxy.insertText(commit)
+      }
+      rimeContext.reset()
+      resetMixedInputFreezeState()
+    }
+
+    textDocumentProxy.insertText(text)
+    schedulePredictiveSuggestionsRefresh()
+
+    if keyboardContext.returnToPrimaryKeyboardOfSymbols(key: text) {
+      keyboardContext.setKeyboardType(keyboardContext.returnKeyboardType())
+    }
+  }
 }
 
 // MARK: - Private Functions

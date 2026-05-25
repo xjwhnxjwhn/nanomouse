@@ -32,4 +32,21 @@ final class AccentCharacterProviderTests: XCTestCase {
     XCTAssertEqual(accents["/"], ["\\"])
     XCTAssertEqual(accents["%"], ["‰"])
   }
+
+  func testSymbolAccentOptionsMarkAsciiHalfWidthOnly() {
+    let hashOptions = AccentCharacterProvider.accentOptions(for: "#") ?? []
+
+    XCTAssertEqual(hashOptions.first(where: { $0.character == "#" })?.widthLabel, "半")
+    XCTAssertEqual(hashOptions.first(where: { $0.character == "＃" })?.widthLabel, "全")
+
+    let fullwidthHashOptions = AccentCharacterProvider.accentOptions(for: "＃") ?? []
+
+    XCTAssertEqual(fullwidthHashOptions.first(where: { $0.character == "#" })?.widthLabel, "半")
+    XCTAssertEqual(fullwidthHashOptions.first(where: { $0.character == "＃" })?.widthLabel, "全")
+
+    let yenOptions = AccentCharacterProvider.accentOptions(for: "￥") ?? []
+
+    XCTAssertNil(yenOptions.first(where: { $0.character == "¥" })?.widthLabel)
+    XCTAssertEqual(yenOptions.first(where: { $0.character == "￥" })?.widthLabel, "全")
+  }
 }
