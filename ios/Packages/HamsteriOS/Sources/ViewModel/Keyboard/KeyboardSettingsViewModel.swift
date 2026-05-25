@@ -1567,7 +1567,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]
     ),
     .init(
-      footer: "实验功能开发中",
+      footer: "实验功能开发中，很有可能不稳定，请谨慎打开，如果不好用就关掉。",
       items: {
         var items: [SettingItemModel] = [
           .init(
