@@ -202,3 +202,47 @@ public extension CAShapeLayer {
     return path
   }
 }
+
+public extension UIBezierPath {
+  static func roundedClosedPath(points rawPoints: [CGPoint], cornerRadius: CGFloat) -> UIBezierPath {
+    let points = rawPoints.reduce(into: [CGPoint]()) { result, point in
+      guard result.last.map({ hypot($0.x - point.x, $0.y - point.y) > 0.5 }) ?? true else { return }
+      result.append(point)
+    }
+    guard points.count > 2, cornerRadius > 0 else {
+      let path = UIBezierPath()
+      guard let first = points.first else { return path }
+      path.move(to: first)
+      points.dropFirst().forEach { path.addLine(to: $0) }
+      path.close()
+      return path
+    }
+
+    let path = UIBezierPath()
+    for index in points.indices {
+      let previous = points[(index - 1 + points.count) % points.count]
+      let current = points[index]
+      let next = points[(index + 1) % points.count]
+      let previousLength = max(hypot(previous.x - current.x, previous.y - current.y), 0.1)
+      let nextLength = max(hypot(next.x - current.x, next.y - current.y), 0.1)
+      let radius = min(cornerRadius, previousLength / 2, nextLength / 2)
+      let start = CGPoint(
+        x: current.x + (previous.x - current.x) / previousLength * radius,
+        y: current.y + (previous.y - current.y) / previousLength * radius
+      )
+      let end = CGPoint(
+        x: current.x + (next.x - current.x) / nextLength * radius,
+        y: current.y + (next.y - current.y) / nextLength * radius
+      )
+
+      if index == points.startIndex {
+        path.move(to: start)
+      } else {
+        path.addLine(to: start)
+      }
+      path.addQuadCurve(to: end, controlPoint: current)
+    }
+    path.close()
+    return path
+  }
+}

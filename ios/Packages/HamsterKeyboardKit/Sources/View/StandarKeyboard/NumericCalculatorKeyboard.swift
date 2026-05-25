@@ -327,7 +327,6 @@ final class NumericCalculatorKeyboard: NibLessView {
     horizontalScale: CGFloat,
     mode: ChineseKeyboardOneHandMode
   ) -> UIBezierPath {
-    let path = UIBezierPath()
     let sampleCount = 6
     let outerPoints = (0 ... sampleCount).map { index in
       let t = CGFloat(index) / CGFloat(sampleCount)
@@ -339,23 +338,23 @@ final class NumericCalculatorKeyboard: NibLessView {
         mode: mode
       )
     }
-    let innerPoints = (0 ... sampleCount).reversed().map { index in
-      let t = CGFloat(index) / CGFloat(sampleCount)
-      return calculatorArcPoint(
-        pivot: pivot,
-        radius: innerRadius,
-        angle: startAngle + (endAngle - startAngle) * t,
-        horizontalScale: horizontalScale,
-        mode: mode
-      )
+    let innerPoints: [CGPoint]
+    if innerRadius <= 1 {
+      innerPoints = [pivot]
+    } else {
+      innerPoints = (0 ... sampleCount).reversed().map { index in
+        let t = CGFloat(index) / CGFloat(sampleCount)
+        return calculatorArcPoint(
+          pivot: pivot,
+          radius: innerRadius,
+          angle: startAngle + (endAngle - startAngle) * t,
+          horizontalScale: horizontalScale,
+          mode: mode
+        )
+      }
     }
-
-    guard let first = outerPoints.first else { return path }
-    path.move(to: first)
-    outerPoints.dropFirst().forEach { path.addLine(to: $0) }
-    innerPoints.forEach { path.addLine(to: $0) }
-    path.close()
-    return path
+    let radius = max(0, min(CGFloat(UserDefaults.hamster.chineseKeyboardCornerRadius), 16))
+    return UIBezierPath.roundedClosedPath(points: outerPoints + innerPoints, cornerRadius: radius)
   }
 
   private func calculatorArcPoint(
