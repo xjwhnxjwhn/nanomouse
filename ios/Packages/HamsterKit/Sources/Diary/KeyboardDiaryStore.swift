@@ -176,6 +176,40 @@ public final class KeyboardDiaryStore {
     }
   }
 
+  public func updateText(
+    id: UUID,
+    rawText: String,
+    trigger: KeyboardDiarySegmentTrigger,
+    confidence: KeyboardDiarySegmentConfidence,
+    metadata: [String: String] = [:]) throws -> KeyboardDiarySegment?
+  {
+    let filtered = Self.filter(rawText)
+    guard filtered.shouldSave else { return nil }
+    let persistedText = filtered.level == .none ? filtered.original : filtered.redacted
+
+    return try queue.sync {
+      try prepareDiaryStorageUnlocked()
+      try migratePlaintextFileIfNeededUnlocked()
+      var segments = try loadSegmentDecodeResultUnlocked().segments
+      guard let index = segments.firstIndex(where: { $0.id == id && !$0.isDeleted }) else {
+        return nil
+      }
+
+      var segment = segments[index]
+      segment.createdAt = Date()
+      segment.text = persistedText
+      segment.redactedText = filtered.redacted
+      segment.trigger = trigger
+      segment.confidence = confidence
+      segment.sensitiveLevel = filtered.level
+      segment.metadata.merge(metadata) { _, new in new }
+      segment.metadata["mergedIncrementalCapture"] = "true"
+      segments[index] = segment
+      try writeEncryptedSegmentsUnlocked(segments.sorted { $0.createdAt > $1.createdAt })
+      return segment
+    }
+  }
+
   public func markDeleted(id: UUID) throws {
     try rewrite { segments in
       segments.map { segment in

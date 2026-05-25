@@ -55,6 +55,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   private var mixedInputResyncing = false
   private var lastDiaryCapturedText: String?
   private var lastDiaryCapturedAt: Date?
+  private var lastDiaryCapturedSegmentID: UUID?
   private var isKeyboardHostInactive = false
   private let voiceInputBridge: KeyboardVoiceInputBridge = .shared
   private let canvasInputBridge: KeyboardCanvasBridge = .shared
@@ -262,23 +263,51 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     let confidence: KeyboardDiarySegmentConfidence = text.isEmpty ? .low : (after.isEmpty ? .medium : .high)
+    let metadata = [
+      "keyboardType": keyboardContext.keyboardType.yamlString,
+      "proxyKeyboardType": proxyKeyboardType.map { "\($0.rawValue)" } ?? "nil"
+    ]
     do {
+      if let lastDiaryCapturedText,
+         let lastDiaryCapturedAt,
+         let lastDiaryCapturedSegmentID,
+         shouldMergeDiaryCapture(previous: lastDiaryCapturedText, current: text),
+         now.timeIntervalSince(lastDiaryCapturedAt) < 180,
+         let updated = try KeyboardDiaryStore.shared.updateText(
+           id: lastDiaryCapturedSegmentID,
+           rawText: text,
+           trigger: trigger,
+           confidence: confidence,
+           metadata: metadata
+         )
+      {
+        self.lastDiaryCapturedText = text
+        self.lastDiaryCapturedAt = now
+        self.lastDiaryCapturedSegmentID = updated.id
+        return
+      }
+
       let saved = try KeyboardDiaryStore.shared.append(
         rawText: text,
         trigger: trigger,
         confidence: confidence,
-        metadata: [
-          "keyboardType": keyboardContext.keyboardType.yamlString,
-          "proxyKeyboardType": proxyKeyboardType.map { "\($0.rawValue)" } ?? "nil"
-        ]
+        metadata: metadata
       )
-      if saved != nil {
+      if let saved {
         lastDiaryCapturedText = text
         lastDiaryCapturedAt = now
+        lastDiaryCapturedSegmentID = saved.id
       }
     } catch {
       Logger.statistics.error("KeyboardDiary capture failed: \(error.localizedDescription)")
     }
+  }
+
+  private func shouldMergeDiaryCapture(previous: String, current: String) -> Bool {
+    guard current != previous else { return false }
+    guard current.count > previous.count else { return false }
+    guard current.hasPrefix(previous) else { return false }
+    return current.count - previous.count <= 2000
   }
 
   func captureDiaryInputSegmentAfterCandidateSelection() {
