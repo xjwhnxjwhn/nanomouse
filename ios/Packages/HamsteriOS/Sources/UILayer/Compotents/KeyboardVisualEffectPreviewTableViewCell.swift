@@ -167,6 +167,7 @@ final class KeyboardVisualEffectPreviewTableViewCell: NibLessTableViewCell {
   private func setupView() {
     selectionStyle = .none
     valueSlider.addTarget(self, action: #selector(sliderValueChanged), for: .valueChanged)
+    previewBackdrop.isHidden = true
 
     contentView.addSubview(titleLabel)
     contentView.addSubview(valueLabel)
@@ -203,11 +204,11 @@ final class KeyboardVisualEffectPreviewTableViewCell: NibLessTableViewCell {
       valueSlider.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
       valueSlider.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
 
-      previewBackdrop.topAnchor.constraint(equalTo: valueSlider.bottomAnchor, constant: 12),
+      previewBackdrop.topAnchor.constraint(equalTo: valueSlider.bottomAnchor, constant: 8),
       previewBackdrop.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
       previewBackdrop.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
       previewBackdrop.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
-      previewBackdrop.heightAnchor.constraint(equalToConstant: 128),
+      previewBackdrop.heightAnchor.constraint(equalToConstant: 0),
 
       iconImageView.topAnchor.constraint(equalTo: previewBackdrop.topAnchor),
       iconImageView.leadingAnchor.constraint(equalTo: previewBackdrop.leadingAnchor),
@@ -265,6 +266,7 @@ final class KeyboardVisualEffectPreviewTableViewCell: NibLessTableViewCell {
   }
 
   private func refreshPreview() {
+    guard !previewBackdrop.isHidden else { return }
     var configuration = HamsterAppDependencyContainer.shared.configuration.keyboard?.visualEffect ?? KeyboardVisualEffectConfiguration()
     configuration.keyboardBackgroundStyle = nil
     let fixedBackgroundConfiguration = KeyboardVisualEffectConfiguration()

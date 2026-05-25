@@ -18,6 +18,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
   private var layoutButtons: [UIButton] = []
   private var tableHeightConstraint: NSLayoutConstraint?
   private var layoutContentHeightConstraint: NSLayoutConstraint?
+  private var previewDockHeightConstraint: NSLayoutConstraint?
 
   private lazy var scrollView: UIScrollView = {
     let scrollView = UIScrollView(frame: .zero)
@@ -78,11 +79,29 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     return view
   }()
 
+  private lazy var previewDockView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = .secondarySystemBackground
+    return view
+  }()
+
+  private lazy var previewDockContentView: UIView = {
+    let view = UIView(frame: .zero)
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.clipsToBounds = false
+    return view
+  }()
+
   private lazy var customLayoutView: ChineseKeyboardCustomLayoutSettingsView = {
     let view = ChineseKeyboardCustomLayoutSettingsView(usesInternalScrollView: false)
     view.translatesAutoresizingMaskIntoConstraints = false
     view.contentHeightDidChange = { [weak self] height in
       self?.updateLayoutContentHeight(preferredContentHeight: height)
+    }
+    view.previewHeightDidChange = { [weak self] height in
+      self?.previewDockHeightConstraint?.constant = height + 16
+      self?.updateLayoutContentHeight()
     }
     return view
   }()
@@ -115,7 +134,9 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     customLayoutView.visualEffectPreviewUserInterfaceStyle = selectedVisualEffectUserInterfaceStyle
 
     addSubview(scrollView)
+    addSubview(previewDockView)
     scrollView.addSubview(contentView)
+    previewDockView.addSubview(previewDockContentView)
     contentView.addSubview(appearanceModeControl)
     contentView.addSubview(tableView)
     contentView.addSubview(layoutTabScrollView)
@@ -128,12 +149,25 @@ final class KeyboardVisualEffectsRootView: NibLessView {
     self.tableHeightConstraint = tableHeightConstraint
     let layoutContentHeightConstraint = layoutContentContainer.heightAnchor.constraint(equalToConstant: 860)
     self.layoutContentHeightConstraint = layoutContentHeightConstraint
+    let previewDockHeightConstraint = previewDockView.heightAnchor.constraint(equalToConstant: 240)
+    self.previewDockHeightConstraint = previewDockHeightConstraint
+    customLayoutView.attachPreview(to: previewDockContentView)
 
     NSLayoutConstraint.activate([
       scrollView.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
       scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
       scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-      scrollView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: previewDockView.topAnchor),
+
+      previewDockView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      previewDockView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      previewDockView.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor),
+      previewDockHeightConstraint,
+
+      previewDockContentView.topAnchor.constraint(equalTo: previewDockView.topAnchor, constant: 8),
+      previewDockContentView.leadingAnchor.constraint(equalTo: previewDockView.leadingAnchor, constant: 16),
+      previewDockContentView.trailingAnchor.constraint(equalTo: previewDockView.trailingAnchor, constant: -16),
+      previewDockContentView.bottomAnchor.constraint(equalTo: previewDockView.bottomAnchor, constant: -8),
 
       contentView.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
       contentView.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
@@ -187,6 +221,7 @@ final class KeyboardVisualEffectsRootView: NibLessView {
       .store(in: &subscriptions)
 
     keyboardSettingsViewModel.keyboardVisualEffectPreviewChangePublished
+      .debounce(for: .milliseconds(220), scheduler: DispatchQueue.main)
       .receive(on: DispatchQueue.main)
       .sink { [weak self] _ in
         self?.customLayoutView.reloadPreview()
@@ -229,10 +264,11 @@ final class KeyboardVisualEffectsRootView: NibLessView {
   }
 
   private func updateLayoutContentHeight(preferredContentHeight: CGFloat?) {
-    let availableHeight = bounds.height - safeAreaInsets.top - safeAreaInsets.bottom - 72
+    let previewHeight = previewDockHeightConstraint?.constant ?? 0
+    let availableHeight = bounds.height - safeAreaInsets.top - safeAreaInsets.bottom - previewHeight - 72
     let isChinese26 = selectedKeyboardType == .chinese(.lowercased)
     let preferredHeight = preferredContentHeight ?? customLayoutView.preferredContentHeight(width: bounds.width)
-    layoutContentHeightConstraint?.constant = isChinese26 ? max(preferredHeight, availableHeight, 820) : 180
+    layoutContentHeightConstraint?.constant = isChinese26 ? max(preferredHeight, availableHeight, 360) : 180
   }
 
   private func rebuildLayoutTabs() {

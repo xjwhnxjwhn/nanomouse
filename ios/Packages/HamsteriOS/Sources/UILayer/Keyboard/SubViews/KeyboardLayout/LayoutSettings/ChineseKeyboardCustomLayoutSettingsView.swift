@@ -30,7 +30,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
   private let usesInternalScrollView: Bool
   private var lastReportedContentHeight: CGFloat = 0
   private let previewKeyboardBoardPadding: CGFloat = 10
+  private var externalPreviewConstraints: [NSLayoutConstraint] = []
   var contentHeightDidChange: ((CGFloat) -> Void)?
+  var previewHeightDidChange: ((CGFloat) -> Void)?
   var visualEffectPreviewUserInterfaceStyle: UIUserInterfaceStyle? {
     didSet {
       guard oldValue != visualEffectPreviewUserInterfaceStyle else { return }
@@ -110,7 +112,11 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
   }()
 
   private lazy var previewIconBackgroundView: UIImageView = {
-    let imageView = UIImageView(image: UIImage(named: "Hamster") ?? UIImage(named: "NanomouseLaunch"))
+    let imageView = UIImageView(
+      image: UIImage(named: "KeyboardVisualEffectPreviewBackground")
+        ?? UIImage(named: "Hamster")
+        ?? UIImage(named: "NanomouseLaunch")
+    )
     imageView.translatesAutoresizingMaskIntoConstraints = false
     imageView.contentMode = .scaleAspectFill
     imageView.clipsToBounds = true
@@ -293,6 +299,25 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     loadProfiles()
     rebuildProfileControl()
     rebuildKeyboard()
+  }
+
+  func attachPreview(to hostView: UIView) {
+    guard previewContainer.superview !== hostView else { return }
+    if previewContainer.superview === contentStack {
+      contentStack.removeArrangedSubview(previewContainer)
+    }
+    previewContainer.removeFromSuperview()
+    NSLayoutConstraint.deactivate(externalPreviewConstraints)
+    hostView.addSubview(previewContainer)
+    externalPreviewConstraints = [
+      previewContainer.topAnchor.constraint(equalTo: hostView.topAnchor),
+      previewContainer.leadingAnchor.constraint(equalTo: hostView.leadingAnchor),
+      previewContainer.trailingAnchor.constraint(equalTo: hostView.trailingAnchor),
+      previewContainer.bottomAnchor.constraint(equalTo: hostView.bottomAnchor)
+    ]
+    NSLayoutConstraint.activate(externalPreviewConstraints)
+    previewHeightDidChange?(previewContainerHeightConstraint?.constant ?? 220)
+    reportContentHeightIfNeeded()
   }
 
   required init?(coder: NSCoder) {
@@ -562,7 +587,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     [previewContainer, previewKeyboardBackgroundEffectView].forEach {
       $0.overrideUserInterfaceStyle = style
     }
-    previewContainerHeightConstraint?.constant = previewKeyboardHeight() + previewKeyboardBoardPadding * 2
+    let previewHeight = previewKeyboardHeight() + previewKeyboardBoardPadding * 2
+    previewContainerHeightConstraint?.constant = previewHeight
+    previewHeightDidChange?(previewHeight)
     let hasCustomBackgroundColor = UserDefaults.hamster.chineseKeyboardBackgroundColorHex?.isEmpty == false
     previewContainer.backgroundColor = UserDefaults.hamster.chineseKeyboardBackgroundColorHex?.keyboardUIColor ?? .clear
     previewIconBackgroundView.alpha = hasCustomBackgroundColor ? 0.32 : 1
