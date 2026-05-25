@@ -108,6 +108,13 @@ public class KeyboardButton: UIControl {
   private var customContentShapeSignature: String?
   private let customContentMaskLayer = CAShapeLayer()
   private let customContentBorderLayer = CAShapeLayer()
+  private let keySurfaceEffectView = UIVisualEffectView(effect: nil)
+  private let keySurfaceTintView = UIView(frame: .zero)
+  private let keySurfaceWhiteOverlayView = UIView(frame: .zero)
+  private let keySurfaceStrokeLayer = CAShapeLayer()
+  private let keyBackgroundImageView = UIImageView(frame: .zero)
+  private var keyBackgroundImagePathSignature: String?
+  private static let keyBackgroundImageCache = NSCache<NSString, UIImage>()
 
   // MARK: - subview
 
@@ -231,11 +238,8 @@ public class KeyboardButton: UIControl {
     let style = normalButtonStyle
 
     // 按钮样式
-    buttonContentView.backgroundColor = style.backgroundColor
-    if let color = style.border?.color {
-      buttonContentView.layer.borderColor = color.cgColor
-      buttonContentView.layer.borderWidth = style.border?.size ?? 1
-    }
+    applyButtonBackground(style, isPressed: false)
+    applyButtonBorder(style)
   }
 
   override public func layoutSubviews() {
@@ -273,16 +277,20 @@ public class KeyboardButton: UIControl {
         buttonContentView.frame = bounds
         // Logger.statistics.debug("button content row: \(self.row), column: \(self.column), frame: \(bounds.width) \(bounds.height)")
         if let cornerRadius = normalButtonStyle.cornerRadius {
+          let cornerRadius = clampedCornerRadius(cornerRadius, in: bounds.size)
           buttonContentView.layer.cornerRadius = cornerRadius
-          if enableButtonUnderBorder {
+          if enableButtonUnderBorder, !shouldRenderKeySurfaceGlass() {
             buttonContentView.layer.addSublayer(underShadowShape)
             underShadowShape.path = calculatorUnderPath(bounds: CGSize(width: bounds.width, height: bounds.height + 1), cornerRadius: cornerRadius).cgPath
             underShadowShape.fillColor = normalButtonStyle.shadow?.color.cgColor
+          } else {
+            underShadowShape.removeFromSuperlayer()
           }
         }
       }
       CATransaction.commit()
     }
+    updateKeySurface(style: isHighlighted ? pressedButtonStyle : normalButtonStyle, isPressed: isHighlighted)
 
     if userInterfaceStyle != keyboardContext.colorScheme {
       userInterfaceStyle = keyboardContext.colorScheme
@@ -368,11 +376,8 @@ public class KeyboardButton: UIControl {
     buttonContentView.setStyle(style)
 
     // 按钮样式
-    buttonContentView.backgroundColor = style.backgroundColor
-    if let color = style.border?.color {
-      buttonContentView.layer.borderColor = color.cgColor
-      buttonContentView.layer.borderWidth = style.border?.size ?? 1
-    }
+    applyButtonBackground(style, isPressed: isPressed)
+    applyButtonBorder(style)
     if let customContentShapePath {
       applyCustomContentShape(customContentShapePath, style: style)
     }
@@ -435,11 +440,31 @@ public class KeyboardButton: UIControl {
     customContentMaskLayer.path = path.cgPath
     buttonContentView.layer.mask = customContentMaskLayer
 
+    let borderWidth = max(0, style.border?.size ?? 0)
+    let defaultGlassStrokeWidth = KeyboardLiquidGlass.defaultKeySurfaceStrokeWidth(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect
+    )
+    let configuredColor = style.border?.color
+    let effectiveBorderWidth = max(borderWidth, defaultGlassStrokeWidth)
+    let strokeColor: UIColor = {
+      guard effectiveBorderWidth > 0 else { return .clear }
+      if let configuredColor, configuredColor.cgColor.alpha > 0 {
+        return configuredColor
+      }
+      guard shouldRenderKeySurfaceGlass() else { return .clear }
+      return KeyboardLiquidGlass.strokeColor(
+        userInterfaceStyle: keyboardContext.colorScheme,
+        configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+        target: .keySurface
+      )
+    }()
+
     customContentBorderLayer.frame = buttonContentView.bounds
     customContentBorderLayer.path = path.cgPath
     customContentBorderLayer.fillColor = UIColor.clear.cgColor
-    customContentBorderLayer.strokeColor = style.border?.color.cgColor ?? UIColor.clear.cgColor
-    customContentBorderLayer.lineWidth = style.border?.size ?? 0
+    customContentBorderLayer.strokeColor = strokeColor.cgColor
+    customContentBorderLayer.lineWidth = effectiveBorderWidth
     if customContentBorderLayer.superlayer == nil {
       buttonContentView.layer.addSublayer(customContentBorderLayer)
     }
@@ -450,6 +475,160 @@ public class KeyboardButton: UIControl {
       buttonContentView.layer.mask = nil
     }
     customContentBorderLayer.removeFromSuperlayer()
+  }
+
+  private func applyButtonBackground(_ style: KeyboardButtonStyle, isPressed: Bool) {
+    configureKeySurfaceViewsIfNeeded()
+    let shouldUseGlass = shouldRenderKeySurfaceGlass()
+    let hasImage = currentKeyAppearanceOverride()?.backgroundImageURL != nil
+    buttonContentView.backgroundColor = shouldUseGlass || hasImage ? .clear : style.backgroundColor
+    updateKeySurface(style: style, isPressed: isPressed)
+  }
+
+  private func applyButtonBorder(_ style: KeyboardButtonStyle) {
+    guard customContentShapePath == nil else {
+      buttonContentView.layer.borderColor = UIColor.clear.cgColor
+      buttonContentView.layer.borderWidth = 0
+      return
+    }
+    if let border = style.border {
+      buttonContentView.layer.borderColor = border.color.cgColor
+      buttonContentView.layer.borderWidth = max(0, border.size)
+    } else {
+      buttonContentView.layer.borderColor = UIColor.clear.cgColor
+      buttonContentView.layer.borderWidth = 0
+    }
+  }
+
+  private func configureKeySurfaceViewsIfNeeded() {
+    guard keySurfaceEffectView.superview == nil else { return }
+    keySurfaceEffectView.isUserInteractionEnabled = false
+    keySurfaceEffectView.clipsToBounds = true
+    keySurfaceTintView.isUserInteractionEnabled = false
+    keySurfaceTintView.backgroundColor = .clear
+    keySurfaceWhiteOverlayView.isUserInteractionEnabled = false
+    keySurfaceWhiteOverlayView.backgroundColor = .clear
+    keySurfaceEffectView.contentView.addSubview(keySurfaceTintView)
+    keySurfaceEffectView.contentView.addSubview(keySurfaceWhiteOverlayView)
+
+    keyBackgroundImageView.isUserInteractionEnabled = false
+    keyBackgroundImageView.contentMode = .scaleAspectFill
+    keyBackgroundImageView.clipsToBounds = true
+
+    buttonContentView.insertSubview(keySurfaceEffectView, at: 0)
+    buttonContentView.insertSubview(keyBackgroundImageView, aboveSubview: keySurfaceEffectView)
+    buttonContentView.layer.addSublayer(keySurfaceStrokeLayer)
+  }
+
+  private func updateKeySurface(style: KeyboardButtonStyle, isPressed: Bool) {
+    configureKeySurfaceViewsIfNeeded()
+    let bounds = buttonContentView.bounds
+    let cornerRadius = clampedCornerRadius(style.cornerRadius ?? 0, in: bounds.size)
+    let shouldUseGlass = shouldRenderKeySurfaceGlass()
+    let imageURL = currentKeyAppearanceOverride()?.backgroundImageURL
+
+    keySurfaceEffectView.frame = bounds
+    keySurfaceEffectView.layer.cornerRadius = cornerRadius
+    keySurfaceTintView.frame = keySurfaceEffectView.contentView.bounds
+    keySurfaceTintView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    keySurfaceWhiteOverlayView.frame = keySurfaceEffectView.contentView.bounds
+    keySurfaceWhiteOverlayView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    keySurfaceStrokeLayer.frame = bounds
+    keySurfaceStrokeLayer.path = UIBezierPath(roundedRect: bounds, cornerRadius: cornerRadius).cgPath
+    keySurfaceStrokeLayer.fillColor = UIColor.clear.cgColor
+    let borderWidth = max(0, style.border?.size ?? 0)
+    let defaultGlassStrokeWidth = KeyboardLiquidGlass.defaultKeySurfaceStrokeWidth(
+      userInterfaceStyle: keyboardContext.colorScheme,
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect
+    )
+    let shouldDrawGlassStroke = shouldUseGlass &&
+      (borderWidth > 0 || defaultGlassStrokeWidth > 0) &&
+      (style.border?.color.cgColor.alpha ?? 0) <= 0
+    keySurfaceStrokeLayer.lineWidth = shouldDrawGlassStroke ? max(borderWidth, defaultGlassStrokeWidth) : 0
+    keySurfaceStrokeLayer.strokeColor = shouldDrawGlassStroke
+      ? KeyboardLiquidGlass.strokeColor(
+        userInterfaceStyle: keyboardContext.colorScheme,
+        configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+        target: .keySurface
+      ).cgColor
+      : UIColor.clear.cgColor
+
+    if shouldUseGlass {
+      keySurfaceEffectView.isHidden = false
+      keySurfaceEffectView.effect = KeyboardLiquidGlass.effect(
+        userInterfaceStyle: keyboardContext.colorScheme,
+        configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+        target: .keySurface
+      )
+      var tint = KeyboardLiquidGlass.tintColor(
+        userInterfaceStyle: keyboardContext.colorScheme,
+        configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+        target: .keySurface
+      )
+      if isPressed {
+        tint = tint.withAlphaComponent(min(1, tint.cgColor.alpha + 0.12))
+      }
+      keySurfaceTintView.backgroundColor = tint
+      keySurfaceWhiteOverlayView.backgroundColor = KeyboardLiquidGlass.keySurfaceWhiteOverlayColor(
+        userInterfaceStyle: keyboardContext.colorScheme,
+        configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect
+      )
+    } else {
+      keySurfaceEffectView.isHidden = true
+      keySurfaceEffectView.effect = nil
+      keySurfaceTintView.backgroundColor = .clear
+      keySurfaceWhiteOverlayView.backgroundColor = .clear
+    }
+
+    keyBackgroundImageView.frame = bounds
+    keyBackgroundImageView.layer.cornerRadius = cornerRadius
+    updateKeyBackgroundImage(url: imageURL)
+  }
+
+  private func shouldRenderKeySurfaceGlass() -> Bool {
+    guard !isSpacer else { return false }
+    guard keyboardContext.hamsterConfiguration?.keyboard?.enableColorSchema != true else { return false }
+    guard UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.isEmpty != false else { return false }
+    guard currentKeyAppearanceOverride()?.backgroundColorHex?.isEmpty != false else { return false }
+    return KeyboardLiquidGlass.shouldRenderVisualSurface(
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      target: .keySurface,
+      userInterfaceStyle: keyboardContext.colorScheme
+    )
+  }
+
+  private func currentKeyAppearanceOverride() -> ChineseKeyboardKeyAppearance? {
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return nil }
+    return UserDefaults.hamster.chineseKeyboardKeyAppearanceOverrides.appearance(forActionID: item.action.yamlString)
+  }
+
+  private func updateKeyBackgroundImage(url: URL?) {
+    let signature = url?.path
+    guard keyBackgroundImagePathSignature != signature else { return }
+    keyBackgroundImagePathSignature = signature
+    guard let url else {
+      keyBackgroundImageView.image = nil
+      keyBackgroundImageView.isHidden = true
+      return
+    }
+    let key = url.path as NSString
+    if let cached = Self.keyBackgroundImageCache.object(forKey: key) {
+      keyBackgroundImageView.image = cached
+      keyBackgroundImageView.isHidden = false
+      return
+    }
+    guard let image = UIImage(contentsOfFile: url.path) else {
+      keyBackgroundImageView.image = nil
+      keyBackgroundImageView.isHidden = true
+      return
+    }
+    Self.keyBackgroundImageCache.setObject(image, forKey: key)
+    keyBackgroundImageView.image = image
+    keyBackgroundImageView.isHidden = false
+  }
+
+  private func clampedCornerRadius(_ radius: CGFloat, in size: CGSize) -> CGFloat {
+    max(0, min(radius, min(size.width, size.height) / 2))
   }
 }
 

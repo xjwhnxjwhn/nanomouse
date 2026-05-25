@@ -260,7 +260,7 @@ class KeyboardRootView: NibLessView {
   }
 
   override func setupAppearance() {
-    backgroundColor = appearance.backgroundStyle.backgroundColor
+    configureKeyboardBackground()
     contentMode = .redraw
   }
 
@@ -517,6 +517,10 @@ class KeyboardRootView: NibLessView {
   /// 强制刷新当前键盘视图
   func reloadKeyboardView() {
     updatePrimaryKeyboardView(for: currentKeyboardType)
+  }
+
+  private func configureKeyboardBackground() {
+    backgroundColor = appearance.backgroundStyle.backgroundColor
   }
 
   private func updatePrimaryKeyboardView(for keyboardType: KeyboardType) {

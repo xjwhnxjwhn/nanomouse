@@ -23,11 +23,16 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   }
 
   private let style: KeyboardActionCalloutStyle
+  private let visualEffectConfiguration: KeyboardVisualEffectConfiguration?
+  private let userInterfaceStyle: UIUserInterfaceStyle
   private let options: [LanguageOption]
   private let onSelect: (LanguageOption) -> Void
   private var highlightedOption: LanguageOption?
 
   private let menuContainer = UIView()
+  private let glassEffectView = UIVisualEffectView(effect: nil)
+  private let glassTintView = UIView(frame: .zero)
+  private let glassStrokeView = UIView(frame: .zero)
   private let stackView = UIStackView()
   private var optionButtons: [UIButton] = []
 
@@ -38,10 +43,14 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
 
   init(
     style: KeyboardActionCalloutStyle,
+    visualEffectConfiguration: KeyboardVisualEffectConfiguration?,
+    userInterfaceStyle: UIUserInterfaceStyle,
     options: [LanguageOption],
     onSelect: @escaping (LanguageOption) -> Void
   ) {
     self.style = style
+    self.visualEffectConfiguration = visualEffectConfiguration
+    self.userInterfaceStyle = userInterfaceStyle
     self.options = options
     self.onSelect = onSelect
     super.init(frame: .zero)
@@ -74,6 +83,9 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     }
 
     menuContainer.frame = CGRect(origin: origin, size: CGSize(width: menuWidth, height: menuHeight))
+    glassEffectView.frame = menuContainer.bounds
+    glassTintView.frame = glassEffectView.contentView.bounds
+    glassStrokeView.frame = menuContainer.bounds
     stackView.frame = CGRect(
       x: padding,
       y: padding,
@@ -84,8 +96,6 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
 
   /// 处理拖拽手势选择
   func handleDrag(at point: CGPoint, in view: UIView) {
-    let localPoint = view.convert(point, to: stackView)
-    
     // 查找包含触摸点的按钮
     var foundOption: LanguageOption?
     for button in optionButtons {
@@ -119,7 +129,14 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
   private func updateHighlightState() {
     for button in optionButtons {
       let isHighlighted = button.tag == highlightedOption?.rawValue
-      button.backgroundColor = isHighlighted ? style.callout.textColor.withAlphaComponent(0.1) : .clear
+      button.backgroundColor = isHighlighted
+        ? KeyboardLiquidGlass.selectionColor(
+          textColor: style.callout.textColor,
+          userInterfaceStyle: userInterfaceStyle,
+          configuration: visualEffectConfiguration,
+          target: .keyLongPressMenu
+        )
+        : .clear
       button.isHighlighted = isHighlighted
     }
   }
@@ -131,16 +148,8 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
     tap.delegate = self
     addGestureRecognizer(tap)
 
-    menuContainer.backgroundColor = style.callout.backgroundColor
-    menuContainer.layer.cornerRadius = style.callout.cornerRadius
-    menuContainer.layer.borderColor = UIColor.clear.cgColor
-    menuContainer.layer.borderWidth = 0
-    menuContainer.layer.shadowColor = UIColor.black.cgColor
-    menuContainer.layer.shadowOpacity = 0 // Remove shadow to prevent "underline" look
-    menuContainer.layer.shadowRadius = 0
-    menuContainer.layer.shadowOffset = .zero
-
     addSubview(menuContainer)
+    setupGlassBackground()
     menuContainer.addSubview(stackView)
 
     stackView.axis = .horizontal
@@ -178,6 +187,55 @@ final class LanguageMenuOverlay: UIView, UIGestureRecognizerDelegate {
       stackView.addArrangedSubview(button)
       optionButtons.append(button)
     }
+    menuContainer.addSubview(glassStrokeView)
+  }
+
+  private func setupGlassBackground() {
+    menuContainer.backgroundColor = .clear
+    menuContainer.layer.cornerRadius = 14
+    menuContainer.layer.cornerCurve = .continuous
+    menuContainer.layer.shadowColor = UIColor.black.cgColor
+    menuContainer.layer.shadowOpacity = KeyboardLiquidGlass.shadowOpacity(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
+    menuContainer.layer.shadowRadius = 12
+    menuContainer.layer.shadowOffset = CGSize(width: 0, height: 5)
+
+    glassEffectView.effect = KeyboardLiquidGlass.effect(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
+    glassEffectView.isUserInteractionEnabled = false
+    glassEffectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassEffectView.layer.cornerRadius = 14
+    glassEffectView.layer.cornerCurve = .continuous
+    glassEffectView.layer.masksToBounds = true
+
+    glassTintView.backgroundColor = KeyboardLiquidGlass.tintColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    )
+    glassTintView.isUserInteractionEnabled = false
+    glassTintView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassEffectView.contentView.addSubview(glassTintView)
+
+    glassStrokeView.backgroundColor = .clear
+    glassStrokeView.isUserInteractionEnabled = false
+    glassStrokeView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    glassStrokeView.layer.cornerRadius = 14
+    glassStrokeView.layer.cornerCurve = .continuous
+    glassStrokeView.layer.borderWidth = 1 / UIScreen.main.scale
+    glassStrokeView.layer.borderColor = KeyboardLiquidGlass.strokeColor(
+      userInterfaceStyle: userInterfaceStyle,
+      configuration: visualEffectConfiguration,
+      target: .keyLongPressMenu
+    ).cgColor
+
+    menuContainer.addSubview(glassEffectView)
   }
 
   @objc private func handleOptionTap(_ sender: UIButton) {

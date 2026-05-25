@@ -466,7 +466,12 @@ private extension KeyboardButton {
     guard let container = superview else { return }
     container.viewWithTag(Self.languageMenuOverlayTag)?.removeFromSuperview()
 
-    let overlay = LanguageMenuOverlay(style: actionCalloutStyle, options: languageMenuOptions()) { [weak self] option in
+    let overlay = LanguageMenuOverlay(
+      style: actionCalloutStyle,
+      visualEffectConfiguration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      userInterfaceStyle: keyboardContext.colorScheme,
+      options: languageMenuOptions()
+    ) { [weak self] option in
       self?.handleLanguageSelection(option)
     }
     overlay.tag = Self.languageMenuOverlayTag

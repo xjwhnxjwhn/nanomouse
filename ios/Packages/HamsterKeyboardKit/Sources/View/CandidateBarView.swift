@@ -457,7 +457,7 @@ public class CandidateBarView: NibLessView {
     return host.superview == nil ? window : host
   }
 
-  private func textReplacementBubbleEffect() -> UIVisualEffect {
+  private func textReplacementBubbleEffect() -> UIVisualEffect? {
     KeyboardLiquidGlass.effect(
       userInterfaceStyle: userInterfaceStyle,
       configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,

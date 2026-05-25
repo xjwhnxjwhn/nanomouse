@@ -62,7 +62,7 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   /// 应用于整个键盘的背景样式。
   open var backgroundStyle: KeyboardBackgroundStyle {
     var style = KeyboardBackgroundStyle.standard
-    style.backgroundColor = UIColor.white.withAlphaComponent(0.001)
+    style.backgroundColor = keyboardBackgroundBaseColor()
 
     // 开启键盘配色
     if let hamsterColor = hamsterColor() {
@@ -189,6 +189,10 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
     return hamsterUIColor.clearInteractable
   }
 
+  private func keyboardBackgroundBaseColor() -> UIColor {
+    UIColor.white.withAlphaComponent(0.001)
+  }
+
   /// 默认拼写区文字大小
   open var phoneticTextFontSize: CGFloat {
     12
@@ -285,8 +289,7 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
       swipeForegroundColor: UIColor.secondaryLabel,
       font: buttonFont(for: action),
       swipeFont: swipeFont,
-      // cornerRadius: buttonCornerRadius(for: action),
-      cornerRadius: 5,
+      cornerRadius: buttonCornerRadius(for: action),
       border: buttonBorderStyle(for: action),
       shadow: buttonShadowStyle(for: action)
     )
@@ -395,20 +398,36 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   /// 根据给定 `isPressed` 状态， 用于特定操作的背景颜色。
   open func buttonBackgroundColor(for action: KeyboardAction, isPressed: Bool) -> UIColor {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = chineseKeyAppearanceOverride(for: action)?.backgroundUIColor
+    {
+      return isPressed ? color.withAlphaComponent(min(1, color.alphaComponent + 0.10)) : color
+    }
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
        canApplyChineseCustomKeyAppearance(to: action),
        let color = UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.keyboardUIColor
     {
       return color
+    }
+    if shouldUseTransparentChineseKeySurface(for: action) {
+      return .clear
     }
     return action.buttonBackgroundColor(for: keyboardContext, isPressed: isPressed)
   }
 
   open func buttonBackgroundColor(for action: KeyboardAction, isPressed: Bool, hamsterColor: HamsterKeyboardColor) -> UIColor {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = chineseKeyAppearanceOverride(for: action)?.backgroundUIColor
+    {
+      return isPressed ? color.withAlphaComponent(min(1, color.alphaComponent + 0.10)) : color
+    }
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
        canApplyChineseCustomKeyAppearance(to: action),
        let color = UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.keyboardUIColor
     {
       return color
+    }
+    if shouldUseTransparentChineseKeySurface(for: action) {
+      return .clear
     }
     return action.buttonBackgroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor)
   }
@@ -417,6 +436,12 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 用于特定操作的边框样式。
   open func buttonBorderStyle(for action: KeyboardAction) -> KeyboardButtonBorderStyle {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = chineseKeyAppearanceOverride(for: action)?.borderUIColor
+    {
+      let width = max(0, CGFloat(UserDefaults.hamster.chineseKeyboardBorderWidth))
+      return KeyboardButtonBorderStyle(color: color, size: width)
+    }
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
        canApplyChineseCustomKeyAppearance(to: action)
     {
@@ -431,6 +456,12 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   }
 
   open func buttonBorderStyle(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> KeyboardButtonBorderStyle {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = chineseKeyAppearanceOverride(for: action)?.borderUIColor
+    {
+      let width = max(0, CGFloat(UserDefaults.hamster.chineseKeyboardBorderWidth))
+      return KeyboardButtonBorderStyle(color: color, size: width)
+    }
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
        canApplyChineseCustomKeyAppearance(to: action)
     {
@@ -449,14 +480,14 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   /// 用于特定操作的圆角半径。
   open func buttonCornerRadius(for action: KeyboardAction) -> CGFloat {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard {
-      return CGFloat(UserDefaults.hamster.chineseKeyboardCornerRadius)
+      return configuredChineseCornerRadius()
     }
     return keyboardLayoutConfiguration.buttonCornerRadius
   }
 
   open func buttonCornerRadius(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> CGFloat {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard {
-      return CGFloat(UserDefaults.hamster.chineseKeyboardCornerRadius)
+      return configuredChineseCornerRadius(defaultValue: hamsterColor.cornerRadius)
     }
     return hamsterColor.cornerRadius
   }
@@ -626,20 +657,36 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   /// 用于特定操作的按键前景色。
   open func buttonForegroundColor(for action: KeyboardAction, isPressed: Bool) -> UIColor {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
-       let color = UserDefaults.hamster.chineseKeyboardKeyTextColorHex?.keyboardUIColor
+       let color = chineseKeyAppearanceOverride(for: action)?.textUIColor
     {
       return color
     }
-    return action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed)
-  }
-
-  open func buttonForegroundColor(for action: KeyboardAction, isPressed: Bool, hamsterColor: HamsterKeyboardColor) -> UIColor {
     if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
        let color = UserDefaults.hamster.chineseKeyboardKeyTextColorHex?.keyboardUIColor
     {
       return color
     }
-    return action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor)
+    return adjustedChineseDefaultForegroundColor(
+      action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed),
+      for: action
+    )
+  }
+
+  open func buttonForegroundColor(for action: KeyboardAction, isPressed: Bool, hamsterColor: HamsterKeyboardColor) -> UIColor {
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = chineseKeyAppearanceOverride(for: action)?.textUIColor
+    {
+      return color
+    }
+    if keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+       let color = UserDefaults.hamster.chineseKeyboardKeyTextColorHex?.keyboardUIColor
+    {
+      return color
+    }
+    return adjustedChineseDefaultForegroundColor(
+      action.buttonForegroundColor(for: keyboardContext, isPressed: isPressed, hamsterColor: hamsterColor),
+      for: action
+    )
   }
 
   open func buttonSwipeForegroundColor(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> UIColor {
@@ -650,6 +697,12 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
   ///
   /// 用于特定操作的按键阴影样式。
   open func buttonShadowStyle(for action: KeyboardAction) -> KeyboardButtonShadowStyle {
+    if shouldUseTransparentChineseKeySurface(for: action) {
+      return .noShadow
+    }
+    if shouldUseChineseKeySurfaceGlass(for: action) {
+      return .noShadow
+    }
     switch action {
     case .characterMargin: return .noShadow
     case .emoji, .emojiCategory: return .noShadow
@@ -660,11 +713,67 @@ open class StandardKeyboardAppearance: KeyboardAppearance {
 
   // TODO: 自定义阴影配色
   open func buttonShadowStyle(for action: KeyboardAction, hamsterColor: HamsterKeyboardColor) -> KeyboardButtonShadowStyle {
+    if shouldUseTransparentChineseKeySurface(for: action) {
+      return .noShadow
+    }
+    if shouldUseChineseKeySurfaceGlass(for: action) {
+      return .noShadow
+    }
     switch action {
     case .characterMargin: return .noShadow
     case .emoji, .emojiCategory: return .noShadow
     case .none: return .noShadow
     default: return .standard
+    }
+  }
+
+  private func chineseKeyAppearanceOverride(for action: KeyboardAction) -> ChineseKeyboardKeyAppearance? {
+    let overrides = UserDefaults.hamster.chineseKeyboardKeyAppearanceOverrides
+    return overrides.appearance(forActionID: action.yamlString)
+  }
+
+  private func configuredChineseCornerRadius(defaultValue: CGFloat = 5) -> CGFloat {
+    let value = UserDefaults.hamster.chineseKeyboardCornerRadius
+    guard value.isFinite else { return defaultValue }
+    return max(0, CGFloat(value))
+  }
+
+  private func shouldUseChineseKeySurfaceGlass(for action: KeyboardAction) -> Bool {
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
+    guard canApplyChineseCustomKeyAppearance(to: action) else { return false }
+    guard keyboardContext.hamsterConfiguration?.keyboard?.enableColorSchema != true else { return false }
+    guard UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.isEmpty != false else { return false }
+    guard chineseKeyAppearanceOverride(for: action)?.backgroundColorHex?.isEmpty != false else { return false }
+    return KeyboardLiquidGlass.shouldRenderVisualSurface(
+      configuration: keyboardContext.hamsterConfiguration?.keyboard?.visualEffect,
+      target: .keySurface,
+      userInterfaceStyle: keyboardContext.colorScheme
+    )
+  }
+
+  private func shouldUseTransparentChineseKeySurface(for action: KeyboardAction) -> Bool {
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard else { return false }
+    guard canApplyChineseCustomKeyAppearance(to: action) else { return false }
+    guard keyboardContext.hamsterConfiguration?.keyboard?.enableColorSchema != true else { return false }
+    guard UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex?.isEmpty != false else { return false }
+    guard chineseKeyAppearanceOverride(for: action)?.backgroundColorHex?.isEmpty != false else { return false }
+    return keyboardContext.hamsterConfiguration?.keyboard?.visualEffect?.style(
+      for: .keySurface,
+      userInterfaceStyle: keyboardContext.colorScheme
+    ) == .transparent
+  }
+
+  private func adjustedChineseDefaultForegroundColor(_ color: UIColor, for action: KeyboardAction) -> UIColor {
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard,
+          keyboardContext.hasDarkColorScheme
+    else {
+      return color
+    }
+    switch action {
+    case .character, .symbol, .symbolOfDark:
+      return color.withAlphaComponent(min(color.cgColor.alpha, 0.84))
+    default:
+      return color
     }
   }
 }
@@ -693,6 +802,12 @@ private extension String {
       blue = CGFloat(hex & 0x00_00ff) / 255
     }
     return UIColor(red: red, green: green, blue: blue, alpha: alpha)
+  }
+}
+
+private extension UIColor {
+  var alphaComponent: CGFloat {
+    cgColor.alpha
   }
 }
 
