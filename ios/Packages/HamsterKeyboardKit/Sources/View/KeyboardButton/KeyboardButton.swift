@@ -161,6 +161,9 @@ public class KeyboardButton: UIControl {
     var style = appearance.inputCalloutStyle
     let insets = item.insets
     style.callout.buttonInset = insets
+    style.calloutWidthScale = CGFloat(UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale)
+    style.calloutHeightScale = CGFloat(UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale)
+    style.callout.cornerRadius = CGFloat(UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius)
     return style
   }
 

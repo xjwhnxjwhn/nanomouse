@@ -140,9 +140,14 @@ public class InputCalloutView: ShapeView {
     guard let _ = self.superview else { return }
     guard self.frame != .zero, oldFrame != self.frame else { return }
 
-    // 将 size 扩大两倍，作为气泡的基础大小
+    // 将 size 按设置倍率扩大，作为气泡的基础大小
     originButtonBounds = self.bounds
-    popBounds = self.bounds.applying(CGAffineTransform(scaleX: 1.6, y: 2.5))
+    popBounds = self.bounds.applying(
+      CGAffineTransform(
+        scaleX: max(1, style.calloutWidthScale),
+        y: max(1, style.calloutHeightScale)
+      )
+    )
 
     // x 轴居中，y 轴底部对齐（气泡底部与按钮底部对齐）
     let tempFrame = self.frame

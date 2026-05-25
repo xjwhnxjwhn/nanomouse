@@ -75,6 +75,14 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
 
   private lazy var previewActionHandler = PreviewKeyboardActionHandler()
 
+  private lazy var previewCalloutContext = KeyboardCalloutContext(
+    action: ActionCalloutContext(
+      actionHandler: previewActionHandler,
+      actionProvider: StandardCalloutActionProvider(keyboardContext: previewKeyboardContext)
+    ),
+    input: InputCalloutContext(isEnabled: true)
+  )
+
   private lazy var scrollView: UIScrollView = {
     let view = UIScrollView(frame: .zero)
     view.translatesAutoresizingMaskIntoConstraints = false
@@ -226,6 +234,27 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     action: #selector(cornerRadiusChanged(_:))
   )
 
+  private lazy var inputCalloutWidthSlider = makeSlider(
+    value: UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale,
+    minimum: 1.2,
+    maximum: 2.4,
+    action: #selector(inputCalloutWidthChanged(_:))
+  )
+
+  private lazy var inputCalloutHeightSlider = makeSlider(
+    value: UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale,
+    minimum: 1.8,
+    maximum: 3.2,
+    action: #selector(inputCalloutHeightChanged(_:))
+  )
+
+  private lazy var inputCalloutCornerRadiusSlider = makeSlider(
+    value: UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius,
+    minimum: 0,
+    maximum: 28,
+    action: #selector(inputCalloutCornerRadiusChanged(_:))
+  )
+
   private lazy var backgroundColorWell = makeColorWell(
     title: "背景",
     hex: UserDefaults.hamster.chineseKeyboardBackgroundColorHex,
@@ -363,6 +392,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     contentStack.addArrangedSubview(makeSliderRow(title: "键帽高度", slider: keyHeightSlider))
     contentStack.addArrangedSubview(makeSliderRow(title: "边框宽度", slider: borderWidthSlider))
     contentStack.addArrangedSubview(makeSliderRow(title: "按键形状", slider: cornerRadiusSlider))
+    contentStack.addArrangedSubview(makeSliderRow(title: "气泡长度", slider: inputCalloutWidthSlider))
+    contentStack.addArrangedSubview(makeSliderRow(title: "气泡高度", slider: inputCalloutHeightSlider))
+    contentStack.addArrangedSubview(makeSliderRow(title: "气泡圆角", slider: inputCalloutCornerRadiusSlider))
     contentStack.addArrangedSubview(makeColorRow())
     contentStack.addArrangedSubview(makePositionEditorView())
     contentStack.addArrangedSubview(makeSelectedKeyAppearanceView())
@@ -611,7 +643,7 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
       actionHandler: previewActionHandler,
       keyboardContext: previewKeyboardContext,
       rimeContext: previewRimeContext,
-      calloutContext: .disabled
+      calloutContext: previewCalloutContext
     )
     keyboard.translatesAutoresizingMaskIntoConstraints = false
     keyboard.overrideUserInterfaceStyle = style
@@ -655,6 +687,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
       keyHeightScale: UserDefaults.hamster.chineseKeyboardKeyHeightScale,
       borderWidth: UserDefaults.hamster.chineseKeyboardBorderWidth,
       cornerRadius: UserDefaults.hamster.chineseKeyboardCornerRadius,
+      inputCalloutWidthScale: UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale,
+      inputCalloutHeightScale: UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale,
+      inputCalloutCornerRadius: UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius,
       backgroundColorHex: UserDefaults.hamster.chineseKeyboardBackgroundColorHex,
       keyBackgroundColorHex: UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex,
       keyTextColorHex: UserDefaults.hamster.chineseKeyboardKeyTextColorHex,
@@ -674,6 +709,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     UserDefaults.hamster.chineseKeyboardKeyHeightScale = snapshot.keyHeightScale
     UserDefaults.hamster.chineseKeyboardBorderWidth = snapshot.borderWidth
     UserDefaults.hamster.chineseKeyboardCornerRadius = snapshot.cornerRadius
+    UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale = snapshot.inputCalloutWidthScale ?? 1.6
+    UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale = snapshot.inputCalloutHeightScale ?? 2.5
+    UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius = snapshot.inputCalloutCornerRadius ?? 10
     UserDefaults.hamster.chineseKeyboardBackgroundColorHex = snapshot.backgroundColorHex
     UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex = snapshot.keyBackgroundColorHex
     UserDefaults.hamster.chineseKeyboardKeyTextColorHex = snapshot.keyTextColorHex
@@ -687,6 +725,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     keyHeightSlider.value = Float(snapshot.keyHeightScale)
     borderWidthSlider.value = Float(snapshot.borderWidth)
     cornerRadiusSlider.value = Float(snapshot.cornerRadius)
+    inputCalloutWidthSlider.value = Float(snapshot.inputCalloutWidthScale ?? 1.6)
+    inputCalloutHeightSlider.value = Float(snapshot.inputCalloutHeightScale ?? 2.5)
+    inputCalloutCornerRadiusSlider.value = Float(snapshot.inputCalloutCornerRadius ?? 10)
     backgroundColorWell.selectedColor = snapshot.backgroundColorHex?.keyboardUIColor
     keyBackgroundColorWell.selectedColor = snapshot.keyBackgroundColorHex?.keyboardUIColor
     keyTextColorWell.selectedColor = snapshot.keyTextColorHex?.keyboardUIColor
@@ -840,6 +881,21 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     schedulePreviewRebuild()
   }
 
+  @objc private func inputCalloutWidthChanged(_ sender: UISlider) {
+    UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale = Double(sender.value)
+    schedulePreviewRebuild()
+  }
+
+  @objc private func inputCalloutHeightChanged(_ sender: UISlider) {
+    UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale = Double(sender.value)
+    schedulePreviewRebuild()
+  }
+
+  @objc private func inputCalloutCornerRadiusChanged(_ sender: UISlider) {
+    UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius = Double(sender.value)
+    schedulePreviewRebuild()
+  }
+
   @objc private func backgroundColorChanged(_ sender: UIColorWell) {
     UserDefaults.hamster.chineseKeyboardBackgroundColorHex = sender.selectedColor?.hexString
     rebuildKeyboard()
@@ -867,6 +923,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     UserDefaults.hamster.chineseKeyboardKeyHeightScale = 1
     UserDefaults.hamster.chineseKeyboardBorderWidth = 0
     UserDefaults.hamster.chineseKeyboardCornerRadius = 5
+    UserDefaults.hamster.chineseKeyboardInputCalloutWidthScale = 1.6
+    UserDefaults.hamster.chineseKeyboardInputCalloutHeightScale = 2.5
+    UserDefaults.hamster.chineseKeyboardInputCalloutCornerRadius = 10
     UserDefaults.hamster.chineseKeyboardBackgroundColorHex = nil
     UserDefaults.hamster.chineseKeyboardKeyBackgroundColorHex = nil
     UserDefaults.hamster.chineseKeyboardKeyTextColorHex = nil
@@ -878,6 +937,9 @@ final class ChineseKeyboardCustomLayoutSettingsView: UIView, PHPickerViewControl
     keyHeightSlider.value = 1
     borderWidthSlider.value = 0
     cornerRadiusSlider.value = 5
+    inputCalloutWidthSlider.value = 1.6
+    inputCalloutHeightSlider.value = 2.5
+    inputCalloutCornerRadiusSlider.value = 10
     backgroundColorWell.selectedColor = nil
     keyBackgroundColorWell.selectedColor = nil
     keyTextColorWell.selectedColor = nil

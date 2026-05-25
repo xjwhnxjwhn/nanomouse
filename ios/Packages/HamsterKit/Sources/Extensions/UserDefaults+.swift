@@ -457,6 +457,36 @@ public extension UserDefaults {
     }
   }
 
+  var chineseKeyboardInputCalloutWidthScale: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardInputCalloutWidthScaleKey) != nil else { return 1.6 }
+      return double(forKey: Self.chineseKeyboardInputCalloutWidthScaleKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardInputCalloutWidthScaleKey)
+    }
+  }
+
+  var chineseKeyboardInputCalloutHeightScale: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardInputCalloutHeightScaleKey) != nil else { return 2.5 }
+      return double(forKey: Self.chineseKeyboardInputCalloutHeightScaleKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardInputCalloutHeightScaleKey)
+    }
+  }
+
+  var chineseKeyboardInputCalloutCornerRadius: Double {
+    get {
+      guard object(forKey: Self.chineseKeyboardInputCalloutCornerRadiusKey) != nil else { return 10 }
+      return double(forKey: Self.chineseKeyboardInputCalloutCornerRadiusKey)
+    }
+    set {
+      set(newValue, forKey: Self.chineseKeyboardInputCalloutCornerRadiusKey)
+    }
+  }
+
   var chineseKeyboardBackgroundColorHex: String? {
     get { string(forKey: Self.chineseKeyboardBackgroundColorHexKey) }
     set { setOptionalString(newValue, forKey: Self.chineseKeyboardBackgroundColorHexKey) }
@@ -746,6 +776,9 @@ extension UserDefaults {
   private static let chineseKeyboardKeyHeightScaleKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyHeightScale"
   private static let chineseKeyboardBorderWidthKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardBorderWidth"
   private static let chineseKeyboardCornerRadiusKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardCornerRadius"
+  private static let chineseKeyboardInputCalloutWidthScaleKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardInputCalloutWidthScale"
+  private static let chineseKeyboardInputCalloutHeightScaleKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardInputCalloutHeightScale"
+  private static let chineseKeyboardInputCalloutCornerRadiusKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardInputCalloutCornerRadius"
   private static let chineseKeyboardBackgroundColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardBackgroundColorHex"
   private static let chineseKeyboardKeyBackgroundColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyBackgroundColorHex"
   private static let chineseKeyboardKeyTextColorHexKey = "com.XiangqingZHANG.nanomouse.UserDefault.keys.chineseKeyboardKeyTextColorHex"

@@ -59,7 +59,21 @@ public struct KeyboardInputCalloutStyle: Equatable {
    如果其他因素（如按钮大小、曲线大小、填充等）要求呼出的尺寸更大，则会被忽略。
    */
   public var calloutSize: CGSize
-  
+
+  /**
+   The horizontal scale applied to the callout bubble.
+
+   点按气泡相对于原按键的横向倍率。
+   */
+  public var calloutWidthScale: CGFloat
+
+  /**
+   The vertical scale applied to the callout bubble.
+
+   点按气泡相对于原按键的纵向倍率。
+   */
+  public var calloutHeightScale: CGFloat
+
   /**
    The font to use in the callout.
    
@@ -82,11 +96,15 @@ public struct KeyboardInputCalloutStyle: Equatable {
     callout: KeyboardCalloutStyle = .standard,
     calloutPadding: CGFloat = 2,
     calloutSize: CGSize = CGSize(width: 0, height: 55),
+    calloutWidthScale: CGFloat = 1.6,
+    calloutHeightScale: CGFloat = 2.5,
     font: KeyboardFont = .init(.largeTitle, .light)
   ) {
     self.callout = callout
     self.calloutPadding = calloutPadding
     self.calloutSize = calloutSize
+    self.calloutWidthScale = calloutWidthScale
+    self.calloutHeightScale = calloutHeightScale
     self.font = font
   }
 }

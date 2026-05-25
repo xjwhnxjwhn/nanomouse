@@ -40,6 +40,9 @@ struct KeyboardVisualEffectChinese26Snapshot: Codable, Hashable {
   var keyHeightScale: Double
   var borderWidth: Double
   var cornerRadius: Double
+  var inputCalloutWidthScale: Double?
+  var inputCalloutHeightScale: Double?
+  var inputCalloutCornerRadius: Double?
   var backgroundColorHex: String?
   var keyBackgroundColorHex: String?
   var keyTextColorHex: String?
