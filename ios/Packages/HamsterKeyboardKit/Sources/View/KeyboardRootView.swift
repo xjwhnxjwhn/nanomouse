@@ -356,9 +356,9 @@ class KeyboardRootView: NibLessView {
     if keyboardContext.enableToolbar {
       keyboardContext.$candidatesViewState
         .receive(on: DispatchQueue.main)
-        .sink { [weak self] in
+        .sink { [weak self] newState in
           guard let self = self else { return }
-          guard candidateViewState != $0 else { return }
+          guard candidateViewState != newState else { return }
           updatePredictionCandidateRowVisibilityIfNeeded()
           setNeedsLayout()
         }
@@ -439,7 +439,7 @@ class KeyboardRootView: NibLessView {
       || !rimeContext.textReplacementSuggestions.isEmpty
       || !rimeContext.suggestions.isEmpty
     let shouldShow = keyboardContext.enablePredictiveSuggestions
-      && candidateViewState.isCollapse()
+      && keyboardContext.candidatesViewState.isCollapse()
       && !hasCompositionContent
       && !rimeContext.predictiveSuggestions.isEmpty
     guard predictionCandidateRowVisible != shouldShow else { return }

@@ -876,7 +876,7 @@ public extension RimeContext {
   }
 
   private func updateRimePredictionPatch(in userDataDir: URL, configuration: HamsterConfiguration) {
-    let enabled = configuration.keyboard?.enablePredictiveSuggestions ?? false
+    let enabled = configuration.keyboard?.enablePredictiveSuggestions ?? true
     let hasPredictDatabase: Bool
     if enabled {
       hasPredictDatabase = (try? FileManager.ensureRimePredictDatabaseInUserData()) ?? false

@@ -314,6 +314,8 @@ extension SettingsViewModel {
       }
     }
 
+    await HamsterAppDependencyContainer.shared.keyboardSettingsViewModel.installRimePredictDatabaseIfNeeded()
+
     // 修改应用首次运行标志
     UserDefaults.standard.isFirstRunning = false
 

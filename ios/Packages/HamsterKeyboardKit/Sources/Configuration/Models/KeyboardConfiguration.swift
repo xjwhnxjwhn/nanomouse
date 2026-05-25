@@ -272,7 +272,7 @@ public struct KeyboardConfiguration: Codable, Hashable {
     enableMultiLanguageQuickMix: Bool? = false,
     enableNumericCandidateModeOnChineseKeyboard: Bool? = false,
     enableNumericCandidateModeOnJapaneseAzooKey: Bool? = true,
-    enablePredictiveSuggestions: Bool? = false,
+    enablePredictiveSuggestions: Bool? = true,
     predictiveSuggestionsMaxCandidates: Int? = 8) {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode

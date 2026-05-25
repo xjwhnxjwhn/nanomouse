@@ -394,7 +394,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   public var enablePredictiveSuggestions: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions ?? false
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions ?? true
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions = newValue
@@ -419,8 +419,13 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
   private func setPredictiveSuggestionsEnabled(_ enabled: Bool) {
     enablePredictiveSuggestions = enabled
-    guard !enabled || FileManager.isRimePredictDatabaseAvailable() else { return }
-    deployRimePredictionConfiguration(showSuccess: false)
+    if enabled, !FileManager.isRimePredictDatabaseAvailable() {
+      Task { [weak self] in
+        await self?.installRimePredictDatabase(showProgress: true, showResult: true)
+      }
+    } else {
+      deployRimePredictionConfiguration(showSuccess: false)
+    }
   }
 
   private func deployRimePredictionConfiguration(showSuccess: Bool = true) {
@@ -444,16 +449,25 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
-  private func installRimePredictDatabase() async {
+  public func installRimePredictDatabaseIfNeeded(showProgress: Bool = false, showResult: Bool = false) async {
+    guard enablePredictiveSuggestions, !FileManager.isRimePredictDatabaseAvailable() else { return }
+    await installRimePredictDatabase(showProgress: showProgress, showResult: showResult)
+  }
+
+  public func installRimePredictDatabase(showProgress: Bool = true, showResult: Bool = true) async {
     guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
-      await MainActor.run {
-        ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
+      if showResult {
+        await MainActor.run {
+          ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
+        }
       }
       return
     }
 
-    await MainActor.run {
-      ProgressHUD.animate("正在检查 Rime 联想词库…", AnimationType.circleRotateChase, interaction: false)
+    if showProgress {
+      await MainActor.run {
+        ProgressHUD.animate("正在检查 Rime 联想词库…", AnimationType.circleRotateChase, interaction: false)
+      }
     }
 
     do {
@@ -461,13 +475,17 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         try await installRimePredictDatabaseZip(bundledZipURL)
       } else {
         guard let package = try await fetchRimePredictPackageEntry(baseURL: baseURL) else {
-          await MainActor.run {
-            ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
+          if showResult {
+            await MainActor.run {
+              ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
+            }
           }
           return
         }
-        await MainActor.run {
-          ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+        if showProgress {
+          await MainActor.run {
+            ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+          }
         }
         let tempURL = try await downloadRimePredictDatabaseZip(from: baseURL.appendingPathComponent(package.fileName))
         defer { try? FileManager.default.removeItem(at: tempURL) }
@@ -479,12 +497,16 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       await MainActor.run {
         HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
         updateRimePredictDatabaseSettingStatus()
-        ProgressHUD.success("Rime 联想词库已安装", interaction: false, delay: 1.2)
+        if showResult {
+          ProgressHUD.success("Rime 联想词库已安装", interaction: false, delay: 1.2)
+        }
       }
     } catch {
       Logger.statistics.error("download Rime predict database failed: \(error.localizedDescription)")
-      await MainActor.run {
-        ProgressHUD.failed("下载失败：\(error.localizedDescription)", interaction: false, delay: 2)
+      if showResult {
+        await MainActor.run {
+          ProgressHUD.failed("下载失败：\(error.localizedDescription)", interaction: false, delay: 2)
+        }
       }
     }
   }
@@ -1578,38 +1600,44 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]
     ),
     .init(
+      title: "联想词候选",
+      footer: "默认开启。首次打开 App 会自动下载词库；如果下载中断或网络不可用，可在这里手动安装。",
+      items: [
+        .init(
+          text: "启用联想词候选行",
+          type: .toggle,
+          toggleValue: { [unowned self] in enablePredictiveSuggestions },
+          toggleHandled: { [unowned self] in
+            setPredictiveSuggestionsEnabled($0)
+          }
+        ),
+        .init(
+          text: "联想词数量",
+          secondaryText: "数量越多，联想行可横向滚动查看更多",
+          type: .step,
+          textValue: { [unowned self] in String(predictiveSuggestionsMaxCandidates) },
+          minValue: 4,
+          maxValue: 20,
+          stepValue: 1,
+          valueChangeHandled: { [unowned self] in
+            predictiveSuggestionsMaxCandidates = Int($0)
+            deployRimePredictionConfiguration(showSuccess: false)
+          }
+        ),
+        .init(
+          text: "安装 Rime 联想词库",
+          secondaryText: rimePredictDatabaseStatusText,
+          type: .button,
+          buttonAction: { [unowned self] in
+            await installRimePredictDatabase()
+          }
+        )
+      ]
+    ),
+    .init(
       footer: "实验功能开发中，很有可能不稳定，请谨慎打开，如果不好用就关掉。",
       items: {
         var items: [SettingItemModel] = [
-          .init(
-            text: "启用联想词候选行",
-            type: .toggle,
-            toggleValue: { [unowned self] in enablePredictiveSuggestions },
-            toggleHandled: { [unowned self] in
-              setPredictiveSuggestionsEnabled($0)
-            }
-          ),
-          .init(
-            text: "联想词数量",
-            secondaryText: "数量越多，联想行可横向滚动查看更多",
-            type: .step,
-            textValue: { [unowned self] in String(predictiveSuggestionsMaxCandidates) },
-            minValue: 4,
-            maxValue: 20,
-            stepValue: 1,
-            valueChangeHandled: { [unowned self] in
-              predictiveSuggestionsMaxCandidates = Int($0)
-              deployRimePredictionConfiguration(showSuccess: false)
-            }
-          ),
-          .init(
-            text: "安装 Rime 联想词库",
-            secondaryText: rimePredictDatabaseStatusText,
-            type: .button,
-            buttonAction: { [unowned self] in
-              await installRimePredictDatabase()
-            }
-          ),
           .init(
             text: "启用数字的候选模式在中文键盘",
             type: .toggle,
