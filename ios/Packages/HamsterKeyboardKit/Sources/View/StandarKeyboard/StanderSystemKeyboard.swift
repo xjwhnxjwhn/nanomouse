@@ -152,6 +152,18 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     updateOneHandModeControlAppearance()
   }
 
+  func refreshAppearanceForTraitChange() {
+    applyTraitAppearance()
+    setNeedsLayout()
+    layoutIfNeeded()
+  }
+
+  private func applyTraitAppearance() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    setupAppearance()
+    keyboardRows.flatMap { $0 }.forEach { $0.refreshAppearanceForTraitChange() }
+  }
+
   // MARK: Layout
 
   /// 构建视图层次
@@ -321,8 +333,7 @@ public class StanderSystemKeyboard: KeyboardTouchView {
     }
 
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      subviews.forEach { $0.setNeedsLayout() }
+      applyTraitAppearance()
     }
 
     guard interfaceOrientation != keyboardContext.interfaceOrientation || isKeyboardFloating != keyboardContext.isKeyboardFloating else {

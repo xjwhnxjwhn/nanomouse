@@ -264,6 +264,7 @@ public class CandidateBarView: NibLessView {
   }
 
   func setStyle(_ style: CandidateBarStyle) {
+    self.userInterfaceStyle = keyboardContext.colorScheme
     self.style = style
     setupAppearance()
   }

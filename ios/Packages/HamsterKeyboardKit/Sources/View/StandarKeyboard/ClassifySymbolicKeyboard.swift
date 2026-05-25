@@ -123,11 +123,7 @@ class ClassifySymbolicKeyboard: NibLessView {
     super.layoutSubviews()
 
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      style = appearance.nonStandardKeyboardStyle
-      classifyView.setStyle(style)
-      symbolsView.setStyle(style)
-      bottomRow.setStyle(style)
+      applyTraitAppearance()
     }
 
     guard interfaceOrientation != keyboardContext.interfaceOrientation || isKeyboardFloating != keyboardContext.isKeyboardFloating else { return }
@@ -146,5 +142,19 @@ class ClassifySymbolicKeyboard: NibLessView {
 
   func createClassifyViewWidthConstraint() -> NSLayoutConstraint {
     classifyView.widthAnchor.constraint(equalTo: widthAnchor, multiplier: keyboardContext.interfaceOrientation.isPortrait ? 0.2 : 0.15)
+  }
+
+  func refreshAppearanceForTraitChange() {
+    applyTraitAppearance()
+    setNeedsLayout()
+    layoutIfNeeded()
+  }
+
+  private func applyTraitAppearance() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    style = appearance.nonStandardKeyboardStyle
+    classifyView.setStyle(style)
+    symbolsView.setStyle(style)
+    bottomRow.setStyle(style)
   }
 }

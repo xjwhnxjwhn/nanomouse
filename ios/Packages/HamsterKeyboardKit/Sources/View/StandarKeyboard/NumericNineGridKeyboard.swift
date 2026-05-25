@@ -123,6 +123,19 @@ public class NumericNineGridKeyboard: KeyboardTouchView, UICollectionViewDelegat
     activateViewConstraints()
   }
 
+  func refreshAppearanceForTraitChange() {
+    applyTraitAppearance()
+    setNeedsLayout()
+    layoutIfNeeded()
+  }
+
+  private func applyTraitAppearance() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    nonStandardStyle = appearance.nonStandardKeyboardStyle
+    symbolsListView.setStyle(nonStandardStyle)
+    keyboardRows.flatMap { $0 }.forEach { $0.refreshAppearanceForTraitChange() }
+  }
+
   override public func constructViewHierarchy() {
     // 添加右侧符号划动列表
     addSubview(symbolsListContainerView)
@@ -234,10 +247,7 @@ public class NumericNineGridKeyboard: KeyboardTouchView, UICollectionViewDelegat
     super.layoutSubviews()
 
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      nonStandardStyle = appearance.nonStandardKeyboardStyle
-      symbolsListView.setStyle(nonStandardStyle)
-      keyboardRows.forEach { $0.forEach { $0.setNeedsLayout() }}
+      applyTraitAppearance()
     }
 
     guard interfaceOrientation != keyboardContext.interfaceOrientation || isKeyboardFloating != keyboardContext.isKeyboardFloating else { return }

@@ -159,6 +159,19 @@ public class ChineseNineGridKeyboard: KeyboardTouchView, UICollectionViewDelegat
     activateViewConstraints()
   }
 
+  func refreshAppearanceForTraitChange() {
+    applyTraitAppearance()
+    setNeedsLayout()
+    layoutIfNeeded()
+  }
+
+  private func applyTraitAppearance() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    nonStanderStyle = appearance.nonStandardKeyboardStyle
+    symbolsListView.setStyle(nonStanderStyle)
+    keyboardRows.flatMap { $0 }.forEach { $0.refreshAppearanceForTraitChange() }
+  }
+
   override public func constructViewHierarchy() {
     // 添加右侧符号划动列表
     addSubview(symbolsListContainerView)
@@ -294,10 +307,7 @@ public class ChineseNineGridKeyboard: KeyboardTouchView, UICollectionViewDelegat
 
     // 样式调整
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      nonStanderStyle = appearance.nonStandardKeyboardStyle
-      symbolsListView.setStyle(nonStanderStyle)
-      keyboardRows.forEach { $0.forEach { $0.setNeedsLayout() }}
+      applyTraitAppearance()
     }
 
     // 行高调整

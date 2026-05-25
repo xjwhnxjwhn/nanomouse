@@ -293,11 +293,7 @@ public class KeyboardButton: UIControl {
     updateKeySurface(style: isHighlighted ? pressedButtonStyle : normalButtonStyle, isPressed: isHighlighted)
 
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      // 系统颜色发生变化，重新获取按键样式
-      normalButtonStyle = getButtonStyle(isPressed: false)
-      pressedButtonStyle = getButtonStyle(isPressed: true)
-      updateButtonStyle(isPressed: isHighlighted)
+      refreshAppearanceForTraitChange()
     }
     if let customContentShapePath {
       applyCustomContentShape(customContentShapePath, style: isHighlighted ? pressedButtonStyle : normalButtonStyle)
@@ -395,6 +391,33 @@ public class KeyboardButton: UIControl {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
         self?.removeInputCallout()
       }
+    }
+  }
+
+  /// 系统亮暗变化时只刷新外观，避免触发按下气泡的显示/移除副作用。
+  func refreshAppearanceForTraitChange() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    normalButtonStyle = getButtonStyle(isPressed: false)
+    pressedButtonStyle = getButtonStyle(isPressed: true)
+
+    let style = isHighlighted ? pressedButtonStyle : normalButtonStyle
+    buttonContentView.setStyle(style)
+    applyButtonBackground(style, isPressed: isHighlighted)
+    applyButtonBorder(style)
+
+    if customContentShapePath == nil, let cornerRadius = style.cornerRadius {
+      buttonContentView.layer.cornerRadius = clampedCornerRadius(cornerRadius, in: buttonContentView.bounds.size)
+    }
+    if let customContentShapePath {
+      applyCustomContentShape(customContentShapePath, style: style)
+    }
+    if enableButtonUnderBorder {
+      underShadowShape.opacity = isHighlighted ? 0 : 1
+      underShadowShape.fillColor = normalButtonStyle.shadow?.color.cgColor
+    }
+
+    if isLanguageSwitchKey() {
+      buttonContentView.refreshLanguageSwitchText(buttonText)
     }
   }
 

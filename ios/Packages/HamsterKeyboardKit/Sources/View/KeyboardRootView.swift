@@ -364,12 +364,7 @@ class KeyboardRootView: NibLessView {
         guard let self = self else { return }
         guard userInterfaceStyle != $0.userInterfaceStyle else { return }
         userInterfaceStyle = $0.userInterfaceStyle
-        setupAppearance()
-        if keyboardContext.enableToolbar {
-          toolbarView.setNeedsLayout()
-        }
-        voiceModeView.updateStyle()
-        primaryKeyboardView.setNeedsLayout()
+        refreshAppearanceForTraitChange()
       }
       .store(in: &subscriptions)
 
@@ -523,6 +518,39 @@ class KeyboardRootView: NibLessView {
     backgroundColor = appearance.backgroundStyle.backgroundColor
   }
 
+  private func refreshAppearanceForTraitChange() {
+    UIView.performWithoutAnimation {
+      CATransaction.begin()
+      CATransaction.setDisableActions(true)
+      defer { CATransaction.commit() }
+
+      setupAppearance()
+      if keyboardContext.enableToolbar, let toolbarView = toolbarView as? KeyboardToolbarView {
+        toolbarView.refreshAppearanceForTraitChange()
+      }
+      voiceModeView.updateStyle()
+      refreshPrimaryKeyboardAppearanceForTraitChange()
+      setNeedsLayout()
+      layoutIfNeeded()
+    }
+  }
+
+  private func refreshPrimaryKeyboardAppearanceForTraitChange() {
+    if let primaryKeyboardView = primaryKeyboardView as? StanderSystemKeyboard {
+      primaryKeyboardView.refreshAppearanceForTraitChange()
+    } else if let primaryKeyboardView = primaryKeyboardView as? ChineseNineGridKeyboard {
+      primaryKeyboardView.refreshAppearanceForTraitChange()
+    } else if let primaryKeyboardView = primaryKeyboardView as? NumericNineGridKeyboard {
+      primaryKeyboardView.refreshAppearanceForTraitChange()
+    } else if let primaryKeyboardView = primaryKeyboardView as? ClassifySymbolicKeyboard {
+      primaryKeyboardView.refreshAppearanceForTraitChange()
+    } else {
+      primaryKeyboardView.refreshKeyboardButtonAppearanceRecursively()
+      primaryKeyboardView.setNeedsLayout()
+      primaryKeyboardView.layoutIfNeeded()
+    }
+  }
+
   private func updatePrimaryKeyboardView(for keyboardType: KeyboardType) {
     KeyboardStartupDiagnostics.setStartupPhase("root.updatePrimary.begin.\(keyboardType.yamlString)")
     KeyboardStartupDiagnostics.log("KeyboardRootView.updatePrimaryKeyboardView begin keyboardType=\(keyboardType.yamlString)")
@@ -573,6 +601,15 @@ class KeyboardRootView: NibLessView {
       bringSubviewToFront(voiceModeView)
     }
     setNeedsLayout()
+  }
+}
+
+private extension UIView {
+  func refreshKeyboardButtonAppearanceRecursively() {
+    if let button = self as? KeyboardButton {
+      button.refreshAppearanceForTraitChange()
+    }
+    subviews.forEach { $0.refreshKeyboardButtonAppearanceRecursively() }
   }
 }
 

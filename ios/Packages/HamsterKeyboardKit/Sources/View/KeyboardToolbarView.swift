@@ -332,9 +332,7 @@ class KeyboardToolbarView: NibLessView {
     super.layoutSubviews()
 
     if userInterfaceStyle != keyboardContext.colorScheme {
-      userInterfaceStyle = keyboardContext.colorScheme
-      setupAppearance()
-      candidateBarView.setStyle(self.style)
+      applyTraitAppearance()
     }
     
     // Ensure logo image is also rounded if it has a background
@@ -345,6 +343,12 @@ class KeyboardToolbarView: NibLessView {
     applyToolbarButtonCornerStyle()
     updateRightButtonsStackSpacing()
     scheduleInitialToolbarRefreshIfNeeded()
+  }
+
+  func refreshAppearanceForTraitChange() {
+    applyTraitAppearance()
+    setNeedsLayout()
+    layoutIfNeeded()
   }
 
   override func didMoveToWindow() {
@@ -502,6 +506,15 @@ class KeyboardToolbarView: NibLessView {
     weatherIndicatorIconView.tintColor = style.candidateTextColor
     updateCenterIndicatorVisibility()
     updateDiaryRecordingIndicatorAppearance()
+  }
+
+  private func applyTraitAppearance() {
+    userInterfaceStyle = keyboardContext.colorScheme
+    setupAppearance()
+    candidateBarView.setStyle(style)
+    updateToolbarButtonSymbolConfiguration()
+    applyToolbarButtonCornerStyle()
+    updateRightButtonsStackSpacing()
   }
 
   private func applyToolbarButtonCornerStyle() {
