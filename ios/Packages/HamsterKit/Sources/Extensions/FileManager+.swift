@@ -297,8 +297,21 @@ public extension FileManager {
     appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName)
   }
 
+  static var appGroupRimeSimplifiedPredictDatabaseURL: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimeSimplifiedPredictDatabaseFileName)
+  }
+
+  static var appGroupRimeTraditionalPredictDatabaseURL: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimeTraditionalPredictDatabaseFileName)
+  }
+
+  static var appGroupRimePredictFallbackURL: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictFallbackFileName)
+  }
+
   static var rimePredictDatabaseCandidateURLs: [URL] {
     [
+      appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimeSimplifiedPredictDatabaseFileName),
       appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName),
       appGroupSharedSupportDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName)
     ]
@@ -312,16 +325,53 @@ public extension FileManager {
     rimePredictDatabaseURL() != nil
   }
 
+  static func isRimeTraditionalPredictDatabaseAvailable() -> Bool {
+    FileManager.default.fileExists(atPath: appGroupRimeTraditionalPredictDatabaseURL.path)
+  }
+
+  static func areRimePredictDatabasesAvailable() -> Bool {
+    isRimePredictDatabaseAvailable() && isRimeTraditionalPredictDatabaseAvailable()
+  }
+
   @discardableResult
   static func ensureRimePredictDatabaseInUserData() throws -> Bool {
     let fm = FileManager.default
+    try createDirectory(override: false, dst: appGroupUserDataDirectoryURL)
     if fm.fileExists(atPath: appGroupRimePredictDatabaseURL.path) {
+      if !fm.fileExists(atPath: appGroupRimeSimplifiedPredictDatabaseURL.path) {
+        try? fm.copyItem(at: appGroupRimePredictDatabaseURL, to: appGroupRimeSimplifiedPredictDatabaseURL)
+      }
       return true
     }
     guard let sourceURL = rimePredictDatabaseURL() else {
       return false
     }
+    try fm.copyItem(at: sourceURL, to: appGroupRimePredictDatabaseURL)
+    if !fm.fileExists(atPath: appGroupRimeSimplifiedPredictDatabaseURL.path) {
+      try? fm.copyItem(at: sourceURL, to: appGroupRimeSimplifiedPredictDatabaseURL)
+    }
+    return true
+  }
+
+  @discardableResult
+  static func activateRimePredictDatabase(traditional: Bool) throws -> Bool {
+    let fm = FileManager.default
     try createDirectory(override: false, dst: appGroupUserDataDirectoryURL)
+    let sourceURL: URL?
+    if traditional {
+      sourceURL = fm.fileExists(atPath: appGroupRimeTraditionalPredictDatabaseURL.path)
+        ? appGroupRimeTraditionalPredictDatabaseURL
+        : nil
+    } else {
+      sourceURL = rimePredictDatabaseURL()
+    }
+    guard let sourceURL else {
+      return false
+    }
+    if sourceURL.path == appGroupRimePredictDatabaseURL.path {
+      return true
+    }
+    try? fm.removeItem(at: appGroupRimePredictDatabaseURL)
     try fm.copyItem(at: sourceURL, to: appGroupRimePredictDatabaseURL)
     return true
   }

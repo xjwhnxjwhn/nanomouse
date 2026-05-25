@@ -1109,10 +1109,12 @@ public extension RimeContext {
       let defaultValue = defaultTraditionalSimplifiedValue(for: simplifiedModeKey)
       Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: defaultValue)
       let handled = Rime.shared.API().customize(simplifiedModeKey, stringValue: String(defaultValue))
+      activatePredictDatabaseForTraditionalMode(simplifiedModeKey: simplifiedModeKey, optionValue: defaultValue)
       Logger.statistics.info("syncTraditionalSimplifiedChineseMode() first save. key: \(simplifiedModeKey), value: \(defaultValue), previousRuntimeValue: \(simplifiedModeValue), handled: \(handled)")
     } else {
       let rememberedValue = (value as NSString).boolValue
       Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: rememberedValue)
+      activatePredictDatabaseForTraditionalMode(simplifiedModeKey: simplifiedModeKey, optionValue: rememberedValue)
       Logger.statistics.info("syncTraditionalSimplifiedChineseMode() restore remembered state. key: \(simplifiedModeKey), value: \(rememberedValue)")
     }
   }
@@ -1121,17 +1123,38 @@ public extension RimeContext {
     key.localizedCaseInsensitiveContains("traditional") ? false : true
   }
 
+  private func isTraditionalMode(simplifiedModeKey: String, optionValue: Bool) -> Bool {
+    simplifiedModeKey.localizedCaseInsensitiveContains("traditional") ? optionValue : !optionValue
+  }
+
+  private func activatePredictDatabaseForTraditionalMode(simplifiedModeKey: String, optionValue: Bool) {
+    let traditional = isTraditionalMode(simplifiedModeKey: simplifiedModeKey, optionValue: optionValue)
+    do {
+      guard try FileManager.activateRimePredictDatabase(traditional: traditional) else {
+        Logger.statistics.warning("activate Rime predict database skipped. traditional: \(traditional)")
+        return
+      }
+      Rime.shared.restSession()
+      Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: optionValue)
+      Logger.statistics.info("activate Rime predict database. traditional: \(traditional)")
+    } catch {
+      Logger.statistics.error("activate Rime predict database failed: \(error.localizedDescription)")
+    }
+  }
+
   /// rime 中文简繁状态切换
   func switchTraditionalSimplifiedChinese(_ simplifiedModeKey: String) {
     let simplifiedModeValue = Rime.shared.simplifiedChineseMode(key: simplifiedModeKey)
+    let nextValue = !simplifiedModeValue
 
     // 设置运行时状态
-    Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: !simplifiedModeValue)
-    Logger.statistics.info("switchTraditionalSimplifiedChinese key: \(simplifiedModeKey), value: \(!simplifiedModeValue)")
+    Rime.shared.setSimplifiedChineseMode(key: simplifiedModeKey, value: nextValue)
+    Logger.statistics.info("switchTraditionalSimplifiedChinese key: \(simplifiedModeKey), value: \(nextValue)")
 
     // 保存运行时状态
-    let handled = Rime.shared.API().customize(simplifiedModeKey, stringValue: String(!simplifiedModeValue))
-    Logger.statistics.info("switchTraditionalSimplifiedChinese save file state. key: \(simplifiedModeKey), value: \(!simplifiedModeValue), handled: \(handled)")
+    let handled = Rime.shared.API().customize(simplifiedModeKey, stringValue: String(nextValue))
+    activatePredictDatabaseForTraditionalMode(simplifiedModeKey: simplifiedModeKey, optionValue: nextValue)
+    Logger.statistics.info("switchTraditionalSimplifiedChinese save file state. key: \(simplifiedModeKey), value: \(nextValue), handled: \(handled)")
   }
 
   /// 中英切换
@@ -1344,6 +1367,7 @@ public extension RimeContext {
     self.rimeContext = Rime.shared.context()
     let status = Rime.shared.status()
     let userInputText = rimeContext?.composition?.preedit ?? ""
+    let userInputKeys = Rime.shared.getInputKeys()
     let commitText = Rime.shared.getCommitText()
     var candidates = [CandidateSuggestion]()
     if !useContextPaging, status.isComposing {
@@ -1394,7 +1418,8 @@ public extension RimeContext {
       return
     }
 
-    if commitText.isEmpty, userInputText.isEmpty, !mixedInputManager.hasLiteral, !candidates.isEmpty {
+    let hasVisibleUserInput = !userInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !userInputKeys.isEmpty
+    if commitText.isEmpty, !hasVisibleUserInput, !mixedInputManager.hasLiteral, !candidates.isEmpty {
       self.userInputKey = compositionPrefix
       self.commitText = ""
       self.suggestions.removeAll(keepingCapacity: false)

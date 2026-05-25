@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import signal
 from collections import defaultdict
 from pathlib import Path
@@ -85,6 +86,41 @@ def build_predict_data(rime_ice_dir: Path, max_candidates_per_key: int) -> dict[
     return trimmed
 
 
+def build_suffix_fallback_data(
+    rime_ice_dir: Path,
+    max_candidates_per_key: int,
+    minimum_weight: int,
+) -> dict[str, list[str]]:
+    data: DefaultDict[str, dict[str, int]] = defaultdict(dict)
+    for relative_path, source_weight in SOURCE_WEIGHTS:
+        dict_path = rime_ice_dir / relative_path
+        if not dict_path.exists():
+            raise FileNotFoundError(dict_path)
+        for text, original_weight in iter_dict_entries(dict_path):
+            text_length = len(text)
+            if text_length < 2 or text_length > 7 or not is_common_han_word(text):
+                continue
+            base_weight = int(original_weight * source_weight)
+            if base_weight < minimum_weight:
+                continue
+            for split_index in range(1, text_length):
+                value = text[split_index:]
+                if not value or len(value) > 5:
+                    continue
+                for key_length in (1, 2):
+                    if split_index < key_length:
+                        continue
+                    key = text[split_index - key_length:split_index]
+                    if base_weight > data[key].get(value, 0):
+                        data[key][value] = base_weight
+
+    result: dict[str, list[str]] = {}
+    for key, candidates in data.items():
+        best = sorted(candidates.items(), key=lambda item: (-item[1], len(item[0]), item[0]))
+        result[key] = [value for value, _ in best[:max_candidates_per_key]]
+    return result
+
+
 def main() -> None:
     signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
@@ -101,9 +137,37 @@ def main() -> None:
         type=int,
         help="Maximum candidates kept in the generated TSV for each prediction key.",
     )
+    parser.add_argument(
+        "--fallback-json-output",
+        type=Path,
+        help="Optional path for a compact suffix fallback JSON used by the keyboard when Rime returns no prediction.",
+    )
+    parser.add_argument(
+        "--fallback-max-candidates-per-key",
+        default=8,
+        type=int,
+        help="Maximum candidates kept for each suffix fallback key.",
+    )
+    parser.add_argument(
+        "--fallback-minimum-weight",
+        default=1000,
+        type=int,
+        help="Minimum weighted dictionary score used for suffix fallback entries.",
+    )
     args = parser.parse_args()
 
     data = build_predict_data(args.rime_ice_dir, args.max_candidates_per_key)
+    if args.fallback_json_output:
+        fallback = build_suffix_fallback_data(
+            args.rime_ice_dir,
+            args.fallback_max_candidates_per_key,
+            args.fallback_minimum_weight,
+        )
+        args.fallback_json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.fallback_json_output.write_text(
+            json.dumps(fallback, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
     for key in sorted(data):
         candidates = sorted(data[key].items(), key=lambda item: (-item[1], len(item[0]), item[0]))
         for value, weight in candidates:

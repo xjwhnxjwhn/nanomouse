@@ -76,9 +76,9 @@
       "id": "rime-predict",
       "fileName": "rime-predict.zip",
       "publishedAt": "2026-05-25",
-      "sha256": "11114d719b43a083b33635aad6adfbdd1782b3038d8f7d50df09326382223110",
+      "sha256": "736113d4b811f9d320063fb3528411c7482e2b3a92cb72cd0e4f5b76561eba7a",
       "minSharedSupportVersion": "",
-      "title": "Rime 联想词库（雾凇，支持单字触发）"
+      "title": "Rime 联想词库（雾凇，支持后缀兜底）"
     }
   ]
 }

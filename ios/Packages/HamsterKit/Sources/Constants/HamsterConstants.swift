@@ -44,11 +44,23 @@ public enum HamsterConstants {
   /// Rime 联想词库文件
   public static let rimePredictDatabaseFileName = "predict.db"
 
+  /// Rime 简体联想词库备份文件
+  public static let rimeSimplifiedPredictDatabaseFileName = "predict_simplified.db"
+
+  /// Rime 繁体联想词库备份文件
+  public static let rimeTraditionalPredictDatabaseFileName = "predict_traditional.db"
+
+  /// Rime 联想兜底后缀表
+  public static let rimePredictFallbackFileName = "predict_fallback.json"
+
   /// Rime 联想词库 zip 包（按需下载）
   public static let rimePredictDatabaseZipFile = "rime-predict.zip"
 
   /// Rime 联想词库按需下载包 ID
   public static let rimePredictDatabasePackageID = "rime-predict"
+
+  /// Rime 官方繁体联想词库（librime-predict data-1.0 release）
+  public static let rimeTraditionalPredictDatabaseURL = "https://github.com/rime/librime-predict/releases/download/data-1.0/predict.db"
 
   /// 日语方案 zip 包（按需下载）
   public static let onDemandJapaneseSchemaZipMap: [String: String] = [

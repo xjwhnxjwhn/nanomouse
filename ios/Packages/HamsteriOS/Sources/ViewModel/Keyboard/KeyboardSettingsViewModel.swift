@@ -414,12 +414,18 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   private var rimePredictDatabaseStatusText: String {
-    FileManager.isRimePredictDatabaseAvailable() ? "已安装" : "未安装"
+    if FileManager.areRimePredictDatabasesAvailable() {
+      return "已安装"
+    }
+    if FileManager.isRimePredictDatabaseAvailable() || FileManager.isRimeTraditionalPredictDatabaseAvailable() {
+      return "部分安装"
+    }
+    return "未安装"
   }
 
   private func setPredictiveSuggestionsEnabled(_ enabled: Bool) {
     enablePredictiveSuggestions = enabled
-    if enabled, !FileManager.isRimePredictDatabaseAvailable() {
+    if enabled, !FileManager.areRimePredictDatabasesAvailable() {
       Task { [weak self] in
         await self?.installRimePredictDatabase(showProgress: true, showResult: true)
       }
@@ -450,7 +456,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   public func installRimePredictDatabaseIfNeeded(showProgress: Bool = false, showResult: Bool = false) async {
-    guard enablePredictiveSuggestions, !FileManager.isRimePredictDatabaseAvailable() else { return }
+    guard enablePredictiveSuggestions, !FileManager.areRimePredictDatabasesAvailable() else { return }
     await installRimePredictDatabase(showProgress: showProgress, showResult: showResult)
   }
 
@@ -491,6 +497,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         defer { try? FileManager.default.removeItem(at: tempURL) }
         try await installRimePredictDatabaseZip(tempURL)
       }
+      try await installTraditionalRimePredictDatabase()
 
       var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
       try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &updatedConfiguration)
@@ -549,7 +556,28 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
     try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictDatabaseURL)
+    try? FileManager.default.removeItem(at: FileManager.appGroupRimeSimplifiedPredictDatabaseURL)
+    try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimeSimplifiedPredictDatabaseURL)
     try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimePredictDatabaseURL)
+    if let fallbackURL = findRimePredictFallback(in: temporaryDirectory) {
+      try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictFallbackURL)
+      try FileManager.default.copyItem(at: fallbackURL, to: FileManager.appGroupRimePredictFallbackURL)
+    }
+  }
+
+  private func installTraditionalRimePredictDatabase() async throws {
+    guard let url = URL(string: HamsterConstants.rimeTraditionalPredictDatabaseURL) else {
+      throw StringError("Rime 官方繁体联想词库下载地址无效")
+    }
+    let (tempURL, response) = try await URLSession.shared.download(from: url)
+    defer { try? FileManager.default.removeItem(at: tempURL) }
+    if let httpResponse = response as? HTTPURLResponse,
+       !(200...299).contains(httpResponse.statusCode) {
+      throw StringError("Rime 官方繁体联想词库下载失败（HTTP \(httpResponse.statusCode)）")
+    }
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+    try? FileManager.default.removeItem(at: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
+    try FileManager.default.copyItem(at: tempURL, to: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
   }
 
   private func findRimePredictDatabase(in directoryURL: URL) -> URL? {
@@ -561,6 +589,20 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       return nil
     }
     for case let url as URL in enumerator where url.lastPathComponent == HamsterConstants.rimePredictDatabaseFileName {
+      return url
+    }
+    return nil
+  }
+
+  private func findRimePredictFallback(in directoryURL: URL) -> URL? {
+    guard let enumerator = FileManager.default.enumerator(
+      at: directoryURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return nil
+    }
+    for case let url as URL in enumerator where url.lastPathComponent == HamsterConstants.rimePredictFallbackFileName {
       return url
     }
     return nil
