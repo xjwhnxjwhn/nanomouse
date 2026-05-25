@@ -37,6 +37,16 @@ public enum KeyboardLayoutSegmentAction {
   case chineseLayoutCustomSettings
 }
 
+private struct RimePredictPackageManifest: Decodable {
+  let packages: [RimePredictPackageEntry]
+}
+
+private struct RimePredictPackageEntry: Decodable {
+  let id: String
+  let fileName: String
+  let title: String?
+}
+
 public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable {
   // MARK: - properties
 
@@ -380,6 +390,159 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       HamsterAppDependencyContainer.shared.configuration.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey = newValue
       HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enableNumericCandidateModeOnJapaneseAzooKey = newValue
     }
+  }
+
+  public var enablePredictiveSuggestions: Bool {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions ?? false
+    }
+    set {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions = newValue
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.enablePredictiveSuggestions = newValue
+    }
+  }
+
+  private var rimePredictDatabaseStatusText: String {
+    FileManager.isRimePredictDatabaseAvailable() ? "已安装" : "未安装"
+  }
+
+  private func setPredictiveSuggestionsEnabled(_ enabled: Bool) {
+    enablePredictiveSuggestions = enabled
+    guard !enabled || FileManager.isRimePredictDatabaseAvailable() else { return }
+    deployRimePredictionConfiguration(showSuccess: false)
+  }
+
+  private func deployRimePredictionConfiguration(showSuccess: Bool = true) {
+    Task.detached(priority: .userInitiated) { [weak self] in
+      guard self != nil else { return }
+      do {
+        var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
+        try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &updatedConfiguration)
+        await MainActor.run {
+          HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+          if showSuccess {
+            ProgressHUD.success("Rime 联想配置已更新", interaction: false, delay: 1.2)
+          }
+        }
+      } catch {
+        Logger.statistics.error("deploy Rime prediction configuration failed: \(error.localizedDescription)")
+        await MainActor.run {
+          ProgressHUD.failed("Rime 联想配置更新失败：\(error.localizedDescription)", interaction: false, delay: 2)
+        }
+      }
+    }
+  }
+
+  private func installRimePredictDatabase() async {
+    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
+      await MainActor.run {
+        ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
+      }
+      return
+    }
+
+    await MainActor.run {
+      ProgressHUD.animate("正在检查 Rime 联想词库…", AnimationType.circleRotateChase, interaction: false)
+    }
+
+    do {
+      if !FileManager.isRimePredictDatabaseAvailable() {
+        if let bundledZipURL = Bundle.main.url(forResource: "rime-predict", withExtension: "zip") {
+          try await installRimePredictDatabaseZip(bundledZipURL)
+        } else {
+          guard let package = try await fetchRimePredictPackageEntry(baseURL: baseURL) else {
+            await MainActor.run {
+              ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
+            }
+            return
+          }
+          await MainActor.run {
+            ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+          }
+          let tempURL = try await downloadRimePredictDatabaseZip(from: baseURL.appendingPathComponent(package.fileName))
+          defer { try? FileManager.default.removeItem(at: tempURL) }
+          try await installRimePredictDatabaseZip(tempURL)
+        }
+      }
+
+      var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
+      try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &updatedConfiguration)
+      await MainActor.run {
+        HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
+        updateRimePredictDatabaseSettingStatus()
+        ProgressHUD.success("Rime 联想词库已安装", interaction: false, delay: 1.2)
+      }
+    } catch {
+      Logger.statistics.error("download Rime predict database failed: \(error.localizedDescription)")
+      await MainActor.run {
+        ProgressHUD.failed("下载失败：\(error.localizedDescription)", interaction: false, delay: 2)
+      }
+    }
+  }
+
+  private func fetchRimePredictPackageEntry(baseURL: URL) async throws -> RimePredictPackageEntry? {
+    let manifestURL = baseURL.appendingPathComponent(HamsterConstants.onDemandInputSchemaManifestFile)
+    let (data, response) = try await URLSession.shared.data(from: manifestURL)
+    if let httpResponse = response as? HTTPURLResponse,
+       !(200...299).contains(httpResponse.statusCode)
+    {
+      throw StringError("资源清单下载失败（HTTP \(httpResponse.statusCode)）")
+    }
+    let manifest = try JSONDecoder().decode(RimePredictPackageManifest.self, from: data)
+    return manifest.packages.first {
+      $0.id == HamsterConstants.rimePredictDatabasePackageID ||
+        $0.fileName == HamsterConstants.rimePredictDatabaseZipFile
+    }
+  }
+
+  private func downloadRimePredictDatabaseZip(from url: URL) async throws -> URL {
+    let (tempURL, response) = try await URLSession.shared.download(from: url)
+    if let httpResponse = response as? HTTPURLResponse,
+       !(200...299).contains(httpResponse.statusCode) {
+      try? FileManager.default.removeItem(at: tempURL)
+      throw StringError("下载失败（HTTP \(httpResponse.statusCode)）")
+    }
+    return tempURL
+  }
+
+  private func installRimePredictDatabaseZip(_ zipURL: URL) async throws {
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+    try await FileManager.default.unzip(zipURL, dst: FileManager.appGroupUserDataDirectoryURL)
+    if !FileManager.isRimePredictDatabaseAvailable(),
+       let discoveredURL = findRimePredictDatabase(in: FileManager.appGroupUserDataDirectoryURL)
+    {
+      try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictDatabaseURL)
+      try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimePredictDatabaseURL)
+    }
+    guard FileManager.isRimePredictDatabaseAvailable() else {
+      throw StringError("压缩包中未找到 \(HamsterConstants.rimePredictDatabaseFileName)")
+    }
+  }
+
+  private func findRimePredictDatabase(in directoryURL: URL) -> URL? {
+    guard let enumerator = FileManager.default.enumerator(
+      at: directoryURL,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles]
+    ) else {
+      return nil
+    }
+    for case let url as URL in enumerator where url.lastPathComponent == HamsterConstants.rimePredictDatabaseFileName {
+      return url
+    }
+    return nil
+  }
+
+  @MainActor
+  private func updateRimePredictDatabaseSettingStatus() {
+    for sectionIndex in keyboardSettingsItems.indices {
+      for itemIndex in keyboardSettingsItems[sectionIndex].items.indices {
+        if keyboardSettingsItems[sectionIndex].items[itemIndex].text == "安装 Rime 联想词库" {
+          keyboardSettingsItems[sectionIndex].items[itemIndex].secondaryText = rimePredictDatabaseStatusText
+        }
+      }
+    }
+    objectWillChange.send()
   }
 
   public var lockShiftState: Bool {
@@ -1407,6 +1570,22 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       footer: "实验功能开发中",
       items: {
         var items: [SettingItemModel] = [
+          .init(
+            text: "启用联想词候选行",
+            type: .toggle,
+            toggleValue: { [unowned self] in enablePredictiveSuggestions },
+            toggleHandled: { [unowned self] in
+              setPredictiveSuggestionsEnabled($0)
+            }
+          ),
+          .init(
+            text: "安装 Rime 联想词库",
+            secondaryText: rimePredictDatabaseStatusText,
+            type: .button,
+            buttonAction: { [unowned self] in
+              await installRimePredictDatabase()
+            }
+          ),
           .init(
             text: "启用数字的候选模式在中文键盘",
             type: .toggle,

@@ -14,6 +14,8 @@ final class AzooKeyInputEngine {
   private var converter: KanaKanjiConverter?
   private var composingText = ComposingText()
   private var lastCandidates: [Candidate] = []
+  private var lastCommittedCandidate: Candidate?
+  private var lastPostCompositionPredictions: [PostCompositionPredictionCandidate] = []
   private var cachedDictionaryURL: URL?
   private var cachedZenzaiWeightURL: URL?
   private var cachedZenzaiEnabled = false
@@ -81,6 +83,8 @@ final class AzooKeyInputEngine {
   func reset() {
     composingText = ComposingText()
     lastCandidates = []
+    lastCommittedCandidate = nil
+    lastPostCompositionPredictions = []
     invalidatePendingConversions()
     conversionLock.lock()
     converter?.stopComposition()
@@ -106,6 +110,8 @@ final class AzooKeyInputEngine {
     zenzaiLock.unlock()
     composingText = ComposingText()
     lastCandidates = []
+    lastCommittedCandidate = nil
+    lastPostCompositionPredictions = []
   }
 
   func prewarmIfNeeded() {
@@ -158,6 +164,8 @@ final class AzooKeyInputEngine {
   }
 
   func handleInput(_ text: String, inputStyle: InputStyle, leftSideContext: String? = nil) -> [CandidateSuggestion] {
+    lastCommittedCandidate = nil
+    lastPostCompositionPredictions = []
     composingText.insertAtCursorPosition(text, inputStyle: inputStyle)
     guard let converter = ensureConverter() else { return [] }
     lastInputStyle = inputStyle
@@ -203,6 +211,8 @@ final class AzooKeyInputEngine {
   }
 
   func deleteBackward(leftSideContext: String? = nil) -> [CandidateSuggestion] {
+    lastCommittedCandidate = nil
+    lastPostCompositionPredictions = []
     composingText.deleteBackwardFromCursorPosition(count: 1)
     if composingText.convertTarget.isEmpty {
       lastCandidates = []
@@ -279,6 +289,8 @@ final class AzooKeyInputEngine {
     conversionLock.unlock()
     composingText = ComposingText()
     lastCandidates = []
+    lastCommittedCandidate = candidate
+    lastPostCompositionPredictions = []
     return committedText
   }
 
@@ -307,6 +319,8 @@ final class AzooKeyInputEngine {
       converter.stopComposition()
       composingText = ComposingText()
       lastCandidates = []
+      lastCommittedCandidate = candidate
+      lastPostCompositionPredictions = []
       return (commitText, [], false)
     }
 
@@ -325,6 +339,34 @@ final class AzooKeyInputEngine {
     lastCandidates = candidatesWithoutAutocompletedKana(result.mainResults, exactText: exactText, inputCount: inputCount)
 
     return (commitText, suggestions(from: lastCandidates), true)
+  }
+
+  func postCompositionPredictionSuggestions() -> [CandidateSuggestion] {
+    guard let candidate = lastCommittedCandidate, let converter = ensureConverter() else { return [] }
+    conversionLock.lock()
+    defer { conversionLock.unlock() }
+    let (options, _) = makeOptions(inputStyle: lastInputStyle, leftSideContext: nil)
+    let predictions = converter.requestPostCompositionPredictionCandidates(
+      leftSideCandidate: candidate,
+      options: options
+    )
+    lastPostCompositionPredictions = predictions
+    return predictionSuggestions(from: predictions)
+  }
+
+  func commitPostCompositionPrediction(at index: Int) -> String? {
+    guard index >= 0, index < lastPostCompositionPredictions.count else { return nil }
+    guard let baseCandidate = lastCommittedCandidate, let converter = ensureConverter() else {
+      return lastPostCompositionPredictions[index].text
+    }
+    let prediction = lastPostCompositionPredictions[index]
+    conversionLock.lock()
+    converter.updateLearningData(baseCandidate, with: prediction)
+    converter.commitUpdateLearningData()
+    conversionLock.unlock()
+    lastCommittedCandidate = prediction.join(to: baseCandidate)
+    lastPostCompositionPredictions = []
+    return prediction.text
   }
 
   private func ensureConverter() -> KanaKanjiConverter? {
@@ -570,6 +612,24 @@ final class AzooKeyInputEngine {
         isAutocomplete: index == 0
       )
     }
+  }
+
+  private func predictionSuggestions(from predictions: [PostCompositionPredictionCandidate]) -> [CandidateSuggestion] {
+    var result: [CandidateSuggestion] = []
+    var seen = Set<String>()
+    for prediction in predictions {
+      let text = prediction.text
+      guard !text.isEmpty, seen.insert(text).inserted else { continue }
+      result.append(CandidateSuggestion(
+        index: result.count,
+        label: "",
+        text: text,
+        title: text,
+        isAutocomplete: result.isEmpty
+      ))
+      if result.count >= 10 { break }
+    }
+    return result
   }
 
   private func candidatesWithoutAutocompletedKana(_ candidates: [Candidate], exactText: String, inputCount: Int) -> [Candidate] {

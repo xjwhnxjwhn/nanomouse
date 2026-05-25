@@ -41,6 +41,15 @@ public enum HamsterConstants {
   /// 按需下载资源清单
   public static let onDemandInputSchemaManifestFile = "manifest.json"
 
+  /// Rime 联想词库文件
+  public static let rimePredictDatabaseFileName = "predict.db"
+
+  /// Rime 联想词库 zip 包（按需下载）
+  public static let rimePredictDatabaseZipFile = "rime-predict.zip"
+
+  /// Rime 联想词库按需下载包 ID
+  public static let rimePredictDatabasePackageID = "rime-predict"
+
   /// 日语方案 zip 包（按需下载）
   public static let onDemandJapaneseSchemaZipMap: [String: String] = [
     "japanese": "rime-japanese.zip",

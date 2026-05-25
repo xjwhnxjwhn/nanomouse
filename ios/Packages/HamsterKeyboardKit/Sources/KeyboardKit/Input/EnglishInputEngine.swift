@@ -51,6 +51,32 @@ final class EnglishInputEngine {
     lastSuggestions
   }
 
+  func predictiveSuggestions(for documentContext: String?) -> [CandidateSuggestion] {
+    guard let word = trailingEnglishWord(in: documentContext), word.count >= 2 else {
+      return []
+    }
+    let range = NSRange(location: 0, length: word.utf16.count)
+    guard let completions = textChecker.completions(forPartialWordRange: range, in: word, language: "en_US") else {
+      return []
+    }
+    var result: [CandidateSuggestion] = []
+    var seen = Set<String>()
+    for completion in completions {
+      guard completion.count > word.count else { continue }
+      guard completion.lowercased().hasPrefix(word.lowercased()) else { continue }
+      guard seen.insert(completion.lowercased()).inserted else { continue }
+      result.append(CandidateSuggestion(
+        index: result.count,
+        label: "",
+        text: completion,
+        title: completion,
+        isAutocomplete: result.isEmpty
+      ))
+      if result.count >= 8 { break }
+    }
+    return result
+  }
+
   /// 提交指定索引的候选词，返回要插入的文本
   func commitCandidate(at index: Int) -> String? {
     guard index >= 0, index < lastSuggestions.count else { return nil }
@@ -129,5 +155,19 @@ final class EnglishInputEngine {
     // 限制总数
     lastSuggestions = Array(suggestions.prefix(9))
     return lastSuggestions
+  }
+
+  private func trailingEnglishWord(in text: String?) -> String? {
+    guard let text, !text.isEmpty else { return nil }
+    var scalars: [UnicodeScalar] = []
+    for scalar in text.unicodeScalars.reversed() {
+      if CharacterSet.letters.contains(scalar) || scalar == "'" {
+        scalars.append(scalar)
+        continue
+      }
+      break
+    }
+    guard !scalars.isEmpty else { return nil }
+    return scalars.reversed().map(String.init).joined()
   }
 }

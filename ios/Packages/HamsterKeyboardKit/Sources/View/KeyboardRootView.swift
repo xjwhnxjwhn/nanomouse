@@ -59,6 +59,9 @@ class KeyboardRootView: NibLessView {
   /// 候选文字视图状态
   private var candidateViewState: CandidateBarView.State
 
+  /// 联想词候选行是否显示
+  private var predictionCandidateRowVisible: Bool = false
+
   /// 非主键盘的临时键盘Cache
   // private var tempKeyboardViewCache: [KeyboardType: UIView] = [:]
 
@@ -184,8 +187,12 @@ class KeyboardRootView: NibLessView {
     rimeContext.prefersTwoTierCandidateBar ? keyboardContext.heightOfCodingArea : 0
   }
 
+  private var predictionCandidateBarHeight: CGFloat {
+    predictionCandidateRowVisible ? keyboardContext.heightOfPredictionCandidateRow : 0
+  }
+
   private var effectiveToolbarHeight: CGFloat {
-    keyboardContext.heightOfToolbar + extraCandidateBarHeight
+    keyboardContext.heightOfToolbar + extraCandidateBarHeight + predictionCandidateBarHeight
   }
 
   /// 主键盘
@@ -352,9 +359,22 @@ class KeyboardRootView: NibLessView {
         .sink { [weak self] in
           guard let self = self else { return }
           guard candidateViewState != $0 else { return }
+          updatePredictionCandidateRowVisibilityIfNeeded()
           setNeedsLayout()
         }
         .store(in: &subscriptions)
+
+      Publishers.CombineLatest4(
+        rimeContext.userInputKeyPublished,
+        rimeContext.$textReplacementSuggestions,
+        rimeContext.$suggestions,
+        rimeContext.$predictiveSuggestions
+      )
+      .receive(on: DispatchQueue.main)
+      .sink { [weak self] _, _, _, _ in
+        self?.updatePredictionCandidateRowVisibilityIfNeeded()
+      }
+      .store(in: &subscriptions)
     }
 
     // 跟踪 UIUserInterfaceStyle 变化
@@ -411,6 +431,26 @@ class KeyboardRootView: NibLessView {
         setVoiceMode(!isVoiceModeActive)
       }
       .store(in: &subscriptions)
+  }
+
+  private func updatePredictionCandidateRowVisibilityIfNeeded() {
+    guard keyboardContext.enableToolbar else { return }
+    let hasCompositionContent = !rimeContext.userInputKey.isEmpty
+      || !rimeContext.textReplacementSuggestions.isEmpty
+      || !rimeContext.suggestions.isEmpty
+    let shouldShow = keyboardContext.enablePredictiveSuggestions
+      && candidateViewState.isCollapse()
+      && !hasCompositionContent
+      && !rimeContext.predictiveSuggestions.isEmpty
+    guard predictionCandidateRowVisible != shouldShow else { return }
+    predictionCandidateRowVisible = shouldShow
+    if candidateViewState.isCollapse() {
+      toolbarHeightConstraint?.constant = effectiveToolbarHeight
+    } else {
+      toolbarHeightConstraint?.constant = primaryKeyboardView.bounds.height + effectiveToolbarHeight
+    }
+    setNeedsLayout()
+    layoutIfNeeded()
   }
 
   override func layoutSubviews() {

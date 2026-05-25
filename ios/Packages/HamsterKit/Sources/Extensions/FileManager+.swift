@@ -293,6 +293,39 @@ public extension FileManager {
     )
   }
 
+  static var appGroupRimePredictDatabaseURL: URL {
+    appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName)
+  }
+
+  static var rimePredictDatabaseCandidateURLs: [URL] {
+    [
+      appGroupUserDataDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName),
+      appGroupSharedSupportDirectoryURL.appendingPathComponent(HamsterConstants.rimePredictDatabaseFileName)
+    ]
+  }
+
+  static func rimePredictDatabaseURL() -> URL? {
+    rimePredictDatabaseCandidateURLs.first { FileManager.default.fileExists(atPath: $0.path) }
+  }
+
+  static func isRimePredictDatabaseAvailable() -> Bool {
+    rimePredictDatabaseURL() != nil
+  }
+
+  @discardableResult
+  static func ensureRimePredictDatabaseInUserData() throws -> Bool {
+    let fm = FileManager.default
+    if fm.fileExists(atPath: appGroupRimePredictDatabaseURL.path) {
+      return true
+    }
+    guard let sourceURL = rimePredictDatabaseURL() else {
+      return false
+    }
+    try createDirectory(override: false, dst: appGroupUserDataDirectoryURL)
+    try fm.copyItem(at: sourceURL, to: appGroupRimePredictDatabaseURL)
+    return true
+  }
+
   // AppGroup共享下: AzooKey 根目录
   static var appGroupAzooKeyDirectoryURL: URL {
     shareURL.appendingPathComponent("AzooKey", isDirectory: true)

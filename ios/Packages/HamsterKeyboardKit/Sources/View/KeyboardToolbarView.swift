@@ -293,6 +293,20 @@ class KeyboardToolbarView: NibLessView {
     return view
   }()
 
+  lazy var predictionCandidatesView: PredictionCandidatesCollectionView = {
+    let view = PredictionCandidatesCollectionView(
+      style: style,
+      keyboardContext: keyboardContext,
+      actionHandler: actionHandler,
+      rimeContext: rimeContext
+    )
+    view.isHidden = true
+    return view
+  }()
+
+  private var commonFunctionBarHeightConstraint: NSLayoutConstraint?
+  private var predictionCandidatesHeightConstraint: NSLayoutConstraint?
+
   init(appearance: KeyboardAppearance, actionHandler: KeyboardActionHandler, keyboardContext: KeyboardContext, rimeContext: RimeContext) {
     self.appearance = appearance
     self.actionHandler = actionHandler
@@ -358,6 +372,7 @@ class KeyboardToolbarView: NibLessView {
 
   override func constructViewHierarchy() {
     addSubview(commonFunctionBar)
+    addSubview(predictionCandidatesView)
     if keyboardContext.displayAppIconButton {
       commonFunctionBar.addSubview(logoContainer)
       logoContainer.addSubview(logoImageView)
@@ -381,11 +396,18 @@ class KeyboardToolbarView: NibLessView {
   }
 
   override func activateViewConstraints() {
+    commonFunctionBarHeightConstraint = commonFunctionBar.heightAnchor.constraint(equalToConstant: keyboardContext.heightOfToolbar)
+    predictionCandidatesHeightConstraint = predictionCandidatesView.heightAnchor.constraint(equalToConstant: 0)
     var constraints: [NSLayoutConstraint] = [
       commonFunctionBar.topAnchor.constraint(equalTo: topAnchor),
-      commonFunctionBar.bottomAnchor.constraint(equalTo: bottomAnchor),
       commonFunctionBar.leadingAnchor.constraint(equalTo: leadingAnchor),
       commonFunctionBar.trailingAnchor.constraint(equalTo: trailingAnchor),
+      commonFunctionBarHeightConstraint!,
+
+      predictionCandidatesView.topAnchor.constraint(equalTo: commonFunctionBar.bottomAnchor),
+      predictionCandidatesView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      predictionCandidatesView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      predictionCandidatesHeightConstraint!,
     ]
 
     if keyboardContext.displayAppIconButton {
@@ -512,6 +534,7 @@ class KeyboardToolbarView: NibLessView {
     userInterfaceStyle = keyboardContext.colorScheme
     setupAppearance()
     candidateBarView.setStyle(style)
+    predictionCandidatesView.setupStyle(style)
     updateToolbarButtonSymbolConfiguration()
     applyToolbarButtonCornerStyle()
     updateRightButtonsStackSpacing()
@@ -612,21 +635,25 @@ class KeyboardToolbarView: NibLessView {
   }
 
   func combine() {
-    Publishers.CombineLatest3(
+    Publishers.CombineLatest4(
       rimeContext.userInputKeyPublished,
       rimeContext.$textReplacementSuggestions,
-      rimeContext.$suggestions
+      rimeContext.$suggestions,
+      rimeContext.$predictiveSuggestions
     )
     .receive(on: DispatchQueue.main)
-    .sink { [weak self] userInputKey, textReplacementSuggestions, suggestions in
+    .sink { [weak self] userInputKey, textReplacementSuggestions, suggestions, predictiveSuggestions in
       guard let self = self else { return }
       
       // 有 RIME 输入或有文本替换建议时，显示候选栏
       let hasContent = !userInputKey.isEmpty || !textReplacementSuggestions.isEmpty || !suggestions.isEmpty
+      let showsPredictions = keyboardContext.enablePredictiveSuggestions && !hasContent && !predictiveSuggestions.isEmpty
       let isEmpty = !hasContent
       
       self.commonFunctionBar.isHidden = !isEmpty
       self.candidateBarView.isHidden = isEmpty
+      self.predictionCandidatesView.isHidden = !showsPredictions
+      self.predictionCandidatesHeightConstraint?.constant = showsPredictions ? keyboardContext.heightOfPredictionCandidateRow : 0
       if hasContent {
         self.hideTraditionalizeHint(animated: false)
       }

@@ -435,6 +435,11 @@ public class KeyboardContext: ObservableObject {
     CGFloat(hamsterConfiguration?.toolbar?.heightOfCodingArea ?? 20)
   }
 
+  /// 联想词候选行高度
+  var heightOfPredictionCandidateRow: CGFloat {
+    max(32, min(44, heightOfToolbar * 0.58))
+  }
+
   var numberKeyProcessByRimeOnNineGridOfNumericKeyboard: Bool {
     keyboardValue(\.numberKeyProcessByRimeOnNineGridOfNumericKeyboard) ?? false
   }
@@ -511,6 +516,11 @@ public class KeyboardContext: ObservableObject {
   /// 日语 AzooKey 键盘数字候选模式
   var enableNumericCandidateModeOnJapaneseAzooKey: Bool {
     keyboardValue(\.enableNumericCandidateModeOnJapaneseAzooKey) ?? true
+  }
+
+  /// 启用联想词候选行
+  var enablePredictiveSuggestions: Bool {
+    keyboardValue(\.enablePredictiveSuggestions) ?? false
   }
 
   /// 是否开启划动分页

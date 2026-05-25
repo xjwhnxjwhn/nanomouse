@@ -120,6 +120,10 @@ public class RimeContext {
   @MainActor @Published
   public var textReplacementSuggestions: [CandidateSuggestion] = []
 
+  /// 联想词建议（无组字内容时显示在 logo 行下方）
+  @MainActor @Published
+  public var predictiveSuggestions: [CandidateSuggestion] = []
+
   /// rime option
   @MainActor @Published
   public var optionState: String? = nil
@@ -189,6 +193,7 @@ public extension RimeContext {
     self.mixedInputLastDisplayText = ""
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
+    self.predictiveSuggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
   }
 
@@ -207,6 +212,7 @@ public extension RimeContext {
     self.mixedInputRevertLiteralSuffix = nil
     self.mixedInputRevertDisplayText = nil
     self.suggestions.removeAll(keepingCapacity: false)
+    self.predictiveSuggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
     self.mixedInputManager.reset()
     if !literal.isEmpty {
@@ -284,6 +290,7 @@ public extension RimeContext {
     self.commitText = ""
     self.selectCandidatePinyin = nil
     self.suggestions.removeAll(keepingCapacity: false)
+    self.predictiveSuggestions.removeAll(keepingCapacity: false)
     Rime.shared.cleanComposition()
     self.userInputKey = compositionPrefix + mixedInputManager.displayText
     if mixedInputManager.hasLiteral {
@@ -544,6 +551,7 @@ public extension RimeContext {
     removeJapaneseSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    updateRimePredictionPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
     removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     let traits = Rime.createTraits(
@@ -648,6 +656,7 @@ public extension RimeContext {
     try FileManager.initAppGroupSharedSupportDirectory(override: false)
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    updateRimePredictionPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
     removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     if !isRunning {
@@ -694,6 +703,7 @@ public extension RimeContext {
     removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     let configuration = (try? HamsterConfigurationRepositories.shared.loadConfiguration()) ?? HamsterConfiguration()
     updateRimeIceTraditionalizationPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
+    updateRimePredictionPatch(in: FileManager.appGroupUserDataDirectoryURL, configuration: configuration)
     removeGeneratedT9PinyinPatch(in: FileManager.appGroupUserDataDirectoryURL)
 
     Rime.shared.shutdown()
@@ -863,6 +873,99 @@ public extension RimeContext {
     if content != raw {
       try? content.write(to: patchURL, atomically: true, encoding: .utf8)
     }
+  }
+
+  private func updateRimePredictionPatch(in userDataDir: URL, configuration: HamsterConfiguration) {
+    let enabled = configuration.keyboard?.enablePredictiveSuggestions ?? false
+    let hasPredictDatabase: Bool
+    if enabled {
+      hasPredictDatabase = (try? FileManager.ensureRimePredictDatabaseInUserData()) ?? false
+    } else {
+      hasPredictDatabase = false
+    }
+    let shouldEnable = enabled && hasPredictDatabase
+
+    for schemaID in rimePredictionPatchSchemaIDs() {
+      updateGeneratedRimePredictionPatch(schemaID: schemaID, in: userDataDir, enabled: shouldEnable)
+    }
+  }
+
+  private func rimePredictionPatchSchemaIDs() -> [String] {
+    var schemaIDs = Set(["rime_ice"])
+    for schema in schemas + selectSchemas {
+      let schemaID = schema.schemaId
+      guard !schemaID.isEmpty,
+            schemaID != HamsterConstants.azooKeySchemaId,
+            !schema.isJapaneseSchema
+      else {
+        continue
+      }
+      if schemaID == "rime_ice"
+        || schemaID.localizedCaseInsensitiveContains("pinyin")
+        || schema.isChineseNineGridSchema
+      {
+        schemaIDs.insert(schemaID)
+      }
+    }
+    return schemaIDs.sorted()
+  }
+
+  private func updateGeneratedRimePredictionPatch(schemaID: String, in userDataDir: URL, enabled: Bool) {
+    let patchURL = userDataDir.appendingPathComponent("\(schemaID).custom.yaml")
+    let fm = FileManager.default
+    guard enabled || fm.fileExists(atPath: patchURL.path) else { return }
+
+    let raw = (try? String(contentsOf: patchURL, encoding: .utf8)) ?? ""
+    var lines = removeGeneratedRimePredictionPatchBlock(from: raw.components(separatedBy: .newlines))
+
+    if enabled {
+      if !lines.contains(where: { $0.trimmingCharacters(in: .whitespaces) == "patch:" }) {
+        if lines.contains(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+          lines.append("")
+        }
+        lines.append("patch:")
+      }
+      guard let patchIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "patch:" }) else {
+        return
+      }
+      lines.insert(contentsOf: rimePredictionPatchBlock(), at: patchIndex + 1)
+    }
+
+    let content = lines.joined(separator: "\n")
+    guard content != raw else { return }
+    do {
+      try content.write(to: patchURL, atomically: true, encoding: .utf8)
+    } catch {
+      Logger.statistics.error("write \(schemaID).custom.yaml prediction patch failed: \(error.localizedDescription)")
+    }
+  }
+
+  private func removeGeneratedRimePredictionPatchBlock(from lines: [String]) -> [String] {
+    var result = lines
+    while let beginIndex = result.firstIndex(where: { $0.contains("# BEGIN Nanomouse Rime prediction") }) {
+      if let endIndex = result[beginIndex...].firstIndex(where: { $0.contains("# END Nanomouse Rime prediction") }) {
+        result.removeSubrange(beginIndex...endIndex)
+      } else {
+        result.remove(at: beginIndex)
+      }
+    }
+    return result
+  }
+
+  private func rimePredictionPatchBlock() -> [String] {
+    [
+      "  # BEGIN Nanomouse Rime prediction",
+      "  switches/+:",
+      "    - name: prediction",
+      "      states: [联想关, 联想开]",
+      "      reset: 1",
+      "  \"engine/processors/@before 0\": predictor",
+      "  \"engine/translators/@before 0\": predict_translator",
+      "  predictor/db: \(HamsterConstants.rimePredictDatabaseFileName)",
+      "  predictor/max_candidates: 8",
+      "  predictor/max_iterations: 2",
+      "  # END Nanomouse Rime prediction"
+    ]
   }
 
   private func removeGeneratedT9PinyinPatch(in userDataDir: URL) {
@@ -1253,6 +1356,7 @@ public extension RimeContext {
         self.pageIndex = 0
         self.selectCandidatePinyin = nil
         self.suggestions.removeAll(keepingCapacity: false)
+        self.predictiveSuggestions.removeAll(keepingCapacity: false)
         self.userInputKey = compositionPrefix + mixedInputManager.displayText
         self.mixedInputLastDisplayText = mixedInputManager.displayText
         return
@@ -1279,6 +1383,14 @@ public extension RimeContext {
       return
     }
 
+    if commitText.isEmpty, userInputText.isEmpty, !mixedInputManager.hasLiteral, !candidates.isEmpty {
+      self.userInputKey = compositionPrefix
+      self.commitText = ""
+      self.suggestions.removeAll(keepingCapacity: false)
+      self.predictiveSuggestions = candidates
+      return
+    }
+
     // 注意赋值顺序
     if mixedInputManager.hasLiteral, !commitText.isEmpty, status.isComposing {
       let normalizedPreedit = userInputText.replacingOccurrences(of: " ", with: "")
@@ -1301,6 +1413,7 @@ public extension RimeContext {
     }
     self.commitText = commitText
     self.suggestions = candidates
+    self.predictiveSuggestions.removeAll(keepingCapacity: false)
   }
 
   /// 分页：下一页

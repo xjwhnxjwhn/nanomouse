@@ -739,6 +739,80 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return isUnifiedCompositionBufferEnabled && keyboardContext.keyboardType.isChinesePrimaryKeyboard
   }
 
+  func clearPredictiveSuggestions() {
+    Task { @MainActor in
+      if !self.rimeContext.predictiveSuggestions.isEmpty {
+        self.rimeContext.predictiveSuggestions = []
+      }
+    }
+  }
+
+  private func schedulePredictiveSuggestionsRefresh() {
+    guard keyboardContext.enablePredictiveSuggestions else {
+      clearPredictiveSuggestions()
+      return
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [weak self] in
+      self?.refreshPredictiveSuggestions()
+    }
+  }
+
+  private func refreshPredictiveSuggestions() {
+    guard keyboardContext.enablePredictiveSuggestions else {
+      clearPredictiveSuggestions()
+      return
+    }
+    guard rimeContext.userInputKey.isEmpty,
+          rimeContext.suggestions.isEmpty,
+          rimeContext.textReplacementSuggestions.isEmpty
+    else {
+      clearPredictiveSuggestions()
+      return
+    }
+
+    let suggestions: [CandidateSuggestion]
+    if isAzooKeyInputActive {
+      suggestions = azooKeyEngine.postCompositionPredictionSuggestions()
+    } else if isEnglishInputActive {
+      suggestions = englishEngine.predictiveSuggestions(for: textDocumentProxy.documentContextBeforeInput)
+    } else {
+      return
+    }
+
+    Task { @MainActor in
+      self.rimeContext.predictiveSuggestions = suggestions
+    }
+  }
+
+  func selectPredictiveSuggestion(index: Int) {
+    guard keyboardContext.enablePredictiveSuggestions else { return }
+    let suggestions = rimeContext.predictiveSuggestions
+    guard index >= 0, index < suggestions.count else { return }
+    let selected = suggestions[index]
+    if !isAzooKeyInputActive && !isEnglishInputActive {
+      rimeContext.selectCandidate(index: selected.index)
+      captureDiaryInputSegmentAfterCandidateSelection()
+      schedulePredictiveSuggestionsRefresh()
+      return
+    }
+    let text = isAzooKeyInputActive
+      ? (azooKeyEngine.commitPostCompositionPrediction(at: index) ?? selected.text)
+      : selected.text
+    guard !text.isEmpty else {
+      clearPredictiveSuggestions()
+      return
+    }
+    textDocumentProxy.insertText(text)
+    captureDiaryInputSegmentAfterCandidateSelection()
+    schedulePredictiveSuggestionsRefresh()
+  }
+
+  private func insertCommittedText(_ text: String) {
+    guard !text.isEmpty else { return }
+    textDocumentProxy.insertText(text)
+    schedulePredictiveSuggestionsRefresh()
+  }
+
   func updateAzooKeySuggestions(_ suggestions: [CandidateSuggestion]) {
     if isUnifiedCompositionBufferEnabled {
       rimeContext.userInputKey = rimeContext.compositionPrefix + azooKeyEngine.currentRawInputText
@@ -748,6 +822,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.suggestions = suggestions
       self.rimeContext.textReplacementSuggestions = []
+      self.rimeContext.predictiveSuggestions = []
     }
   }
 
@@ -756,6 +831,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.suggestions = suggestions
       self.rimeContext.textReplacementSuggestions = []
+      self.rimeContext.predictiveSuggestions = []
     }
   }
 
@@ -765,6 +841,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
+      self.rimeContext.predictiveSuggestions = []
     }
   }
 
@@ -773,6 +850,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
+      self.rimeContext.predictiveSuggestions = []
     }
   }
 
@@ -1031,6 +1109,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     Task { @MainActor in
       self.rimeContext.suggestions = []
       self.rimeContext.textReplacementSuggestions = []
+      self.rimeContext.predictiveSuggestions = []
     }
     clearMarkedTextIfNeeded()
   }
@@ -3027,7 +3106,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         if isUnifiedCompositionBufferEnabled {
           appendToCompositionPrefix(result.commitText)
         } else {
-          textDocumentProxy.insertText(result.commitText)
+          insertCommittedText(result.commitText)
         }
         captureDiaryInputSegmentAfterCandidateSelection()
       }
@@ -3045,7 +3124,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if isUnifiedCompositionBufferEnabled {
         appendToCompositionPrefix(commit)
       } else {
-        textDocumentProxy.insertText(commit)
+        insertCommittedText(commit)
       }
       captureDiaryInputSegmentAfterCandidateSelection()
     }
@@ -3059,7 +3138,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       if isUnifiedCompositionBufferEnabled {
         appendToCompositionPrefix(text)
       } else {
-        textDocumentProxy.insertText(text)
+        insertCommittedText(text)
       }
     }
     clearEnglishState()
@@ -3934,7 +4013,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
           if isUnifiedCompositionBufferEnabled {
             appendToCompositionPrefix(commit + preferredSpaceTextForCurrentInputMode())
           } else {
-            textDocumentProxy.insertText(commit)
+            insertCommittedText(commit)
             textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
           }
         }
@@ -3957,7 +4036,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
             if isUnifiedCompositionBufferEnabled {
               appendToCompositionPrefix(commit)
             } else {
-              textDocumentProxy.insertText(commit)
+              insertCommittedText(commit)
             }
           }
           azooKeyEngine.reset()
@@ -3972,7 +4051,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
             if isUnifiedCompositionBufferEnabled {
               appendToCompositionPrefix(commit)
             } else {
-              textDocumentProxy.insertText(commit)
+              insertCommittedText(commit)
             }
           } else {
             let fallback = isUnifiedCompositionBufferEnabled ? azooKeyEngine.currentRawInputText : azooKeyEngine.currentDisplayText
@@ -3980,7 +4059,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
               if isUnifiedCompositionBufferEnabled {
                 appendToCompositionPrefix(fallback)
               } else {
-                textDocumentProxy.insertText(fallback)
+                insertCommittedText(fallback)
               }
             }
           }
@@ -5066,12 +5145,15 @@ private extension KeyboardInputViewController {
       textDocumentProxy.insertText(text)
     }
 
+    schedulePredictiveSuggestionsRefresh()
+
     // 检测是否需要返回主键盘
     let returnToPrimaryKeyboard = keyboardContext.returnToPrimaryKeyboardOfSymbols(key: insertText)
     if returnToPrimaryKeyboard {
       keyboardContext.setKeyboardType(keyboardContext.returnKeyboardType())
     }
   }
+
 }
 
 extension UIKeyboardType {
