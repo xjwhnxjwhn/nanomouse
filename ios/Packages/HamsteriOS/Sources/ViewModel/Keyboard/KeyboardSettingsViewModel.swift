@@ -402,6 +402,17 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
   }
 
+  public var predictiveSuggestionsMaxCandidates: Int {
+    get {
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.predictiveSuggestionsMaxCandidates ?? 8
+    }
+    set {
+      let value = min(max(newValue, 1), 50)
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.predictiveSuggestionsMaxCandidates = value
+      HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.predictiveSuggestionsMaxCandidates = value
+    }
+  }
+
   private var rimePredictDatabaseStatusText: String {
     FileManager.isRimePredictDatabaseAvailable() ? "已安装" : "未安装"
   }
@@ -1576,6 +1587,19 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
             toggleValue: { [unowned self] in enablePredictiveSuggestions },
             toggleHandled: { [unowned self] in
               setPredictiveSuggestionsEnabled($0)
+            }
+          ),
+          .init(
+            text: "联想词数量",
+            secondaryText: "数量越多，联想行可横向滚动查看更多",
+            type: .step,
+            textValue: { [unowned self] in String(predictiveSuggestionsMaxCandidates) },
+            minValue: 4,
+            maxValue: 20,
+            stepValue: 1,
+            valueChangeHandled: { [unowned self] in
+              predictiveSuggestionsMaxCandidates = Int($0)
+              deployRimePredictionConfiguration(showSuccess: false)
             }
           ),
           .init(

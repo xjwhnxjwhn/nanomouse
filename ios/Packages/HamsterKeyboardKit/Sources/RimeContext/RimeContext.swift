@@ -886,7 +886,12 @@ public extension RimeContext {
     let shouldEnable = enabled && hasPredictDatabase
 
     for schemaID in rimePredictionPatchSchemaIDs() {
-      updateGeneratedRimePredictionPatch(schemaID: schemaID, in: userDataDir, enabled: shouldEnable)
+      updateGeneratedRimePredictionPatch(
+        schemaID: schemaID,
+        in: userDataDir,
+        enabled: shouldEnable,
+        maxCandidates: configuration.keyboard?.predictiveSuggestionsMaxCandidates
+      )
     }
   }
 
@@ -910,7 +915,12 @@ public extension RimeContext {
     return schemaIDs.sorted()
   }
 
-  private func updateGeneratedRimePredictionPatch(schemaID: String, in userDataDir: URL, enabled: Bool) {
+  private func updateGeneratedRimePredictionPatch(
+    schemaID: String,
+    in userDataDir: URL,
+    enabled: Bool,
+    maxCandidates: Int?
+  ) {
     let patchURL = userDataDir.appendingPathComponent("\(schemaID).custom.yaml")
     let fm = FileManager.default
     guard enabled || fm.fileExists(atPath: patchURL.path) else { return }
@@ -928,7 +938,7 @@ public extension RimeContext {
       guard let patchIndex = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "patch:" }) else {
         return
       }
-      lines.insert(contentsOf: rimePredictionPatchBlock(), at: patchIndex + 1)
+      lines.insert(contentsOf: rimePredictionPatchBlock(maxCandidates: maxCandidates), at: patchIndex + 1)
     }
 
     let content = lines.joined(separator: "\n")
@@ -952,8 +962,9 @@ public extension RimeContext {
     return result
   }
 
-  private func rimePredictionPatchBlock() -> [String] {
-    [
+  private func rimePredictionPatchBlock(maxCandidates: Int?) -> [String] {
+    let candidateCount = min(max(maxCandidates ?? 8, 1), 50)
+    return [
       "  # BEGIN Nanomouse Rime prediction",
       "  switches/+:",
       "    - name: prediction",
@@ -962,7 +973,7 @@ public extension RimeContext {
       "  \"engine/processors/@before 0\": predictor",
       "  \"engine/translators/@before 0\": predict_translator",
       "  predictor/db: \(HamsterConstants.rimePredictDatabaseFileName)",
-      "  predictor/max_candidates: 8",
+      "  predictor/max_candidates: \(candidateCount)",
       "  predictor/max_iterations: 2",
       "  # END Nanomouse Rime prediction"
     ]
