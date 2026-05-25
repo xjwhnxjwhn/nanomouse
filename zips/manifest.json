@@ -71,6 +71,14 @@
       "sha256": "5541768f59c95e7b49d00203bab7361d4cd82b8a409823a65fd9cab5d8825ea0",
       "minSharedSupportVersion": "2026-03-23",
       "title": "雾凇拼音"
+    },
+    {
+      "id": "rime-predict",
+      "fileName": "rime-predict.zip",
+      "publishedAt": "2026-05-25",
+      "sha256": "9b799996add859ab926e6c6933ae4c927c4122692420beadaf5e09ea7c40c676",
+      "minSharedSupportVersion": "",
+      "title": "Rime 联想词库"
     }
   ]
 }
