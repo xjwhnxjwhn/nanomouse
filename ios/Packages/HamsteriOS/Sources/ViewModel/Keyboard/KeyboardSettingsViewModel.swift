@@ -446,23 +446,21 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
 
     do {
-      if !FileManager.isRimePredictDatabaseAvailable() {
-        if let bundledZipURL = Bundle.main.url(forResource: "rime-predict", withExtension: "zip") {
-          try await installRimePredictDatabaseZip(bundledZipURL)
-        } else {
-          guard let package = try await fetchRimePredictPackageEntry(baseURL: baseURL) else {
-            await MainActor.run {
-              ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
-            }
-            return
-          }
+      if let bundledZipURL = Bundle.main.url(forResource: "rime-predict", withExtension: "zip") {
+        try await installRimePredictDatabaseZip(bundledZipURL)
+      } else {
+        guard let package = try await fetchRimePredictPackageEntry(baseURL: baseURL) else {
           await MainActor.run {
-            ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+            ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
           }
-          let tempURL = try await downloadRimePredictDatabaseZip(from: baseURL.appendingPathComponent(package.fileName))
-          defer { try? FileManager.default.removeItem(at: tempURL) }
-          try await installRimePredictDatabaseZip(tempURL)
+          return
         }
+        await MainActor.run {
+          ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+        }
+        let tempURL = try await downloadRimePredictDatabaseZip(from: baseURL.appendingPathComponent(package.fileName))
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        try await installRimePredictDatabaseZip(tempURL)
       }
 
       var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
@@ -506,17 +504,19 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   private func installRimePredictDatabaseZip(_ zipURL: URL) async throws {
-    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
-    try await FileManager.default.unzip(zipURL, dst: FileManager.appGroupUserDataDirectoryURL)
-    if !FileManager.isRimePredictDatabaseAvailable(),
-       let discoveredURL = findRimePredictDatabase(in: FileManager.appGroupUserDataDirectoryURL)
-    {
-      try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictDatabaseURL)
-      try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimePredictDatabaseURL)
-    }
-    guard FileManager.isRimePredictDatabaseAvailable() else {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("nanomouse-rime-predict-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+
+    try FileManager.createDirectory(override: false, dst: temporaryDirectory)
+    try await FileManager.default.unzip(zipURL, dst: temporaryDirectory)
+    guard let discoveredURL = findRimePredictDatabase(in: temporaryDirectory) else {
       throw StringError("压缩包中未找到 \(HamsterConstants.rimePredictDatabaseFileName)")
     }
+
+    try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
+    try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictDatabaseURL)
+    try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimePredictDatabaseURL)
   }
 
   private func findRimePredictDatabase(in directoryURL: URL) -> URL? {
