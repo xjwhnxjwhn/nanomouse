@@ -123,7 +123,7 @@ public class InputSchemaViewModel {
         .rimeJaroomajiEasy
       case "bopomofo", "bopomofo_tw", "bopomofo_express":
         .rimeBopomofo
-      case "terra_pinyin", "terra_pinyin.extended":
+      case "terra_pinyin", "terra_pinyin.extended", "terra_pinyin_12345":
         .rimeTerraPinyin
       case "stroke":
         .rimeStroke
@@ -131,7 +131,17 @@ public class InputSchemaViewModel {
         .rimeHangyl
       case "hannom":
         .rimeHannomps
-      case "rime_ice":
+      case "rime_ice",
+           "t9",
+           "double_pinyin",
+           "double_pinyin_abc",
+           "double_pinyin_flypy",
+           "double_pinyin_jiajia",
+           "double_pinyin_mspy",
+           "double_pinyin_sogou",
+           "double_pinyin_ziguang",
+           "melt_eng",
+           "radical_pinyin":
         .rimeIce
       default:
         nil
@@ -321,40 +331,94 @@ public class InputSchemaViewModel {
   enum SchemaGroup: Int, CaseIterable {
     case chineseEnglish
     case japanese
+    case korean
+    case vietnamese
 
     var title: String {
       switch self {
       case .chineseEnglish: return "中英"
       case .japanese: return "日语"
+      case .korean: return "韩语"
+      case .vietnamese: return "越南语"
       }
     }
   }
 
+  enum SchemaFolderID: String, Hashable {
+    case pinyin
+    case terraPinyin
+    case doublePinyin
+    case bopomofo
+    case otherChinese
+  }
+
+  struct SchemaFolder: Equatable {
+    let id: SchemaFolderID
+    let title: String
+    let subtitle: String?
+    let level: Int
+  }
+
+  enum SchemaListItem: Equatable {
+    case folder(SchemaFolder)
+    case schema(RimeSchema, level: Int)
+  }
+
+  private var expandedSchemaFolders: Set<SchemaFolderID> = [.pinyin]
+
   func schemas(in group: SchemaGroup) -> [RimeSchema] {
-    let schemas = rimeContext.schemas.filter { schemaGroup(for: $0) == group }
+    schemaListItems(in: group).compactMap { item in
+      guard case .schema(let schema, _) = item else {
+        return nil
+      }
+      return schema
+    }
+  }
+
+  func schemaListItems(in group: SchemaGroup) -> [SchemaListItem] {
+    let schemas = schemasByID(in: group)
     switch group {
     case .chineseEnglish:
-      // UI 顺序与内核选择顺序保持一致：雾凇方案固定置顶，其余稳定排序
-      return schemas.sorted { lhs, rhs in
-        let lhsPrefer = lhs.schemaId == "rime_ice"
-        let rhsPrefer = rhs.schemaId == "rime_ice"
-        if lhsPrefer != rhsPrefer {
-          return lhsPrefer
-        }
-        if lhs.schemaId != rhs.schemaId {
-          return lhs.schemaId < rhs.schemaId
-        }
-        return lhs.schemaName < rhs.schemaName
-      }
+      return chineseEnglishSchemaListItems(availableSchemas: schemas)
     case .japanese:
-      return japaneseSchemas.map { placeholder in
-        schemas.first(where: { $0.schemaId == placeholder.schemaId }) ?? placeholder
-      }
+      return japaneseSchemaIDs.map { .schema(schema($0, availableSchemas: schemas), level: 0) }
+    case .korean:
+      return koreanSchemaIDs.map { .schema(schema($0, availableSchemas: schemas), level: 0) }
+    case .vietnamese:
+      return vietnameseSchemaIDs.map { .schema(schema($0, availableSchemas: schemas), level: 0) }
     }
   }
 
   func schemaGroup(for schema: RimeSchema) -> SchemaGroup {
-    schema.isJapaneseSchema ? .japanese : .chineseEnglish
+    if schema.isJapaneseSchema {
+      return .japanese
+    }
+    if schema.isKoreanSchema {
+      return .korean
+    }
+    if schema.isVietnameseSchema {
+      return .vietnamese
+    }
+    return .chineseEnglish
+  }
+
+  func isSchemaFolderExpanded(_ folderID: SchemaFolderID) -> Bool {
+    expandedSchemaFolders.contains(folderID)
+  }
+
+  func shouldShowSelectionIndicator(for folder: SchemaFolder) -> Bool {
+    guard !isSchemaFolderExpanded(folder.id) else { return false }
+    let selectedSchemaIDs = Set(rimeContext.selectSchemas.map(\.schemaId))
+    return schemaIDs(in: folder.id).contains(where: selectedSchemaIDs.contains)
+  }
+
+  func toggleSchemaFolder(_ folderID: SchemaFolderID) {
+    if expandedSchemaFolders.contains(folderID) {
+      expandedSchemaFolders.remove(folderID)
+    } else {
+      expandedSchemaFolders.insert(folderID)
+    }
+    reloadTableStateSubject.send(true)
   }
 
   func selectedSchema(in group: SchemaGroup) -> RimeSchema? {
@@ -362,20 +426,20 @@ public class InputSchemaViewModel {
   }
 
   func isSchemaSelected(_ schema: RimeSchema) -> Bool {
-    if schemaGroup(for: schema) == .japanese, !schemaFileExists(schema.schemaId) {
+    if !isSchemaAvailable(schema) {
       return false
     }
     return rimeContext.selectSchemas.contains(schema)
   }
 
   func isSchemaAvailable(_ schema: RimeSchema) -> Bool {
-    guard schemaGroup(for: schema) == .japanese else { return true }
+    guard RemotePackageID.from(schemaId: schema.schemaId) != nil else { return true }
     return schemaFileExists(schema.schemaId)
   }
 
   func actionState(for schema: RimeSchema) -> SchemaActionState {
     let isInstalled = schemaFileExists(schema.schemaId)
-    if schemaGroup(for: schema) == .japanese, !isInstalled {
+    if RemotePackageID.from(schemaId: schema.schemaId) != nil, !isInstalled {
       return .download
     }
     guard let packageID = RemotePackageID.from(schemaId: schema.schemaId) else {
@@ -396,7 +460,7 @@ public class InputSchemaViewModel {
     case .none:
       return
     case .download:
-      downloadJapaneseSchema(schema)
+      updateRemotePackage(for: schema)
     case .update:
       updateRemotePackage(for: schema)
     case .upgradeApp:
@@ -577,7 +641,7 @@ public class InputSchemaViewModel {
     case "jaroomaji-easy":
       return "rime-jaroomaji-easy"
     default:
-      return schema.schemaName
+      return Self.knownSchemaNameByID[schema.schemaId] ?? schema.schemaName
     }
   }
 
@@ -610,13 +674,169 @@ public class InputSchemaViewModel {
     }
   }
 
-  private var japaneseSchemas: [RimeSchema] {
-    [
-      .init(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey"),
-      .init(schemaId: "japanese", schemaName: "japanese"),
-      .init(schemaId: "jaroomaji", schemaName: "jaroomaji"),
-      .init(schemaId: "jaroomaji-easy", schemaName: "jaroomaji-easy"),
-    ]
+  private static let knownSchemaDefinitions: [RimeSchema] = [
+    .init(schemaId: HamsterConstants.azooKeySchemaId, schemaName: "AzooKey"),
+    .init(schemaId: "japanese", schemaName: "rime-japanese"),
+    .init(schemaId: "jaroomaji", schemaName: "rime-jaroomaji"),
+    .init(schemaId: "jaroomaji-easy", schemaName: "rime-jaroomaji-easy"),
+    .init(schemaId: "rime_ice", schemaName: "雾凇拼音"),
+    .init(schemaId: "t9", schemaName: "中文九键"),
+    .init(schemaId: "double_pinyin", schemaName: "自然码双拼"),
+    .init(schemaId: "double_pinyin_abc", schemaName: "智能 ABC 双拼"),
+    .init(schemaId: "double_pinyin_flypy", schemaName: "小鹤双拼"),
+    .init(schemaId: "double_pinyin_jiajia", schemaName: "拼音加加双拼"),
+    .init(schemaId: "double_pinyin_mspy", schemaName: "微软双拼"),
+    .init(schemaId: "double_pinyin_sogou", schemaName: "搜狗双拼"),
+    .init(schemaId: "double_pinyin_ziguang", schemaName: "紫光双拼"),
+    .init(schemaId: "melt_eng", schemaName: "Easy English Nano"),
+    .init(schemaId: "radical_pinyin", schemaName: "部件拆字 | 全拼双拼"),
+    .init(schemaId: "terra_pinyin", schemaName: "地球拼音"),
+    .init(schemaId: "terra_pinyin.extended", schemaName: "地球拼音·扩展"),
+    .init(schemaId: "terra_pinyin_12345", schemaName: "地球拼音·数字标调"),
+    .init(schemaId: "bopomofo", schemaName: "注音"),
+    .init(schemaId: "bopomofo_tw", schemaName: "注音·台湾正体"),
+    .init(schemaId: "bopomofo_express", schemaName: "注音·快打模式"),
+    .init(schemaId: "stroke", schemaName: "五笔画"),
+    .init(schemaId: "hangyl", schemaName: "한글"),
+    .init(schemaId: "hangyl_hanja", schemaName: "한글・漢字"),
+    .init(schemaId: "hannom", schemaName: "部𢫈漢喃"),
+  ]
+
+  private static let knownSchemaNameByID: [String: String] = Dictionary(
+    uniqueKeysWithValues: knownSchemaDefinitions.map { ($0.schemaId, $0.schemaName) }
+  )
+
+  private let japaneseSchemaIDs = [
+    HamsterConstants.azooKeySchemaId,
+    "japanese",
+    "jaroomaji",
+    "jaroomaji-easy",
+  ]
+
+  private let koreanSchemaIDs = [
+    "hangyl",
+    "hangyl_hanja",
+  ]
+
+  private let vietnameseSchemaIDs = [
+    "hannom",
+  ]
+
+  private let terraPinyinSchemaIDs = [
+    "terra_pinyin",
+    "terra_pinyin.extended",
+    "terra_pinyin_12345",
+  ]
+
+  private let doublePinyinSchemaIDs = [
+    "double_pinyin",
+    "double_pinyin_abc",
+    "double_pinyin_flypy",
+    "double_pinyin_jiajia",
+    "double_pinyin_mspy",
+    "double_pinyin_sogou",
+    "double_pinyin_ziguang",
+  ]
+
+  private let bopomofoSchemaIDs = [
+    "bopomofo",
+    "bopomofo_tw",
+    "bopomofo_express",
+  ]
+
+  private func schemaIDs(in folderID: SchemaFolderID) -> [String] {
+    switch folderID {
+    case .pinyin:
+      return ["rime_ice"] + terraPinyinSchemaIDs
+    case .terraPinyin:
+      return terraPinyinSchemaIDs
+    case .doublePinyin:
+      return doublePinyinSchemaIDs
+    case .bopomofo:
+      return bopomofoSchemaIDs
+    case .otherChinese:
+      return ["radical_pinyin", "melt_eng"]
+    }
+  }
+
+  private func schemasByID(in group: SchemaGroup) -> [String: RimeSchema] {
+    rimeContext.schemas
+      .filter { schemaGroup(for: $0) == group }
+      .reduce(into: [String: RimeSchema]()) { result, schema in
+        result[schema.schemaId] = schema
+      }
+  }
+
+  private func schema(_ schemaId: String, availableSchemas: [String: RimeSchema]) -> RimeSchema {
+    availableSchemas[schemaId]
+      ?? RimeSchema(schemaId: schemaId, schemaName: Self.knownSchemaNameByID[schemaId] ?? schemaId)
+  }
+
+  private func chineseEnglishSchemaListItems(availableSchemas: [String: RimeSchema]) -> [SchemaListItem] {
+    var items = [SchemaListItem]()
+
+    let rimeIce = schema("rime_ice", availableSchemas: availableSchemas)
+    items.append(.folder(.init(
+      id: .pinyin,
+      title: "拼音",
+      subtitle: "雾凇拼音、地球拼音",
+      level: 0
+    )))
+    if isSchemaFolderExpanded(.pinyin) {
+      items.append(.schema(rimeIce, level: 1))
+      items.append(.folder(.init(
+        id: .terraPinyin,
+        title: "地球拼音",
+        subtitle: "普通、扩展、数字标调",
+        level: 1
+      )))
+      if isSchemaFolderExpanded(.terraPinyin) {
+        items.append(contentsOf: terraPinyinSchemaIDs.map {
+          .schema(schema($0, availableSchemas: availableSchemas), level: 2)
+        })
+      }
+    }
+
+    items.append(.schema(schema("t9", availableSchemas: availableSchemas), level: 0))
+
+    items.append(.folder(.init(
+      id: .doublePinyin,
+      title: "双拼",
+      subtitle: "自然码、小鹤、微软、搜狗等",
+      level: 0
+    )))
+    if isSchemaFolderExpanded(.doublePinyin) {
+      items.append(contentsOf: doublePinyinSchemaIDs.map {
+        .schema(schema($0, availableSchemas: availableSchemas), level: 1)
+      })
+    }
+
+    items.append(.folder(.init(
+      id: .bopomofo,
+      title: "注音",
+      subtitle: "注音、台湾正体、快打模式",
+      level: 0
+    )))
+    if isSchemaFolderExpanded(.bopomofo) {
+      items.append(contentsOf: bopomofoSchemaIDs.map {
+        .schema(schema($0, availableSchemas: availableSchemas), level: 1)
+      })
+    }
+
+    items.append(.schema(schema("stroke", availableSchemas: availableSchemas), level: 0))
+
+    items.append(.folder(.init(
+      id: .otherChinese,
+      title: "其他",
+      subtitle: "英语混输、部件拆字",
+      level: 0
+    )))
+    if isSchemaFolderExpanded(.otherChinese) {
+      items.append(.schema(schema("radical_pinyin", availableSchemas: availableSchemas), level: 1))
+      items.append(.schema(schema("melt_eng", availableSchemas: availableSchemas), level: 1))
+    }
+
+    return items
   }
 
   private func installedRemotePackageIDs() -> Set<RemotePackageID> {
@@ -1213,45 +1433,12 @@ extension InputSchemaViewModel {
 
 extension InputSchemaViewModel {
   func inputSchemaMenus() -> UIMenu {
-    let onDemandMenu = UIMenu(
-      title: "下载其他中英方案",
-      options: .displayInline,
-      children: [
-        UIAction(
-          title: "下载注音",
-          image: UIImage(systemName: "character.zh"),
-          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-bopomofo.zip", title: "注音") }
-        ),
-        UIAction(
-          title: "下载地球拼音",
-          image: UIImage(systemName: "globe.asia.australia"),
-          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-terra-pinyin.zip", title: "地球拼音") }
-        ),
-        UIAction(
-          title: "下载笔画",
-          image: UIImage(systemName: "pencil.and.outline"),
-          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-stroke.zip", title: "笔画") }
-        ),
-        UIAction(
-          title: "下载韩语",
-          image: UIImage(systemName: "character.book.closed"),
-          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-hangyl.zip", title: "韩语") }
-        ),
-        UIAction(
-          title: "下载越南语",
-          image: UIImage(systemName: "character.book.closed"),
-          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-hannomps.zip", title: "越南语") }
-        ),
-      ]
-    )
-
     let barButtonMenu = UIMenu(title: "", children: [
       UIAction(
         title: "从本地导入方案",
         image: UIImage(systemName: "square.and.arrow.down"),
         handler: { [unowned self] _ in self.presentDocumentPickerSubject.send(.documentPicker) }
       ),
-      onDemandMenu,
       UIAction(
         title: "从CloudKit下载方案",
         image: UIImage(systemName: "icloud.and.arrow.down"),
@@ -1289,7 +1476,7 @@ extension InputSchemaViewModel {
       if !rimeContext.selectSchemas.contains(schema) {
         rimeContext.appendSelectSchema(schema)
       }
-    case .japanese:
+    case .japanese, .korean, .vietnamese:
       if selectedInGroup.contains(schema) {
         rimeContext.removeSelectSchema(schema)
       } else {

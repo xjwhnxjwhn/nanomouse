@@ -1224,6 +1224,9 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         if !named.isEmpty {
           HamsterAppDependencyContainer.shared.configuration.keyboard?.useKeyboardType = keyboardType.yamlString
           HamsterAppDependencyContainer.shared.applicationConfiguration.keyboard?.useKeyboardType = keyboardType.yamlString
+          if keyboardType.isBopomofoKeyboard {
+            syncChineseSchemaWithKeyboardTypeIfNeeded(keyboardType)
+          }
         }
         return
       }
@@ -1330,19 +1333,17 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
 
     let rimeContext = HamsterAppDependencyContainer.shared.rimeContext
-    let selectedChineseSchemas = rimeContext.selectSchemas.filter { !$0.isJapaneseSchema }
+    let selectedChineseSchemas = rimeContext.selectSchemas.filter { $0.isChineseSchemaCandidate }
     guard !selectedChineseSchemas.isEmpty else { return }
-
-    if selectedChineseSchemas.count == 1,
-       selectedChineseSchemas[0].isChineseNineGridSchema == shouldUseNineGrid
-    {
-      return
-    }
 
     guard let targetSchema = keyboardType.isBopomofoKeyboard
       ? preferredBopomofoSchema()
       : preferredChineseSchema(useNineGrid: shouldUseNineGrid)
     else { return }
+
+    if selectedChineseSchemas.count == 1, selectedChineseSchemas[0] == targetSchema {
+      return
+    }
 
     for schema in selectedChineseSchemas where schema != targetSchema {
       rimeContext.removeSelectSchema(schema)
@@ -1359,26 +1360,28 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     if let remembered,
        let schema = rimeContext.schemas.first(where: { $0.schemaId == remembered.schemaId }),
-       !schema.isJapaneseSchema,
+       schema.isChineseSchemaCandidate,
+       !schema.isBopomofoSchema,
        schema.isChineseNineGridSchema == useNineGrid
     {
       return schema
     }
 
     if let currentSchema = rimeContext.currentSchema,
-       !currentSchema.isJapaneseSchema,
+       currentSchema.isChineseSchemaCandidate,
+       !currentSchema.isBopomofoSchema,
        currentSchema.isChineseNineGridSchema == useNineGrid
     {
       return currentSchema
     }
 
     if let selected = rimeContext.selectSchemas.first(where: {
-      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+      $0.isChineseSchemaCandidate && !$0.isBopomofoSchema && $0.isChineseNineGridSchema == useNineGrid
     }) {
       return selected
     }
     return rimeContext.schemas.first(where: {
-      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+      $0.isChineseSchemaCandidate && !$0.isBopomofoSchema && $0.isChineseNineGridSchema == useNineGrid
     })
   }
 

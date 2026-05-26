@@ -363,10 +363,10 @@ public extension RimeContext {
       return false
     }
 
-    let selectedChineseSchemas = selectSchemas.filter { !$0.isJapaneseSchema }
+    let selectedChineseSchemas = selectSchemas.filter { $0.isChineseSchemaCandidate }
     let needsSelectionUpdate = selectedChineseSchemas.count != 1 || selectedChineseSchemas.first != targetSchema
     if needsSelectionUpdate {
-      let nonChineseSchemas = selectSchemas.filter { $0.isJapaneseSchema }
+      let nonChineseSchemas = selectSchemas.filter { !$0.isChineseSchemaCandidate }
       selectSchemas = orderedSelectSchemas(nonChineseSchemas + [targetSchema])
     }
 
@@ -400,26 +400,28 @@ public extension RimeContext {
     let remembered = useNineGrid ? UserDefaults.hamster.latestChineseNineGridSchema : UserDefaults.hamster.latestChinesePrimarySchema
     if let remembered,
        let schema = schemas.first(where: { $0.schemaId == remembered.schemaId }),
-       !schema.isJapaneseSchema,
+       schema.isChineseSchemaCandidate,
+       !schema.isBopomofoSchema,
        schema.isChineseNineGridSchema == useNineGrid
     {
       return schema
     }
 
     if let currentSchema,
-       !currentSchema.isJapaneseSchema,
+       currentSchema.isChineseSchemaCandidate,
+       !currentSchema.isBopomofoSchema,
        currentSchema.isChineseNineGridSchema == useNineGrid
     {
       return currentSchema
     }
 
     if let selected = selectSchemas.first(where: {
-      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+      $0.isChineseSchemaCandidate && !$0.isBopomofoSchema && $0.isChineseNineGridSchema == useNineGrid
     }) {
       return selected
     }
     return schemas.first(where: {
-      !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
+      $0.isChineseSchemaCandidate && !$0.isBopomofoSchema && $0.isChineseNineGridSchema == useNineGrid
     })
   }
 
@@ -442,7 +444,7 @@ public extension RimeContext {
   }
 
   private func rememberChineseSchemaChoice(_ schema: RimeSchema?) {
-    guard let schema, !schema.isJapaneseSchema else { return }
+    guard let schema, schema.isChineseSchemaCandidate, !schema.isBopomofoSchema else { return }
     if schema.isChineseNineGridSchema {
       UserDefaults.hamster.latestChineseNineGridSchema = schema
     } else {
@@ -455,8 +457,8 @@ public extension RimeContext {
   /// - 其余保持按 schemaId 稳定排序
   private func orderedSelectSchemas(_ schemas: [RimeSchema]) -> [RimeSchema] {
     schemas.sorted { lhs, rhs in
-      let lhsIsChinese = !lhs.isJapaneseSchema
-      let rhsIsChinese = !rhs.isJapaneseSchema
+      let lhsIsChinese = lhs.isChineseSchemaCandidate
+      let rhsIsChinese = rhs.isChineseSchemaCandidate
       if lhsIsChinese && rhsIsChinese {
         let lhsPrefer = lhs.schemaId == "rime_ice"
         let rhsPrefer = rhs.schemaId == "rime_ice"
@@ -610,9 +612,7 @@ public extension RimeContext {
         }
       }
     }
-    ensureSchemaListContains(schemaId: "japanese", schemas: &schemas, traits: traits)
-    ensureSchemaListContains(schemaId: "jaroomaji", schemas: &schemas, traits: traits)
-    ensureSchemaListContains(schemaId: "jaroomaji-easy", schemas: &schemas, traits: traits)
+    ensureKnownSchemaListContains(schemas: &schemas, traits: traits)
 
     // 提前在部署阶段加载 RimeSwitch hotKey, 此步骤放在键盘启动阶段会减慢启动速度
     // 加载Switcher切换键
@@ -739,9 +739,7 @@ public extension RimeContext {
     let schemas = Rime.shared.getSchemas().sorted()
 
     var mutableSchemas = schemas
-    ensureSchemaListContains(schemaId: "japanese", schemas: &mutableSchemas, traits: traits)
-    ensureSchemaListContains(schemaId: "jaroomaji", schemas: &mutableSchemas, traits: traits)
-    ensureSchemaListContains(schemaId: "jaroomaji-easy", schemas: &mutableSchemas, traits: traits)
+    ensureKnownSchemaListContains(schemas: &mutableSchemas, traits: traits)
 
     Rime.shared.shutdown()
 
@@ -774,24 +772,54 @@ public extension RimeContext {
 
   }
 
-  private func ensureSchemaListContains(
-    schemaId: String,
+  private static let knownSelectableSchemaIDs = [
+    "japanese",
+    "jaroomaji",
+    "jaroomaji-easy",
+    "rime_ice",
+    "t9",
+    "double_pinyin",
+    "double_pinyin_abc",
+    "double_pinyin_flypy",
+    "double_pinyin_jiajia",
+    "double_pinyin_mspy",
+    "double_pinyin_sogou",
+    "double_pinyin_ziguang",
+    "melt_eng",
+    "radical_pinyin",
+    "terra_pinyin",
+    "terra_pinyin.extended",
+    "terra_pinyin_12345",
+    "bopomofo",
+    "bopomofo_tw",
+    "bopomofo_express",
+    "stroke",
+    "hangyl",
+    "hangyl_hanja",
+    "hannom",
+  ]
+
+  private func ensureKnownSchemaListContains(
     schemas: inout [RimeSchema],
     traits: IRimeTraits
   ) {
     guard !schemas.isEmpty else { return }
-    guard !schemas.contains(where: { $0.schemaId == schemaId }) else { return }
     if !FileManager.default.fileExists(atPath: FileManager.appGroupUserDataDefaultCustomYaml.path) {
       _ = FileManager.default.createFile(atPath: FileManager.appGroupUserDataDefaultCustomYaml.path, contents: nil)
     }
     let availableSchemas = Rime.shared.getAvailableRimeSchemas().sorted()
     Logger.statistics.info("rime available schemas: \(availableSchemas)")
-    guard availableSchemas.contains(where: { $0.schemaId == schemaId }) else { return }
     var schemaIds = schemas.map { $0.schemaId }
-    schemaIds.append(schemaId)
+    let existingIDs = Set(schemaIds)
+    let availableIDs = Set(availableSchemas.map { $0.schemaId })
+    let missingIDs = Self.knownSelectableSchemaIDs.filter {
+      !existingIDs.contains($0) && availableIDs.contains($0)
+    }
+    guard !missingIDs.isEmpty else { return }
+    schemaIds.append(contentsOf: missingIDs)
     let handled = Rime.shared.selectRimeSchemas(schemaIds)
     Logger.statistics.info("rime selectRimeSchemas handled: \(handled)")
-    Logger.statistics.info("rime append schema_list: \(schemaId), handled: \(handled)")
+    Logger.statistics.info("rime append schema_list: \(missingIDs.joined(separator: ",")), handled: \(handled)")
     guard handled else { return }
     Rime.shared.shutdown()
     Rime.shared.start(traits, maintenance: true, fullCheck: true)
@@ -924,7 +952,7 @@ public extension RimeContext {
       let schemaID = schema.schemaId
       guard !schemaID.isEmpty,
             schemaID != HamsterConstants.azooKeySchemaId,
-            !schema.isJapaneseSchema
+            schema.isChineseSchemaCandidate
       else {
         continue
       }

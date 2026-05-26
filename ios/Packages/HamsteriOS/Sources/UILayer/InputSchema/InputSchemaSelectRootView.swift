@@ -23,8 +23,10 @@ class InputSchemaSelectRootView: NibLessView {
   }()
 
   private let items: [(title: String, subtitle: String, group: InputSchemaViewModel.SchemaGroup)] = [
-    ("中英", "雾凇拼音、双拼等中文输入方案", .chineseEnglish),
+    ("中英", "拼音、九键、双拼、注音、五笔等方案", .chineseEnglish),
     ("日语", "AzooKey、rime-japanese 等日语输入方案", .japanese),
+    ("韩语", "韩文、韩汉转换方案", .korean),
+    ("越南语", "汉喃输入方案", .vietnamese),
   ]
 
   // MARK: - Init

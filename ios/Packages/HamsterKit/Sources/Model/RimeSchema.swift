@@ -49,6 +49,27 @@ public extension RimeSchema {
     return keywords.contains(where: { id.contains($0) || name.contains($0) })
   }
 
+  var isKoreanSchema: Bool {
+    let id = schemaId.lowercased()
+    return id == "hangyl"
+      || id == "hangyl_hanja"
+      || id.contains("hangyl")
+      || schemaName.contains("한글")
+      || schemaName.contains("韓")
+  }
+
+  var isVietnameseSchema: Bool {
+    let id = schemaId.lowercased()
+    return id == "hannom"
+      || id.contains("hannom")
+      || schemaName.contains("漢喃")
+      || schemaName.contains("部𢫈")
+  }
+
+  var isChineseSchemaCandidate: Bool {
+    !isJapaneseSchema && !isKoreanSchema && !isVietnameseSchema
+  }
+
   var isBopomofoSchema: Bool {
     let id = schemaId.lowercased()
     return id == "bopomofo"
@@ -70,7 +91,7 @@ public extension RimeSchema {
   /// 说明：
   /// 仅用于布局与方案联动时的启发式匹配，避免把中文九宫格布局错误绑定到普通26键方案。
   var isChineseNineGridSchema: Bool {
-    guard !isJapaneseSchema else { return false }
+    guard isChineseSchemaCandidate else { return false }
 
     let id = schemaId.lowercased()
     let name = schemaName.lowercased()

@@ -122,7 +122,7 @@ public class SettingsViewModel: ObservableObject {
                 }
             )
         ]),
-      SettingSectionModel(title: AppL10n.text("输入相关"), items: [
+      SettingSectionModel(title: AppL10n.text("输入方案与键盘布局"), items: [
         .init(
           icon: UIImage(systemName: "highlighter")!.withTintColor(.yellow),
           text: AppL10n.text("输入方案设置"),
@@ -131,6 +131,16 @@ public class SettingsViewModel: ObservableObject {
             self.mainViewModel.subViewSubject.send(.inputSchema)
           }
         ),
+        .init(
+          icon: UIImage(systemName: "square.grid.3x3")!,
+          text: AppL10n.text("键盘布局"),
+          accessoryType: .disclosureIndicator,
+          navigationAction: { [unowned self] in
+            self.mainViewModel.subViewSubject.send(.keyboardLayout)
+          }
+        ),
+      ]),
+      SettingSectionModel(title: AppL10n.text("输入相关"), items: [
         .init(
           icon: UIImage(systemName: "wifi")!,
           text: AppL10n.text("Wi-Fi上传方案"),
@@ -155,14 +165,6 @@ public class SettingsViewModel: ObservableObject {
           accessoryType: .disclosureIndicator,
           navigationAction: { [unowned self] in
             self.mainViewModel.navigationToKeyboardSettings()
-          }
-        ),
-        .init(
-          icon: UIImage(systemName: "square.grid.3x3")!,
-          text: AppL10n.text("键盘布局"),
-          accessoryType: .disclosureIndicator,
-          navigationAction: { [unowned self] in
-            self.mainViewModel.subViewSubject.send(.keyboardLayout)
           }
         ),
         .init(

@@ -15,6 +15,8 @@ class InputSchemaRootView: NibLessView {
   // MARK: properties
 
   private static let cellIdentifier = "InputSchemaTableCell"
+  private static let selectionAccessoryTintColor = UIColor(named: "AccentColor")
+    ?? UIColor(red: 0.706, green: 0.671, blue: 0.608, alpha: 1)
 
   private let inputSchemaViewModel: InputSchemaViewModel
 
@@ -26,6 +28,7 @@ class InputSchemaRootView: NibLessView {
   let tableView: UITableView = {
     let tableView = UITableView(frame: .zero, style: .insetGrouped)
     tableView.register(UITableViewCell.self, forCellReuseIdentifier: InputSchemaRootView.cellIdentifier)
+    tableView.tintColor = InputSchemaRootView.selectionAccessoryTintColor
     return tableView
   }()
 
@@ -90,6 +93,10 @@ class InputSchemaRootView: NibLessView {
           sections.append(.azooKeyMode)
           sections.append(.azooKeyAdvanced)
         }
+      case .korean:
+        sections.append(.schemaList(.korean))
+      case .vietnamese:
+        sections.append(.schemaList(.vietnamese))
       }
     } else {
       // 兼容旧逻辑：显示所有 sections
@@ -102,6 +109,8 @@ class InputSchemaRootView: NibLessView {
         sections.append(.azooKeyMode)
         sections.append(.azooKeyAdvanced)
       }
+      sections.append(.schemaList(.korean))
+      sections.append(.schemaList(.vietnamese))
     }
 
     return sections
@@ -145,6 +154,81 @@ class InputSchemaRootView: NibLessView {
     return container
   }
 
+  private func folderAccessoryView(for folder: InputSchemaViewModel.SchemaFolder) -> UIView {
+    var views = [UIView]()
+    if inputSchemaViewModel.shouldShowSelectionIndicator(for: folder) {
+      views.append(checkmarkView())
+    }
+    views.append(expandButton(for: folder))
+
+    return accessoryStack(views)
+  }
+
+  private func expandButton(for folder: InputSchemaViewModel.SchemaFolder) -> UIButton {
+    let chevronName = inputSchemaViewModel.isSchemaFolderExpanded(folder.id) ? "chevron.down" : "chevron.right"
+    let button = UIButton(type: .system)
+    button.setImage(UIImage(systemName: chevronName), for: .normal)
+    button.tintColor = .tertiaryLabel
+    button.setPreferredSymbolConfiguration(
+      UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold),
+      forImageIn: .normal
+    )
+    button.accessibilityLabel = inputSchemaViewModel.isSchemaFolderExpanded(folder.id) ? "收起\(folder.title)" : "展开\(folder.title)"
+    button.frame = CGRect(x: 0, y: 0, width: 28, height: 28)
+    button.addAction(UIAction { [unowned self] _ in
+      self.inputSchemaViewModel.toggleSchemaFolder(folder.id)
+    }, for: .touchUpInside)
+    return button
+  }
+
+  private func schemaActionAccessoryView(for schema: RimeSchema, state: InputSchemaViewModel.SchemaActionState) -> UIView {
+    let actionView = actionAccessoryView(for: schema, state: state)
+    guard inputSchemaViewModel.isSchemaSelected(schema) else {
+      return actionView
+    }
+    return accessoryStack([actionView, checkmarkView()])
+  }
+
+  private func checkmarkView() -> UIImageView {
+    let configuration = UIImage.SymbolConfiguration(pointSize: 17, weight: .bold)
+    let checkmark = UIImageView(image: UIImage(systemName: "checkmark", withConfiguration: configuration))
+    checkmark.tintColor = Self.selectionAccessoryTintColor
+    checkmark.contentMode = .center
+    checkmark.frame = CGRect(x: 0, y: 0, width: 22, height: 22)
+    return checkmark
+  }
+
+  private func applySelectionCheckmark(_ selected: Bool, to cell: UITableViewCell) {
+    cell.accessoryView = selected ? checkmarkView() : nil
+    cell.accessoryType = .none
+  }
+
+  private func accessoryStack(_ views: [UIView]) -> UIView {
+    let spacing: CGFloat = 8
+    let sizes = views.map { view -> CGSize in
+      if view.bounds.size == .zero {
+        view.sizeToFit()
+      }
+      return view.bounds.size
+    }
+    let width = sizes.reduce(CGFloat(0)) { $0 + $1.width } + spacing * CGFloat(max(views.count - 1, 0))
+    let height = max(CGFloat(28), sizes.map(\.height).max() ?? 28)
+    let container = UIView(frame: CGRect(x: 0, y: 0, width: width, height: height))
+
+    var x: CGFloat = 0
+    for (view, size) in zip(views, sizes) {
+      view.frame = CGRect(
+        x: x,
+        y: (height - size.height) / 2,
+        width: size.width,
+        height: size.height
+      )
+      container.addSubview(view)
+      x += size.width + spacing
+    }
+    return container
+  }
+
   private func isRecommendedSchema(_ schema: RimeSchema) -> Bool {
     schema.schemaId == HamsterConstants.azooKeySchemaId
   }
@@ -158,9 +242,7 @@ class InputSchemaRootView: NibLessView {
     badge.sizeToFit()
 
     if isSelected {
-      let checkmark = UIImageView(image: UIImage(systemName: "checkmark"))
-      checkmark.tintColor = .systemBlue
-      checkmark.sizeToFit()
+      let checkmark = checkmarkView()
 
       let spacing: CGFloat = 8
       let height = max(badge.bounds.height, checkmark.bounds.height)
@@ -190,7 +272,13 @@ class InputSchemaRootView: NibLessView {
 
   private func actionButton(for schema: RimeSchema, state: InputSchemaViewModel.SchemaActionState) -> UIButton {
     let button = UIButton(type: .system)
-    button.setTitle(state.buttonTitle, for: .normal)
+    switch state {
+    case .download:
+      button.setImage(UIImage(systemName: "arrow.down.circle"), for: .normal)
+      button.accessibilityLabel = "下载\(inputSchemaViewModel.displayNameForInputSchemaList(schema))"
+    default:
+      button.setTitle(state.buttonTitle, for: .normal)
+    }
     if state == .upgradeApp {
       button.tintColor = .systemOrange
     }
@@ -250,7 +338,7 @@ extension InputSchemaRootView: UITableViewDataSource {
     guard let sectionType = sectionType(for: section) else { return 0 }
     switch sectionType {
     case .schemaList(let group):
-      return inputSchemaViewModel.schemas(in: group).count
+      return inputSchemaViewModel.schemaListItems(in: group).count
     case .traditional:
       return InputSchemaViewModel.TraditionalizationOption.allCases.count
     case .azooKeyMode:
@@ -263,6 +351,11 @@ extension InputSchemaRootView: UITableViewDataSource {
   public func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
     let cell = self.tableView.dequeueReusableCell(withIdentifier: Self.cellIdentifier, for: indexPath)
     var config = UIListContentConfiguration.cell()
+    cell.accessoryView = nil
+    cell.accessoryType = .none
+    cell.tintColor = Self.selectionAccessoryTintColor
+    cell.indentationLevel = 0
+    cell.indentationWidth = 22
 
     guard let sectionType = sectionType(for: indexPath.section) else { return cell }
 
@@ -271,8 +364,7 @@ extension InputSchemaRootView: UITableViewDataSource {
       let option = InputSchemaViewModel.TraditionalizationOption.allCases[indexPath.row]
       config.text = option.displayName
       cell.contentConfiguration = config
-      cell.accessoryView = nil
-      cell.accessoryType = inputSchemaViewModel.isTraditionalizationOptionSelected(option) ? .checkmark : .none
+      applySelectionCheckmark(inputSchemaViewModel.isTraditionalizationOptionSelected(option), to: cell)
       return cell
 
     case .azooKeyMode:
@@ -284,8 +376,7 @@ extension InputSchemaRootView: UITableViewDataSource {
         cell.accessoryView = azooKeyModeDownloadButton()
         cell.accessoryType = .none
       } else {
-        cell.accessoryView = nil
-        cell.accessoryType = inputSchemaViewModel.isAzooKeyModeOptionSelected(option) ? .checkmark : .none
+        applySelectionCheckmark(inputSchemaViewModel.isAzooKeyModeOptionSelected(option), to: cell)
       }
       return cell
 
@@ -309,21 +400,35 @@ extension InputSchemaRootView: UITableViewDataSource {
       return cell
 
     case .schemaList(let group):
-      let schemas = inputSchemaViewModel.schemas(in: group)
-      let schema = schemas[indexPath.row]
-      let actionState = inputSchemaViewModel.actionState(for: schema)
-      config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
-      cell.contentConfiguration = config
-      if actionState != .none {
-        cell.accessoryView = actionAccessoryView(for: schema, state: actionState)
-        cell.accessoryType = .none
-      } else if isRecommendedSchema(schema) {
-        // 已下载的推荐方案：显示推荐标签
-        cell.accessoryView = recommendedBadgeView(isSelected: inputSchemaViewModel.isSchemaSelected(schema))
-        cell.accessoryType = .none
-      } else {
-        cell.accessoryView = nil
-        cell.accessoryType = inputSchemaViewModel.isSchemaSelected(schema) ? .checkmark : .none
+      let item = inputSchemaViewModel.schemaListItems(in: group)[indexPath.row]
+      switch item {
+      case .folder(let folder):
+        config.text = folder.title
+        config.secondaryText = folder.subtitle
+        config.secondaryTextProperties.color = .secondaryLabel
+        config.textProperties.font = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize, weight: .semibold)
+        cell.indentationLevel = folder.level
+        cell.contentConfiguration = config
+        cell.accessoryView = folderAccessoryView(for: folder)
+
+      case .schema(let schema, let level):
+        let actionState = inputSchemaViewModel.actionState(for: schema)
+        let selected = inputSchemaViewModel.isSchemaSelected(schema)
+        config.text = inputSchemaViewModel.displayNameForInputSchemaList(schema)
+        if !inputSchemaViewModel.isSchemaAvailable(schema) {
+          config.textProperties.color = .secondaryLabel
+        }
+        cell.indentationLevel = level
+        cell.contentConfiguration = config
+        if actionState != .none {
+          cell.accessoryView = schemaActionAccessoryView(for: schema, state: actionState)
+        } else if isRecommendedSchema(schema) {
+          // 已下载的推荐方案：显示推荐标签
+          cell.accessoryView = recommendedBadgeView(isSelected: selected)
+          cell.accessoryType = .none
+        } else {
+          applySelectionCheckmark(selected, to: cell)
+        }
       }
       return cell
     }
@@ -348,7 +453,16 @@ extension InputSchemaRootView: UITableViewDataSource {
     guard let sectionType = sectionType(for: section) else { return nil }
     switch sectionType {
     case .schemaList(let group):
-      return group == .japanese ? "日语方案不随安装包内置，右侧可按需下载。" : nil
+      switch group {
+      case .japanese:
+        return "日语方案不随安装包内置，右侧可按需下载。"
+      case .korean:
+        return "韩语方案不随安装包内置，右侧可按需下载。"
+      case .vietnamese:
+        return "越南语方案不随安装包内置，右侧可按需下载。"
+      case .chineseEnglish:
+        return nil
+      }
     case .traditional:
       return "切换繁体方案会立即触发重新部署（是否覆盖词库文件与 RIME 菜单设置保持一致）。"
     case .azooKeyMode:
@@ -381,9 +495,19 @@ extension InputSchemaRootView: UITableViewDelegate {
           inputSchemaViewModel.toggleAzooKeyAdvancedOption(option)
 
         case .schemaList(let group):
-          let schemas = inputSchemaViewModel.schemas(in: group)
-          let schema = schemas[indexPath.row]
-          if group == .japanese, !inputSchemaViewModel.isSchemaAvailable(schema) { return }
+          let item = inputSchemaViewModel.schemaListItems(in: group)[indexPath.row]
+          guard case .schema(let schema, _) = item else {
+            if case .folder(let folder) = item {
+              inputSchemaViewModel.toggleSchemaFolder(folder.id)
+            }
+            return
+          }
+          let actionState = inputSchemaViewModel.actionState(for: schema)
+          if actionState == .download || actionState == .upgradeApp {
+            inputSchemaViewModel.handleAction(for: schema)
+            return
+          }
+          if !inputSchemaViewModel.isSchemaAvailable(schema) { return }
           try await inputSchemaViewModel.checkboxForInputSchema(schema)
         }
       } catch {
@@ -398,8 +522,8 @@ extension InputSchemaRootView: UITableViewDelegate {
     switch sectionType {
     case .schemaList(let group):
       guard group == .japanese else { return nil }
-      let schemas = inputSchemaViewModel.schemas(in: group)
-      let schema = schemas[indexPath.row]
+      let item = inputSchemaViewModel.schemaListItems(in: group)[indexPath.row]
+      guard case .schema(let schema, _) = item else { return nil }
       guard inputSchemaViewModel.isSchemaAvailable(schema) else { return nil }
 
       let deleteAction = UIContextualAction(style: .destructive, title: "删除") { [weak self] _, _, completion in
