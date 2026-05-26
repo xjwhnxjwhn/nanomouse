@@ -27,20 +27,36 @@ Record Type: `NanomouseAssetPackage`
 
 App 会优先按 `id` 查找记录，查不到时再按 `fileName` 查找。
 
-## 发布流程
+## 自动发布流程
 
-每次更新 `zips/` 后必须做两件事：
+仓库已配置 GitHub Actions：`.github/workflows/upload-apple-assets.yml`。
 
-1. 正常提交并 push，让 GitHub raw 兜底源更新。
-2. 用脚本上传同一批资源到 CloudKit Public Database。
+当 `main` 分支里的 `zips/**` 更新后，GitHub 会自动触发 workflow：
 
-首次使用 `cktool` 前保存用户 token：
+1. GitHub 正常接收这次 push，GitHub raw 兜底源随之更新。
+2. Actions 在 macOS runner 上 checkout 当前仓库。
+3. 脚本读取这次 push 中变更的 `zips/` 文件，只把对应资源上传到 CloudKit Production。
+
+上传源头是 Actions checkout 下来的仓库文件，也就是这次 push 后的 `zips/` 内容；不是从 GitHub raw 再下载一遍。
+
+首次启用自动上传前，需要在 GitHub 仓库设置里添加 repository secret：
+
+- Name: `CLOUDKIT_USER_TOKEN`
+- Value: CloudKit Console 生成的 user token
+
+本地执行 `xcrun cktool save-token --type user --method keychain` 保存的是本机 Keychain，GitHub Actions 读不到；自动上传必须使用 GitHub Secret。
+
+## 手动发布流程
+
+通常不需要手动执行。只有在 Actions 失败、想重传全部资源、或想先传 Development 验证时，才手动跑脚本。
+
+本机首次使用 `cktool` 前保存用户 token：
 
 ```bash
 xcrun cktool save-token --type user --method keychain
 ```
 
-先上传 Development 环境验证：
+上传 Development 环境验证：
 
 ```bash
 scripts/upload_apple_asset_packages.py \
@@ -56,7 +72,9 @@ scripts/upload_apple_asset_packages.py \
 
 脚本默认从 `ios/Hamster.xcodeproj` 的 Hamster scheme 读取 `DEVELOPMENT_TEAM`。如果 Xcode 工程里没有 Team ID，再手动追加 `--team-id <Apple Developer Team ID>`。
 
-脚本会读取 `zips/manifest.json` 并上传其中列出的所有包。对于不在 manifest 中的额外资源，脚本会自动检查并上传：
+不传 `--git-base/--git-head` 时，脚本会读取 `zips/manifest.json` 并上传其中列出的所有包。Actions 自动上传时会传入 git range，因此只上传发生变化的包。
+
+对于不在 manifest 中的额外资源，脚本会自动检查并上传：
 
 - `zenz-v3.1-xsmall-Q5_K_M.gguf`
 - `zenz-v3.1-small-Q5_K_M.gguf`

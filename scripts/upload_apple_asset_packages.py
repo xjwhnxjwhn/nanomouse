@@ -25,6 +25,11 @@ ASSET_KEY = "ASSET"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 IOS_PROJECT = REPO_ROOT / "ios" / "Hamster.xcodeproj"
 IOS_SCHEME = "Hamster"
+KNOWN_EXTRA_PACKAGES = {
+    "zenz-v3.1-xsmall-Q5_K_M.gguf": ("azookey-zenzai-low", "AzooKey Zenzai Low"),
+    "zenz-v3.1-small-Q5_K_M.gguf": ("azookey-zenzai-high", "AzooKey Zenzai High"),
+    "predict_traditional.db": ("rime-predict-traditional", "Rime 繁体联想词库"),
+}
 
 
 @dataclass
@@ -38,12 +43,26 @@ class AssetPackage:
     path: Path
 
 
+ZERO_GIT_SHA = "0000000000000000000000000000000000000000"
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as file:
         for chunk in iter(lambda: file.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def package_manifest_identity(package: AssetPackage) -> tuple[str, str, str, str, str, str]:
+    return (
+        package.package_id,
+        package.file_name,
+        package.title,
+        package.published_at,
+        package.min_shared_support_version,
+        package.sha256,
+    )
 
 
 def load_manifest_packages(zips_dir: Path) -> list[AssetPackage]:
@@ -70,12 +89,7 @@ def load_manifest_packages(zips_dir: Path) -> list[AssetPackage]:
 
 def load_extra_packages(zips_dir: Path, published_at: str) -> list[AssetPackage]:
     extras: list[AssetPackage] = []
-    known = {
-        "zenz-v3.1-xsmall-Q5_K_M.gguf": ("azookey-zenzai-low", "AzooKey Zenzai Low"),
-        "zenz-v3.1-small-Q5_K_M.gguf": ("azookey-zenzai-high", "AzooKey Zenzai High"),
-        "predict_traditional.db": ("rime-predict-traditional", "Rime 繁体联想词库"),
-    }
-    for file_name, (package_id, title) in known.items():
+    for file_name, (package_id, title) in KNOWN_EXTRA_PACKAGES.items():
         path = zips_dir / file_name
         if not path.exists():
             continue
@@ -93,10 +107,106 @@ def load_extra_packages(zips_dir: Path, published_at: str) -> list[AssetPackage]
     return extras
 
 
-def cktool_base(args: argparse.Namespace) -> list[str]:
+def git_output(args: list[str]) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout
+
+
+def git_ref_exists(ref: str) -> bool:
+    if not ref or ref == ZERO_GIT_SHA:
+        return False
+    return subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+        cwd=REPO_ROOT,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    ).returncode == 0
+
+
+def changed_paths_between(base: str, head: str) -> set[str] | None:
+    if not git_ref_exists(base) or not git_ref_exists(head):
+        return None
+    output = git_output(["diff", "--name-only", base, head, "--", "zips"])
+    return {line.strip() for line in output.splitlines() if line.strip()}
+
+
+def manifest_packages_at_ref(ref: str, zips_dir: Path) -> dict[str, AssetPackage]:
+    try:
+        raw = git_output(["show", f"{ref}:zips/manifest.json"])
+    except subprocess.CalledProcessError:
+        return {}
+
+    manifest = json.loads(raw)
+    packages: dict[str, AssetPackage] = {}
+    for item in manifest["packages"]:
+        path = zips_dir / item["fileName"]
+        packages[item["id"]] = AssetPackage(
+            package_id=item["id"],
+            file_name=item["fileName"],
+            title=item.get("title") or item["id"],
+            published_at=item.get("publishedAt") or "",
+            min_shared_support_version=item.get("minSharedSupportVersion") or "",
+            sha256=item.get("sha256") or "",
+            path=path,
+        )
+    return packages
+
+
+def filter_changed_packages(
+    packages: list[AssetPackage],
+    zips_dir: Path,
+    base: str | None,
+    head: str | None,
+) -> list[AssetPackage]:
+    if not base or not head:
+        return packages
+
+    changed_paths = changed_paths_between(base, head)
+    if changed_paths is None:
+        print("Unable to resolve git range; uploading all packages.")
+        return packages
+
+    relative_zips_dir = zips_dir.relative_to(REPO_ROOT) if zips_dir.is_relative_to(REPO_ROOT) else Path("zips")
+    changed_file_names = {
+        Path(path).name
+        for path in changed_paths
+        if Path(path).parent == relative_zips_dir
+    }
+    manifest_changed = Path(f"{relative_zips_dir}/manifest.json").as_posix() in changed_paths
+    previous_manifest = manifest_packages_at_ref(base, zips_dir)
+    selected: list[AssetPackage] = []
+
+    for package in packages:
+        file_changed = package.file_name in changed_file_names
+        previous = previous_manifest.get(package.package_id)
+        metadata_changed = (
+            manifest_changed
+            and previous is not None
+            and package_manifest_identity(package) != package_manifest_identity(previous)
+        )
+        added_to_manifest = (
+            manifest_changed
+            and previous is None
+            and package.file_name not in KNOWN_EXTRA_PACKAGES
+        )
+        if file_changed or metadata_changed or added_to_manifest:
+            selected.append(package)
+
+    return selected
+
+
+def cktool_command(args: argparse.Namespace, subcommand: str) -> list[str]:
     command = [
         "xcrun",
         "cktool",
+        subcommand,
     ]
     if args.token:
         command.extend(["--token", args.token])
@@ -143,7 +253,11 @@ def resolve_team_id(args: argparse.Namespace) -> str:
 
 
 def run(command: list[str], dry_run: bool) -> None:
-    print("+", " ".join(command))
+    redacted = command.copy()
+    for index, item in enumerate(redacted[:-1]):
+        if item == "--token":
+            redacted[index + 1] = "***"
+    print("+", " ".join(redacted))
     if not dry_run:
         subprocess.run(command, check=True)
 
@@ -164,8 +278,7 @@ def fields_json(package: AssetPackage) -> dict[str, dict[str, str]]:
 
 
 def delete_existing(package: AssetPackage, args: argparse.Namespace) -> None:
-    command = cktool_base(args) + [
-        "delete-records",
+    command = cktool_command(args, "delete-records") + [
         "--container-id",
         args.container_id,
         "--environment",
@@ -188,8 +301,7 @@ def create_record(package: AssetPackage, args: argparse.Namespace) -> None:
         json.dump(fields_json(package), fields_file, ensure_ascii=False)
         fields_path = Path(fields_file.name)
 
-    command = cktool_base(args) + [
-        "create-record",
+    command = cktool_command(args, "create-record") + [
         "--team-id",
         args.team_id,
         "--container-id",
@@ -219,6 +331,8 @@ def main() -> None:
     parser.add_argument("--zips-dir", type=Path, default=Path("zips"))
     parser.add_argument("--token")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--git-base", help="Only upload packages changed after this commit.")
+    parser.add_argument("--git-head", help="Only upload packages changed up to this commit.")
     parser.add_argument(
         "--extra-published-at",
         default="",
@@ -232,6 +346,11 @@ def main() -> None:
         zips_dir = (REPO_ROOT / zips_dir).resolve()
     packages = load_manifest_packages(zips_dir)
     packages.extend(load_extra_packages(zips_dir, args.extra_published_at))
+    packages = filter_changed_packages(packages, zips_dir, args.git_base, args.git_head)
+
+    if not packages:
+        print("No changed asset packages to upload.")
+        return
 
     for package in packages:
         print(f"\nUploading {package.package_id} -> {package.file_name}")

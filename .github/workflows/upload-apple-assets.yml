@@ -1,0 +1,70 @@
+name: Upload Apple Assets
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - zips/**
+      - scripts/upload_apple_asset_packages.py
+      - .github/workflows/upload-apple-assets.yml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: CloudKit environment
+        type: choice
+        options:
+          - development
+          - production
+        default: production
+      upload_all:
+        description: Upload every asset package instead of only changed packages
+        type: boolean
+        default: false
+
+jobs:
+  upload:
+    name: Upload changed assets to CloudKit
+    runs-on: macos-15
+    permissions:
+      contents: read
+    env:
+      CLOUDKIT_USER_TOKEN: ${{ secrets.CLOUDKIT_USER_TOKEN }}
+      CLOUDKIT_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+      UPLOAD_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_all || false }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate CloudKit token
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDKIT_USER_TOKEN}" ]; then
+            echo "::error::Missing repository secret CLOUDKIT_USER_TOKEN."
+            exit 1
+          fi
+
+      - name: Upload assets
+        run: |
+          set -euo pipefail
+          if [ "${UPLOAD_ALL}" = "true" ]; then
+            scripts/upload_apple_asset_packages.py \
+              --environment "${CLOUDKIT_ENVIRONMENT}" \
+              --token "${CLOUDKIT_USER_TOKEN}"
+          else
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+            if [ -z "${BASE}" ] || [ "${BASE}" = "0000000000000000000000000000000000000000" ]; then
+              scripts/upload_apple_asset_packages.py \
+                --environment "${CLOUDKIT_ENVIRONMENT}" \
+                --token "${CLOUDKIT_USER_TOKEN}"
+            else
+              scripts/upload_apple_asset_packages.py \
+                --environment "${CLOUDKIT_ENVIRONMENT}" \
+                --token "${CLOUDKIT_USER_TOKEN}" \
+                --git-base "${BASE}" \
+                --git-head "${HEAD}"
+            fi
+          fi
