@@ -10,10 +10,38 @@ import Foundation
 import HamsterKit
 import OSLog
 
-enum RemoteAssetSource: String {
+enum RemoteAssetSource: String, Hashable {
   case cloudKitPublic
   case github
+
+  var displayName: String {
+    switch self {
+    case .cloudKitPublic:
+      return "Apple CloudKit"
+    case .github:
+      return "GitHub"
+    }
+  }
 }
+
+enum RemoteAssetDownloadEvent {
+  case attempting(RemoteAssetSource)
+  case fallingBack(from: RemoteAssetSource, to: RemoteAssetSource)
+  case succeeded(RemoteAssetSource)
+
+  func hudMessage(title: String) -> String {
+    switch self {
+    case let .attempting(source):
+      return "正在通过\(source.displayName)下载\(title)…"
+    case let .fallingBack(from, to):
+      return "\(from.displayName)不可用，正在改用\(to.displayName)下载\(title)…"
+    case let .succeeded(source):
+      return "已通过\(source.displayName)下载\(title)，正在安装…"
+    }
+  }
+}
+
+typealias RemoteAssetDownloadStatusHandler = @MainActor (RemoteAssetDownloadEvent) -> Void
 
 struct RemoteAssetManifestEntry: Decodable {
   let id: String
@@ -81,18 +109,34 @@ final class RemoteAssetDownloadService {
     return try await fetchManifest()[id]
   }
 
-  func downloadAsset(fileName: String, packageID: String? = nil) async throws -> RemoteAssetDownloadResult {
+  func downloadAsset(
+    fileName: String,
+    packageID: String? = nil,
+    statusHandler: RemoteAssetDownloadStatusHandler? = nil
+  ) async throws -> RemoteAssetDownloadResult {
     var cloudKitError: Error?
+    if let statusHandler {
+      await statusHandler(.attempting(.cloudKitPublic))
+    }
     do {
       let cloudFileURL = try await downloadCloudKitAsset(fileName: fileName, packageID: packageID)
+      if let statusHandler {
+        await statusHandler(.succeeded(.cloudKitPublic))
+      }
       return RemoteAssetDownloadResult(fileURL: cloudFileURL, source: .cloudKitPublic)
     } catch {
       cloudKitError = error
       Logger.statistics.error("download CloudKit asset failed: \(fileName), \(error.localizedDescription)")
     }
 
+    if let statusHandler {
+      await statusHandler(.fallingBack(from: .cloudKitPublic, to: .github))
+    }
     do {
       let githubFileURL = try await downloadGitHubAsset(fileName: fileName)
+      if let statusHandler {
+        await statusHandler(.succeeded(.github))
+      }
       return RemoteAssetDownloadResult(fileURL: githubFileURL, source: .github)
     } catch {
       let cloudMessage = cloudKitError?.localizedDescription ?? "未尝试"

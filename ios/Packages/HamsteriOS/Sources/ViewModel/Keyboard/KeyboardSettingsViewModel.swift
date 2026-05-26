@@ -486,7 +486,13 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     }
 
     do {
+      var downloadSource: RemoteAssetSource?
       if let bundledZipURL = Bundle.main.url(forResource: "rime-predict", withExtension: "zip") {
+        if showProgress {
+          await MainActor.run {
+            ProgressHUD.animate("正在安装内置 Rime 联想词库…", AnimationType.circleRotateChase, interaction: false)
+          }
+        }
         try await installRimePredictDatabaseZip(bundledZipURL)
       } else {
         guard let package = try await RemoteAssetDownloadService.shared.packageEntry(
@@ -503,15 +509,27 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           }
           return
         }
+        let downloadTitle = package.title ?? "Rime 联想词库"
         if showProgress {
           await MainActor.run {
-            ProgressHUD.animate("正在下载\(package.title ?? "Rime 联想词库")…", AnimationType.circleRotateChase, interaction: false)
+            ProgressHUD.animate("正在准备下载\(downloadTitle)…", AnimationType.circleRotateChase, interaction: false)
           }
         }
-        let tempURL = try await RemoteAssetDownloadService.shared.downloadAsset(
+        let statusHandler: RemoteAssetDownloadStatusHandler?
+        if showProgress {
+          statusHandler = { event in
+            ProgressHUD.animate(event.hudMessage(title: downloadTitle), AnimationType.circleRotateChase, interaction: false)
+          }
+        } else {
+          statusHandler = nil
+        }
+        let downloadResult = try await RemoteAssetDownloadService.shared.downloadAsset(
           fileName: package.fileName,
-          packageID: package.id
-        ).fileURL
+          packageID: package.id,
+          statusHandler: statusHandler
+        )
+        let tempURL = downloadResult.fileURL
+        downloadSource = downloadResult.source
         defer { try? FileManager.default.removeItem(at: tempURL) }
         try await installRimePredictDatabaseZip(tempURL)
       }
@@ -526,7 +544,8 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         HamsterAppDependencyContainer.shared.configuration = updatedConfiguration
         updateRimePredictDatabaseSettingStatus()
         if showResult {
-          ProgressHUD.success("Rime 联想词库已安装", interaction: false, delay: 1.2)
+          let sourceSuffix = downloadSource.map { "（\($0.displayName)）" } ?? ""
+          ProgressHUD.success("Rime 联想词库已安装\(sourceSuffix)", interaction: false, delay: 1.2)
         }
       }
     } catch {

@@ -836,13 +836,18 @@ public class InputSchemaViewModel {
       do {
         try FileManager.createDirectory(override: false, dst: destination)
         var downloadedSHA256: String?
+        var downloadSources = Set<RemoteAssetSource>()
 
         for zipFile in zipFiles {
           let downloadResult = try await RemoteAssetDownloadService.shared.downloadAsset(
             fileName: zipFile,
-            packageID: packageID?.rawValue
+            packageID: packageID?.rawValue,
+            statusHandler: { event in
+              ProgressHUD.animate(event.hudMessage(title: title), AnimationType.circleRotateChase, interaction: false)
+            }
           )
           let tempURL = downloadResult.fileURL
+          downloadSources.insert(downloadResult.source)
           if packageID != nil, zipFiles.count == 1 {
             let currentSHA256 = FileManager.default.sha256(filePath: tempURL.path)
             downloadedSHA256 = currentSHA256.isEmpty ? nil : currentSHA256
@@ -858,6 +863,7 @@ public class InputSchemaViewModel {
           }
         }
 
+        let sourceSuffix = self.downloadSourceSuffix(downloadSources)
         if needsRimeDeploy {
           var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
           try self.rimeContext.deployment(configuration: &updatedConfiguration)
@@ -869,7 +875,7 @@ public class InputSchemaViewModel {
             }
             self.reloadTableStateSubject.send(true)
             onSuccess?()
-            ProgressHUD.success("\(title)部署完成", interaction: false, delay: 1.2)
+            ProgressHUD.success("\(title)部署完成\(sourceSuffix)", interaction: false, delay: 1.2)
           }
         } else {
           await MainActor.run {
@@ -878,7 +884,7 @@ public class InputSchemaViewModel {
             }
             self.reloadTableStateSubject.send(true)
             onSuccess?()
-            ProgressHUD.success("\(title)下载完成", interaction: false, delay: 1.2)
+            ProgressHUD.success("\(title)下载完成\(sourceSuffix)", interaction: false, delay: 1.2)
           }
         }
       } catch {
@@ -888,6 +894,16 @@ public class InputSchemaViewModel {
         }
       }
     }
+  }
+
+  private func downloadSourceSuffix(_ sources: Set<RemoteAssetSource>) -> String {
+    if sources.count == 1, let source = sources.first {
+      return "（\(source.displayName)）"
+    }
+    if sources.count > 1 {
+      return "（混合渠道）"
+    }
+    return ""
   }
 
   private func removeSchemaFiles(schemaId: String) throws {
@@ -965,7 +981,17 @@ public class InputSchemaViewModel {
           }
         }
 
-        let tempURL = try await RemoteAssetDownloadService.shared.downloadAsset(fileName: fileName).fileURL
+        let downloadResult = try await RemoteAssetDownloadService.shared.downloadAsset(
+          fileName: fileName,
+          statusHandler: { event in
+            ProgressHUD.animate(
+              event.hudMessage(title: "Zenzai 模型（\(quality == .low ? "Low" : "High")）"),
+              AnimationType.circleRotateChase,
+              interaction: false
+            )
+          }
+        )
+        let tempURL = downloadResult.fileURL
 
         // 移动到目标位置
         if fm.fileExists(atPath: destination.path) {
@@ -980,7 +1006,7 @@ public class InputSchemaViewModel {
             UserDefaults.hamster.azooKeyMode = .standard
           }
           self?.reloadTableStateSubject.send(true)
-          ProgressHUD.success("Zenzai 模型下载完成", interaction: false, delay: 1.2)
+          ProgressHUD.success("Zenzai 模型下载完成（\(downloadResult.source.displayName)）", interaction: false, delay: 1.2)
         }
       } catch {
         Logger.statistics.error("download Zenzai weight failed: \(error.localizedDescription)")
@@ -1118,7 +1144,7 @@ extension InputSchemaViewModel {
 
   func downloadInputSchema(_ id: CKRecord.ID, dst: URL) async throws {
     do {
-      ProgressHUD.animate("下载中……", AnimationType.circleRotateChase)
+      ProgressHUD.animate("正在通过 Apple CloudKit 下载方案…", AnimationType.circleRotateChase, interaction: false)
       let record = try await CloudKitHelper.shared.getRecord(id: id)
       if let asset = record.value(forKey: "data") as? CKAsset, let zipURL = asset.fileURL {
         do {
@@ -1127,6 +1153,7 @@ extension InputSchemaViewModel {
             try fm.removeItem(at: dst)
           }
           try fm.copyItem(at: zipURL, to: dst)
+          ProgressHUD.animate("已通过 Apple CloudKit 下载方案，正在安装…", AnimationType.circleRotateChase, interaction: false)
         } catch {
           Logger.statistics.error("\(error.localizedDescription)")
           throw error
