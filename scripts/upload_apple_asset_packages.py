@@ -252,14 +252,29 @@ def resolve_team_id(args: argparse.Namespace) -> str:
     return team_id
 
 
-def run(command: list[str], dry_run: bool) -> None:
+def run(command: list[str], dry_run: bool, allow_not_found: bool = False) -> None:
     redacted = command.copy()
     for index, item in enumerate(redacted[:-1]):
         if item == "--token":
             redacted[index + 1] = "***"
     print("+", " ".join(redacted))
-    if not dry_run:
-        subprocess.run(command, check=True)
+    if dry_run:
+        return
+
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    if result.returncode == 0:
+        return
+
+    output = f"{result.stdout}\n{result.stderr}"
+    if allow_not_found and "not-found" in output:
+        print("No existing CloudKit record found; continuing.")
+        return
+
+    raise subprocess.CalledProcessError(result.returncode, command, result.stdout, result.stderr)
 
 
 def fields_json(package: AssetPackage) -> dict[str, dict[str, str]]:
@@ -293,7 +308,7 @@ def delete_existing(package: AssetPackage, args: argparse.Namespace) -> None:
         "false",
         "--yes",
     ]
-    run(command, args.dry_run)
+    run(command, args.dry_run, allow_not_found=True)
 
 
 def create_record(package: AssetPackage, args: argparse.Namespace) -> None:

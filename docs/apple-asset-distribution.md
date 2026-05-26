@@ -56,6 +56,12 @@ App 会优先按 `id` 查找记录，查不到时再按 `fileName` 查找。
 xcrun cktool save-token --type user --method keychain
 ```
 
+首次接入新的 `NanomouseAssetPackage` 记录类型时，建议顺序是：
+
+1. 先上传 Development，让 CloudKit Console 中能看到记录类型和字段。
+2. 在 CloudKit Console 中把 Development schema 部署到 Production。
+3. 再上传 Production 真实资源。
+
 上传 Development 环境验证：
 
 ```bash
