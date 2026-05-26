@@ -334,6 +334,15 @@ def create_record(package: AssetPackage, args: argparse.Namespace) -> None:
     ]
     try:
         run(command, args.dry_run)
+    except subprocess.CalledProcessError as error:
+        output = f"{error.stdout or ''}\n{error.stderr or ''}"
+        if args.environment == "production" and "not-found" in output:
+            raise SystemExit(
+                "Production CloudKit schema is missing NanomouseAssetPackage. "
+                "Upload to development first, deploy the Development schema to Production in CloudKit Console, "
+                "then rerun this production upload."
+            ) from error
+        raise
     finally:
         fields_path.unlink(missing_ok=True)
 
