@@ -58,9 +58,23 @@ xcrun cktool save-token --type user --method keychain
 
 首次接入新的 `NanomouseAssetPackage` 记录类型时，建议顺序是：
 
-1. 先上传 Development，让 CloudKit Console 中能看到记录类型和字段。
+1. 先导入 Development schema。
 2. 在 CloudKit Console 中把 Development schema 部署到 Production。
 3. 再上传 Production 真实资源。
+
+schema 导入使用的是 CloudKit `management token`，不是上传记录用的 `user token`。首次使用前先保存 management token：
+
+```bash
+xcrun cktool save-token --type management --method keychain
+```
+
+然后导入 Development schema：
+
+```bash
+scripts/import_apple_asset_schema.py --environment development
+```
+
+这个脚本只允许导入 Development schema。它会先导出当前环境已有 schema，再把 `cloudkit/nanomouse-asset-record-type.ckdb` 中的 `NanomouseAssetPackage` 追加进去，最后 validate/import。它不会用单独的新 schema 覆盖整个容器；如果当前环境已经存在 `NanomouseAssetPackage`，脚本会直接跳过。Production 只能从 CloudKit Console 的 Deploy Schema Changes 部署。
 
 上传 Development 环境验证：
 

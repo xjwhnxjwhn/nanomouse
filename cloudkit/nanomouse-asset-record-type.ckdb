@@ -1,0 +1,18 @@
+    RECORD TYPE NanomouseAssetPackage (
+        "___createTime"           TIMESTAMP,
+        "___createdBy"            REFERENCE,
+        "___etag"                 STRING,
+        "___modTime"              TIMESTAMP,
+        "___modifiedBy"           REFERENCE,
+        "___recordID"             REFERENCE,
+        asset                      ASSET,
+        fileName                   STRING QUERYABLE SORTABLE,
+        id                         STRING QUERYABLE SORTABLE,
+        minSharedSupportVersion    STRING,
+        publishedAt                STRING,
+        sha256                     STRING,
+        title                      STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_world"
+    );
