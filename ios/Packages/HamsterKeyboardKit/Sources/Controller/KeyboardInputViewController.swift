@@ -1079,17 +1079,28 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   }
 
   private var mixedInputDebugAlwaysOn: Bool {
+    #if DEBUG
     true
+    #else
+    false
+    #endif
   }
 
   private var mixedInputDebugEnabled: Bool {
+    #if DEBUG
     mixedInputDebugAlwaysOn || keyboardContext.enableNumericCandidateModeOnChineseKeyboard
+    #else
+    false
+    #endif
   }
 
-  private func mixedInputDebugLog(_ message: String) {
+  private func mixedInputDebugLog(_ message: @autoclosure () -> String) {
+    #if DEBUG
     guard mixedInputDebugEnabled else { return }
-    Logger.statistics.info("\(message, privacy: .public)")
-    NSLog("%@", message)
+    let resolvedMessage = message()
+    Logger.statistics.info("\(resolvedMessage, privacy: .public)")
+    NSLog("%@", resolvedMessage)
+    #endif
   }
 
   private func mixedInputDebugSegmentsString() -> String {

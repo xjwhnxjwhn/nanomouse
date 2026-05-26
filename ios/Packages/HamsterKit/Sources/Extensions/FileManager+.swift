@@ -619,9 +619,11 @@ public extension FileManager {
       let exists = fm.fileExists(atPath: extraSrc.path)
       if !exists {
         Logger.statistics.debug("DBG_DEPLOY extra schema zip missing: \(extraZip) path=\(extraSrc.path)")
+        #if DEBUG
         if isJaroomajiEasy {
           print("DBG_DEPLOY jaroomaji-easy zip missing: \(extraSrc.path)")
         }
+        #endif
         continue
       }
       
@@ -631,15 +633,18 @@ public extension FileManager {
         sizeInfo = " size=\(size)"
       }
       Logger.statistics.debug("DBG_DEPLOY extra schema zip found: \(extraZip) path=\(extraSrc.path)\(sizeInfo)")
+      #if DEBUG
       if isJaroomajiEasy {
         print("DBG_DEPLOY jaroomaji-easy zip found: \(extraSrc.lastPathComponent)\(sizeInfo)")
       }
+      #endif
       
       // 强制覆盖 jaroomaji，以确保 build 脚本的 patch 生效
       let forceOverwrite = extraZip.contains("jaroomaji")
       
       let shouldUnzip = forceOverwrite || needsUnzip(extraSrc, dst: dst)
       Logger.statistics.debug("DBG_DEPLOY extra schema zip decision: \(extraZip) forceOverwrite=\(forceOverwrite) shouldUnzip=\(shouldUnzip)")
+      #if DEBUG
       if isJaroomajiEasy {
         print("DBG_DEPLOY jaroomaji-easy unzip? forceOverwrite=\(forceOverwrite) shouldUnzip=\(shouldUnzip) dst=\(dst.path)")
         if let archive = Archive(url: extraSrc, accessMode: .read) {
@@ -657,11 +662,13 @@ public extension FileManager {
           print("DBG_DEPLOY jaroomaji-easy zip open failed: \(extraSrc.path)")
         }
       }
+      #endif
 
       guard shouldUnzip else { continue }
       Logger.statistics.debug("unzip extra src: \(extraSrc), dst: \(dst)")
       try fm.unzipOverwrite(extraSrc, dst: dst)
       
+      #if DEBUG
       if isJaroomajiEasy {
         let schemaPath = dst.appendingPathComponent("jaroomaji-easy.schema.yaml")
         let dictPath = dst.appendingPathComponent("jaroomaji-easy.dict.yaml")
@@ -670,6 +677,7 @@ public extension FileManager {
         Logger.statistics.debug("DBG_DEPLOY jaroomaji-easy after unzip: schemaExists=\(schemaExists) dictExists=\(dictExists)")
         print("DBG_DEPLOY jaroomaji-easy after unzip: schemaExists=\(schemaExists) dictExists=\(dictExists)")
       }
+      #endif
     }
   }
 

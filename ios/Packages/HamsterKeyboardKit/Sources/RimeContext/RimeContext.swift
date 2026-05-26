@@ -541,12 +541,14 @@ public extension RimeContext {
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
     FileManager.debugRimeUserDataLayout(in: FileManager.appGroupUserDataDirectoryURL, note: "before rime start")
 
+    #if DEBUG
     let jaroomajiEasySchemaPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.schema.yaml")
     let jaroomajiEasyDictPath = FileManager.appGroupSharedSupportDirectoryURL.appendingPathComponent("jaroomaji-easy.dict.yaml")
     let appGroupSchemaExists = FileManager.default.fileExists(atPath: jaroomajiEasySchemaPath.path)
     let appGroupDictExists = FileManager.default.fileExists(atPath: jaroomajiEasyDictPath.path)
     Logger.statistics.debug("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
     print("DBG_DEPLOY appGroup jaroomaji-easy: schemaExists=\(appGroupSchemaExists) dictExists=\(appGroupDictExists)")
+    #endif
     
     removeJapaneseSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)
     removeJaroomajiSchemaPatch(in: FileManager.appGroupUserDataDirectoryURL)

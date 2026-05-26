@@ -13,8 +13,10 @@ static RimeApi* getRimeApi(void) {
   if (rime == NULL) {
     rime = rime_get_api();
     if (!rimeVersionLogged && rime && rime->get_version) {
+#if DEBUG
       const char *ver = rime->get_version();
       NSLog(@"[RimeKit] librime version: %s", ver ? ver : "unknown");
+#endif
       rimeVersionLogged = YES;
     }
   }
@@ -702,7 +704,9 @@ static RimeLeversApi *get_levers() {
 }
 
 - (void)simulateKeySequence:(NSString *)keys andSession:(RimeSessionId)session {
+#if DEBUG
   NSLog(@"input keys = %@", keys);
+#endif
   const char *codes = [keys UTF8String];
   getRimeApi()->simulate_key_sequence(session, codes);
 }
