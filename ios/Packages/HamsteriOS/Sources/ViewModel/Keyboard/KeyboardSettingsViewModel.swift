@@ -1677,34 +1677,6 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       ]
     ),
     .init(
-      footer: "实验功能开发中，很有可能不稳定，请谨慎打开，如果不好用就关掉。",
-      items: {
-        var items: [SettingItemModel] = [
-          .init(
-            text: "启用数字的候选模式在中文键盘",
-            type: .toggle,
-            toggleValue: { [unowned self] in enableNumericCandidateModeOnChineseKeyboard },
-            toggleHandled: { [unowned self] in
-              enableNumericCandidateModeOnChineseKeyboard = $0
-            }
-          )
-        ]
-        if isAzooKeySchemaSelected {
-          items.append(
-            .init(
-              text: "启用数字的候选模式在日语键盘（AzooKey）",
-              type: .toggle,
-              toggleValue: { [unowned self] in enableNumericCandidateModeOnJapaneseAzooKey },
-              toggleHandled: { [unowned self] in
-                enableNumericCandidateModeOnJapaneseAzooKey = $0
-              }
-            )
-          )
-        }
-        return items
-      }()
-    ),
-    .init(
       footer: "\(Self.enableKeyboardAutomaticallyLowercaseRemark)\n长按普通按键可展开扩展字符；长按 123 可呼出数字暂存面板。",
       items: [
         .init(
@@ -1861,7 +1833,35 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           navigationAction: { [unowned self] in
             self.subViewSubject.send(.symbolKeyboard)
           })
-      ])
+      ]),
+    .init(
+      footer: "实验功能开发中，很有可能不稳定，请谨慎打开，如果不好用就关掉。",
+      items: {
+        var items: [SettingItemModel] = [
+          .init(
+            text: "启用数字的候选模式在中文键盘",
+            type: .toggle,
+            toggleValue: { [unowned self] in enableNumericCandidateModeOnChineseKeyboard },
+            toggleHandled: { [unowned self] in
+              enableNumericCandidateModeOnChineseKeyboard = $0
+            }
+          )
+        ]
+        if isAzooKeySchemaSelected {
+          items.append(
+            .init(
+              text: "启用数字的候选模式在日语键盘（AzooKey）",
+              type: .toggle,
+              toggleValue: { [unowned self] in enableNumericCandidateModeOnJapaneseAzooKey },
+              toggleHandled: { [unowned self] in
+                enableNumericCandidateModeOnJapaneseAzooKey = $0
+              }
+            )
+          )
+        }
+        return items
+      }()
+    )
   ]
 
   /// 中文键盘设置
