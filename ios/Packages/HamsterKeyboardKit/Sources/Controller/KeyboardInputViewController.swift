@@ -859,24 +859,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     return result
   }
 
-  private func predictiveSuggestionsSignature(_ suggestions: [CandidateSuggestion]) -> [String] {
-    suggestions.map {
-      [
-        $0.firstRenderableText,
-        $0.text,
-        $0.subtitle ?? "",
-        $0.additionalInfo["predictionSource"] as? String ?? ""
-      ].joined(separator: "\u{1F}")
-    }
-  }
-
-  private func setPredictiveSuggestionsIfChanged(_ suggestions: [CandidateSuggestion]) {
-    guard predictiveSuggestionsSignature(rimeContext.predictiveSuggestions) != predictiveSuggestionsSignature(suggestions) else {
-      return
-    }
-    rimeContext.predictiveSuggestions = suggestions
-  }
-
   func clearPredictiveSuggestions() {
     predictiveSuggestionsRefreshID &+= 1
     let clear = { [weak self] in
@@ -949,7 +931,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
 
     Task { @MainActor in
-      self.setPredictiveSuggestionsIfChanged(suggestions)
+      self.rimeContext.predictiveSuggestions = suggestions
     }
   }
 
@@ -959,11 +941,19 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     guard index >= 0, index < suggestions.count else { return }
     let selected = suggestions[index].normalizedForPredictionDisplay()
     if !isAzooKeyInputActive && !isEnglishInputActive {
+      if !isChineseFallbackPrediction(selected) {
+        rimeContext.predictiveSuggestions = []
+        rimeContext.selectCandidate(index: selected.index)
+        captureDiaryInputSegmentAfterCandidateSelection()
+        schedulePredictiveSuggestionsRefresh()
+        return
+      }
       let text = selected.text.hamsterRenderableCandidateText.isEmpty ? selected.firstRenderableText : selected.text
       guard !text.isEmpty else {
         clearPredictiveSuggestions()
         return
       }
+      rimeContext.predictiveSuggestions = []
       textDocumentProxy.insertText(text)
       captureDiaryInputSegmentAfterCandidateSelection()
       schedulePredictiveSuggestionsRefresh()
@@ -976,6 +966,7 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       clearPredictiveSuggestions()
       return
     }
+    rimeContext.predictiveSuggestions = []
     textDocumentProxy.insertText(text)
     captureDiaryInputSegmentAfterCandidateSelection()
     schedulePredictiveSuggestionsRefresh()

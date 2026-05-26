@@ -14,7 +14,6 @@ final class PredictionCandidatesCollectionView: UICollectionView {
   private let actionHandler: KeyboardActionHandler
   private let rimeContext: RimeContext
   private var subscriptions = Set<AnyCancellable>()
-  private var renderedSuggestionSignature: [String] = []
 
   init(
     style: CandidateBarStyle,
@@ -57,38 +56,18 @@ final class PredictionCandidatesCollectionView: UICollectionView {
   private func combine() {
     rimeContext.$predictiveSuggestions
       .receive(on: DispatchQueue.main)
-      .sink { [weak self] suggestions in
+      .sink { [weak self] _ in
         guard let self else { return }
-        let signature = suggestionSignature(suggestions)
-        guard signature != renderedSuggestionSignature else { return }
-
-        let shouldResetOffset = signature.count != renderedSuggestionSignature.count
-        renderedSuggestionSignature = signature
-        UIView.performWithoutAnimation {
-          self.collectionViewLayout.invalidateLayout()
-          if shouldResetOffset {
-            self.setContentOffset(.zero, animated: false)
-          }
-          self.reloadData()
-          self.layoutIfNeeded()
-        }
+        collectionViewLayout.invalidateLayout()
+        setContentOffset(.zero, animated: false)
+        reloadData()
+        setNeedsLayout()
       }
       .store(in: &subscriptions)
   }
 
   private func displayCandidate(_ candidate: CandidateSuggestion) -> CandidateSuggestion {
     candidate.normalizedForPredictionDisplay()
-  }
-
-  private func suggestionSignature(_ suggestions: [CandidateSuggestion]) -> [String] {
-    suggestions.map {
-      [
-        $0.firstRenderableText,
-        $0.text,
-        $0.subtitle ?? "",
-        $0.additionalInfo["predictionSource"] as? String ?? ""
-      ].joined(separator: "\u{1F}")
-    }
   }
 }
 
