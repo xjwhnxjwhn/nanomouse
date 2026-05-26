@@ -4182,8 +4182,10 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     if isUnifiedCompositionBufferEnabled, keyCode == XK_space {
       if hasActiveCompositionForBuffer() {
         commitFirstCandidateForLanguageSwitchIfNeeded()
+        appendToCompositionPrefix(preferredSpaceTextForCurrentInputMode())
+      } else {
+        insertSpaceWithoutRimeHandling()
       }
-      appendToCompositionPrefix(preferredSpaceTextForCurrentInputMode())
       return
     }
     // 英语输入模式的特殊键处理
@@ -4268,13 +4270,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
     }
     // 空格键特殊处理：当没有 RIME 用户输入时，尝试执行文本替换
     if keyCode == XK_space && rimeContext.userInputKey.isEmpty {
-      if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true {
-        Logger.statistics.info("SystemTextReplacement: space key pressed with no RIME input, trying replacement")
-        if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
-          textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
-          return
-        }
-      }
+      insertSpaceWithoutRimeHandling()
+      return
     }
 
     if keyCode == XK_Return,
@@ -4290,6 +4287,18 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
       tryHandleSpecificCode(keyCode)
       return
     }
+  }
+
+  private func insertSpaceWithoutRimeHandling() {
+    if keyboardContext.hamsterConfiguration?.keyboard?.enableSystemTextReplacement ?? true {
+      if systemTextReplacementManager.tryReplace(in: textDocumentProxy) {
+        textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
+        clearPredictiveSuggestions()
+        return
+      }
+    }
+    textDocumentProxy.insertText(preferredSpaceTextForCurrentInputMode())
+    clearPredictiveSuggestions()
   }
 
   open func returnLastKeyboard() {
