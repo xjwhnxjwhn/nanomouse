@@ -98,9 +98,14 @@ scripts/upload_apple_asset_packages.py \
 
 - `zenz-v3.1-xsmall-Q5_K_M.gguf`
 - `zenz-v3.1-small-Q5_K_M.gguf`
-- `predict_traditional.db`
 
-`predict_traditional.db` 需要手动放入 `zips/` 后才会上传；如果不存在，App 会继续使用 GitHub release 兜底下载繁体官方联想库。
+Rime 联想词库只使用 `rime-predict.zip` 这一项分发。该 zip 内包含：
+
+- `predict.db`：简体联想 db，同时保留旧版兼容文件名。
+- `predict_traditional.db`：繁体联想 db。
+- `predict_fallback.json`：后缀兜底表。
+
+App 安装后会把它们展开到 App Group，键盘扩展只读取本地结果。
 
 ## 注意
 

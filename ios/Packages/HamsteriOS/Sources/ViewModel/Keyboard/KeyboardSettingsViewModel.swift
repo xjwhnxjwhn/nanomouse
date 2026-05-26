@@ -422,7 +422,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     if enabled, !FileManager.areRimePredictDatabasesAvailable() {
       enablePredictiveSuggestions = false
       updateRimePredictDatabaseSettingStatus()
-      ProgressHUD.failed("请先安装 Rime 联想词库资源包", interaction: false, delay: 2)
+      ProgressHUD.failed("请先安装 Rime 联想词库", interaction: false, delay: 2)
       return
     }
 
@@ -498,7 +498,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
           }
           if showResult {
             await MainActor.run {
-              ProgressHUD.failed("当前未提供 Rime 联想词库包", interaction: false, delay: 2)
+              ProgressHUD.failed("当前未提供 Rime 联想词库", interaction: false, delay: 2)
             }
           }
           return
@@ -515,7 +515,9 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
         defer { try? FileManager.default.removeItem(at: tempURL) }
         try await installRimePredictDatabaseZip(tempURL)
       }
-      try await installTraditionalRimePredictDatabase()
+      if !FileManager.isRimeTraditionalPredictDatabaseAvailable() {
+        try await installTraditionalRimePredictDatabaseFromOfficialRelease()
+      }
 
       var updatedConfiguration = HamsterAppDependencyContainer.shared.configuration
       try HamsterAppDependencyContainer.shared.rimeContext.deployment(configuration: &updatedConfiguration)
@@ -539,36 +541,30 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
 
     try FileManager.createDirectory(override: false, dst: temporaryDirectory)
     try await FileManager.default.unzip(zipURL, dst: temporaryDirectory)
-    guard let discoveredURL = findRimePredictDatabase(in: temporaryDirectory) else {
+    guard let simplifiedURL = findRimePredictDatabase(in: temporaryDirectory) else {
       throw StringError("压缩包中未找到 \(HamsterConstants.rimePredictDatabaseFileName)")
     }
+    let traditionalURL = findFile(
+      named: HamsterConstants.rimeTraditionalPredictDatabaseFileName,
+      in: temporaryDirectory
+    )
 
     try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
     try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictDatabaseURL)
     try? FileManager.default.removeItem(at: FileManager.appGroupRimeSimplifiedPredictDatabaseURL)
-    try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimeSimplifiedPredictDatabaseURL)
-    try FileManager.default.copyItem(at: discoveredURL, to: FileManager.appGroupRimePredictDatabaseURL)
+    try FileManager.default.copyItem(at: simplifiedURL, to: FileManager.appGroupRimeSimplifiedPredictDatabaseURL)
+    try FileManager.default.copyItem(at: simplifiedURL, to: FileManager.appGroupRimePredictDatabaseURL)
+    if let traditionalURL {
+      try? FileManager.default.removeItem(at: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
+      try FileManager.default.copyItem(at: traditionalURL, to: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
+    }
     if let fallbackURL = findRimePredictFallback(in: temporaryDirectory) {
       try? FileManager.default.removeItem(at: FileManager.appGroupRimePredictFallbackURL)
       try FileManager.default.copyItem(at: fallbackURL, to: FileManager.appGroupRimePredictFallbackURL)
     }
   }
 
-  private func installTraditionalRimePredictDatabase() async throws {
-    do {
-      let downloadResult = try await RemoteAssetDownloadService.shared.downloadAsset(
-        fileName: HamsterConstants.rimeTraditionalPredictDatabaseFileName,
-        packageID: HamsterConstants.rimeTraditionalPredictDatabasePackageID
-      )
-      defer { try? FileManager.default.removeItem(at: downloadResult.fileURL) }
-      try FileManager.createDirectory(override: false, dst: FileManager.appGroupUserDataDirectoryURL)
-      try? FileManager.default.removeItem(at: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
-      try FileManager.default.copyItem(at: downloadResult.fileURL, to: FileManager.appGroupRimeTraditionalPredictDatabaseURL)
-      return
-    } catch {
-      Logger.statistics.error("download Rime traditional predict database from managed assets failed: \(error.localizedDescription)")
-    }
-
+  private func installTraditionalRimePredictDatabaseFromOfficialRelease() async throws {
     guard let url = URL(string: HamsterConstants.rimeTraditionalPredictDatabaseURL) else {
       throw StringError("Rime 官方繁体联想词库下载地址无效")
     }
@@ -584,20 +580,15 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   private func findRimePredictDatabase(in directoryURL: URL) -> URL? {
-    guard let enumerator = FileManager.default.enumerator(
-      at: directoryURL,
-      includingPropertiesForKeys: [.isRegularFileKey],
-      options: [.skipsHiddenFiles]
-    ) else {
-      return nil
-    }
-    for case let url as URL in enumerator where url.lastPathComponent == HamsterConstants.rimePredictDatabaseFileName {
-      return url
-    }
-    return nil
+    findFile(named: HamsterConstants.rimeSimplifiedPredictDatabaseFileName, in: directoryURL)
+      ?? findFile(named: HamsterConstants.rimePredictDatabaseFileName, in: directoryURL)
   }
 
   private func findRimePredictFallback(in directoryURL: URL) -> URL? {
+    findFile(named: HamsterConstants.rimePredictFallbackFileName, in: directoryURL)
+  }
+
+  private func findFile(named fileName: String, in directoryURL: URL) -> URL? {
     guard let enumerator = FileManager.default.enumerator(
       at: directoryURL,
       includingPropertiesForKeys: [.isRegularFileKey],
@@ -605,7 +596,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     ) else {
       return nil
     }
-    for case let url as URL in enumerator where url.lastPathComponent == HamsterConstants.rimePredictFallbackFileName {
+    for case let url as URL in enumerator where url.lastPathComponent == fileName {
       return url
     }
     return nil

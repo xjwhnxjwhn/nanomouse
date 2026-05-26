@@ -75,10 +75,10 @@
     {
       "id": "rime-predict",
       "fileName": "rime-predict.zip",
-      "publishedAt": "2026-05-25",
-      "sha256": "736113d4b811f9d320063fb3528411c7482e2b3a92cb72cd0e4f5b76561eba7a",
+      "publishedAt": "2026-05-26",
+      "sha256": "1511c6e793e9ee9f1092fcc354b43f9d87b388752c043d995cc59aef297e7b7b",
       "minSharedSupportVersion": "",
-      "title": "Rime 联想词库（雾凇，支持后缀兜底）"
+      "title": "Rime 联想词库（简繁一体，支持后缀兜底）"
     }
   ]
 }

@@ -28,7 +28,6 @@ IOS_SCHEME = "Hamster"
 KNOWN_EXTRA_PACKAGES = {
     "zenz-v3.1-xsmall-Q5_K_M.gguf": ("azookey-zenzai-low", "AzooKey Zenzai Low"),
     "zenz-v3.1-small-Q5_K_M.gguf": ("azookey-zenzai-high", "AzooKey Zenzai High"),
-    "predict_traditional.db": ("rime-predict-traditional", "Rime 繁体联想词库"),
 }
 
 
