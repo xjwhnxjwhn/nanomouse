@@ -9,7 +9,7 @@
 ## 规则
 
 - `mac/gui/SCT.xcodeproj` 是历史遗留独立工程，不要把它作为构建、调试、验证或修改入口。
-- 如果任务涉及 mac target，必须使用 `ios/Hamster.xcodeproj` 中的 `SCT` target。
+- 如果任务涉及 mac target，必须使用 `ios/Hamster.xcodeproj` 中的 `NanoMouseMac` target。
 - `mac/gui/SCT` 下面的源码仍然被 `ios/Hamster.xcodeproj` 引用，它只是物理文件位置，不代表独立 app。
 - 所有 `xcodebuild` 命令必须显式使用 `-project ios/Hamster.xcodeproj`。
 - 除非用户明确要求，不要在 `mac/gui` 或 `mac/gui/SCT.xcodeproj` 中新增文件。
@@ -17,7 +17,7 @@
 正确示例：
 
 ```sh
-xcodebuild -project ios/Hamster.xcodeproj -scheme SCT -configuration Debug -destination 'platform=macOS' build
+xcodebuild -project ios/Hamster.xcodeproj -scheme NanoMouseMacAppStore -configuration Debug -destination 'platform=macOS' build
 ```
 
 错误示例：
@@ -25,3 +25,6 @@ xcodebuild -project ios/Hamster.xcodeproj -scheme SCT -configuration Debug -dest
 ```sh
 xcodebuild -project mac/gui/SCT.xcodeproj -scheme SCT build
 ```
+
+App Store Archive 只允许使用 `ios/Hamster.xcodeproj` 的 `NanoMouseMacAppStore` scheme。
+如果 Xcode 顶部看到的是 `SCT`，不要 Archive，那是历史命名或历史独立工程入口。

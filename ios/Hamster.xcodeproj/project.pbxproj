@@ -100,7 +100,7 @@
 			containerPortal = C03E801D296D4F4C0083E53A /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 034DB19F16BC2B6AF3641873;
-			remoteInfo = SCT;
+			remoteInfo = NanoMouseMac;
 		};
 		C03EC39B2B06491E00DB741E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -542,9 +542,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		034DB19F16BC2B6AF3641873 /* SCT */ = {
+		034DB19F16BC2B6AF3641873 /* NanoMouseMac */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */;
+			buildConfigurationList = 094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "NanoMouseMac" */;
 			buildPhases = (
 				F56E6246A79D1C14864453B7 /* Sources */,
 				D288BC1A2E0B1EA6246540D7 /* Frameworks */,
@@ -554,7 +554,7 @@
 			);
 			dependencies = (
 			);
-			name = SCT;
+			name = NanoMouseMac;
 			packageProductDependencies = (
 				FB98E1496AA21223BE88E23F /* EmbeddedModuleHostKit */,
 				0F1A2B3C4D5E6F708192A3B5 /* NanomouseReviewKit */,
@@ -830,7 +830,7 @@
 /* Begin PBXTargetDependency section */
 		7B260426000000000000100C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 034DB19F16BC2B6AF3641873 /* SCT */;
+			target = 034DB19F16BC2B6AF3641873 /* NanoMouseMac */;
 			targetProxy = 7B260426000000000000100B /* PBXContainerItemProxy */;
 		};
 		C03EC39C2B06491E00DB741E /* PBXTargetDependency */ = {
@@ -944,7 +944,7 @@
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = SCT;
+				TEST_TARGET_NAME = NanoMouseMac;
 			};
 			name = Debug;
 		};
@@ -965,7 +965,7 @@
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = SCT;
+				TEST_TARGET_NAME = NanoMouseMac;
 			};
 			name = Release;
 		};
@@ -1271,7 +1271,7 @@
 				CODE_SIGN_ENTITLEMENTS = ../mac/gui/SCT/SCT.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -1315,7 +1315,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = BG5QAG9M95;
 				ENABLE_APP_SANDBOX = YES;
@@ -1352,7 +1352,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "SCT" */ = {
+		094F322568D2828418D9788B /* Build configuration list for PBXNativeTarget "NanoMouseMac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CCB68ACF401775F5E8F5D587 /* Release */,
