@@ -520,7 +520,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 启用联想词候选行
   var enablePredictiveSuggestions: Bool {
-    keyboardValue(\.enablePredictiveSuggestions) ?? true
+    (keyboardValue(\.enablePredictiveSuggestions) ?? true) && FileManager.areRimePredictDatabasesAvailable()
   }
 
   /// 是否开启划动分页

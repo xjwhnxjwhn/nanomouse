@@ -35,7 +35,7 @@ public enum HamsterConstants {
   /// 额外输入方案 zip 包（按需下载，不随包内置）
   public static let extraInputSchemaZipFiles: [String] = []
 
-  /// 按需下载的 zip 包基础地址（GitHub raw）
+  /// 按需下载的 zip 包 GitHub 兜底地址。主下载源优先使用 Apple CloudKit Public Database。
   public static let onDemandInputSchemaZipBaseURL = "https://raw.githubusercontent.com/xjwhnxjwhn/nanomouse/main/zips"
 
   /// 按需下载资源清单
@@ -59,7 +59,10 @@ public enum HamsterConstants {
   /// Rime 联想词库按需下载包 ID
   public static let rimePredictDatabasePackageID = "rime-predict"
 
-  /// Rime 官方繁体联想词库（librime-predict data-1.0 release）
+  /// Rime 官方繁体联想词库 Apple/GitHub 资源包 ID
+  public static let rimeTraditionalPredictDatabasePackageID = "rime-predict-traditional"
+
+  /// Rime 官方繁体联想词库 GitHub 兜底地址（librime-predict data-1.0 release）
   public static let rimeTraditionalPredictDatabaseURL = "https://github.com/rime/librime-predict/releases/download/data-1.0/predict.db"
 
   /// 日语方案 zip 包（按需下载）

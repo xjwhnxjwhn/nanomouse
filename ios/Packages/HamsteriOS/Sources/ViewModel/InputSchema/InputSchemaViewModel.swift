@@ -632,18 +632,16 @@ public class InputSchemaViewModel {
   }
 
   private func fetchRemotePackageManifest() async throws -> [RemotePackageID: RemotePackageManifestEntry] {
-    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
-      throw StringError("下载地址无效")
-    }
-    let manifestURL = baseURL.appendingPathComponent(HamsterConstants.onDemandInputSchemaManifestFile)
-    let (data, response) = try await URLSession.shared.data(from: manifestURL)
-    if let httpResponse = response as? HTTPURLResponse,
-       !(200...299).contains(httpResponse.statusCode) {
-      throw StringError("获取更新清单失败（HTTP \(httpResponse.statusCode)）")
-    }
-
-    let manifest = try JSONDecoder().decode(RemotePackageManifest.self, from: data)
-    return manifest.packages.reduce(into: [RemotePackageID: RemotePackageManifestEntry]()) { result, entry in
+    let manifestByID = try await RemoteAssetDownloadService.shared.fetchManifest()
+    return manifestByID.values.reduce(into: [RemotePackageID: RemotePackageManifestEntry]()) { result, remoteEntry in
+      let entry = RemotePackageManifestEntry(
+        id: remoteEntry.id,
+        fileName: remoteEntry.fileName,
+        publishedAt: remoteEntry.publishedAt,
+        sha256: remoteEntry.sha256,
+        minSharedSupportVersion: remoteEntry.minSharedSupportVersion,
+        title: remoteEntry.title ?? remoteEntry.id
+      )
       guard let packageID = RemotePackageID(rawValue: entry.id) else { return }
       result[packageID] = entry
     }
@@ -829,11 +827,6 @@ public class InputSchemaViewModel {
     needsRimeDeploy: Bool,
     onSuccess: (() -> Void)? = nil
   ) {
-    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
-      ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
-      return
-    }
-
     Task.detached(priority: .userInitiated) { [weak self] in
       guard let self else { return }
       await MainActor.run {
@@ -845,8 +838,11 @@ public class InputSchemaViewModel {
         var downloadedSHA256: String?
 
         for zipFile in zipFiles {
-          let remoteURL = baseURL.appendingPathComponent(zipFile)
-          let tempURL = try await self.downloadZip(from: remoteURL)
+          let downloadResult = try await RemoteAssetDownloadService.shared.downloadAsset(
+            fileName: zipFile,
+            packageID: packageID?.rawValue
+          )
+          let tempURL = downloadResult.fileURL
           if packageID != nil, zipFiles.count == 1 {
             let currentSHA256 = FileManager.default.sha256(filePath: tempURL.path)
             downloadedSHA256 = currentSHA256.isEmpty ? nil : currentSHA256
@@ -892,16 +888,6 @@ public class InputSchemaViewModel {
         }
       }
     }
-  }
-
-  private func downloadZip(from url: URL) async throws -> URL {
-    let (tempURL, response) = try await URLSession.shared.download(from: url)
-    if let httpResponse = response as? HTTPURLResponse,
-       !(200...299).contains(httpResponse.statusCode) {
-      try? FileManager.default.removeItem(at: tempURL)
-      throw StringError("下载失败（HTTP \(httpResponse.statusCode)）")
-    }
-    return tempURL
   }
 
   private func removeSchemaFiles(schemaId: String) throws {
@@ -956,13 +942,7 @@ public class InputSchemaViewModel {
   }
 
   func downloadAzooKeyZenzai(quality: ZenzaiModelQuality) {
-    guard let baseURL = URL(string: HamsterConstants.onDemandInputSchemaZipBaseURL) else {
-      ProgressHUD.failed("下载地址无效", interaction: false, delay: 1.5)
-      return
-    }
-
     let fileName = quality.fileName
-    let remoteURL = baseURL.appendingPathComponent(fileName)
     let destination = FileManager.appGroupAzooKeyZenzaiDirectoryURL
       .appendingPathComponent(fileName)
 
@@ -985,12 +965,7 @@ public class InputSchemaViewModel {
           }
         }
 
-        let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
-        if let httpResponse = response as? HTTPURLResponse,
-           !(200...299).contains(httpResponse.statusCode) {
-          try? FileManager.default.removeItem(at: tempURL)
-          throw StringError("下载失败（HTTP \(httpResponse.statusCode)）")
-        }
+        let tempURL = try await RemoteAssetDownloadService.shared.downloadAsset(fileName: fileName).fileURL
 
         // 移动到目标位置
         if fm.fileExists(atPath: destination.path) {
