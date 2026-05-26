@@ -3637,7 +3637,7 @@ final class VoiceAccountProfileViewController: NibLessViewController {
   }
 
   private func presentPrivacyPermissionGuide() {
-    let message = AppL10n.text("Nanomouse 仅在你点击“开始口述”后请求麦克风与语音识别权限。键盘扩展本身不直接录音。若你启用在线 ASR 或在线 LLM，文本或音频会按你的配置发送到对应服务商。你可以随时在系统设置中关闭权限。")
+    let message = AppL10n.text("Nanomouse 只会在你主动使用对应功能时请求系统权限：点击“开始口述”后请求麦克风与语音识别；刷新当前位置天气时请求定位；拍照或导入/导出图片时请求相机或照片权限；开启产品通知时请求通知权限；查看日记时使用 Face ID 或设备密码；通过浏览器上传输入方案时会使用本地网络；启用 iCloud/CloudKit 同步时数据由 Apple iCloud 处理。键盘扩展本身不直接录音。若你启用在线 ASR 或在线 LLM，文本或音频会按你的配置发送到对应服务商。你可以随时在系统设置中关闭权限。")
     let alert = UIAlertController(title: AppL10n.text("隐私与权限说明"), message: message, preferredStyle: .alert)
     alert.addAction(UIAlertAction(title: AppL10n.text("前往系统设置"), style: .default) { _ in
       self.openSystemSettings()

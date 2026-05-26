@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last Updated: February 9, 2026**
+**Last Updated: May 26, 2026**
 
 ## Overview
 
@@ -52,6 +52,25 @@ based on your settings:
 - Voice history and manual dictionary entries are stored locally on your device.
 - You can clear history and dictionary entries in the app.
 
+### 6) Weather, Location, Photos, Camera, Diary, and Local Network
+
+- **Weather and location**: If you choose current-location weather for the
+  keyboard weather indicator, the App requests location permission and uses
+  Apple Weather for weather data. Fixed-city weather does not require your
+  current location.
+- **Photos and camera**: The App requests camera or photo permissions only when
+  you take a photo in Byte Paste, import images from Photos, or export images
+  to your photo library. The camera and photo library are not accessed when
+  those features are not used.
+- **Diary protection**: When you view diary content, the App may use Face ID or
+  the device passcode for on-device authentication.
+- **Local network**: When you upload or manage input schema files through a
+  browser, the App uses local network capability so devices on the same network
+  can connect to the local service.
+- **Product notifications**: The App requests notification permission only when
+  you enable product notifications in the app, for product updates, important
+  announcements, and service status notices.
+
 ## iCloud Sync
 
 If you enable iCloud sync:
@@ -77,7 +96,8 @@ NanoMouse-operated servers for ads or analytics.
 
 When corresponding features are enabled, the App may interact with:
 
-- Apple services (Speech, iCloud)
+- Apple services and system frameworks (Speech, iCloud/CloudKit, WeatherKit,
+  notifications, location, Photos, and camera permission frameworks)
 - Online ASR/LLM providers that you select and configure
 
 Data handling by those providers is governed by their own privacy policies.
@@ -92,6 +112,10 @@ You can, at any time:
 - Clear voice history
 - Manage manual dictionary entries
 - Disable iCloud sync
+- Disable the weather indicator or use a fixed city instead
+- Disable product notifications
+- Revoke camera, photo, location, microphone, speech recognition, notification,
+  and other permissions in System Settings
 
 ## Children's Privacy
 
