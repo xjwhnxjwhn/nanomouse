@@ -41,6 +41,7 @@ public class InputSchemaViewModel {
     case rimeJapanese = "rime-japanese"
     case rimeJaroomaji = "rime-jaroomaji"
     case rimeJaroomajiEasy = "rime-jaroomaji-easy"
+    case rimeBopomofo = "rime-bopomofo"
     case rimeTerraPinyin = "rime-terra-pinyin"
     case rimeStroke = "rime-stroke"
     case rimeHangyl = "rime-hangyl"
@@ -57,6 +58,8 @@ public class InputSchemaViewModel {
         "rime-jaroomaji.zip"
       case .rimeJaroomajiEasy:
         "rime-jaroomaji-easy.zip"
+      case .rimeBopomofo:
+        "rime-bopomofo.zip"
       case .rimeTerraPinyin:
         "rime-terra-pinyin.zip"
       case .rimeStroke:
@@ -80,6 +83,8 @@ public class InputSchemaViewModel {
         "rime-jaroomaji"
       case .rimeJaroomajiEasy:
         "rime-jaroomaji-easy"
+      case .rimeBopomofo:
+        "注音"
       case .rimeTerraPinyin:
         "地球拼音"
       case .rimeStroke:
@@ -116,6 +121,8 @@ public class InputSchemaViewModel {
         .rimeJaroomaji
       case "jaroomaji-easy":
         .rimeJaroomajiEasy
+      case "bopomofo", "bopomofo_tw", "bopomofo_express":
+        .rimeBopomofo
       case "terra_pinyin", "terra_pinyin.extended":
         .rimeTerraPinyin
       case "stroke":
@@ -1211,6 +1218,11 @@ extension InputSchemaViewModel {
       options: .displayInline,
       children: [
         UIAction(
+          title: "下载注音",
+          image: UIImage(systemName: "character.zh"),
+          handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-bopomofo.zip", title: "注音") }
+        ),
+        UIAction(
           title: "下载地球拼音",
           image: UIImage(systemName: "globe.asia.australia"),
           handler: { [unowned self] _ in self.downloadExtraSchema(zipFile: "rime-terra-pinyin.zip", title: "地球拼音") }
@@ -1303,13 +1315,24 @@ extension InputSchemaViewModel {
       schemaGroup(for: $0) == .chineseEnglish
     }) else { return }
 
-    let targetKeyboardType: KeyboardType = selectedChineseSchema.isChineseNineGridSchema
-      ? .chineseNineGrid
-      : .chinese(.lowercased)
+    let targetKeyboardType: KeyboardType
+    if selectedChineseSchema.isBopomofoSchema, hasBopomofoKeyboardLayout {
+      targetKeyboardType = .custom(named: KeyboardType.bopomofoKeyboardName)
+    } else {
+      targetKeyboardType = selectedChineseSchema.isChineseNineGridSchema
+        ? .chineseNineGrid
+        : .chinese(.lowercased)
+    }
 
     let keyboardSettingsViewModel = HamsterAppDependencyContainer.shared.keyboardSettingsViewModel
     guard keyboardSettingsViewModel.useKeyboardType != targetKeyboardType else { return }
     keyboardSettingsViewModel.useKeyboardType = targetKeyboardType
+  }
+
+  private var hasBopomofoKeyboardLayout: Bool {
+    HamsterAppDependencyContainer.shared.configuration.keyboards?.contains {
+      $0.type == .custom(named: KeyboardType.bopomofoKeyboardName)
+    } ?? false
   }
 
   /// 导入zip文件

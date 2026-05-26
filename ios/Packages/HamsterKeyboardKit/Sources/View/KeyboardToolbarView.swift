@@ -686,9 +686,11 @@ class KeyboardToolbarView: NibLessView {
       .receive(on: DispatchQueue.main)
       .sink { [weak self] keyboardType in
         guard let self = self else { return }
-        let wasChinese = (self.lastKeyboardType?.isChinesePrimaryKeyboard ?? false) || (self.lastKeyboardType?.isChineseNineGrid ?? false)
+        let wasChinese = (self.lastKeyboardType?.isChinesePrimaryKeyboard ?? false)
+          || (self.lastKeyboardType?.isChineseNineGrid ?? false)
+          || (self.lastKeyboardType?.isBopomofoKeyboard ?? false)
         self.lastKeyboardType = keyboardType
-        if (keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid), !wasChinese {
+        if (keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid || keyboardType.isBopomofoKeyboard), !wasChinese {
           self.showCurrentTraditionalizeStateIfNeeded()
         }
       }
@@ -849,7 +851,10 @@ class KeyboardToolbarView: NibLessView {
 
   private var canToggleTraditionalizationFromToolbar: Bool {
     guard !commonFunctionBar.isHidden else { return false }
-    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard || keyboardContext.keyboardType.isChineseNineGrid else { return false }
+    guard keyboardContext.keyboardType.isChinesePrimaryKeyboard
+      || keyboardContext.keyboardType.isChineseNineGrid
+      || keyboardContext.keyboardType.isBopomofoKeyboard
+    else { return false }
     guard rimeContext.currentSchema?.isJapaneseSchema != true else { return false }
     guard rimeContext.asciiModeSnapshot == false else { return false }
     return true

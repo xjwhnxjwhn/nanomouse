@@ -265,14 +265,14 @@ public struct KeyboardConfiguration: Codable, Hashable {
     loadingTextForSpaceButton: String? = "",
     labelTextForSpaceButton: String? = "",
     showCurrentInputSchemaNameForSpaceButton: Bool? = false,
-    showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = true,
+    showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool? = false,
     showUppercasedCharacterOnChineseKeyboard: Bool? = false,
     enableButtonUnderBorder: Bool? = true,
     enableSystemTextReplacement: Bool? = true,
     enableMultiLanguageQuickMix: Bool? = false,
     enableNumericCandidateModeOnChineseKeyboard: Bool? = false,
     enableNumericCandidateModeOnJapaneseAzooKey: Bool? = true,
-    enablePredictiveSuggestions: Bool? = true,
+    enablePredictiveSuggestions: Bool? = false,
     predictiveSuggestionsMaxCandidates: Int? = 8) {
     self.useKeyboardType = useKeyboardType
     self.defaultLanguageMode = defaultLanguageMode

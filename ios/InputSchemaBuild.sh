@@ -626,6 +626,24 @@ rm -rf $OUTPUT/.$stroke_scheme_name && \
   ) && \
   cp -R $OUTPUT/.$stroke_scheme_name/*.zip $ZIPS_DIR/
 
+# === 依赖方案：bopomofo (rime-bopomofo) ===
+bopomofo_scheme_name=rime-bopomofo
+
+rm -rf $OUTPUT/.$bopomofo_scheme_name && \
+  git clone https://github.com/rime/$bopomofo_scheme_name $OUTPUT/.$bopomofo_scheme_name && (
+    cd $OUTPUT/.$bopomofo_scheme_name
+
+    # 当前内置 librime 为 1.13.x，官方最新注音方案要求 librime>=1.16。
+    # 固定到兼容 librime>=1.3 的版本，避免用户下载后部署失败。
+    git checkout d51dfb6
+    cp "$OUTPUT/.$terra_pinyin_scheme_name/terra_pinyin.dict.yaml" .
+    cp "$OUTPUT/.$stroke_scheme_name/stroke.dict.yaml" .
+    cp "$OUTPUT/.$stroke_scheme_name/stroke.schema.yaml" .
+    rm -f detenele.schema.yaml
+    zip -r $bopomofo_scheme_name.zip AUTHORS LICENSE README.md bopomofo.schema.yaml bopomofo_tw.schema.yaml bopomofo_express.schema.yaml zhuyin.yaml terra_pinyin.dict.yaml stroke.dict.yaml stroke.schema.yaml
+  ) && \
+  cp -R $OUTPUT/.$bopomofo_scheme_name/*.zip $ZIPS_DIR/
+
 # === 依赖方案：hangyl (rime-hangyl) ===
 hangyl_scheme_name=rime-hangyl
 
@@ -707,6 +725,12 @@ packages = [
         "id": "rime-jaroomaji-easy",
         "fileName": "rime-jaroomaji-easy.zip",
         "title": "rime-jaroomaji-easy",
+        "minSharedSupportVersion": "",
+    },
+    {
+        "id": "rime-bopomofo",
+        "fileName": "rime-bopomofo.zip",
+        "title": "注音",
         "minSharedSupportVersion": "",
     },
     {

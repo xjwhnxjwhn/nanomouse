@@ -393,7 +393,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   private var configuredEnablePredictiveSuggestions: Bool {
-    HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions ?? true
+    HamsterAppDependencyContainer.shared.configuration.keyboard?.enablePredictiveSuggestions ?? false
   }
 
   public var predictiveSuggestionsMaxCandidates: Int {
@@ -474,8 +474,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   }
 
   public func installRimePredictDatabaseIfNeeded(showProgress: Bool = false, showResult: Bool = false) async {
-    guard configuredEnablePredictiveSuggestions, !FileManager.areRimePredictDatabasesAvailable() else { return }
-    await installRimePredictDatabase(showProgress: showProgress, showResult: showResult)
+    // 联想词库必须由用户在设置里手动安装，避免首次启动静默下载资源包。
   }
 
   public func installRimePredictDatabase(showProgress: Bool = true, showResult: Bool = true) async {
@@ -1182,7 +1181,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
   // 当开启此选项后， loadingTextForSpaceButton 设置的值无效
   public var showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool {
     get {
-      HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? true
+      HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton ?? false
     }
     set {
       HamsterAppDependencyContainer.shared.configuration.keyboard?.showCurrentInputSchemaNameOnLoadingTextForSpaceButton = newValue
@@ -1324,6 +1323,8 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       shouldUseNineGrid = true
     } else if keyboardType.isChinesePrimaryKeyboard {
       shouldUseNineGrid = false
+    } else if keyboardType.isBopomofoKeyboard {
+      shouldUseNineGrid = false
     } else {
       return
     }
@@ -1338,7 +1339,10 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
       return
     }
 
-    guard let targetSchema = preferredChineseSchema(useNineGrid: shouldUseNineGrid) else { return }
+    guard let targetSchema = keyboardType.isBopomofoKeyboard
+      ? preferredBopomofoSchema()
+      : preferredChineseSchema(useNineGrid: shouldUseNineGrid)
+    else { return }
 
     for schema in selectedChineseSchemas where schema != targetSchema {
       rimeContext.removeSelectSchema(schema)
@@ -1376,6 +1380,24 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     return rimeContext.schemas.first(where: {
       !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
     })
+  }
+
+  private func preferredBopomofoSchema() -> RimeSchema? {
+    let rimeContext = HamsterAppDependencyContainer.shared.rimeContext
+    if let currentSchema = rimeContext.currentSchema, currentSchema.isBopomofoSchema {
+      return currentSchema
+    }
+    if let selected = rimeContext.selectSchemas.first(where: { $0.isBopomofoSchema }) {
+      return selected
+    }
+
+    let preferredIDs = ["bopomofo", "bopomofo_tw", "bopomofo_express"]
+    for schemaID in preferredIDs {
+      if let schema = rimeContext.schemas.first(where: { $0.schemaId == schemaID }) {
+        return schema
+      }
+    }
+    return rimeContext.schemas.first(where: { $0.isBopomofoSchema })
   }
 
   // MARK: - combine
@@ -1656,7 +1678,7 @@ public class KeyboardSettingsViewModel: ObservableObject, Hashable, Identifiable
     ),
     .init(
       title: "联想词候选",
-      footer: "默认开启。首次打开 App 会自动下载词库；如果下载中断或网络不可用，可在这里手动安装。",
+      footer: "默认关闭。需要先手动安装 Rime 联想词库，再打开联想词候选行。",
       items: [
         .init(
           text: "启用联想词候选行",

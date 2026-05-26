@@ -49,6 +49,13 @@ public extension RimeSchema {
     return keywords.contains(where: { id.contains($0) || name.contains($0) })
   }
 
+  var isBopomofoSchema: Bool {
+    let id = schemaId.lowercased()
+    return id == "bopomofo"
+      || id == "bopomofo_tw"
+      || id == "bopomofo_express"
+  }
+
   /// 判断是否是罗马字日语方案（优先使用26键键盘）
   var isRomajiJapaneseSchema: Bool {
     guard isJapaneseSchema else { return false }

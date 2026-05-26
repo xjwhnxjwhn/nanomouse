@@ -82,6 +82,7 @@ public enum HamsterConstants {
 
   /// 其他可选方案 zip 包（按需下载）
   public static let onDemandExtraZipFiles: [String] = [
+    "rime-bopomofo.zip",
     "rime-terra-pinyin.zip",
     "rime-stroke.zip",
     "rime-hangyl.zip",

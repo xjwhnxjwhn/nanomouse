@@ -163,6 +163,8 @@ public enum KeyboardType: Codable, Identifiable, Hashable {
 }
 
 public extension KeyboardType {
+  static let bopomofoKeyboardName = "大千注音"
+
   /**
    The type's unique identifier.
 
@@ -219,6 +221,13 @@ public extension KeyboardType {
     default:
       return false
     }
+  }
+
+  var isBopomofoKeyboard: Bool {
+    if case .custom(let name, _) = self {
+      return name == Self.bopomofoKeyboardName
+    }
+    return false
   }
 
   /**

@@ -520,7 +520,7 @@ public class KeyboardContext: ObservableObject {
 
   /// 启用联想词候选行
   var enablePredictiveSuggestions: Bool {
-    (keyboardValue(\.enablePredictiveSuggestions) ?? true) && FileManager.areRimePredictDatabasesAvailable()
+    (keyboardValue(\.enablePredictiveSuggestions) ?? false) && FileManager.areRimePredictDatabasesAvailable()
   }
 
   /// 是否开启划动分页
@@ -593,7 +593,7 @@ public class KeyboardContext: ObservableObject {
   // 空格按钮加载文字显示当前输入方案
   // 当开启此选项后， loadingTextForSpaceButton 设置的值无效
   var showCurrentInputSchemaNameOnLoadingTextForSpaceButton: Bool {
-    keyboardValue(\.showCurrentInputSchemaNameOnLoadingTextForSpaceButton) ?? true
+    keyboardValue(\.showCurrentInputSchemaNameOnLoadingTextForSpaceButton) ?? false
   }
 
   var showUppercasedCharacterOnChineseKeyboard: Bool {

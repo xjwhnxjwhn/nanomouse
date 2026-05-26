@@ -63,8 +63,7 @@ public extension KeyboardAction {
 //    case .nextLocale: return context.locale.languageCode?.uppercased()
     case .primary(let type): return type.standardButtonText()
     case .space:
-      // return KKL10n.space.text(for: context)
-      return "空格"
+      return ""
     case .returnLastKeyboard: return "返回"
     case .symbol(let symbol), .symbolOfDark(let symbol): return symbol.char
     case .chineseNineGrid(let symbol): return symbol.char

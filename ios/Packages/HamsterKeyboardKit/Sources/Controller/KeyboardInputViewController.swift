@@ -774,7 +774,8 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
   var isRimeChineseInputActive: Bool {
     !isAzooKeyInputActive && !isEnglishInputActive && (
       keyboardContext.keyboardType.isChinesePrimaryKeyboard ||
-      keyboardContext.keyboardType.isChineseNineGrid
+      keyboardContext.keyboardType.isChineseNineGrid ||
+      keyboardContext.keyboardType.isBopomofoKeyboard
     )
   }
 
@@ -4049,11 +4050,12 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
 //      textDocumentProxy.insertText(rimeContext.userInputKey)
 //      rimeContext.reset()
 //    }
-    if type.isChinesePrimaryKeyboard || type.isChineseNineGrid {
+    let shouldSyncChineseSchema = type.isChinesePrimaryKeyboard || type.isChineseNineGrid || type.isBopomofoKeyboard
+    if shouldSyncChineseSchema {
       _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
     }
     keyboardContext.setKeyboardType(type)
-    if !(type.isChinesePrimaryKeyboard || type.isChineseNineGrid) {
+    if !shouldSyncChineseSchema {
       _ = rimeContext.syncChineseSchemaWithKeyboardTypeIfNeeded(type)
     }
     if type.isAlphabetic {
@@ -4263,16 +4265,6 @@ open class KeyboardInputViewController: UIInputViewController, KeyboardControlle
         tryHandleSpecificCode(keyCode)
         return
       }
-    }
-    if keyCode == XK_space,
-       keyboardContext.enablePredictiveSuggestions,
-       rimeContext.userInputKey.isEmpty,
-       rimeContext.suggestions.isEmpty,
-       rimeContext.textReplacementSuggestions.isEmpty,
-       !rimeContext.predictiveSuggestions.isEmpty
-    {
-      selectPredictiveSuggestion(index: 0)
-      return
     }
     // 空格键特殊处理：当没有 RIME 用户输入时，尝试执行文本替换
     if keyCode == XK_space && rimeContext.userInputKey.isEmpty {

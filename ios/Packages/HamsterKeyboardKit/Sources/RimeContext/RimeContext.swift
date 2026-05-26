@@ -348,11 +348,14 @@ public extension RimeContext {
 
   @discardableResult
   func syncChineseSchemaWithKeyboardTypeIfNeeded(_ keyboardType: KeyboardType) -> Bool {
-    guard keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid else { return false }
+    guard keyboardType.isChinesePrimaryKeyboard || keyboardType.isChineseNineGrid || keyboardType.isBopomofoKeyboard else { return false }
 
     let shouldUseNineGrid = keyboardType.isChineseNineGrid
     KeyboardStartupDiagnostics.log("syncChineseSchema begin keyboardType=\(keyboardType.yamlString) nineGrid=\(shouldUseNineGrid) rimeRunning=\(Rime.shared.isRunning()) current=\(currentSchema?.schemaId ?? "nil")")
-    guard let targetSchema = preferredChineseSchema(useNineGrid: shouldUseNineGrid) else {
+    guard let targetSchema = keyboardType.isBopomofoKeyboard
+      ? preferredBopomofoSchema()
+      : preferredChineseSchema(useNineGrid: shouldUseNineGrid)
+    else {
       Logger.statistics.error(
         "sync Chinese schema failed: target not found, nineGrid=\(shouldUseNineGrid)"
       )
@@ -418,6 +421,24 @@ public extension RimeContext {
     return schemas.first(where: {
       !$0.isJapaneseSchema && $0.isChineseNineGridSchema == useNineGrid
     })
+  }
+
+  private func preferredBopomofoSchema() -> RimeSchema? {
+    if let currentSchema, currentSchema.isBopomofoSchema {
+      return currentSchema
+    }
+
+    if let selected = selectSchemas.first(where: { $0.isBopomofoSchema }) {
+      return selected
+    }
+
+    let preferredIDs = ["bopomofo", "bopomofo_tw", "bopomofo_express"]
+    for schemaID in preferredIDs {
+      if let schema = schemas.first(where: { $0.schemaId == schemaID }) {
+        return schema
+      }
+    }
+    return schemas.first(where: { $0.isBopomofoSchema })
   }
 
   private func rememberChineseSchemaChoice(_ schema: RimeSchema?) {
@@ -878,7 +899,7 @@ public extension RimeContext {
   }
 
   private func updateRimePredictionPatch(in userDataDir: URL, configuration: HamsterConfiguration) {
-    let enabled = configuration.keyboard?.enablePredictiveSuggestions ?? true
+    let enabled = configuration.keyboard?.enablePredictiveSuggestions ?? false
     let hasPredictDatabase: Bool
     if enabled {
       hasPredictDatabase = (try? FileManager.ensureRimePredictDatabaseInUserData()) ?? false

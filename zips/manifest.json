@@ -33,6 +33,14 @@
       "title": "rime-jaroomaji-easy"
     },
     {
+      "id": "rime-bopomofo",
+      "fileName": "rime-bopomofo.zip",
+      "publishedAt": "2026-05-26",
+      "sha256": "d4ff574fe1ddc767d52219fa144d583654a3a489ec1362fc00c84ddcde789257",
+      "minSharedSupportVersion": "",
+      "title": "注音"
+    },
+    {
       "id": "rime-terra-pinyin",
       "fileName": "rime-terra-pinyin.zip",
       "publishedAt": "2026-03-23",
