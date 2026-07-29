@@ -1,0 +1,7 @@
+version=3.3.0
+build=1
+url=https://apps.apple.com/app/id6757662900
+message_zh-Hans=App Store 已有新版本时，鼠输入法会在这里提示更新。
+message_zh-Hant=App Store 已有新版本時，鼠輸入法會在這裡提示更新。
+message_en=NanoMouse will show this prompt when a newer App Store version is available.
+message_ja=App Storeに新しいバージョンがある場合、NanoMouseはここでアップデートをお知らせします。
