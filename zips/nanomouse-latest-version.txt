@@ -1,7 +1,7 @@
-version=3.3.0
+version=3.4.6
 build=1
 url=https://apps.apple.com/app/id6757662900
-message_zh-Hans=App Store 已有新版本时，鼠输入法会在这里提示更新。
-message_zh-Hant=App Store 已有新版本時，鼠輸入法會在這裡提示更新。
-message_en=NanoMouse will show this prompt when a newer App Store version is available.
-message_ja=App Storeに新しいバージョンがある場合、NanoMouseはここでアップデートをお知らせします。
+message_zh-Hans=翻译，AI功能全面来袭。并且进行了易用性的改进。
+message_zh-Hant=翻訳・AI機能が全面的に登場。さらに、使いやすさも改善しました。
+message_en=Translation and AI features are now fully available. We’ve also made improvements to usability.
+message_ja=翻譯與 AI 功能全面登場，並且進一步改善了易用性。
