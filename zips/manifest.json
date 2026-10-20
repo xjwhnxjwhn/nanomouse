@@ -135,6 +135,14 @@
       "sha256": "dc29f3b35e13d6177abc826f8576fcc955c85d37ee39c08613c8ac4cbf149c8e",
       "minSharedSupportVersion": "",
       "title": "鼠输入法版本更新提示"
+    },
+    {
+      "id": "chinese-ime-tongbian-v1",
+      "fileName": "chinese-ime-tongbian-v1.zip",
+      "publishedAt": "2026-10-17",
+      "sha256": "52bf5950865660c02af9bc1309296517d470ae20ee0468f7c9d0f9b8b4086f6c",
+      "minSharedSupportVersion": "",
+      "title": "AI 拼音纠错模型"
     }
   ]
 }
