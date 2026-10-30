@@ -143,6 +143,30 @@
       "sha256": "52bf5950865660c02af9bc1309296517d470ae20ee0468f7c9d0f9b8b4086f6c",
       "minSharedSupportVersion": "",
       "title": "AI 拼音纠错模型"
+    },
+    {
+      "id": "chinese-ime-4m-v1",
+      "fileName": "chinese-ime-4m-v1.zip",
+      "publishedAt": "2026-10-06",
+      "sha256": "76b5b8d29776c1efc43ab07165dae335037b217aaeefa2b249603220654bcabd",
+      "minSharedSupportVersion": "",
+      "title": "轻量辅助资源"
+    },
+    {
+      "id": "chinese-ime-25m-v1",
+      "fileName": "chinese-ime-25m-v1.zip",
+      "publishedAt": "2026-10-06",
+      "sha256": "33399977c4971b55ec54b93334d0a8cca9e8b1bed710466e26d9da1d597cd2cf",
+      "minSharedSupportVersion": "",
+      "title": "增强辅助资源（实验）"
+    },
+    {
+      "id": "chinese-ime-zhiwei-v1",
+      "fileName": "chinese-ime-zhiwei-v1.zip",
+      "publishedAt": "2026-10-26",
+      "sha256": "2a2122207f5ef8e8240f3e7e5d3828fac618ba88b98c64a55e869963826e8da0",
+      "minSharedSupportVersion": "",
+      "title": "根据前文选词资源"
     }
   ]
 }
