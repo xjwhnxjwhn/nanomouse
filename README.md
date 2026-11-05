@@ -1,248 +1,106 @@
 # 鼠输入法（NanoMouse）
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iOS-blue.svg)](#平台支持)
+鼠输入法 NanoMouse 是一款面向 iPhone、iPad 的 Rime 与 AI 输入法，并提供 Mac 配套工作区。它把本地输入与纠错、语音成稿、润色翻译、字节粘贴、跨设备剪贴板及创作资料放进连续的输入流程。
 
-🐭 **输入法、剪贴板、手写画布和输入日记整合在一起的跨平台输入工具**
+[English](./README_EN.md) · [App Store](https://apps.apple.com/app/id6757662900) · [国际官网](https://nanomouse.2nori.com/zh-Hans/) · [中国官网](https://nanomouse.top/zh-Hans/) · [完整功能资料](https://nanomouse.2nori.com/zh-Hans/features/) · [隐私政策](https://nanomouse.2nori.com/zh-Hans/privacy)
 
-[English](./README_EN.md) | [官方网站](https://nanomouse.2nori.com/) | [App Store](https://apps.apple.com/app/id6757662900) | [隐私政策](./PRIVACY.md) |
-[Privacy Policy](./PRIVACY_EN.md)
+> 资料核对：2026 年 11 月 6 日。App Store 当前公开版本为 3.4.7；云端会员服务已更新。3.4.8 客户端专属能力尚不作为已上架功能介绍。功能与界面因设备、系统、地区和版本而异。
 
----
+**关于此公开仓库：** 本仓库保留历史开放源码，并持续更新产品文档和资源文件。后续 App 开发已转入私有仓库；这里的源码不等同于当前 App Store 完整实现。现有公开文件按各自许可证使用。
 
-## 🎯 为什么选择鼠输入法？
+## 三支产品预览视频
 
-**打字时总觉得某些拼音很难按？** 鼠输入法用最小的改动解决最大的痛点：
+以下使用 2026 年 10 月 30 日的 App Store 预览交付成片，保留原画面、字幕、剪辑与音轨。点击封面进入独立播放页；每页都有文字说明和原版 MP4。部分场景包含示例账号与演示动画，视频播放时长不代表服务响应速度。
 
-| 痛点                           | 鼠输入法方案   | 效果                     |
-| ------------------------------ | -------------- | ------------------------ |
-| `ang/eng/ing` 后鼻音要按两个键 | `nn` 替代 `ng` | `nenn` → 能，少按一键    |
-| `uan/uang` 手指跨度大          | `vn/vnn` 替代  | `gvn` → 关，手指不用乱跑 |
+### 01. 智能输入、语音成稿与键盘特效
 
-**就这么简单。** 不改变你的输入习惯，只是让高频操作更顺手。
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-01.jpg" width="220" alt="智能输入、语音成稿与键盘特效" />](https://nanomouse.2nori.com/zh-Hans/videos/01/)
 
-同时，鼠输入法已经不只是输入法配置。iOS 主 App、键盘扩展和 macOS 工具围绕“输入内容”做了完整整合：常用片段、富文本、文件、Markdown、手写画布、因果图和输入日记都可以被保存、预览、同步和再次使用。
+第一支预览展示 NanoMouse 的语音与文字输入、邮件表达调整、Emoji 润色、多语种翻译和动态键盘效果。
 
----
+[播放与内容说明](https://nanomouse.2nori.com/zh-Hans/videos/01/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-01.mp4) · 29.91 秒
 
-## 🖥️ 平台支持
+### 02. 多语言翻译、连续粘贴与隐私
 
-### iOS — 完整的第三方键盘 App
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-02.jpg" width="220" alt="多语言翻译、连续粘贴与隐私" />](https://nanomouse.2nori.com/zh-Hans/videos/02/)
 
-基于 [仓输入法](https://github.com/imfuxiao/Hamster)
-深度定制，这不只是一个配置，而是**一款完整的 iOS 输入法应用**。
+第二支预览展示输入中文后选择多语种译文、复制外语消息后回译，以及连续取用片段和隐私相关界面。
 
-**核心功能：**
+[播放与内容说明](https://nanomouse.2nori.com/zh-Hans/videos/02/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-02.mp4) · 29.91 秒
 
-| 功能                     | 说明                                                        |
-| ------------------------ | ----------------------------------------------------------- |
-| 📱 **原生键盘体验**      | 按键气泡、触感反馈，和系统键盘一样顺滑                      |
-| 🔤 **长按扩展菜单**      | 长按任意键弹出扩展字符，滑动选择 (含拉丁字符全集)           |
-| 🔢 **长按数字键盘**      | 长按 `123` 打开完整数字键盘，内置计算器                      |
-| 🌐 **中/日/英 快速切换** | 长按中/英切换键，弹出菜单一键切换语言                       |
-| 🔁 **繁简快速切换**      | 在中文键盘顶部区域长按切换繁体/简体输出                     |
-| 🖐️ **单手扇形键盘**     | 中文 26 键支持左手/右手扇形单手模式                         |
-| 🔣 **复杂符号键盘**      | 长按符号键 (`#+=`) 进入分类符号界面                         |
-| 📝 **系统文本替换**      | 自动读取 iOS「设置 > 通用 > 键盘 > 文本替换」               |
-| 🎌 **多方案支持**        | 雾凇拼音、小鹤双拼、自然码双拼、日语罗马字、笔画输入等      |
-| 🧩 **字节粘贴**          | 在键盘中调用常用文本、富文本、图片、PDF、文件和网页链接预览 |
-| ☁️ **iCloud 同步**       | 主 App、键盘扩展和 macOS 之间同步字节粘贴内容               |
+### 03. 跨设备剪贴板、文本加密与摩斯电码
 
-**输入体验增强：**
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-03.jpg" width="220" alt="跨设备剪贴板、文本加密与摩斯电码" />](https://nanomouse.2nori.com/zh-Hans/videos/03/)
 
-- 🎯 **误触纠错**：常见误触自动修正（如 `xo→co`、`aong→song` 等）
-- 🔀 **多语言快速混输**：中/日/英同一候选栏连续输入，不打断思路
-- 🇬🇧 **英语候选栏**：英文输入也有候选与拼写纠错
-- 🔢 **数字混输**：拼音/日语输入中数字自然融合
-- 🧠 **AzooKey + Zenzai AI（可选）**：日语输入可开启 AI 增强（需下载模型，低性能设备可关闭）
-- 📓 **日记模式**：长按天气区域开启本地记录模式，将输入内容按日期整理为日记
-- 🧰 **文件与创作工具**：画布、Markdown、因果图和通用文件区域可保存到 App 的 iCloud Drive 目录
+第三支预览展示不同 Apple ID 的示例设备间复制、接收与粘贴内容，并展示文本加密面板和电报键盘。
 
-**容易错过的手势和彩蛋：**
+[播放与内容说明](https://nanomouse.2nori.com/zh-Hans/videos/03/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-03.mp4) · 26.27 秒
 
-- **长按 `123`**：打开完整数字键盘和计算器，不只是切换符号页。
-- **长按符号键 `#+=`**：进入分类符号界面，适合找复杂标点、括号和特殊符号。
-- **长按中文键盘顶部天气旁区域**：切换简体/繁体输出。
-- **在中文键盘顶部区域左滑 / 右滑**：进入左手或右手单手扇形键盘。
-- **单手扇形键盘空白区域按钮**：可返回双手键盘，或切换到另一只手。
-- **长按天气区域**：开启或关闭本地日记记录模式，开启后天气区域会慢速闪烁提示。
-- **长按字节粘贴格子**：在键盘里直接展开更多操作，例如复制、粘贴、下载或处理文件内容。
-- **长按普通字母键**：显示扩展字符气泡，滑动即可选择。
-- **长按或双击 Shift**：锁定大写输入。
+## 当前功能
 
-**主 App 工作区：**
+| 功能 | 具体用途 |
+| --- | --- |
+| [Rime 中文输入法、本地纠错与多语言键盘](https://nanomouse.2nori.com/zh-Hans/features/keyboard/) | NanoMouse 为 iPhone 和 iPad 提供 Rime 中文输入、中文 26 键与九键、全拼与双拼，并结合中日英输入、本地纠错和可调节的键盘外观。 |
+| [键盘内 AI 润色、续写与多语言翻译](https://nanomouse.2nori.com/zh-Hans/features/ai-writing-translation/) | NanoMouse 可以在输入工作流中润色和续写文字，调整篇幅、专业性、语气、情绪、Emoji 与结构，并提供候选翻译和多目标语言翻译。 |
+| [语音输入、面对面对话翻译与声音工作室](https://nanomouse.2nori.com/zh-Hans/features/voice/) | NanoMouse 支持语音转文字与文字整理、面对面的双向对话翻译，以及文字转语音、声音选择和多人对白创作。 |
+| [字节粘贴：常用语、Prompt 与多类型素材库](https://nanomouse.2nori.com/zh-Hans/features/byte-paste/) | NanoMouse 字节粘贴用固定格子保存常用语、Prompt、富文本、图片、链接、PDF 和文件，让用户在主 App、Mac 与键盘中复用内容。 |
+| [iPhone、iPad、Mac 剪贴板与跨 Apple ID 共享](https://nanomouse.2nori.com/zh-Hans/features/clipboard-sync/) | NanoMouse 区分本机剪贴板历史、同 Apple ID 设备同步和受邀请控制的跨 Apple ID 剪贴板通道，适合在个人设备或获授权的协作者之间复用内容。 |
+| [Markdown、画布、HTML、思维导图与输入日记](https://nanomouse.2nori.com/zh-Hans/features/workspace-diary/) | NanoMouse 将 Markdown、手写画布、HTML、因果图、思维导图和日记整合到输入工作区，方便保存想法、整理资料并再次调用。 |
+| [本地输入、云端 AI、会员与隐私边界](https://nanomouse.2nori.com/zh-Hans/features/privacy-membership/) | NanoMouse 的本地输入、本地纠错、iCloud 同步与云端 AI 是不同的数据通路。免费账号每天有 7 次云端 AI 体验；付费会员按订阅周期使用额度。 |
+| [摩斯电码键盘与文本加密面板](https://nanomouse.2nori.com/zh-Hans/features/morse-cipher/) | NanoMouse 的电报键盘提供点划输入与摩斯码转换；独立加密面板按所选算法、参数和口令进行文本加密与破译。 |
 
-- **字节粘贴**：每个格子可保存纯文本、富文本、图片、PDF、视频、网页链接和通用文件，支持预览、导出、格纳和跨端同步。
-- **画布 / Markdown / 因果图**：可以在同一工作区创建、编辑、保存文件，并将结果放入字节粘贴格子继续复用。
-- **文件系统**：使用 App 的 iCloud Drive 容器，文件可在 iOS、iPadOS、macOS 和系统“文件”App 中访问。
-- **账户与键盘设置**：管理完全访问、通知、输入方案、键盘布局、日记、天气、缓存和云端文件。
+## 典型工作流
 
-**App Store 截图预览：**
+- **写邮件与聊天回复：** 输入或口述草稿 → 调整表达与结构 → 查看润色或翻译结果 → 在目标 App 中使用。
+- **常用 Prompt 与资料：** 在字节粘贴保存角色设定、输出模板、代码、图片或文件 → 在键盘中选择复用。
+- **跨设备继续工作：** Mac 复制素材 → 在自己的 iPhone / iPad 中取用；不同 Apple ID 需另行建立邀请共享关系。
+- **面对面交流：** 选择双方语言 → 识别语音 → 查看译文并朗读。
+- **整理想法：** 使用 Markdown、画布、HTML 或图表工具保存资料；主动开启日记模式后整理记录到的素材。
 
-<p align="center">
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/0_APP_DESKTOP_0.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/1_APP_DESKTOP_1.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/2_APP_DESKTOP_2.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/3_APP_DESKTOP_3.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/4_APP_DESKTOP_4.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/zh-Hans/5_APP_DESKTOP_5.png" width="45%" />
-</p>
+## 平台边界
 
-**核心输入方案：**
+| 平台 | 提供内容 |
+| --- | --- |
+| iPhone / iPad | App Store 主 App 与第三方键盘；不同设备和系统的能力有所区别。 |
+| macOS | 配套工作区、字节粘贴、剪贴板和文件工具；系统输入法需要独立安装鼠须管 / Rime。 |
+| Windows | 本仓库的小狼毫 / Rime 配置资源，不等同于 iOS / Mac 全功能客户端。 |
 
-- **雾凇拼音 (rime-ice)**
-  - 包含：全拼、双拼（小鹤/自然码/微软/搜狗/紫光/拼音加加等）
-- **日语罗马字 Easy (jaroomaji-easy)**
-  - 专为手机优化，移除冗余规则，打字更顺手
+## 开始使用
 
-**其他内置方案：**
+1. 从 [App Store](https://apps.apple.com/app/id6757662900) 安装 NanoMouse。
+2. 在 iOS「设置 → 通用 → 键盘 → 键盘 → 添加新键盘」中添加鼠输入法。
+3. 在主 App 选择输入方案；需要网络或扩展共享功能时，按指南设置完全访问。
+4. 在允许第三方键盘的 App 中，通过地球键切换到 NanoMouse。
+5. 在主 App 保存常用内容，再从键盘工具栏打开字节粘贴。
 
-- 地球拼音 (terra-pinyin)
-- 日语罗马字 (jaroomaji)
-- 日语输入 (rime-japanese)
-- 笔画输入 (stroke)
-- 越南语/韩语 (可添加，如有需要请联系)
+普通文本可通过键盘输入；富文本、图片和文件是否可直接插入取决于目标 App，必要时使用复制、预览、导出或分享。
 
-源代码：`ios/` 目录 | [编译说明](./ios/README.md)
+[完整指南](https://nanomouse.2nori.com/zh-Hans/guide/complete) · [Mac 下载与安装](https://nanomouse.2nori.com/zh-Hans/download) · [支持](https://nanomouse.2nori.com/zh-Hans/support)
 
----
+## 免费、本地与云端 AI
 
-### macOS — 鼠须管 + SCT 图形配置
+本地输入和本地纠错不要求 NanoMouse 云端会员，也不扣云端次数。注册免费账号每天有 7 次云端 AI 体验，按北京时间重置；适用任务共用账号账本。有效付费会员使用 Pro 订阅周期额度。当前 3.4.7 及更早客户端的免费账号第 8 次起按旧版权限与限制处理；付费会员统一使用 Pro 规则。
 
-**一键安装：** 下载
-[Nanomouse-Installer.dmg](https://github.com/xjwhnxjwhn/nanomouse/releases/latest)，双击运行即可。
+云端模型和服务会随账号与配置变化。支持的自带 Key 直连由用户自行承担供应商费用；不扣 NanoMouse 云端额度。请以账号页面和购买页面确认具体权益与价格。
 
-**NanoMouse macOS 工具** — 告别手动编辑 YAML，也能和 iOS 字节粘贴协作：
+## 数据与隐私
 
-- 🎨 原生 SwiftUI 界面，完美融入 macOS
-- 🔒 非侵入式配置，所有改动写入 `.custom.yaml`，升级鼠须管无忧
-- ↩️ 多级撤销/重做 + 自动备份，放心折腾
-- ⚡ 高级模式：直接搜索和修改任意 Rime 配置项
-- 🔄 集成 Sparkle 自动更新
-- 🧩 字节粘贴窗口：管理文本、富文本、图片、PDF、文件和网页链接格子
-- ✍️ 画布 / Markdown / 因果图：和 iOS 使用同一套 iCloud Drive 文件区域
-- 👀 Quick Look：文件格子支持空格预览，Markdown 和 `.pkdrawing` 使用应用内渲染
+基础输入、本地纠错、iCloud 同步和联网 AI 是不同功能。跨 Apple ID 剪贴板需要邀请接受，不会自动公开全部私有格子。语音录音由主 App 处理；云端 AI 任务会按所选通道处理相关文本、图片或音频。
 
-> 💡 未安装鼠须管？安装器会引导你一键 Homebrew 安装
->
-> ✅ 已有自定义配置？安装器自动备份并智能合并，绝不覆盖
+[隐私政策](./PRIVACY.md) · [Privacy Policy](./PRIVACY_EN.md)
 
----
+## 历史源码与配置资源
 
-### Windows — 小狼毫
+- [iOS](./ios/) · [macOS](./mac/) · [Windows](./windows/)
+- [Rime 配置](./configs/) · [共享资源](./shared/) · [资源包](./zips/)
+- [许可证](./LICENSE)
 
-1. 安装 [小狼毫 (Weasel)](https://rime.im/download/)
-2. 下载 `configs/` 目录下的配置文件，复制到 `%APPDATA%\Rime`
-3. 右键任务栏图标 → 重新部署
+部分历史构建说明与当前 App 版本不同，请以相应目录的文档为准。
 
----
+## 致谢
 
-## ⌨️ 键位映射速查
-
-### 后鼻音简化 (ng → nn)
-
-| 输入   | 原拼音 | 示例字     |
-| ------ | ------ | ---------- |
-| `dann` | dang   | 当、档、党 |
-| `henn` | heng   | 恒、横、衡 |
-| `dinn` | ding   | 定、顶、钉 |
-| `tonn` | tong   | 同、通、痛 |
-| `nenn` | neng   | 能、耐能   |
-
-### 键位优化 (uan/uang → vn/vnn)
-
-| 输入    | 原拼音 | 示例字     |
-| ------- | ------ | ---------- |
-| `gvn`   | guan   | 关、官、管 |
-| `hvn`   | huan   | 换、欢、还 |
-| `gvnn`  | guang  | 光、广、逛 |
-| `chvnn` | chuang | 床、窗、创 |
-
-> **原理**：`v` 在拼音中本就用于 `ü`，而 `guan/guang` 等拼音中不存在 `gv`
-> 组合，因此 `vn/vnn` 是无冲突的简写。
-
----
-
-## 🔧 手动安装（进阶用户）
-
-将配置文件复制到 Rime 用户目录后重新部署：
-
-| 输入方案   | 配置文件                          |
-| ---------- | --------------------------------- |
-| 明月拼音   | `luna_pinyin_simp.custom.yaml`    |
-| 雾凇拼音   | `rime_ice.custom.yaml`            |
-| 自然码双拼 | `double_pinyin.custom.yaml`       |
-| 小鹤双拼   | `double_pinyin_flypy.custom.yaml` |
-
-**Rime 用户目录：**
-
-- macOS: `~/Library/Rime/`
-- Windows: `%APPDATA%\Rime`
-
-配置示例：
-
-```yaml
-# luna_pinyin_simp.custom.yaml
-patch:
-  "speller/algebra/+":
-    - derive/ng$/nn/ # ng → nn
-    - derive/uan$/vn/ # uan → vn
-    - derive/uang$/vnn/ # uang → vnn
-```
-
----
-
-## 📁 项目结构
-
-```
-nanomouse/
-├── configs/          # 桌面端 Rime 配置文件
-├── shared/           # 跨平台共享配置
-├── ios/              # iOS 输入法 App（完整 Xcode 项目）
-├── mac/
-│   ├── gui/          # SCT 配置工具（SwiftUI App）
-├── windows/          # Windows 相关
-├── installers/       # macOS 安装器
-└── build/            # 构建产物
-```
-
----
-
-## 🔄 卸载 / 恢复
-
-恢复原配置：
-
-1. 打开 `~/Library/Rime/`
-2. 找到 `nanomouse_backup_*` 文件夹
-3. 将文件复制回 `~/Library/Rime/`
-4. 重新部署
-
----
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
----
-
-## 📄 许可证
-
-[MIT License](./LICENSE)
-
----
-
-## 🙏 致谢
-
-- [RIME 输入法引擎](https://rime.im/) — 强大的跨平台输入法框架
-- [鼠须管 (Squirrel)](https://github.com/rime/squirrel) — macOS 版 Rime
-- [小狼毫 (Weasel)](https://github.com/rime/weasel) — Windows 版 Rime
-- [仓输入法 (Hamster)](https://github.com/imfuxiao/Hamster) — iOS Rime 实现
-- [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) — iOS 键盘开发框架
-- [雾凇拼音](https://github.com/iDvel/rime-ice) — 长期维护的拼音词库
-
----
-
-**为什么叫 Nanomouse？**
-
-- **nano** = 纳米级小巧，配置只有几行
-- **mouse** = 融入 Rime 生态的小动物命名传统（鼠须管、仓鼠…）
+- [Rime](https://rime.im/)
+- [Squirrel](https://github.com/rime/squirrel) / [Weasel](https://github.com/rime/weasel)
+- [Hamster](https://github.com/imfuxiao/Hamster)
+- [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit)
+- [Rime Ice](https://github.com/iDvel/rime-ice)
