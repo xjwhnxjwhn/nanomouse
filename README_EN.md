@@ -1,253 +1,106 @@
-# NanoMouse (鼠输入法)
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iOS-blue.svg)](#platform-support)
+# NanoMouse Keyboard
 
-🐭 **A cross-platform input workspace that combines keyboard input, snippets, canvas, Markdown, and local input diary**
+NanoMouse is a Rime and AI keyboard for iPhone and iPad, with a companion Mac workspace. It connects local input and correction, voice drafts, rewriting, translation, Byte Paste, cross-device clipboard workflows and creative material.
 
-[中文说明](./README.md) | [Website](https://nanomouse.2nori.com/) | [App Store](https://apps.apple.com/app/id6757662900) | [隐私政策](./PRIVACY.md) |
-[Privacy Policy](./PRIVACY_EN.md)
-
----
+[简体中文](./README.md) · [App Store](https://apps.apple.com/app/id6757662900) · [International website](https://nanomouse.2nori.com/) · [China website](https://nanomouse.top/zh-Hans/) · [Feature reference](https://nanomouse.2nori.com/features/) · [Privacy policy](https://nanomouse.2nori.com/privacy)
 
-## 🎯 Why NanoMouse?
+> Verified November 6, 2026. The public App Store version is 3.4.7; cloud membership services have been updated. Client-only 3.4.8 capabilities are not presented as already released. Features and interfaces vary by device, OS, region and version.
 
-**Tired of awkward key combinations when typing Pinyin?** NanoMouse solves the
-biggest pain points with minimal changes:
+**About this public repository:** It preserves historical open-source code and continues to publish product documentation and resources. Subsequent app development is private; this checkout is not the full implementation of the current App Store release. Existing public files retain their applicable licenses.
 
-| Pain Point                             | NanoMouse Solution     | Result                          |
-| -------------------------------------- | ---------------------- | ------------------------------- |
-| `ang/eng/ing` nasal finals need 2 keys | `nn` replaces `ng`     | `nenn` → 能, one less keystroke |
-| `uan/uang` requires finger stretching  | `vn/vnn` replaces them | `gvn` → 关, fingers stay home   |
+## Three product preview videos
 
-**That's it.** No learning curve, just smoother typing for high-frequency
-patterns.
+These are the October 30, 2026 App Store preview delivery files, preserving their pictures, captions, edits and audio. Open a poster for a dedicated watch page with a written description and the original MP4. Some scenes contain sample accounts and demonstration animation; playback duration is not service latency.
 
-NanoMouse is now more than a Rime configuration. The iOS app, keyboard
-extension, and macOS tool work together around the things you type: snippets,
-rich text, files, Markdown, drawings, causal diagrams, and local diary entries
-can be saved, previewed, synced, and reused.
+### 01. Smart input, voice drafts and keyboard effects
 
----
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-01.jpg" width="220" alt="Smart input, voice drafts and keyboard effects" />](https://nanomouse.2nori.com/videos/01/)
 
-## 🖥️ Platform Support
+Preview one demonstrates voice and text input, email expression controls, Emoji rewriting, multilingual translation and keyboard effects.
 
-### iOS — A Full-Featured Keyboard App
+[Watch and read](https://nanomouse.2nori.com/videos/01/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-01.mp4) · 29.91 seconds
 
-Built on [Hamster](https://github.com/imfuxiao/Hamster), this isn't just a
-config — it's **a complete iOS keyboard app**.
+### 02. Multilingual translation, sequential paste and privacy
 
-**Key Features:**
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-02.jpg" width="220" alt="Multilingual translation, sequential paste and privacy" />](https://nanomouse.2nori.com/videos/02/)
 
-| Feature                          | Description                                                                |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| 📱 **Native Keyboard Feel**      | Key bubbles, haptic feedback, smooth like the system keyboard              |
-| 🔤 **Long-Press Accent Menu**    | Hold any key for extended characters, slide to select (full Latin)         |
-| 🔢 **Long-Press Numeric Keypad** | Hold `123` for a full numeric keyboard with a built-in calculator          |
-| 🌐 **CN/JP/EN Quick Switch**     | Long-press CN/EN key for instant language switching                        |
-| 🔁 **Trad/Simp Quick Switch**    | Long-press the Chinese toolbar area to toggle Traditional/Simplified output |
-| 🖐️ **One-Hand Arc Keyboard**    | Chinese 26-key layout supports left/right arc-style one-hand mode          |
-| 🔣 **Complex Symbol Keyboard**   | Long-press symbol key (`#+=`) for categorized symbol view                  |
-| 📝 **System Text Replacement**   | Auto-syncs with iOS Settings > General > Keyboard > Text Replacement       |
-| 🎌 **Multiple Schemas**          | Rime Ice, Flypy, Ziranma, Japanese Romaji, Stroke input, and more          |
-| 🧩 **Byte Paste**                | Reuse text, rich text, images, PDFs, files, and link previews in keyboard  |
-| ☁️ **iCloud Sync**               | Sync Byte Paste content between iOS, keyboard extension, and macOS         |
+Preview two shows target-language choices, translating copied foreign-language messages, sequential snippet reuse and privacy-related screens.
 
-**Typing Enhancements:**
+[Watch and read](https://nanomouse.2nori.com/videos/02/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-02.mp4) · 29.91 seconds
 
-- 🎯 **Mistouch Correction**: Common slips are auto-corrected (e.g. `xo→co`, `aong→song`)
-- 🔀 **Multi‑language Quick Mix**: Keep CN/JP/EN in one candidate bar without losing context
-- 🇬🇧 **English Candidate Bar**: Suggestions + spell correction for English input
-- 🔢 **Number Mixing**: Seamlessly mix numbers while typing Pinyin/Japanese
-- 🧠 **AzooKey + Zenzai AI (Optional)**: AI‑enhanced Japanese input (model download required; can be disabled on low-end devices)
-- 📓 **Diary Mode**: Long-press the weather area to record typed text locally by date
-- 🧰 **Workspace Tools**: Canvas, Markdown, causal diagrams, and a shared files area can be stored in the app's iCloud Drive container
+### 03. Cross-device clipboard, text ciphers and Morse input
 
-**Hidden Gestures & Power Tips:**
+[<img src="https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-03.jpg" width="220" alt="Cross-device clipboard, text ciphers and Morse input" />](https://nanomouse.2nori.com/videos/03/)
 
-- **Long-press `123`**: Open the full numeric keyboard with calculator, not just the symbol page.
-- **Long-press `#+=`**: Open categorized symbols for punctuation, brackets, and special characters.
-- **Long-press the top Chinese toolbar area near weather**: Toggle Simplified/Traditional Chinese output.
-- **Swipe left / right on the top Chinese toolbar area**: Enter left-hand or right-hand arc-style one-hand keyboard.
-- **Use the blank-area buttons in one-hand mode**: Return to the full keyboard or switch to the other hand.
-- **Long-press the weather area**: Start or stop local diary recording; the weather indicator blinks slowly while recording.
-- **Long-press a Byte Paste cell**: Open extra actions in the keyboard, such as copy, paste, download, or file handling.
-- **Long-press letter keys**: Show extended character callouts, then slide to select.
-- **Long-press or double-tap Shift**: Enable Caps Lock.
+Preview three demonstrates copying, receiving and pasting between sample devices with different Apple IDs, plus cipher tools and the Morse keyboard.
 
-**Main App Workspace:**
+[Watch and read](https://nanomouse.2nori.com/videos/03/) · [MP4](https://nanomouse.2nori.com/media/app-previews/nanomouse-preview-03.mp4) · 26.27 seconds
 
-- **Byte Paste**: Grid cells can store plain text, rich text, images, PDFs, videos, links, and generic files with previews, export, insertion, and cross-device sync.
-- **Canvas / Markdown / Causal Diagram**: Create, edit, save, and insert workspace files into Byte Paste cells.
-- **File System**: Uses the app's iCloud Drive container, so files are accessible from iOS, iPadOS, macOS, and Apple's Files app.
-- **Account & Keyboard Settings**: Manage full access, notifications, schemas, keyboard layouts, diary, weather, cache, and cloud files.
+## Current capabilities
 
-**App Store Screenshots:**
+| Feature | What it does |
+| --- | --- |
+| [Rime Chinese keyboard, local correction and multilingual input](https://nanomouse.2nori.com/features/keyboard/) | NanoMouse combines Rime Pinyin and Double Pinyin, Chinese 26-key and 9-key layouts, Chinese/Japanese/English input, local correction and customizable keyboard appearance on iPhone and iPad. |
+| [AI rewriting, continuation and multilingual translation in the keyboard](https://nanomouse.2nori.com/features/ai-writing-translation/) | Rewrite and extend drafts, control length, formality, tone, emotion, Emoji and structure, and use candidate or multi-target translation within a NanoMouse input workflow. |
+| [Voice input, face-to-face translation and Voice Studio](https://nanomouse.2nori.com/features/voice/) | NanoMouse offers speech-to-text and cleanup, two-way conversation translation, and text-to-speech creation with voice selection and multi-speaker dialogue. |
+| [Byte Paste: reusable snippets, prompts and rich material](https://nanomouse.2nori.com/features/byte-paste/) | Store reusable text, AI prompts, rich text, images, links, PDFs and files in NanoMouse cells, then reuse them from the main app, Mac and keyboard. |
+| [Clipboard workflows across iPhone, iPad, Mac and Apple IDs](https://nanomouse.2nori.com/features/clipboard-sync/) | NanoMouse separates local clipboard history, same-account iCloud synchronization and invitation-based clipboard channels between different Apple IDs. |
+| [Markdown, drawing, HTML, mind maps and input diaries](https://nanomouse.2nori.com/features/workspace-diary/) | NanoMouse connects Markdown, handwritten canvases, HTML, causal diagrams, mind maps and diaries to a reusable input workspace. |
+| [Local processing, cloud AI, membership and privacy](https://nanomouse.2nori.com/features/privacy-membership/) | Local typing, local correction, iCloud sync and cloud AI are separate NanoMouse data paths. Free accounts receive seven daily cloud AI requests; paid subscribers use a subscription-period allowance. |
+| [Morse-code keyboard and text cipher tools](https://nanomouse.2nori.com/features/morse-cipher/) | NanoMouse’s telegraph keyboard enters dots and dashes for Morse conversion. A separate cipher panel encrypts or decrypts text using the chosen algorithm, parameters and passphrase. |
 
-<p align="center">
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/0_APP_DESKTOP_0.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/1_APP_DESKTOP_1.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/2_APP_DESKTOP_2.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/3_APP_DESKTOP_3.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/4_APP_DESKTOP_4.png" width="45%" />
-  <img src="assetsForGithub/appstore-mac-3.1/en-US/5_APP_DESKTOP_5.png" width="45%" />
-</p>
+## Example workflows
 
-**Core Input Schemas:**
+- **Email and replies:** Type or dictate → choose expression and structure → review rewritten or translated text → use it in the destination app.
+- **Reusable prompts and material:** Save roles, output templates, code, images or files to Byte Paste → reuse them from the keyboard.
+- **Continue across devices:** Copy on Mac → reuse on your iPhone or iPad. Different Apple IDs require a separate accepted sharing invitation.
+- **Face-to-face conversations:** Choose both languages → recognize speech → inspect and read out the translation.
+- **Organize ideas:** Save Markdown, drawing, HTML or diagram documents, and optionally organize material recorded in diary mode.
 
-- **Rime Ice (rime-ice)**
-  - Includes: Full Pinyin, Double Pinyin
-    (Flypy/Ziranma/MSPY/Sogou/Ziguang/Jiajia etc.)
-- **Japanese Romaji Easy (jaroomaji-easy)**
-  - Optimized for mobile, removes redundant rules for smoother typing
+## Platform scope
 
-**Other Built-in Schemas:**
+| Platform | Scope |
+| --- | --- |
+| iPhone / iPad | App Store main app and third-party keyboard; capabilities vary by device and OS. |
+| macOS | Companion workspace, Byte Paste, clipboard and files. System input requires a separate Squirrel / Rime installation. |
+| Windows | Weasel / Rime configuration resources in this repository, not the full iOS / Mac client. |
 
-- Terra Pinyin (terra-pinyin)
-- Japanese Romaji (jaroomaji)
-- Japanese Input (rime-japanese)
-- Stroke Input (stroke)
-- Vietnamese/Korean (Available upon request)
+## Get started
 
-Source code: `ios/` directory | [Build instructions](./ios/README.md)
+1. Install NanoMouse from the [App Store](https://apps.apple.com/app/id6757662900).
+2. Add NanoMouse in Settings → General → Keyboard → Keyboards → Add New Keyboard.
+3. Choose an input scheme in the main app and follow the guide for Full Access when required by online or shared-extension features.
+4. Switch using the globe key in apps that allow third-party keyboards.
+5. Save reusable material in the main app and open Byte Paste from the keyboard toolbar.
 
----
+Plain text can be inserted through the keyboard. Rich text, images and files depend on the receiving app; copy, preview, export or sharing may be required.
 
-### macOS — Squirrel + SCT GUI Configuration
+[Complete guide](https://nanomouse.2nori.com/guide/complete) · [Mac download](https://nanomouse.2nori.com/download) · [Support](https://nanomouse.2nori.com/support)
 
-**One-click install:** Download
-[Nanomouse-Installer.dmg](https://github.com/xjwhnxjwhn/nanomouse/releases/latest)
-and run.
+## Free, local and cloud AI
 
-**NanoMouse macOS Tool** — Manage Squirrel configuration and work with iOS Byte Paste:
+Local typing and correction do not require a NanoMouse cloud membership or cloud allowance. Free registered accounts receive seven daily cloud AI requests, resetting on Beijing time and shared across applicable tasks. Active paid subscribers use Pro access and a subscription-period allowance. On clients 3.4.7 and earlier, free-account requests after the first seven follow legacy permissions and limits; paid subscribers consistently use Pro rules.
 
-- 🎨 Native SwiftUI interface, feels right at home on macOS
-- 🔒 Non-invasive config: all changes go to `.custom.yaml`, safe across Squirrel
-  upgrades
-- ↩️ Multi-level Undo/Redo + auto-backup, experiment freely
-- ⚡ Advanced mode: search and modify any Rime config option directly
-- 🔄 Built-in Sparkle auto-updates
-- 🧩 Byte Paste window: manage text, rich text, image, PDF, file, and link cells
-- ✍️ Canvas / Markdown / Causal Diagram: share the same iCloud Drive workspace with iOS
-- 👀 Quick Look: file cells can be previewed with Space; Markdown and `.pkdrawing` use app rendering
+Models and services can change with account eligibility and configuration. Supported bring-your-own-key direct connections are billed by the provider and do not consume the NanoMouse cloud allowance. Check the account and purchase screens for current entitlement and pricing.
 
-> 💡 Squirrel not installed? The installer guides you through one-click Homebrew
-> installation
->
-> ✅ Have existing customizations? Auto-backup and smart merge, never overwrites
+## Data and privacy
 
----
+Local input, local correction, iCloud synchronization and online AI are separate features. Cross-Apple-ID clipboard channels require accepted invitations and do not automatically share every private cell. The main app handles microphone recording. Cloud AI tasks process the relevant text, images or audio through the selected service.
 
-## ⌨️ Key Mapping Quick Reference
+[Privacy Policy](./PRIVACY_EN.md) · [隐私政策](./PRIVACY.md)
 
-### Nasal Sound Simplification (ng → nn)
+## Historical source and configuration resources
 
-| Input  | Original | Example   |
-| ------ | -------- | --------- |
-| `dann` | dang     | 当 (dāng) |
-| `henn` | heng     | 恒 (héng) |
-| `dinn` | ding     | 定 (dìng) |
-| `tonn` | tong     | 同 (tóng) |
-| `nenn` | neng     | 能 (néng) |
+- [iOS](./ios/) · [macOS](./mac/) · [Windows](./windows/)
+- [Rime configurations](./configs/) · [Shared resources](./shared/) · [Resource archives](./zips/)
+- [License](./LICENSE)
 
-### Key Position Optimization (uan/uang → vn/vnn)
+Historical build instructions may differ from the current app; follow the documentation of each directory.
 
-| Input   | Original | Example     |
-| ------- | -------- | ----------- |
-| `gvn`   | guan     | 关 (guān)   |
-| `hvn`   | huan     | 换 (huàn)   |
-| `gvnn`  | guang    | 光 (guāng)  |
-| `chvnn` | chuang   | 床 (chuáng) |
+## Acknowledgements
 
-> **How it works:** `v` is already used for `ü` in Pinyin, and combinations like
-> `gv` don't exist in `guan/guang`, making `vn/vnn` conflict-free shortcuts.
-
----
-
-## 🔧 Manual Installation (Advanced)
-
-Copy config files to your Rime user directory and deploy:
-
-| Input Schema            | Config File                       |
-| ----------------------- | --------------------------------- |
-| Luna Pinyin             | `luna_pinyin_simp.custom.yaml`    |
-| Rime Ice                | `rime_ice.custom.yaml`            |
-| Double Pinyin (Ziranma) | `double_pinyin.custom.yaml`       |
-| Double Pinyin (Flypy)   | `double_pinyin_flypy.custom.yaml` |
-
-**Rime user directory:**
-
-- macOS: `~/Library/Rime/`
-- Windows: `%APPDATA%\Rime`
-
-Config example:
-
-```yaml
-# luna_pinyin_simp.custom.yaml
-patch:
-  "speller/algebra/+":
-    - derive/ng$/nn/ # ng → nn
-    - derive/uan$/vn/ # uan → vn
-    - derive/uang$/vnn/ # uang → vnn
-```
-
----
-
-## 📁 Project Structure
-
-```
-nanomouse/
-├── configs/          # Desktop Rime config files
-├── shared/           # Cross-platform shared configs
-├── ios/              # iOS Keyboard App (full Xcode project)
-├── mac/
-│   ├── gui/          # SCT Config Tool (SwiftUI App)
-├── windows/          # Windows related
-├── installers/       # macOS installer
-└── build/            # Build artifacts
-```
-
----
-
-## 🔄 Uninstall / Restore
-
-To restore original config:
-
-1. Open `~/Library/Rime/`
-2. Find `nanomouse_backup_*` folder
-3. Copy files back to `~/Library/Rime/`
-4. Deploy again
-
----
-
-## 🤝 Contributing
-
-Issues and Pull Requests welcome!
-
----
-
-## 📄 License
-
-[MIT License](./LICENSE)
-
----
-
-## 🙏 Acknowledgments
-
-- [RIME Input Method Engine](https://rime.im/) — Powerful cross-platform input
-  framework
-- [Squirrel](https://github.com/rime/squirrel) — macOS Rime frontend
-- [Weasel](https://github.com/rime/weasel) — Windows Rime frontend
-- [Hamster](https://github.com/imfuxiao/Hamster) — iOS Rime implementation
-- [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit) — iOS keyboard
-  framework
-- [Rime Ice](https://github.com/iDvel/rime-ice) — Well-maintained Pinyin
-  dictionary
-
----
-
-**Why "Nanomouse"?**
-
-- **nano** = Tiny — just a few lines of config
-- **mouse** = Following Rime's small animal naming tradition (Squirrel,
-  Hamster...)
+- [Rime](https://rime.im/)
+- [Squirrel](https://github.com/rime/squirrel) / [Weasel](https://github.com/rime/weasel)
+- [Hamster](https://github.com/imfuxiao/Hamster)
+- [KeyboardKit](https://github.com/KeyboardKit/KeyboardKit)
+- [Rime Ice](https://github.com/iDvel/rime-ice)
