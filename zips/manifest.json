@@ -167,6 +167,14 @@
       "sha256": "2a2122207f5ef8e8240f3e7e5d3828fac618ba88b98c64a55e869963826e8da0",
       "minSharedSupportVersion": "",
       "title": "根据前文选词资源"
+    },
+    {
+      "id": "japanese-chinese-v1",
+      "fileName": "japanese-chinese-v1.zip",
+      "publishedAt": "2026-11-06",
+      "sha256": "86b2ef5819a4fba04b5422b73c312389196acfe407a5ca4175de000c2c2c3625",
+      "minSharedSupportVersion": "",
+      "title": "日语读音／中文拼音混输词库"
     }
   ]
 }
