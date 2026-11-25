@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last Updated: September 25, 2026**
+**Last updated November 25, 2026** · [中文](PRIVACY.md)
 
 ## Overview
 
@@ -64,10 +64,9 @@ based on your settings:
   keyboard weather indicator, the App requests location permission and uses
   Apple Weather for weather data. Fixed-city weather does not require your
   current location.
-- **Photos and camera**: The App requests camera or photo permissions only when
+- **Photos and camera**: The App requests camera or photo permissions when
   you take a photo in Byte Paste, import images from Photos, or export images
-  to your photo library. The camera and photo library are not accessed when
-  those features are not used.
+  to your photo library. Photo selection for publishing is described below.
 - **Diary protection**: When you view diary content, the App may use Face ID or
   the device passcode for on-device authentication.
 - **Local network**: When you upload or manage input schema files through a
@@ -76,6 +75,13 @@ based on your settings:
 - **Product notifications**: The App requests notification permission only when
   you enable product notifications in the app, for product updates, important
   announcements, and service status notices.
+- **Account activity notifications**: When you have allowed notifications and
+  are signed in to a NanoMouse account, the App links the push device token
+  assigned by the system to your account on the account authority server, to
+  tell you about skin marketplace sales, review results, comments and replies,
+  and community replies. A notification may include a work title and a short
+  excerpt of a comment. The link stops being used or is deleted when you sign
+  out, turn off notifications in Settings, or delete your account.
 
 ## iCloud Sync
 
@@ -125,13 +131,15 @@ Disclosures and permission are specific to the China or overseas service region 
 
 | Data category | China region | Overseas region |
 | --- | --- | --- |
-| Text processing | Alibaba Cloud, Zhipu AI, SiliconFlow | Google |
-| Online speech recognition | Alibaba Cloud | Google, Alibaba Cloud |
+| Text processing | OpenAI, Google, Alibaba Cloud | OpenAI, Google |
+| Online speech recognition | Alibaba Cloud, SiliconFlow | OpenAI, Google, Alibaba Cloud |
 | Speech generation, reference voices, voice search | Fish Audio | Fish Audio |
+
+OpenAI processes text for GPT models. Google processes text for Gemini and Gemma models. If you have not chosen a model for a task, its default model is used. The region identifies the NanoMouse service you connect to. Processing may take place elsewhere.
 
 After a region change, a region without existing permission requires permission before content is sent. Services marked “Coming Soon” are not current recipients or included in the permission.
 
-Provider information: [Google](https://ai.google.dev/gemini-api/terms), [Alibaba Cloud](https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-international-website-privacy-policy), [Zhipu AI](https://open.bigmodel.cn/terms?view=privacy), [SiliconFlow](https://docs.siliconflow.cn/cn/legals/privacy-policy), [Fish Audio](https://fish.audio/privacy/).
+Provider information: [OpenAI](https://openai.com/policies/privacy-policy/), [Google](https://ai.google.dev/gemini-api/terms), [Alibaba Cloud](https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-international-website-privacy-policy), [SiliconFlow](https://docs.siliconflow.cn/cn/legals/privacy-policy), [Fish Audio](https://fish.audio/privacy/).
 
 **Your own API key or custom endpoint:** The app sends the corresponding content and required API key directly to the configured address. The permission screen identifies the actual destination domain. For custom proxies, verify the operator, any onward recipients, and their complete data practices. Ordinary requests using your own key do not pass through NanoMouse's AI relay.
 
@@ -141,13 +149,35 @@ NanoMouse requires third parties entrusted with user data to provide protection 
 
 Provider retention periods, legal preservation, and deletion procedures depend on the applicable terms. Before using your own key or proxy, verify that the service permits processing the content you intend to send and review its data protection practices.
 
-NanoMouse's AI relay does not archive request text, recordings, reference audio, or AI output as persistent business content. Processing uses memory or temporary request files. For authentication, quotas, troubleshooting, and abuse prevention, the service records account identifiers, request IDs, time, provider/model, status, character or token usage, latency, and cost statistics, without storing content bodies in these usage records. Routine request records are retained for 30 days by default and daily usage records for 400 days. Security, disputes, or legal obligations may require appropriate additional retention.
+Except for AI Wish conversations described below, NanoMouse's AI relay does not archive request text, recordings, reference audio, or AI output as persistent business content. Processing uses memory or temporary request files. For authentication, quotas, troubleshooting, and abuse prevention, the service records account identifiers, request IDs, time, provider/model, status, character or token usage, latency, and cost statistics, without storing content bodies in these usage records. Routine request records are retained for 30 days by default and daily usage records for 400 days. Security, disputes, or legal obligations may require appropriate additional retention.
+
+### AI Wish conversation history
+
+When you use an AI Wish screen that displays the history notice, the wish you send and recent context from that conversation are used to generate a keyboard appearance. NanoMouse’s primary account server stores newly submitted wishes that enter the generation process, the appearance changes returned by the AI, timestamps, and request status under your account and conversation. Follow-up wishes stay in the same thread. Automatic repair attempts and their replies are labeled and saved. Authorized team members can review the conversations to understand how people describe effects and how the model responds, and to improve the shared appearance glossary and its prompts. Other users cannot browse your conversations. Existing on-device conversations are not uploaded in bulk.
+
+On iOS, your device stores your wishes and each generated design. Versions displaying this notice have no conversation count limit or automatic expiration. You can delete a conversation from this device in AI Wish history. The server copy is separate and has no automatic expiration. Deleting your NanoMouse account deletes its server conversations. You can also request deletion of server records at xjwhn@qq.com.
+
+## Skin marketplace, community, and publishing from Photos
+
+- **Publishing skins.** When you submit or update a skin, NanoMouse receives its title, description, scheme files, included backgrounds and fonts, and any preview images, animations, or videos you attach. Submissions are linked to your account. After approval, others can view the listing, your public author profile and previews, and obtain the skin under the marketplace terms. To check for prohibited content, NanoMouse may send the title, description, preview or background images, or selected video frames to OpenAI for moderation. You can review the publishing terms before submitting, or cancel.
+- **Posts, replies, and comments.** NanoMouse stores the post titles, text, images, replies, and marketplace comments you submit and associates them with your account. Posts are public after review and are reviewed again after editing. Replies may appear immediately or after review. Other people can read and copy public content. NanoMouse also stores reports and block relationships to investigate complaints and filter content.
+- **Choosing media.** You choose which items from Photos to attach to a forum post, use as a marketplace preview, or use as your avatar. NanoMouse receives those items when you submit the post or skin or save your profile. Your avatar appears on your public profile.
+- **Removal and complaints.** You can delete your own forum posts or replies, withdraw a skin, report content, or block a user. Withdrawing a skin stops new acquisitions. Existing owners may still download it. For privacy or copyright complaints, contact xjwhn@qq.com and identify the listing or post.
 
 ## Accounts, purchases, and credentials
 
 Permanent clipboard-slot unlocks can be purchased and restored through the App Store without registering a NanoMouse account.
 
-NanoMouse AI accounts manage online eligibility, trials, subscription synchronization, and usage. Sign in with Apple provides an account identifier and email address, if supplied. The service stores account status, sessions, and verified subscription associations. The App Store processes payment; we do not receive payment-card information. You can delete your NanoMouse account from its account page or contact us about data requests. Account deletion does not automatically cancel an App Store subscription; manage subscriptions through Apple.
+Your account lets you sign in, manage online services and subscriptions, and publish to the marketplace or community. NanoMouse stores an account identifier, login sessions, and verified subscription associations. The information used for sign-in depends on your choice.
+
+At registration, the account server records the connection IP address to investigate automated registrations and abuse and enforce bans. Only authorized administrators can look it up. It is deleted with the account. Marketplace and community content is shown according to the mainland China or overseas region of the visiting IP address.
+
+
+- **Email.** We send a verification code to your address when you register. The server stores your address, a password hash, and a time-limited verification record.
+- **Passkeys.** The server stores a credential identifier and public key to verify sign-in signatures. Your credential manager holds the private key. NanoMouse does not receive your Face ID or fingerprint data.
+- **Apple and other sign-in providers.** You authorize the provider, and NanoMouse uses the account identifier it returns to create or link your account. Google, LINE, Microsoft, or GitHub may be available, depending on which providers are enabled. Apple or Google may also provide an email address. The sign-in provider handles your password for that service.
+
+The App Store processes in-app purchases. NanoMouse does not receive payment-card details. You can delete your NanoMouse account on its account page or contact us about a data request. To cancel an App Store subscription, use Apple’s subscription settings separately.
 
 ## Third-Party Services
 
